@@ -163,6 +163,6 @@ for (a, b), (la, lb, ie_val) in pair_labels.items():
     ci_str = f"{lo:.2f}–{hi:.2f}" if lo is not None else "n/a"
     print(f"  | {la} | {lb} | {ie_val} | <0.001 | <0.001 | {ci_str} |")
 
-with open("ffa_ie_ci.json", "w") as f:
+with open("data/ffa_ie_ci.json", "w") as f:
     json.dump(ci_results, f, indent=2)
 print("\nSaved ffa_ie_ci.json")

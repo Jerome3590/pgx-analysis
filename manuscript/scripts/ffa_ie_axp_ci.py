@@ -135,6 +135,6 @@ for (a, b) in TARGET_PAIRS:
     ci = f"{lo:.2f}–{hi:.2f}" if lo is not None else "pending"
     print(f"  | {la} | {lb} | {ie_ms} | <0.001 | <0.001 | {ci} |")
 
-with open("ffa_ie_ci.json", "w") as f:
+with open("data/ffa_ie_ci.json", "w") as f:
     json.dump(ci_results, f, indent=2)
 print("\nSaved ffa_ie_ci.json")

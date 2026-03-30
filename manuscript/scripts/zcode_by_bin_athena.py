@@ -284,6 +284,6 @@ results = {
 }
 
 merged.to_parquet("zcode_merged.parquet", index=False)
-with open("zcode_results.json", "w") as f:
+with open("data/zcode_results.json", "w") as f:
     json.dump(results, f, indent=2, default=str)
 print("\nSaved zcode_merged.parquet and zcode_results.json")

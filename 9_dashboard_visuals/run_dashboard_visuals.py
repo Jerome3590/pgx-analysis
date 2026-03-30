@@ -158,14 +158,20 @@ def main():
     bupar_outputs = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar" / "outputs"
     bupar_outputs.mkdir(parents=True, exist_ok=True)
     try:
-        from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
+        from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar, _allowed_codes_needs_regen
     except ImportError:
         write_shap_ffa_allowed_codes_for_bupar = None
+        _allowed_codes_needs_regen = None
     if write_shap_ffa_allowed_codes_for_bupar:
         for cohort_name, age_band in combinations:
             age_band_fname = age_band.replace("-", "_")
             path = bupar_outputs / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
-            if not path.exists() or path.stat().st_size == 0:
+            needs_regen = _allowed_codes_needs_regen(path) if _allowed_codes_needs_regen else (
+                not path.exists() or path.stat().st_size == 0
+            )
+            if needs_regen:
+                if path.exists():
+                    path.unlink(missing_ok=True)  # remove stale file before regen
                 if write_shap_ffa_allowed_codes_for_bupar(
                     cohort_name, age_band, path, top_n=500,
                     project_root=REPO_ROOT, data_root=data_root,

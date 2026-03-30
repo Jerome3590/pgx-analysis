@@ -313,6 +313,6 @@ print(f"  Q4 vs Q1 OR = {results['or_q4_vs_q1']} ({results['ci_lo_q4']}–{resul
 print(f"  Extreme-density High-Z OR = {results['or_ext_high_z']} ({results['ci_lo_ext']}–{results['ci_hi_ext']})")
 print(f"  Extreme-density Low-Z  OR = {results['or_ext_low_z']} ({results['ci_lo_low_z']}–{results['ci_hi_low_z']})")
 
-with open("zcode_results.json", "w") as f:
+with open("data/zcode_results.json", "w") as f:
     json.dump(results, f, indent=2)
 print("\nSaved zcode_results.json")

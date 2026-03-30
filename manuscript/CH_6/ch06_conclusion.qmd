@@ -340,6 +340,106 @@ SHAP/FFA-gated allowed codes. Regenerating conclusion-chapter figure plates from
 mechanical packaging step handled by the repository's manuscript export
 utility; the **research** content is the mapping above.
 
+**@fig-scenario** traces a single representative patient (Female, age~38;
+opioid ED cohort, 25--44 band) through each dashboard tab, showing how
+Observe $\to$ Orient $\to$ Decide $\to$ Act produces a concrete
+three-component PGx intervention: CYP2D6-guided opioid switch,
+DTW-timed physical therapy referral, and Consensus-Causal gabapentin
+taper---reducing the predicted risk from 0.87 to 0.68 (22-point reduction).
+
+![End-to-end clinical scenario illustrating the OODA workflow.
+A 38-year-old female on oxycodone, gabapentin, and alprazolam (opioid ED
+cohort, 25--44 band, density bin~\textit{high}) is processed through each
+dashboard tab. \textbf{(1) Observe:} ensemble risk score 0.87 (HIGH).
+\textbf{(2) Orient:} SHAP identifies gabapentin\_count as top feature;
+DTW assigns Chronic-Escalation archetype at month~9 (3 windows remain);
+FP-Growth flags oxycodone+gabapentin+alprazolam triple.
+\textbf{(3) Decide:} What-If counterfactuals quantify $\Delta\hat{p}$;
+CPIC lookup infers CYP2D6 Poor Metabolizer --- oxycodone not recommended.
+\textbf{(4) Act:} PGx Patient Card prescribes switch to hydromorphone,
+PT referral, and gabapentin taper; predicted post-intervention
+score~0.68.](../figures/ch06/fig_scenario.pdf){#fig-scenario
+width=100% fig-align="center"}
+
+**SNP data transforms population-level CPIC guidance into patient-specific pathway reasoning.**
+The claims-derived `pgx_num_cpic_drugs` proxy identifies this patient as a likely CYP2D6
+Poor Metabolizer from her drug-exposure pattern alone.
+When a measured genotype is available, the specific diplotype --- CYP2D6 $^{*}$4/$^{*}$4
+(rs3892097; 1846G$>$A splice-site variant) --- reveals the exact molecular mechanism:
+the $^{*}$4 allele abolishes splicing of intron~3, eliminating CYP2D6 protein expression
+entirely.
+Without any functional CYP2D6, oxycodone cannot be O-demethylated to oxymorphone
+(its 10$\times$-more-potent active metabolite), so the patient achieves inadequate
+analgesia from the prescribed opioid while accumulating parent oxycodone, increasing CNS
+and respiratory depression risk --- an effect invisible to a standard dosing protocol.
+
+A co-occurring **OPRM1 A118G** variant (rs1799971; present in $\sim$20--30% of the
+population) compounds this failure: the G allele reduces $\mu$-opioid receptor binding
+affinity for oxymorphone by $\sim$3-fold, meaning that even if trace oxymorphone were
+produced, receptor activation would be blunted.
+Together, CYP2D6 $^{*}$4/$^{*}$4 and OPRM1 A118G describe a patient for whom the
+oxycodone prescription is both pharmacokinetically and pharmacodynamically ineffective
+--- driving dose escalation that the claims record will capture as a high-frequency
+refill pattern (the exact signal ranked \#3 by SHAP in this band).
+
+The proposed switch to **hydromorphone** is further validated by **CYP3A4 $^{*}$1/$^{*}$1**
+(rs2740574; normal function): hydromorphone is metabolized primarily by UGT1A3
+glucuronidation and does not require CYP2D6, and with normal CYP3A4 activity,
+clearance is predictable at standard dosing --- no dose adjustment needed.
+If a **CYP2C9** intermediate metabolizer status is also present (rs1799853; $^{*}$1/$^{*}$2),
+NSAID alternatives carry elevated GI and renal risk, directing the non-opioid adjuvant
+choice toward acetaminophen rather than celecoxib or ibuprofen.
+
+This SNP-level pathway analysis --- proxy-inferred phenotype confirmed by diplotype,
+mapped to biological mechanism, resolved into alternative selection --- describes
+the precision layer the PGx Patient Card was designed to provide: it converts the population-level CPIC
+statement ("avoid oxycodone in CYP2D6 Poor Metabolizers") into a patient-specific
+mechanism explanation that a prescriber can communicate to the patient and document
+in the clinical encounter---the last step between population-derived risk inference
+and individual prescribing decisions.
+
+**Returned PGx data as a pharmacovigilance signal for novel effects.**
+Every PGx Patient Card generation returns a structured gene--drug--phenotype record:
+the queried drug list, the matched CPIC gene-drug pairs, the inferred phenotype
+classifications, and critically, the drug-gene combinations for which *no current
+CPIC guideline exists*.
+These "no guideline available" returns are not null results---they are
+prospective pharmacovigilance signals.
+For the patient above, the dashboard would return flags for gene-drug pairs that
+currently lack Level A/B evidence but carry emerging biological plausibility:
+
+- **ABCB1 (MDR1) rs1045642** (C3435T, P-gp efflux transporter): influences
+  blood--brain barrier penetration of oxycodone, hydromorphone, and alprazolam.
+  P-gp variant carriers show altered CNS drug exposure independent of hepatic
+  metabolism---a mechanism that CYP2D6 genotyping alone does not capture.
+  CPIC has not yet issued a Level A/B guideline for ABCB1-opioid interactions,
+  but post-market FAERS signals and emerging PGx cohort studies suggest
+  this variant modifies opioid CNS toxicity risk in CYP2D6 PM patients.
+
+- **UGT1A3 variants** (e.g., rs45581636): hydromorphone---the proposed switch
+  drug---is metabolized primarily by UGT1A3 glucuronidation, not CYP enzymes.
+  Reduced-function UGT1A3 variants would slow hydromorphone clearance,
+  potentially negating the safety advantage of the CYP2D6-bypass switch.
+  No CPIC guideline currently covers UGT1A3--hydromorphone; this is an
+  active evidence gap.
+
+- **CYP3A5 *3/*3** (rs776746): CYP3A5 contributes to alprazolam clearance
+  alongside CYP3A4; in a *1/*1 CYP3A4 + *3/*3 CYP3A5 patient,
+  benzodiazepine clearance may be slower than CYP3A4-only models predict,
+  informing the alprazolam taper rate alongside the gabapentin reduction.
+
+When these "no guideline" returns are aggregated anonymously across thousands of
+dashboard encounters, they constitute a real-world evidence base for future CPIC
+guideline development.
+A variant that returns "no guideline" in 500 encounters today may accumulate
+sufficient outcome-linked evidence within 12--24 months to support a Level C
+annotation, and within 36--48 months a prospective study to elevate it to
+Level A/B.
+The dashboard thus functions not only as a point-of-care tool but as a
+pharmacovigilance instrument: each "no guideline" return at the encounter level
+becomes a data point that, aggregated across thousands of patients, feeds back
+into the evidence base that generated the CPIC snapshot the dashboard draws on.
+
 # Integrated Findings {#sec-integrated}
 
 ## The XAI–PGx–Causal Integration
@@ -361,7 +461,8 @@ contribution of the dissertation:
    This is the operationalization of Pearl's \textit{do}-calculus
    distinction between association and intervention [@Pearl2009]:
    SHAP identifies association; FFA confirms that the association
-   corresponds to an actual decision boundary in the learned model.
+   corresponds to an actual decision boundary in the learned model
+   (**@fig-consensus**).
 3. **Temporal validation** (2016–2018 train / 2019 holdout) confirms
    that PGx signal is stable across out-of-sample years and is not an
    artifact of training-cohort genetic enrichment or temporal data leakage.
@@ -477,6 +578,21 @@ from raw administrative data to clinical decision support:
 $$\text{APCD} \to \text{Cohort} \to \text{Features (+ PGx)}
   \to \text{Ensemble} \to \text{Consensus Filter}
   \to \text{Causal Rules} \to \text{Dashboard} \to \text{Clinician}$$
+
+![Dissertation pipeline architecture. Gold Zone APCD partitions feed
+parallel DuckDB processing; Step~3b feature importance and Consensus
+Filter (SHAP $\cap$ FFA) produce causal feature sets; trained ensemble
+models are containerized in AWS Lambda; the PGx Risk Dashboard delivers
+risk scores, causal counterfactuals, and CPIC Patient Cards to
+clinicians via CloudFront CDN.](../figures/ch02/pgx_dashboard_architecture.pdf){#fig-pipeline
+width=100% fig-align="center"}
+
+![Consensus Filter: SHAP $\cap$ FFA causal feature selection mechanism
+(Chapter 2). Features must achieve SHAP importance $\geq$ 75th percentile
+(distributional confirmation) AND FFA rule support $\geq$ 0.05
+(structural Boolean confirmation) to be designated
+Consensus-Causal.](../figures/ch02/fig_consensus.pdf){#fig-consensus
+width=80% fig-align="center"}
 
 Each step was evaluated for both technical performance and clinical validity
 (leakage prevention, calibration, sparsity tolerance).

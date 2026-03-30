@@ -1,0 +1,465 @@
+{
+  "cohort": "opioid_ed",
+  "age_band": "25-44",
+  "target": "both",
+  "model_events_path": "C:\\Projects\\pgx-analysis\\4_model_data\\cohort_name=opioid_ed\\age_band=25-44\\model_events.parquet",
+  "event_date_col": "event_date",
+  "target_date_col": "first_f1120_date",
+  "model_events_columns": [
+    "age_band",
+    "cohort_name",
+    "cpt_mod_1_code",
+    "cpt_mod_2_code",
+    "drug_name",
+    "eight_icd_diagnosis_code",
+    "eight_icd_procedure_code",
+    "event_date",
+    "event_year",
+    "first_f1120_date",
+    "five_icd_diagnosis_code",
+    "five_icd_procedure_code",
+    "four_icd_diagnosis_code",
+    "four_icd_procedure_code",
+    "hcg_detail",
+    "hcg_line",
+    "hcg_setting",
+    "member_gender",
+    "member_race",
+    "mi_person_key",
+    "nine_icd_diagnosis_code",
+    "nine_icd_procedure_code",
+    "primary_icd_diagnosis_code",
+    "procedure_code",
+    "seven_icd_diagnosis_code",
+    "seven_icd_procedure_code",
+    "six_icd_diagnosis_code",
+    "six_icd_procedure_code",
+    "target",
+    "ten_icd_diagnosis_code",
+    "ten_icd_procedure_code",
+    "three_icd_diagnosis_code",
+    "three_icd_procedure_code",
+    "two_icd_diagnosis_code",
+    "two_icd_procedure_code"
+  ],
+  "target_row_counts": {
+    "0": 12044073,
+    "1": 569096
+  },
+  "drug_row_counts_by_target": [
+    {
+      "target": 0,
+      "n_drug_rows": 2744417,
+      "n_patients_with_drugs": 79167
+    },
+    {
+      "target": 1,
+      "n_drug_rows": 102054,
+      "n_patients_with_drugs": 8752
+    }
+  ],
+  "top_drugs_overall": [
+    {
+      "drug_name": "AMPHETAMINE/DEXTROAMPHETA",
+      "n": 59482
+    },
+    {
+      "drug_name": "GABAPENTIN",
+      "n": 54173
+    },
+    {
+      "drug_name": "LEVOTHYROXINE SODIUM",
+      "n": 48084
+    },
+    {
+      "drug_name": "BUPROPION HYDROCHLORIDE E",
+      "n": 41312
+    },
+    {
+      "drug_name": "ESCITALOPRAM OXALATE",
+      "n": 39452
+    },
+    {
+      "drug_name": "PREDNISONE",
+      "n": 36383
+    },
+    {
+      "drug_name": "IBUPROFEN",
+      "n": 35278
+    },
+    {
+      "drug_name": "CLONAZEPAM",
+      "n": 35165
+    },
+    {
+      "drug_name": "LISINOPRIL",
+      "n": 35031
+    },
+    {
+      "drug_name": "OMEPRAZOLE",
+      "n": 33437
+    },
+    {
+      "drug_name": "ALPRAZOLAM",
+      "n": 32899
+    },
+    {
+      "drug_name": "AZITHROMYCIN",
+      "n": 31456
+    },
+    {
+      "drug_name": "MONTELUKAST SODIUM",
+      "n": 28519
+    },
+    {
+      "drug_name": "VITAMIN D",
+      "n": 28405
+    },
+    {
+      "drug_name": "FLUCONAZOLE",
+      "n": 28116
+    },
+    {
+      "drug_name": "AMOXICILLIN",
+      "n": 27836
+    },
+    {
+      "drug_name": "SERTRALINE HCL",
+      "n": 25905
+    },
+    {
+      "drug_name": "ATORVASTATIN CALCIUM",
+      "n": 25746
+    },
+    {
+      "drug_name": "HYDROCODONE BITARTRATE/AC",
+      "n": 24868
+    },
+    {
+      "drug_name": "CYCLOBENZAPRINE HYDROCHLO",
+      "n": 24728
+    },
+    {
+      "drug_name": "OXYCODONE/ACETAMINOPHEN",
+      "n": 24596
+    },
+    {
+      "drug_name": "TRAZODONE HYDROCHLORIDE",
+      "n": 24547
+    },
+    {
+      "drug_name": "AMOXICILLIN/CLAVULANATE P",
+      "n": 23488
+    },
+    {
+      "drug_name": "AMLODIPINE BESYLATE",
+      "n": 23143
+    },
+    {
+      "drug_name": "SERTRALINE HYDROCHLORIDE",
+      "n": 22918
+    },
+    {
+      "drug_name": "METFORMIN HYDROCHLORIDE",
+      "n": 22550
+    },
+    {
+      "drug_name": "TOPIRAMATE",
+      "n": 22171
+    },
+    {
+      "drug_name": "LAMOTRIGINE",
+      "n": 21952
+    },
+    {
+      "drug_name": "PANTOPRAZOLE SODIUM",
+      "n": 21154
+    },
+    {
+      "drug_name": "CITALOPRAM HYDROBROMIDE",
+      "n": 20808
+    },
+    {
+      "drug_name": "HYDROCHLOROTHIAZIDE",
+      "n": 19701
+    },
+    {
+      "drug_name": "FLUTICASONE PROPIONATE",
+      "n": 18914
+    },
+    {
+      "drug_name": "QUETIAPINE FUMARATE",
+      "n": 18605
+    },
+    {
+      "drug_name": "ONDANSETRON ODT",
+      "n": 16461
+    },
+    {
+      "drug_name": "FLUOXETINE HYDROCHLORIDE",
+      "n": 16174
+    },
+    {
+      "drug_name": "PROAIR HFA",
+      "n": 15800
+    },
+    {
+      "drug_name": "VYVANSE",
+      "n": 15177
+    },
+    {
+      "drug_name": "LORAZEPAM",
+      "n": 15063
+    },
+    {
+      "drug_name": "CEPHALEXIN",
+      "n": 14914
+    },
+    {
+      "drug_name": "NAPROXEN",
+      "n": 14861
+    },
+    {
+      "drug_name": "METRONIDAZOLE",
+      "n": 14776
+    },
+    {
+      "drug_name": "BENZONATATE",
+      "n": 14733
+    },
+    {
+      "drug_name": "TRAMADOL HCL",
+      "n": 14238
+    },
+    {
+      "drug_name": "FLUOXETINE HCL",
+      "n": 14076
+    },
+    {
+      "drug_name": "DOXYCYCLINE HYCLATE",
+      "n": 13919
+    },
+    {
+      "drug_name": "DULOXETINE HYDROCHLORIDE",
+      "n": 13758
+    },
+    {
+      "drug_name": "MELOXICAM",
+      "n": 13705
+    },
+    {
+      "drug_name": "LOSARTAN POTASSIUM",
+      "n": 13569
+    },
+    {
+      "drug_name": "ZOLPIDEM TARTRATE",
+      "n": 13550
+    },
+    {
+      "drug_name": "ARIPIPRAZOLE",
+      "n": 13474
+    }
+  ],
+  "top_drugs_target_1": [
+    {
+      "drug_name": "GABAPENTIN",
+      "n": 17754
+    },
+    {
+      "drug_name": "CLONAZEPAM",
+      "n": 8825
+    },
+    {
+      "drug_name": "ALPRAZOLAM",
+      "n": 5984
+    },
+    {
+      "drug_name": "OMEPRAZOLE",
+      "n": 3852
+    },
+    {
+      "drug_name": "IBUPROFEN",
+      "n": 3453
+    },
+    {
+      "drug_name": "PREDNISONE",
+      "n": 2818
+    },
+    {
+      "drug_name": "LAMOTRIGINE",
+      "n": 2616
+    },
+    {
+      "drug_name": "LISINOPRIL",
+      "n": 2501
+    },
+    {
+      "drug_name": "LYRICA",
+      "n": 2223
+    },
+    {
+      "drug_name": "TOPIRAMATE",
+      "n": 2212
+    },
+    {
+      "drug_name": "MIRTAZAPINE",
+      "n": 2047
+    },
+    {
+      "drug_name": "ARIPIPRAZOLE",
+      "n": 1849
+    },
+    {
+      "drug_name": "DIAZEPAM",
+      "n": 1837
+    },
+    {
+      "drug_name": "AMOXICILLIN",
+      "n": 1737
+    },
+    {
+      "drug_name": "LORAZEPAM",
+      "n": 1644
+    },
+    {
+      "drug_name": "BACLOFEN",
+      "n": 1640
+    },
+    {
+      "drug_name": "FLUCONAZOLE",
+      "n": 1576
+    },
+    {
+      "drug_name": "AZITHROMYCIN",
+      "n": 1560
+    },
+    {
+      "drug_name": "FUROSEMIDE",
+      "n": 1509
+    },
+    {
+      "drug_name": "CEPHALEXIN",
+      "n": 1423
+    },
+    {
+      "drug_name": "MELOXICAM",
+      "n": 1397
+    },
+    {
+      "drug_name": "OLANZAPINE",
+      "n": 1226
+    },
+    {
+      "drug_name": "NAPROXEN",
+      "n": 1184
+    },
+    {
+      "drug_name": "HYDROCHLOROTHIAZIDE",
+      "n": 1175
+    },
+    {
+      "drug_name": "RISPERIDONE",
+      "n": 1024
+    },
+    {
+      "drug_name": "METHOCARBAMOL",
+      "n": 966
+    },
+    {
+      "drug_name": "METRONIDAZOLE",
+      "n": 934
+    },
+    {
+      "drug_name": "LEVETIRACETAM",
+      "n": 913
+    },
+    {
+      "drug_name": "OXYCONTIN",
+      "n": 889
+    },
+    {
+      "drug_name": "LATUDA",
+      "n": 866
+    },
+    {
+      "drug_name": "IBU",
+      "n": 743
+    },
+    {
+      "drug_name": "ATENOLOL",
+      "n": 743
+    },
+    {
+      "drug_name": "VYVANSE",
+      "n": 677
+    },
+    {
+      "drug_name": "OXCARBAZEPINE",
+      "n": 648
+    },
+    {
+      "drug_name": "SYMBICORT",
+      "n": 643
+    },
+    {
+      "drug_name": "LIDOCAINE",
+      "n": 641
+    },
+    {
+      "drug_name": "BENZONATATE",
+      "n": 607
+    },
+    {
+      "drug_name": "SIMVASTATIN",
+      "n": 572
+    },
+    {
+      "drug_name": "LORATADINE",
+      "n": 557
+    },
+    {
+      "drug_name": "LEVOFLOXACIN",
+      "n": 554
+    },
+    {
+      "drug_name": "FAMOTIDINE",
+      "n": 483
+    },
+    {
+      "drug_name": "ESTRADIOL",
+      "n": 439
+    },
+    {
+      "drug_name": "MUPIROCIN",
+      "n": 431
+    },
+    {
+      "drug_name": "CARVEDILOL",
+      "n": 407
+    },
+    {
+      "drug_name": "LINZESS",
+      "n": 400
+    },
+    {
+      "drug_name": "ACYCLOVIR",
+      "n": 363
+    },
+    {
+      "drug_name": "TEMAZEPAM",
+      "n": 352
+    },
+    {
+      "drug_name": "SPIRONOLACTONE",
+      "n": 349
+    },
+    {
+      "drug_name": "NYSTATIN",
+      "n": 343
+    },
+    {
+      "drug_name": "CEFDINIR",
+      "n": 319
+    }
+  ]
+}

@@ -1119,8 +1119,6 @@ write_csv(missing_pgx_articles, here("data/other_chapters/pgx_models", "missing_
 
 ```
 
-![Zotero](images/zotero.png)
-
 (Repeat the same PGx workflow with new search terms)
 
 ## Risk Models with Electronic Health Records (EHR)/Clinical Decision Support Tools

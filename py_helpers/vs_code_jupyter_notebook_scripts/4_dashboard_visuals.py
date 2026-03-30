@@ -143,7 +143,7 @@ FPGROWTH_WORKERS = min(_ncpu, len(combinations))
 
 # Feature importance: use Step 3b, 3a, or combined_importance. If none exist, generate combined_importance from Steps 7+8 (no need to re-run an earlier notebook).
 from py_helpers.event_density_utils import DENSITY_BINS as _CAUSAL_DENSITY_BINS
-from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar
+from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar, _allowed_codes_needs_regen
 BUPAR_OUTPUTS = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar"
 BUPAR_OUTPUTS.mkdir(parents=True, exist_ok=True)
 DASHBOARD_OUTPUTS = REPO_ROOT / "10_risk_dashboard" / "outputs"
@@ -218,9 +218,11 @@ failed = 0
 for cohort_name, age_band in combinations:
     age_band_fname = age_band.replace("-", "_")
     allowed_path = BUPAR_OUTPUTS / f"allowed_codes_shap_ffa_{cohort_name}_{age_band_fname}.json"
-    if allowed_path.exists():
+    if not _allowed_codes_needs_regen(allowed_path):
         skipped += 1
         continue
+    if allowed_path.exists():
+        allowed_path.unlink(missing_ok=True)  # remove stale file before regen
     
     step3b_dir = REPO_ROOT / "3b_feature_importance_eda" / "outputs" / cohort_name / age_band_fname
     step3b_any = any(step3b_dir.glob("*cohort_feature_importance*.csv")) if step3b_dir.exists() else False

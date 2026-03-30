@@ -1,0 +1,465 @@
+{
+  "cohort": "non_opioid_ed",
+  "age_band": "65-74",
+  "target": "both",
+  "model_events_path": "C:\\Projects\\pgx-analysis\\4_model_data\\cohort_name=non_opioid_ed\\age_band=65-74\\model_events.parquet",
+  "event_date_col": "event_date",
+  "target_date_col": "first_o11_p_date",
+  "model_events_columns": [
+    "age_band",
+    "cohort_name",
+    "cpt_mod_1_code",
+    "cpt_mod_2_code",
+    "drug_name",
+    "eight_icd_diagnosis_code",
+    "eight_icd_procedure_code",
+    "event_date",
+    "event_year",
+    "first_o11_p_date",
+    "five_icd_diagnosis_code",
+    "five_icd_procedure_code",
+    "four_icd_diagnosis_code",
+    "four_icd_procedure_code",
+    "hcg_detail",
+    "hcg_line",
+    "hcg_setting",
+    "member_gender",
+    "member_race",
+    "mi_person_key",
+    "nine_icd_diagnosis_code",
+    "nine_icd_procedure_code",
+    "primary_icd_diagnosis_code",
+    "procedure_code",
+    "seven_icd_diagnosis_code",
+    "seven_icd_procedure_code",
+    "six_icd_diagnosis_code",
+    "six_icd_procedure_code",
+    "target",
+    "ten_icd_diagnosis_code",
+    "ten_icd_procedure_code",
+    "three_icd_diagnosis_code",
+    "three_icd_procedure_code",
+    "two_icd_diagnosis_code",
+    "two_icd_procedure_code"
+  ],
+  "target_row_counts": {
+    "0": 4611617,
+    "1": 827
+  },
+  "drug_row_counts_by_target": [
+    {
+      "target": 0,
+      "n_drug_rows": 901743,
+      "n_patients_with_drugs": 8287
+    },
+    {
+      "target": 1,
+      "n_drug_rows": 827,
+      "n_patients_with_drugs": 801
+    }
+  ],
+  "top_drugs_overall": [
+    {
+      "drug_name": "ATORVASTATIN CALCIUM",
+      "n": 34450
+    },
+    {
+      "drug_name": "AMLODIPINE BESYLATE",
+      "n": 25315
+    },
+    {
+      "drug_name": "LISINOPRIL",
+      "n": 23954
+    },
+    {
+      "drug_name": "LEVOTHYROXINE SODIUM",
+      "n": 21905
+    },
+    {
+      "drug_name": "METFORMIN HYDROCHLORIDE",
+      "n": 17580
+    },
+    {
+      "drug_name": "SIMVASTATIN",
+      "n": 16607
+    },
+    {
+      "drug_name": "LOSARTAN POTASSIUM",
+      "n": 16074
+    },
+    {
+      "drug_name": "OMEPRAZOLE",
+      "n": 14509
+    },
+    {
+      "drug_name": "GABAPENTIN",
+      "n": 14187
+    },
+    {
+      "drug_name": "HYDROCHLOROTHIAZIDE",
+      "n": 13031
+    },
+    {
+      "drug_name": "METOPROLOL SUCCINATE ER",
+      "n": 12604
+    },
+    {
+      "drug_name": "FUROSEMIDE",
+      "n": 11327
+    },
+    {
+      "drug_name": "METOPROLOL TARTRATE",
+      "n": 11271
+    },
+    {
+      "drug_name": "PRAVASTATIN SODIUM",
+      "n": 10115
+    },
+    {
+      "drug_name": "PANTOPRAZOLE SODIUM",
+      "n": 9976
+    },
+    {
+      "drug_name": "PREDNISONE",
+      "n": 9631
+    },
+    {
+      "drug_name": "TAMSULOSIN HYDROCHLORIDE",
+      "n": 9194
+    },
+    {
+      "drug_name": "CARVEDILOL",
+      "n": 9186
+    },
+    {
+      "drug_name": "HYDROCODONE BITARTRATE/AC",
+      "n": 8134
+    },
+    {
+      "drug_name": "ROSUVASTATIN CALCIUM",
+      "n": 7739
+    },
+    {
+      "drug_name": "TRAMADOL HCL",
+      "n": 7577
+    },
+    {
+      "drug_name": "MONTELUKAST SODIUM",
+      "n": 7114
+    },
+    {
+      "drug_name": "CLOPIDOGREL",
+      "n": 6754
+    },
+    {
+      "drug_name": "ALPRAZOLAM",
+      "n": 6681
+    },
+    {
+      "drug_name": "ATENOLOL",
+      "n": 6394
+    },
+    {
+      "drug_name": "TRAZODONE HYDROCHLORIDE",
+      "n": 6217
+    },
+    {
+      "drug_name": "LISINOPRIL/HYDROCHLOROTHI",
+      "n": 6194
+    },
+    {
+      "drug_name": "FLUTICASONE PROPIONATE",
+      "n": 6158
+    },
+    {
+      "drug_name": "MELOXICAM",
+      "n": 6110
+    },
+    {
+      "drug_name": "METFORMIN HYDROCHLORIDE E",
+      "n": 6108
+    },
+    {
+      "drug_name": "LOSARTAN POTASSIUM/HYDROC",
+      "n": 6010
+    },
+    {
+      "drug_name": "ALLOPURINOL",
+      "n": 5557
+    },
+    {
+      "drug_name": "ESCITALOPRAM OXALATE",
+      "n": 5534
+    },
+    {
+      "drug_name": "AZITHROMYCIN",
+      "n": 5358
+    },
+    {
+      "drug_name": "POTASSIUM CHLORIDE ER",
+      "n": 5279
+    },
+    {
+      "drug_name": "OXYCODONE/ACETAMINOPHEN",
+      "n": 5247
+    },
+    {
+      "drug_name": "AMOXICILLIN",
+      "n": 5188
+    },
+    {
+      "drug_name": "LATANOPROST",
+      "n": 5067
+    },
+    {
+      "drug_name": "GLIMEPIRIDE",
+      "n": 5036
+    },
+    {
+      "drug_name": "ZOLPIDEM TARTRATE",
+      "n": 4981
+    },
+    {
+      "drug_name": "BUPROPION HYDROCHLORIDE E",
+      "n": 4896
+    },
+    {
+      "drug_name": "LORAZEPAM",
+      "n": 4594
+    },
+    {
+      "drug_name": "ELIQUIS",
+      "n": 4585
+    },
+    {
+      "drug_name": "CITALOPRAM HYDROBROMIDE",
+      "n": 4250
+    },
+    {
+      "drug_name": "WARFARIN SODIUM",
+      "n": 4121
+    },
+    {
+      "drug_name": "SYNTHROID",
+      "n": 4051
+    },
+    {
+      "drug_name": "VENTOLIN HFA",
+      "n": 3958
+    },
+    {
+      "drug_name": "CLONAZEPAM",
+      "n": 3908
+    },
+    {
+      "drug_name": "OXYCODONE HYDROCHLORIDE",
+      "n": 3806
+    },
+    {
+      "drug_name": "XARELTO",
+      "n": 3759
+    }
+  ],
+  "top_drugs_target_1": [
+    {
+      "drug_name": "AMOXICILLIN",
+      "n": 70
+    },
+    {
+      "drug_name": "AZITHROMYCIN",
+      "n": 54
+    },
+    {
+      "drug_name": "LISINOPRIL",
+      "n": 49
+    },
+    {
+      "drug_name": "SIMVASTATIN",
+      "n": 40
+    },
+    {
+      "drug_name": "HYDROCHLOROTHIAZIDE",
+      "n": 39
+    },
+    {
+      "drug_name": "PREDNISONE",
+      "n": 33
+    },
+    {
+      "drug_name": "CEPHALEXIN",
+      "n": 30
+    },
+    {
+      "drug_name": "SHINGRIX",
+      "n": 29
+    },
+    {
+      "drug_name": "MELOXICAM",
+      "n": 25
+    },
+    {
+      "drug_name": "IBUPROFEN",
+      "n": 19
+    },
+    {
+      "drug_name": "ALPRAZOLAM",
+      "n": 17
+    },
+    {
+      "drug_name": "OMEPRAZOLE",
+      "n": 15
+    },
+    {
+      "drug_name": "BOOSTRIX",
+      "n": 14
+    },
+    {
+      "drug_name": "LATANOPROST",
+      "n": 13
+    },
+    {
+      "drug_name": "ATENOLOL",
+      "n": 13
+    },
+    {
+      "drug_name": "METRONIDAZOLE",
+      "n": 13
+    },
+    {
+      "drug_name": "ERYTHROMYCIN",
+      "n": 13
+    },
+    {
+      "drug_name": "OFLOXACIN",
+      "n": 12
+    },
+    {
+      "drug_name": "SYNTHROID",
+      "n": 11
+    },
+    {
+      "drug_name": "LORAZEPAM",
+      "n": 10
+    },
+    {
+      "drug_name": "FUROSEMIDE",
+      "n": 10
+    },
+    {
+      "drug_name": "NAPROXEN",
+      "n": 10
+    },
+    {
+      "drug_name": "LEVOFLOXACIN",
+      "n": 9
+    },
+    {
+      "drug_name": "GABAPENTIN",
+      "n": 8
+    },
+    {
+      "drug_name": "CARVEDILOL",
+      "n": 8
+    },
+    {
+      "drug_name": "LOVASTATIN",
+      "n": 8
+    },
+    {
+      "drug_name": "KETOCONAZOLE",
+      "n": 8
+    },
+    {
+      "drug_name": "FINASTERIDE",
+      "n": 7
+    },
+    {
+      "drug_name": "ZOSTAVAX",
+      "n": 7
+    },
+    {
+      "drug_name": "ESTRADIOL",
+      "n": 7
+    },
+    {
+      "drug_name": "CLOPIDOGREL",
+      "n": 7
+    },
+    {
+      "drug_name": "CEFDINIR",
+      "n": 7
+    },
+    {
+      "drug_name": "FLUOCINONIDE",
+      "n": 7
+    },
+    {
+      "drug_name": "ACYCLOVIR",
+      "n": 6
+    },
+    {
+      "drug_name": "XARELTO",
+      "n": 6
+    },
+    {
+      "drug_name": "BENZONATATE",
+      "n": 6
+    },
+    {
+      "drug_name": "CELECOXIB",
+      "n": 6
+    },
+    {
+      "drug_name": "FLUOROURACIL",
+      "n": 5
+    },
+    {
+      "drug_name": "VALSARTAN",
+      "n": 5
+    },
+    {
+      "drug_name": "ALLOPURINOL",
+      "n": 5
+    },
+    {
+      "drug_name": "CIALIS",
+      "n": 5
+    },
+    {
+      "drug_name": "COLCHICINE",
+      "n": 5
+    },
+    {
+      "drug_name": "FLUCONAZOLE",
+      "n": 4
+    },
+    {
+      "drug_name": "BYSTOLIC",
+      "n": 4
+    },
+    {
+      "drug_name": "RAMIPRIL",
+      "n": 4
+    },
+    {
+      "drug_name": "NYSTATIN",
+      "n": 4
+    },
+    {
+      "drug_name": "MUPIROCIN",
+      "n": 4
+    },
+    {
+      "drug_name": "PREMARIN",
+      "n": 4
+    },
+    {
+      "drug_name": "CRESTOR",
+      "n": 4
+    },
+    {
+      "drug_name": "RISPERIDONE",
+      "n": 4
+    }
+  ]
+}

@@ -1,11 +1,66 @@
-# Dissertation Manuscript Build System
+# Writing & Content — Manuscript Reference
 
-**R. Jerome Dixon** · dixonrj@vcu.edu · [ORCID 0000-0001-8622-0597](https://orcid.org/0000-0001-8622-0597)  
+**R. Jerome Dixon** · dixonrj@vcu.edu · [ORCID 0000-0001-8622-0597](https://orcid.org/0000-0001-8622-0597)
 Virginia Commonwealth University · PhD Health Related Sciences (Translational Health Research)
+**Defense:** 1 June 2026 (planned) · **Dept:** Pharmacotherapy & Outcomes Science, School of Pharmacy
 
-> For full dissertation outline, journal rationale, figure/data checklists, and submission guidelines  
-> see **[DISSERTATION.md](DISSERTATION.md)**  
-> For train-trip writing schedule → **[WRITING_PLAN.md](WRITING_PLAN.md)**
+> **Three reference files** — keep these as the single source of truth:
+> - **README.md** (this file) — writing status, build, checklists, lessons learned
+> - **[FIGURES.md](FIGURES.md)** — figure inventory, generation scripts, post-retrain figure checklist
+> - **[METRICS.md](METRICS.md)** — cohort counts, model performance, placeholder tracker, S3 sources
+
+---
+
+## Committee
+
+| Role | Name | Email |
+|:-----|:-----|:------|
+| Chair | Elvin T. Price, Pharm.D., Ph.D., FAHA | etprice@vcu.edu |
+| Member | Tamas Gal, Ph.D. | tsgal@vcu.edu |
+| Member | Lukasz Kurgan, Ph.D. | lkurgan@vcu.edu |
+| Member | Dayanjan Wijesinghe, Ph.D. | wijesingheds@vcu.edu |
+| Member | Jonathan DeShazo, Ph.D. | jonathandeshazo@gmail.com |
+
+---
+
+## Chapter → Journal Map
+
+| # | File | Journal | Template | Output PDF |
+|:--|:-----|:--------|:---------|:-----------|
+| 1 | `CH_1/ch01_bmic.qmd` | *Journal of Personalized Medicine* (MDPI) | `bmic_jpm_template.tex` | `ch01_bmic_jpm.pdf` |
+| 2 | `CH_2/ch02_psp.qmd` | *CPT: Pharmacometrics & Systems Pharmacology* (Wiley) | `wiley-njd-pdf` | `ch02_psp.pdf` |
+| 3 | `CH_3/ch03_cts.qmd` | *Clinical and Translational Science* (Wiley) | `wiley-njd-pdf` | `ch03_cts.pdf` |
+| 4 | `CH_4/ch04_psp.qmd` | *CPT: Pharmacometrics & Systems Pharmacology* (Wiley) | `wiley-njd-pdf` | `ch04_psp.pdf` |
+| 5 | `CH_5/ch05_bmic.qmd` | *Journal of Personalized Medicine* (MDPI) | `bmic_jpm_template.tex` | `ch05_bmic_jpm.pdf` |
+| 6 | `CH_6/ch06_conclusion.qmd` | *(dissertation only)* | plain article | `ch06_conclusion.pdf` |
+
+**IRB:** HM20022300 (non-human-subjects waiver) applied to CH_3, CH_4.
+**PROSPERO:** CRD420261354089 (awaiting publication) — CH_1.
+
+---
+
+## Build Commands
+
+```powershell
+# Windows
+.\build.ps1                    # all chapters → output/
+.\build.ps1 -Chapter 1         # single chapter PDF
+.\build.ps1 -Docx              # all chapters → edits/ (.docx for advisor)
+.\build.ps1 -Docx -Chapter 2   # single chapter .docx
+.\build.ps1 -Draft             # plain article (no journal template)
+.\build.ps1 -Clean             # remove output/ and edits/
+
+# Post-retrain: regenerate figures then rebuild
+python manuscript/generate_figures.py
+.\build.ps1
+```
+
+```bash
+# Linux / macOS
+make all | make ch01 | make docx | make docx-ch01 | make clean
+```
+
+> Always use `.\build.ps1` — never `quarto render --to pdf` directly (TEXINPUTS/BSTINPUTS not set).
 
 ---
 
@@ -13,36 +68,26 @@ Virginia Commonwealth University · PhD Health Related Sciences (Translational H
 
 ```mermaid
 flowchart TD
-    subgraph Write["✏️ Write"]
-        QMD1["CH_1 · CH_5\nch0X_bmic.qmd"]
-        QMD2["CH_2 · CH_3 · CH_4\nch0X_psp/cts.qmd"]
-        QMD6["CH_6\nch06_conclusion.qmd"]
+    subgraph Write["Write"]
+        QMD1["CH_1 · CH_5 · ch0X_bmic.qmd"]
+        QMD2["CH_2 · CH_3 · CH_4 · ch0X_psp/cts.qmd"]
+        QMD6["CH_6 · ch06_conclusion.qmd"]
     end
-
-    subgraph Prep["🔧 Prepare"]
-        FIG["Generate figures\n.pdf preferred · .png @ 300 DPI"]
-        BIB["Populate .bib files\nrefs/bmic-jpm.bib · cpt-psp.bib · cts.bib"]
-        PH["Replace placeholders\n[N=XX] · [IRB] · [AUROC] · figures"]
+    subgraph Prep["Prepare"]
+        FIG["Generate figures (.pdf / .png 300 DPI)"]
+        BIB["Populate .bib files"]
+        PH["Replace placeholders [N=XX] [AUROC]"]
     end
-
-    subgraph Build["⚙️ Build  (.\build.ps1 or make all)"]
-        MDPI["XeLaTeX + mdpi.cls\nbmic_jpm_template.tex\nTEXINPUTS + BSTINPUTS set by script"]
-        Wiley["XeLaTeX + WileyNJDv5.cls\nwiley-njd-pdf extension\nno TEXINPUTS override needed"]
-        Plain["XeLaTeX\narticle class"]
+    subgraph Build["Build  (.\build.ps1 or make all)"]
+        MDPI["XeLaTeX + mdpi.cls"]
+        Wiley["XeLaTeX + WileyNJDv5.cls"]
+        Plain["XeLaTeX article class"]
     end
-
-    subgraph Out["📄 Output  (output/)"]
-        O1["ch01_bmic_jpm.pdf\nch05_bmic_jpm.pdf"]
-        O2["ch02_psp.pdf\nch03_cts.pdf\nch04_psp.pdf"]
+    subgraph Out["Output (output/)"]
+        O1["ch01_bmic_jpm.pdf · ch05_bmic_jpm.pdf"]
+        O2["ch02_psp.pdf · ch03_cts.pdf · ch04_psp.pdf"]
         O6["ch06_conclusion.pdf"]
     end
-
-    subgraph Submit["🚀 Submit"]
-        CHECK["Pre-submission check\nsee checklist below"]
-        MDPI_S["MDPI Editorial Manager\nJournal of Personalized Medicine"]
-        Wiley_S["Wiley ScholarOne\nCPT:PSP · CTS"]
-    end
-
     QMD1 --> MDPI
     QMD2 --> Wiley
     QMD6 --> Plain
@@ -50,455 +95,138 @@ flowchart TD
     MDPI --> O1
     Wiley --> O2
     Plain --> O6
-    O1 & O2 --> CHECK
-    CHECK --> MDPI_S & Wiley_S
 ```
 
 ---
-
-## Quick Build (Windows)
-
-```powershell
-.\build.ps1                    # all chapters → output/ (journal PDFs)
-.\build.ps1 -Chapter 1         # single chapter PDF
-.\build.ps1 -Docx              # all chapters → edits/ (Word .docx for advisor)
-.\build.ps1 -Docx -Chapter 2   # single chapter .docx
-.\build.ps1 -Draft             # plain article, no journal template
-.\build.ps1 -Clean             # remove output/ PDFs and edits/ .docx files
-```
-
-## Quick Build (Linux / macOS)
-
-```bash
-make all          # all chapters → output/
-make ch01         # single chapter PDF
-make docx         # all chapters → edits/ (Word .docx for advisor)
-make docx-ch01    # single chapter .docx
-make clean
-```
-
-> `build.ps1` and `Makefile` automatically set both `TEXINPUTS` (xelatex finds
-> `templates/Definitions/mdpi.cls`) and `BSTINPUTS` (bibtex finds `mdpi.bst`).
 
 ## Advisor Review Workflow
 
 ```mermaid
 flowchart LR
-    QMD[".qmd\n(draft content)"] -->|".\build.ps1 -Docx"| DOCX["edits/\nch0X_*_draft.docx"]
-    DOCX -->|"Share via email\nor Google Drive"| ADV["Advisor edits\nin Word / Google Docs"]
-    ADV -->|"Incorporate tracked changes\nback into .qmd"| QMD
-    QMD -->|".\build.ps1"| PDF["output/\nch0X_*.pdf\n(journal submission)"]
-```
-
-`.docx` files in `edits/` are Google Docs-compatible — upload directly to Drive
-for advisor comments. Tracked changes get incorporated manually back into the
-`.qmd` source.
-
----
-
-## Prerequisites
-
-| Tool | Install |
-|:---|:---|
-| Quarto CLI | https://quarto.org/docs/get-started/ |
-| TinyTeX | `quarto install tinytex` |
-| MDPI cls | ✅ bundled — `templates/Definitions/mdpi.cls` |
-| Wiley NJD cls | ✅ bundled — `_extensions/ramiromagno/wiley-njd/` |
-
----
-
-## Chapter → Output Map
-
-| Ch | QMD | Journal | Template | Output PDF |
-|:--|:---|:--------|:---------|:-----------|
-| 1 | `CH_1/ch01_bmic.qmd` | MDPI JPM | `bmic_jpm_template.tex` | `ch01_bmic_jpm.pdf` |
-| 2 | `CH_2/ch02_psp.qmd` | CPT:PSP (Wiley) | `wiley-njd-pdf` | `ch02_psp.pdf` |
-| 3 | `CH_3/ch03_cts.qmd` | CTS (Wiley) | `wiley-njd-pdf` | `ch03_cts.pdf` |
-| 4 | `CH_4/ch04_psp.qmd` | CPT:PSP (Wiley) | `wiley-njd-pdf` | `ch04_psp.pdf` |
-| 5 | `CH_5/ch05_bmic.qmd` | MDPI JPM | `bmic_jpm_template.tex` | `ch05_bmic_jpm.pdf` |
-| 6 | `CH_6/ch06_conclusion.qmd` | dissertation only | plain article | `ch06_conclusion.pdf` |
-
----
-
-## Figures
-
-| Type | Format | How |
-|:-----|:-------|:----|
-| Plots, diagrams, flowcharts | **PDF** | `plt.savefig('fig.pdf')` / `ggsave(device='pdf')` |
-| Dashboard screenshots, UI | **PNG ≥ 300 DPI** | `plt.savefig('fig.png', dpi=300)` |
-| Never use | JPEG | Lossy — fails journal QC |
-
-Place figures in `figures/chXX/fig_name.pdf`. Reference as `../figures/chXX/fig_name.pdf`.
-
----
-
-## OODA Loop Diagram (`fig-ontology`) — Replication & Design Rules
-
-**Source:** `CH_1/ch01_bmic.qmd` — single `{tikz}` chunk labelled `fig-ontology`  
-**Renders to:** PNG (HTML, via `magick` + `pdftools`) · native vector PDF (LaTeX/XeLaTeX)
-
----
-
-### R / LaTeX Prerequisites
-
-| Requirement | Install |
-|:---|:---|
-| `engine: knitr` in YAML frontmatter | Required — prevents Quarto from defaulting to Jupyter for `{tikz}` chunks |
-| TinyTeX package `standalone` | Auto-installed on first render by `tlmgr` |
-| R package `magick` | `install.packages('magick', lib='C:/r_library')` |
-| R package `pdftools` | `install.packages('pdftools', lib='C:/r_library')` |
-| TikZ libraries | Loaded inside chunk: `shapes.geometric, arrows.meta, positioning, calc, backgrounds, fit` |
-
-### Render Commands
-
-```powershell
-# HTML preview (PNG output via magick)
-quarto render CH_1/ch01_bmic.qmd --to html
-
-# PDF (native vector — no extra packages needed beyond TinyTeX)
-quarto render CH_1/ch01_bmic.qmd --to pdf
+    QMD[".qmd (draft)"] -->|".\build.ps1 -Docx"| DOCX["edits/ · ch0X_*_draft.docx"]
+    DOCX -->|"Share via email / Google Drive"| ADV["Advisor edits in Word"]
+    ADV -->|"Incorporate tracked changes back into .qmd"| QMD
+    QMD -->|".\build.ps1"| PDF["output/ · ch0X_*.pdf"]
 ```
 
 ---
 
-### Chunk Header Rules
+## Writing Status — ALL CHAPTERS COMPLETE ✅
 
-```
-{tikz}
-%| label: fig-ontology       ← uses % not # (LaTeX comment char)
-%| fig-cap: "..."
-%| fig-align: center
-%| out-width: 50%             ← portrait figure; 50% prevents HTML scroll
-%| echo: false
-```
+All train-trip sessions (HAR→WAS Mar 24; RGH→CLE Mar 26–27; CLE→WAS Mar 29, 2026) complete.
 
-- **Never use `#|`** in a `{tikz}` chunk — LaTeX uses `%` as its comment character.
-- `out-width: 50%` is calibrated for the current portrait aspect ratio (~8 cm wide × 16 cm tall). If the diagram is made wider, increase toward `65–70%` to avoid a shrunken image. If taller, decrease to keep scroll-free.
-
----
-
-### Diagram Structure
-
-The diagram has **4 stacked phases** (top → bottom) with a shared horizontal center at **x = 3.5 cm**.
-
-| Phase | Color | Nodes | y range (approx) |
-|:------|:------|:------|:-----------------|
-| **(1) OBSERVE** — Training 2016–2018 | blue `#dbeafe` | APCD · FAERS · RQ · Aggregated Observations (ellipse) | 19–22 |
-| **(2) ORIENT** | green `#dcfce7` | Target Definition · Feature Importance · BupaR · DTW · FP-Growth | 14–19 |
-| **(3) DECIDE** | yellow `#fef9c3` | Final GBT · SHAP · FFA · Combined SHAP/FFA (diamond) | 9–13 |
-| **(4) ACT** — Test 2019 | pink `#fce7f3` | RQ1\|RQ2 Risk Dashboard · Feedback to APCD (ellipse) | 5–8 |
-
-#### Phase Background Boxes
-
-Drawn with `\begin{scope}[on background layer]` using the TikZ `fit` library. Each box auto-sizes around its contained nodes via `fit=(NODE1)(NODE2)...`. The phase label is positioned `[yshift=3pt]above` the bounding box.
-
-**Minimum inter-phase gap rule:** Keep at least **2.5 units** between the center y-coordinate of the lowest node in one phase and the highest node in the next. This ensures the phase label has ~0.7 cm clearance above the next phase's content.
+| Ch | Writing | Sections still needing expansion | Retrain dep. |
+|:---|:-------:|:---------------------------------|:------------:|
+| 1 SQLR | ✅ | Methods detail (+~2,100 words) | No |
+| 2 Architecture | ✅ | Results & Discussion (+~2,300 words) | No |
+| 3 Opioid ED | ✅ | Results (+~2,500 words) | Partial |
+| 4 Polypharmacy | ✅ | Results (+~2,600 words) | Partial |
+| 5 Dashboard | ✅ | Architecture & Discussion (+~3,300 words) | Partial |
+| 6 Conclusion | ✅ | Chapter summaries & Integration (+~2,500 words) | No |
 
 ---
 
-### Node Style Rules
+## Word Count / Section Expansion Tracker
 
-```latex
-% All three styles share minimum width=2.4cm, minimum height=0.72cm
-block     = rectangle, rounded corners=2pt          ← standard pipeline step
-synthnode = ellipse                                  ← synthesis / feedback terminal
-combnode  = diamond, aspect=2.8                      ← convergence point (COMB only)
-```
+### Expand now — no retrain needed
 
-- **Font:** `\footnotesize` globally via `every node/.style`.
-- **Phase label font:** `\small\bfseries` via `phlbl` style.
-- All nodes share `minimum width=2.4cm` — **do not give individual nodes a different width** unless intentional; mismatched widths break the uniform column alignment.
+| Ch | Section | Words | Target | Priority |
+|:---|:--------|------:|-------:|:---------|
+| 1 | Protocol/Registration, Eligibility, Study Selection | 29–130 | 100–300 | High |
+| 1 | Data Extraction, Quality Assessment, Evidence Synthesis | 40–130 | 100–300 | High |
+| 1 | Operational Performance Metrics, Limitations | 40–147 | 200–300 | High |
+| 2 | Study Objectives, Data Source, Cohort Construction | 34–131 | 200–500 | High |
+| 2 | Ensemble Modeling, Discussion | 54–139 | 200–500 | High |
+| 3 | Study Design, Cohort Construction, Ensemble section | 45–119 | 200–350 | High |
+| 3 | Methods (features, trajectory), Discussion | 61–113 | 200–350 | High |
+| 4 | Study Design, Cohort, FFA methods, Statistics section | 31–143 | 200–400 | High |
+| 4 | Discussion (FFA calculator, Z-code interpretation) | 47–98 | 200–400 | High |
+| 5 | Design Philosophy, Hybrid Deployment, CI/CD Pipeline | 46–176 | 250–450 | High |
+| 5 | Partition-First Routing, Discussion | 78–157 | 250–450 | High |
+| 6 | Overview, Chapter summaries (x5), Propositions | 70–109 | 200–400 | High |
+| 6 | XAI–PGx Integration, Common Methodology | 83–105 | 200–400 | High |
 
----
+### Expand after retrain
 
-### ORIENT Layout — Two-Column with Tee-Split
-
-```
-OBS (x=3.5, y=20.0)
- │  |-   down then left
- └──────────────► TGT.east   ← enters TGT from RIGHT side (not top)
-
-Left spine (x=1.5):
-  TGT  (y=17.5)
-   ↓  straight down
-  FI   (y=16.0)
-   │── stem ──► fi_branch (x=3.9, y=16.0)
-                     │  vertical splitter
-              fi_top (3.9, 17.5) ──────────► BPAR.west
-              fi_mid (3.9, 16.0) ──────────► DTW.west
-              fi_bot (3.9, 14.5) ──────────► FPG.west
-```
-
-**Tee-split implementation** (requires `calc` library — already loaded):
-
-```latex
-\coordinate (fi_branch) at ($(FI.east)+(1.2,0)$);
-\coordinate (fi_top)    at (fi_branch |- BPAR.west);
-\coordinate (fi_mid)    at (fi_branch |- DTW.west);
-\coordinate (fi_bot)    at (fi_branch |- FPG.west);
-\draw    (FI.east)  -- (fi_branch);   % stem — no arrowhead
-\draw    (fi_top)   -- (fi_bot);      % vertical splitter — no arrowhead
-\draw[->] (fi_top)  -- (BPAR.west);  % branch arrows only
-\draw[->] (fi_mid)  -- (DTW.west);
-\draw[->] (fi_bot)  -- (FPG.west);
-```
-
-**Key rules:**
-- `(A |- B)` = coordinate with x from A, y from B (calc library intersection syntax)
-- Arrowheads go **only on the three branch lines** — not on the stem or splitter
-- Adjust `+(1.2,0)` offset to move the split point closer/further from FI
-- `OBS → TGT` uses **`|- (TGT.east)`** (enters right side) — do NOT use `TGT.north` (top)
-
-**Phase label shifts — ORIENT and DECIDE:**
-
-| Phase | `xshift` | Reason |
-|:------|:---------|:-------|
-| **(2) ORIENT** | `-1.8cm` | Fit box center x≈3.75 lands on the tee-split splitter at x=3.9 |
-| **(3) DECIDE** | `+1.5cm` | Centers label over the FFA side, away from the GBT tee-split at x=3.5 |
-| **(4) ACT** | `-1.2cm` | Mirrors ORIENT; keeps label over left side of the narrow ACT box |
-
-```latex
-% ORIENT
-label={[phlbl, green!55!black,  xshift=-1.8cm, yshift=3pt]above:\textbf{(2) ORIENT}}
-% DECIDE
-label={[phlbl, orange!80!black, xshift=+1.5cm, yshift=3pt]above:\textbf{(3) DECIDE} \textendash\ Test 2019}
-% ACT
-label={[phlbl, red!65!black,    xshift=-1.2cm, yshift=3pt]above:\textbf{(4) ACT}}
-```
-
----
-
-### DECIDE Layout — Vertical Tee + Elbow Convergence
-
-```
-FI.south
- │  |-  down then right
- └────────────────────► GBT.west   ← enters GBT from LEFT side (not top)
-
-GBT (x=3.5, y=12.0)
- │  stem (no arrowhead)
- └──► gbt_branch (x=3.5, y=11.15)
-      ├──────────────────────────────┤  horizontal splitter
-      ↓                              ↓
-   SHAP.north (x=1.5, y=10.66)   FFA.north (x=5.5, y=10.66)
-   SHAP (y=10.3)                 FFA (y=10.3)
-      │                              │
-      │  |-  down then right         │  |-  down then left
-      └──────────► COMB.west         └◄─────── COMB.east
-                  COMB (x=3.5, y=9.0)  ← diamond
-                      │
-                      │  straight down
-                      ▼
-                   DASH (x=3.5, y=6.5)
-```
-
-**Vertical tee-split for GBT → SHAP/FFA:**
-
-```latex
-\coordinate (gbt_branch) at ($(GBT.south)+(0,-0.49)$);
-\coordinate (gbt_left)   at (gbt_branch -| SHAP.north);
-\coordinate (gbt_right)  at (gbt_branch -| FFA.north);
-\draw    (GBT.south)   -- (gbt_branch);  % stem — no arrowhead
-\draw    (gbt_left)    -- (gbt_right);   % horizontal splitter — no arrowhead
-\draw[->] (gbt_left)  -- (SHAP.north);  % branch arrows only
-\draw[->] (gbt_right) -- (FFA.north);
-```
-
-**Key rules:**
-- `(A -| B)` = coordinate with x from B, y from A (calc library)
-- FI enters GBT from **`.west`** via `(FI.south) |- (GBT.west)` — not `.north`
-- SHAP/FFA enter COMB from sides: `(SHAP.south) |- (COMB.west)` and `(FFA.south) |- (COMB.east)`
-- COMB → DASH is **`--`** straight vertical (both share x=3.5)
-
-**Phase label content:**
-- **(3) DECIDE** carries `\textendash\ Test 2019` — SHAP/FFA computed on test cohort
-- **(4) ACT** has no year suffix
-
-**ACT padding rule:** The ACT box uses `inner sep=20pt` (vs 8pt default for all other phases). DASH/FB node positions are y=6.1 / y=4.8 — calibrated so the DECIDE→ACT box-to-box gap matches the ~1.22-unit gap used between all other adjacent phase boxes (OBSERVE→ORIENT, ORIENT→DECIDE). Do not change `inner sep` or node y without recomputing this gap.
-
-**Gap calculation reference:**
-- OBSERVE→ORIENT gap: OBS.south(19.64) − TGT.north(17.86) − 2×8pt(0.56) = **1.22 units**
-- ORIENT→DECIDE gap: FPG.south(14.14) − GBT.north(12.36) − 2×8pt(0.56) = **1.22 units**
-- DECIDE→ACT gap: COMB.south(8.64) − 8pt(0.28) − [DASH.north(6.46) + 20pt(0.71)] = **1.19 units** ≈ matched
-
----
-
-### Adding or Removing Nodes
-
-1. **Add a node** — place it with `\node[block, fill=<phase-color>] at (x, y) (ID) {Label};`
-2. **Add an edge** — `\draw[->] (FROM) -- (TO);` or use `-|` / `|-` for right-angle routing
-3. **Update the `fit=` list** for the phase box — include the new node ID so the bounding box expands
-4. **Check inter-phase gap** — ensure the new node doesn't reduce clearance below 2.5 units from the adjacent phase
-5. **Re-render** — `quarto render CH_1/ch01_bmic.qmd --to html` to preview
-
-### Removing Nodes
-
-1. Delete the `\node[...]` line
-2. Delete all `\draw[->]` lines referencing that node ID (both `from` and `to`)
-3. Remove the node ID from its phase `fit=(...)` list
-4. Re-render and verify the phase box still fits correctly
-
----
-
-### Diagram Accuracy Rules
-
-The diagram reflects the **actual pipeline execution order** verified against:
-
-| Code file | Rule enforced |
-|:----------|:-------------|
-| `4_model_data/create_model_data.py` | Step 3b (Feature Importance) must run **before** Step 4a; FP-Growth/BupaR/DTW use Step 3b filtered features |
-| `py_helpers/shap_ffa_fpgrowth_utils.py` | Allowed codes for BupaR/DTW/FP-Growth come **exclusively** from Step 3b `cohort_feature_importance` — no fallbacks |
-| `7_shap_analysis/run_shap_analysis.py` | SHAP loads Step 6 final model outputs — SHAP is **downstream** of Final GBT, not parallel |
-
-**Forbidden edges** (structurally incorrect — do not re-add):
-- `BPAR → Final GBT` — BupaR is a downstream visualization, not a model input
-- `DTW → Final GBT` — same
-- `FP-Growth → Final GBT` — same
-
-**Required edge:**
-- `Feature Importance (Step 3b) → Final GBT (Step 6)` — FI-filtered features are the input to Step 6 training
+| Ch | Section | Dependency |
+|:---|:--------|:-----------|
+| 3 | Cohort Characteristics, Consensus-Causal Features (SHAP), Trajectory cluster N | `shap_top_features.json`, `dtw_manuscript_summary.json` |
+| 4 | DDI pair/triplet counts, IE/IR score tables | `ffa_ie_ci.json` (EC2 local) |
+| 5 | Performance Benchmarks | CloudWatch post-deploy |
+| 6 | Performance Summary table | post-retrain metrics |
 
 ---
 
 ## Pre-Submission Checklist
 
-Before sending any chapter PDF to a journal:
+### CH_1 & CH_5 — MDPI Journal of Personalized Medicine
 
-- [ ] All `[PLACEHOLDER]` values replaced (cohort N, IRB, PROSPERO, metrics, funding)
-- [ ] All `../figures/chXX/fig_*.pdf` are real generated figures (not placeholders)
-- [ ] Abstract word count within journal limit (MDPI JPM ≤ 200; CPT:PSP ≤ 250; CTS ≤ 250)
-- [ ] Keywords 5–8 terms, semicolon-separated
+- [ ] Abstract: structured Background/Methods/Results/Conclusions, ≤ 200 words (labels count)
+- [ ] Keywords: 5–8 terms, semicolon-separated
+- [ ] Word limit: 8,000 (CH_1 review) / 7,000 (CH_5 article), excl. references/supplementary
+- [ ] Figures: ≤ 8 (CH_1) / ≤ 7 (CH_5); PDF/EPS ≥ 300 DPI
+- [ ] CRediT author contributions statement (`R.J.D.` and co-author initials) present
+- [ ] Data availability statement present (VHI DUA language)
+- [ ] Ethics / IRB: "Not applicable" (CH_1); HM20022300 (CH_5 if needed)
+- [ ] ORCID 0000-0001-8622-0597 verified in submission system
+- [ ] `\bibliography{../refs/discipline,../refs/bmic-jpm}` present in template
+- [ ] Cover letter drafted for precision medicine + CDS readership
+
+### CH_2 & CH_4 — CPT:PSP (Wiley)
+
+- [ ] Abstract: unstructured, ≤ 250 words
+- [ ] Keywords: 5 terms, semicolon-separated
+- [ ] Word limit: 5,000 (excl. abstract, references, legends)
+- [ ] Figures: ≤ 5; TIFF/EPS 300 DPI
+- [ ] Reference style: AMA numbered superscript; `wileyNJD-AMA.bst` active
+- [ ] Article type: "Research Article"
+- [ ] Data availability + code availability statements
+- [ ] Conflict of interest + funding statement
+- [ ] CRediT author contributions
+
+### CH_3 — CTS (Wiley)
+
+- [ ] Abstract: structured, ≤ 250 words
+- [ ] Keywords: 3–6 terms
+- [ ] Word limit: 4,000 (excl. abstract, references)
+- [ ] Figures: ≤ 5 — CH_3 currently has 7; consolidate or move 2 to supplementary (see FIGURES.md)
+- [ ] TRIPOD reporting checklist in supplement
+- [ ] Ethics statement / VCHI DUA statement present; IRB waiver HM20022300 cited
+- [ ] Lay summary (1–2 sentences) recommended
+
+### All Chapters
+
+- [ ] All `[PLACEHOLDER]` tokens replaced — verify: `Select-String -Path CH_*/ch*.qmd -Pattern '\['`
+- [ ] All `../figures/chXX/fig_*.pdf` are real generated files (not stubs)
 - [ ] Abbreviations section complete
-- [ ] References formatted and `.bib` entries verified
-- [ ] `keep-tex: false` set (or confirm `.tex` intermediate is not submitted)
-- [ ] Author ORCID `0000-0001-8622-0597` present
-- [ ] IRB waiver statement in Methods
-- [ ] Data availability statement added
-- [ ] Cover letter drafted (see [DISSERTATION.md](DISSERTATION.md))
+- [ ] No `[?]` citations in compiled PDF (check `.blg` for bibtex warnings)
+- [ ] `keep-tex: false` or `.tex` intermediate not included in submission package
 
 ---
 
-## Template Patches
+## Data Availability Statement
 
-Applied fixes to journal templates and supporting files. Record every patch here
-so future Quarto/TinyTeX upgrades can be verified and re-applied as needed.
+> The data supporting the findings of this dissertation are derived from Virginia's All-Payer Claims Database
+> (APCD) under a data use agreement with the Virginia Center for Health Innovation (VCHI) and Virginia Health
+> Information (VHI). These data are not publicly available. Data access requests: **https://www.vhi.org**
+> Analysis code: **https://github.com/Jerome3590/pgx-analysis**
 
----
-
-### MDPI — Journal of Personalized Medicine (`templates/bmic_jpm_template.tex`)
-
-**Affects:** `CH_1/ch01_bmic.qmd`, `CH_5/ch05_bmic.qmd`
-
-| # | File | Location | Fix | Symptom without fix |
-|:--|:-----|:---------|:----|:--------------------|
-| 1 | `bmic_jpm_template.tex` | comment lines | Escape bare `$TEXINPUTS` / `$env:` with `$$` | Pandoc treats shell variable syntax as template variables → render error |
-| 2 | `bmic_jpm_template.tex` | superscripts | Replace `$^{n}$` with `\textsuperscript{n}` | LaTeX math-mode error in non-math context |
-| 3 | `bmic_jpm_template.tex` | before `$header-includes$` | Add `\let\listoflistings\relax` | Undefined control sequence on render |
-| 4 | `bmic_jpm_template.tex` | preamble | Add `\makeatletter\def\@datepublished{}\makeatother` | `mdpi.cls` line 649 omits initializer → undefined command |
-| 5 | `bmic_jpm_template.tex` | preamble | Add `\providecommand{\history}[1]{}` | Undefined `\history` command |
-| 6 | `bmic_jpm_template.tex` | body (not preamble) | `\abbreviations{Abbreviations}{content}` — 2 args, placed in body | cls expects 2-arg form; placement in preamble fails |
-| 7 | `bmic_jpm_template.tex` | metadata variables | Set `\pubvolume{1}` / `\issuenum{1}` / `\articlenumber{1}` as integers | String values `"x"/"xx"` cause cls arithmetic error |
-| 8 | `bmic_jpm_template.tex` | — | Removed `$if(natbib)$\bibliographystyle...\bibliography...$endif$` block | Duplicate `\bibstyle` error when mdpi.cls also calls `\bibliographystyle` |
-| 9 | `bmic_jpm_template.tex` | line 133 (comment) | Escaped `$body$` → `$$body$$` in `%%` comment **(2026-03-27)** | Pandoc substitutes `$body$` everywhere including in comments → full body rendered twice → "Too many }'s" LaTeX error + body duplication in `.tex` |
-| 10 | `bmic_jpm_template.tex` | before `\end{document}` | Added `\bibliography{../refs/discipline,../refs/bmic-jpm}` **(2026-03-28)** | Bibtex had no `\bibdata` directive → "I found no \\bibdata command" → **all** citations rendered as `[?]` |
-
-**YAML reserved field renames** (required to avoid cls conflicts):
-
-| Standard Pandoc field | Renamed to in CH_1 / CH_5 |
-|:----------------------|:--------------------------|
-| `journal:` | `target-journal:` |
-| `abbreviations:` | `manuscript-abbreviations:` |
-| `articletype:` | `target-articletype:` |
-| `biblio-style:` | **removed** — `mdpi.cls` calls `\bibliographystyle{mdpi}` internally |
+- **Applied to:** CH_2, CH_3, CH_4, CH_6 (identical statement in each Data Availability section)
+- **CH_1:** Extracted SQLR dataset available as Supplementary File S5; no APCD data used.
+- **CH_5:** Synthetic inputs only — source code at https://github.com/Jerome3590/pgx-analysis
 
 ---
 
-### MDPI — `templates/Definitions/mdpi.cls`
+## Literature Search & Zotero Workflow
 
-| # | Location | Fix | Symptom without fix |
-|:--|:---------|:----|:--------------------|
-| 1 | Lines 396 / 399 / 402 | Removed `Definitions/` path prefix from `\bibliographystyle{}` calls | bibtex cannot find `mdpi.bst` when run from `CH_X/` directory |
+CH_1 systematic review pipeline:
 
----
+1. **PubMed automated search** — `CH_1/Literature_Review/lit_review.qmd` (rentrez) → per-topic CSVs in `data/`
+2. **Gap-fill** — `find_missing_articles()` → `missing_pgx_articles.csv` → manual Zotero import
+3. **Bulk import** — `CH_1/Literature_Review/scripts/import_to_zotero.py` → Zotero Web API
 
-### Wiley CPT:PSP · CTS (`templates/cpt_psp_template.tex`, `templates/cts_template.tex`)
-
-**Affects:** `CH_2`, `CH_4` (CPT:PSP), `CH_3` (CTS)
-
-| # | Fix | Symptom without fix |
-|:--|:----|:--------------------|
-| 1 | Use `WileyNJDv5` class (not `WileyNJD-v2`) | Class not found |
-| 2 | Quarto native `$by-author$` / `$by-affiliation$` author format | Author block empty |
-| 3 | `\usepackage{calc}` | `\real{}` undefined in Pandoc longtable column widths |
-| 4 | `\usepackage{longtable,booktabs,array}` | Pandoc-generated tables fail to compile |
-| 5 | longtable 2-column patch in `cpt_psp_template.tex` only | Longtable overflows 2-column `STIX2COL` layout |
-| 6 | `\tightlist` shim before `$header-includes$` | Undefined `\tightlist` |
-| 7 | `\let\listoflistings\relax` before `$header-includes$` | Undefined control sequence |
-| 8 | No `$if(natbib)$\bibliographystyle...\bibliography...$endif$` block | Duplicate `\bibstyle` |
-| 9 | `abbreviations-note` variable (Wiley footnote style) | Abbreviations section missing |
-| 10 | Format variables: `article-type`, `journal`, `volume`, `issue`, `pages`, `year` | Blank journal header fields |
-
----
-
-### Wiley — `_extensions/ramiromagno/wiley-njd/wiley-njd-v5/WileyNJDv5.cls`
-
-| # | Fix | Symptom without fix |
-|:--|:----|:--------------------|
-| 1 | `\ifdefined\reserveinserts\reserveinserts{28}\fi` | Float register overflow |
-| 2 | Comment out `\usepackage[english]{babel}` | Babel conflicts with XeLaTeX font loading |
-| 3 | Uncomment `\RequirePackage{longtable}` | Longtable undefined |
-| 4 | Add `\tightlist` to `partials/pandoc.tex` | Undefined `\tightlist` in Pandoc list output |
-
----
-
-### Bibliography Files (`refs/`)
-
-- Filenames must use **hyphens, not underscores** — LaTeX escapes `_` in `.aux` files breaking bibtex lookup.
-- Canonical files: `discipline.bib`, `bmic-jpm.bib`, `cpt-psp.bib`, `cts.bib`
-- Missing entries added **(2026-03-28):** `Kapoor2023` (Kapoor & Narayanan, *Patterns* 2023), `NIH2022` (NIH AI Strategic Plan) → `refs/bmic-jpm.bib`
-
----
-
-## Lessons Learned
-
-Chronological log of non-obvious decisions and fixes. Update this section after each working session.
-
----
-
-### 2026-03-28
-
-#### TikZ OODA Diagram
-
-- **`engine: knitr` is mandatory** in the Quarto frontmatter for `{tikz}` chunks. Without it, Quarto defaults to Jupyter and fails with a `yaml` module import error.
-- **Use `%|` not `#|`** for chunk options inside `{tikz}` blocks — LaTeX uses `%` as its comment character; `#|` is silently ignored, causing chunk options (label, out-width, echo) to have no effect.
-- **`out-width: 50%`** is the correct setting for a portrait TikZ figure to avoid an HTML horizontal scrollbar. For landscape figures, `width=100%` fills the column cleanly.
-- **Phase label `xshift`** must be tuned per-phase to avoid landing on tee-split arrows. Final values: ORIENT `−1.8cm`, DECIDE `+0.8cm`, ACT `−1.2cm`. Adjust whenever the fit-box center shifts.
-- **Tee-split pattern** (horizontal or vertical): draw stem and splitter without arrowheads; arrowheads go on branch lines only. Requires `calc` library. Use `(A |- B)` for x-from-A/y-from-B, `(A -| B)` for x-from-B/y-from-A.
-- **Arrow entry anchor matters:** `OBS → TGT` must enter `TGT.east` (right side), not `.north` (top), to avoid crossing the left-spine arrow. `FI → GBT` must enter `GBT.west` (left side) via `(FI.south) |- (GBT.west)`.
-- **`inner sep=20pt`** on the ACT phase box is the primary mechanism creating visual separation from DECIDE. Do not reduce it without recomputing the DECIDE→ACT gap (target: ~1.22 units, matching all other inter-phase gaps).
-- **Source node padding:** APCD/FAERS/RQ moved from y=21.0 to y=21.5 to give the incoming L-elbow arrows breathing room into the OBS ellipse (edge gap: 0.28 → 0.78 units).
-- **DECIDE label text:** carries `\textendash\ Test 2019` because SHAP/FFA are computed on the 2019 test cohort. ACT label has no year suffix.
-
-#### Abstract
-
-- **MDPI JPM word limit is ≤ 200 words** — structured section labels (Background, Methods, Results, Conclusions) count toward the total. Trim primarily from the Methods sentence (API source lists are detail-level content better placed in the body).
-- **Body intro opening sentence** need not be unique from the abstract opening — some overlap is standard journal practice. The body must add substantial new context (OODA framing, CRISP-DM, RQ definitions) that isn't in the abstract.
-- **Remove duplicate `> Note:` blockquotes** if the same content already appears in a nearby paragraph — they add visual weight without informational value.
-
-#### Title
-
-- **"Opioid and Polypharmacy Risk Prediction"** is the correct umbrella for both RQs. Retains the high-value "opioid" keyword for PubMed indexing while explicitly naming the polypharmacy scope (RQ2). "Drug Risk Prediction" alone is too broad and loses indexing specificity.
-- **PROSPERO title** was registered as the old title — update the PROSPERO record if/when the registration is published and the new title is confirmed.
-
-#### Build System
-
-- **Always use `.\build.ps1 -Chapter X`** for PDF output — never `quarto render --to pdf` directly. The build script sets `TEXINPUTS` and `BSTINPUTS` so xelatex can find `Definitions/mdpi.cls` and `mdpi.bst`. Direct `quarto render --to pdf` fails with `File 'Definitions/mdpi.cls' not found`.
-- **`pdfcrop.exe` MiKTeX update nag** is non-fatal — it appears in stderr but does not block PDF generation. Run MiKTeX update console to silence it.
-
-#### Figures
-
-- **Portrait TikZ diagrams:** set `out-width: 50%` in chunk options — prevents HTML horizontal scrollbar.
-- **Landscape PDF figures** (`![](){width=100%}` syntax): use `width=100%` for full column fill with no scroll container.
+Full instructions: `CH_1/Literature_Review/scripts/README_ZOTERO_IMPORT.md`
+Credentials: User ID `6037399`, collection `LS75EWXU`, API key in local env — do **not** commit.
 
 ---
 
@@ -506,321 +234,137 @@ Chronological log of non-obvious decisions and fixes. Update this section after 
 
 | Field | Value |
 |:------|:------|
-| **Registration ID** | CRD420261354089 |
-| **Status** | New record awaiting publication *(2026-03-28)* |
+| **ID** | CRD420261354089 |
+| **Status** | New record awaiting publication (2026-03-28) |
 | **URL** | https://www.crd.york.ac.uk/prospero/display_record.php?ID=CRD420261354089 |
-| **Title** | Bridging Explainable Artificial Intelligence and Pharmacogenomics for Opioid Risk Prediction: A Systematic Quantitative Literature Review |
-| **Registered** | 28 March 2026 |
+| **Title** | Bridging Explainable AI and Pharmacogenomics for Opioid Risk Prediction: A Systematic Quantitative Literature Review |
 
 ---
 
-## Data Availability
-
-The data supporting the findings of this dissertation are derived from
-Virginia's All-Payer Claims Database (APCD). Restrictions apply to the
-availability of these data, which were used under a data use agreement
-with the Virginia Center for Health Innovation (VCHI) and Virginia Health
-Information (VHI).
-
-- **Data access requests:** https://www.vhi.org
-- **Analysis code:** https://github.com/Jerome3590/pgx-analysis
-- **DUA holder:** Virginia Center for Health Innovation (VCHI)
-
-**Applied to:** CH_2, CH_3, CH_4, CH_6 — identical statement in each Data
-Availability section **(2026-03-28)**
-
-**CH_1** (systematic review): extracted dataset available as Supplementary
-File S5; no APCD data used.
-
-**CH_5** (dashboard/system evaluation): synthetic inputs only; no primary
-patient data — source code at https://github.com/Jerome3590/pgx-analysis.
-
----
-
-## Remaining Placeholders
-
-Audited **(2026-03-28)**. All `[PLACEHOLDER]` tokens remaining in QMD source files.
-
----
-
-### Requires Author Input
-
-| Chapter | File | Placeholder | Value needed |
-|:--------|:-----|:-----------|:-------------|
-| CH_1 | `ch01_bmic.qmd` | `[CRD-XXXXXX]` | ~~Resolved — see below~~ |
-| All | all QMDs | `[Funding statement]` | Grant / funding acknowledgment text |
-| CH_5 | `ch05_bmic.qmd` | `[https://github.com/[repo]]` | Public GitHub repository URL |
-| CH_5 | `ch05_bmic.qmd` | `[version/date]` | CPIC guidelines snapshot release date used in dashboard |
-| CH_6 | `ch06_conclusion.qmd` | `[Chair]`, `[Member 1–3]` | ~~Resolved — see below~~ |
-| CH_6 | `ch06_conclusion.qmd` | `[Month Year]` | Dissertation defense date |
-
-**Resolved:**
-- `[IRB-XXXX]` → **HM20022300** applied to CH_3, CH_4 **(2026-03-28)**
-- `[Funding statement]` → **"This research received no external funding."** applied to all chapters **(2026-03-28)**
-- `[https://github.com/[repo]]` → **https://github.com/Jerome3590/pgx-analysis** applied to CH_2, CH_5 **(2026-03-28)**
-- `[version/date]` → **March 2026** (CPIC guidelines snapshot, access date) applied to CH_5 **(2026-03-28)**
-- `[Month Year]` → **1 June 2026 (planned)** applied to CH_6 **(2026-03-28)**
-- Data Availability → **https://www.vhi.org** canonical statement added to CH_2, CH_3, CH_4, CH_6 **(2026-03-28)**
-- `[CRD-XXXXXX]` → **CRD420261354089** applied to CH_1 **(2026-03-28)** *(awaiting PROSPERO publication — update if ID format changes)*
-- `[Chair]`, `[Member 1–3]` → **Committee applied to CH_6 (2026-03-28)**:
-  - Elvin T. Price, Pharm.D., Ph.D., FAHA (Chair) · etprice@vcu.edu
-  - Tamas Gal, Ph.D. · tsgal@vcu.edu
-  - Lukasz Kurgan, Ph.D. · lkurgan@vcu.edu
-  - Dayanjan Wijesinghe, Ph.D. · wijesingheds@vcu.edu
-  - Jonathan DeShazo, Ph.D. · jonathandeshazo@gmail.com
-
----
-
-### Requires Pipeline / Model Results
-
-#### Cohort Counts — CH_2, CH_3, CH_4, CH_6
-
-| Cohort | Age Bands | Chapters | Placeholder |
-|:-------|:----------|:---------|:-----------|
-| Opioid ED cases + controls | 13–24, 25–44, 45–54, 55–64 | CH_2, CH_3, CH_6 | `[N = XX,XXX]` |
-| Polypharmacy (non-opioid) ED cases + controls | 65–74, 75–84, 85–94 | CH_2, CH_4, CH_6 | `[N = XX,XXX]` |
-| Trajectory cluster sizes (Rapid-Onset / Chronic-Escalation) | — | CH_3, CH_6 | `[XX,XXX]` / `[XX%]` |
-
-#### Model Performance Metrics — CH_2, CH_3, CH_4, CH_6
-
-All `[0.XX]` cells in performance tables (AUROC, PR-AUC, Brier score, ICI, LogLoss) for every age-band × cohort combination on the 2019 temporal holdout.
-
-| Cohort | Age Bands | Chapters |
-|:-------|:----------|:---------|
-| Opioid ED | 13–24, 25–44, 45–54, 55–64 | CH_2, CH_3, CH_6 |
-| Polypharmacy ED | 65–74, 75–84, 85–94 | CH_2, CH_4, CH_6 |
-
-#### Feature Attribution Results — CH_2, CH_3, CH_4
-
-| Placeholder | Description | Chapter |
-|:-----------|:------------|:--------|
-| `[XX]` Consensus-Causal features | Count of features passing SHAP ≥ 75th pct AND FFA support ≥ 0.05 | CH_2, CH_3, CH_4 |
-| `[Drug A]`, `[Drug B]`, `[ICD code group]`, `[key PGx score]` | Top-ranked Consensus-Causal feature names from SHAP/FFA | CH_3 |
-| `[XX]` synergistic pairs / `[XX]` high-risk triplets | FFA multi-drug interaction counts exceeding additive threshold | CH_4 |
-| `[Drug A + Drug B]` / `[Drug C + Drug D]` with IR scores | Top synergistic polypharmacy combinations | CH_4 |
-| OR = `[0.XX]` (95% CI `[0.XX–0.XX]`) | Z-code managed-polypharmacy odds ratio | CH_4 |
-
-#### Lambda Performance Benchmarks — CH_5, CH_6
-
-| Metric | Placeholder | Target |
-|:-------|:-----------|:-------|
-| Cold-start latency | `[XXX]` ms (SD `[XX]` ms) | < 500 ms |
-| Warm inference latency | `[XX]` ms (SD `[X]` ms) | < 100 ms |
-| PGx card generation | `[XXX]` ms (SD `[XX]` ms) | < 2,000 ms |
-| Frontend page load | `[XXX]` ms (SD `[XX]` ms) | < 2,000 ms |
-| Container image pull | `[XX]` s (SD `[X]` s) | < 30 s |
-| CPIC concordance | `[XX.X]`% across `[XX]` test cases | — |
-| Sensitivity Δp̂ (sparse input) | < `[0.XX]` at ≤ 70% missingness | — |
-
----
-
-## S3 Data Sources
-
-Audited **2026-03-29**. Canonical paths used to retrieve values that populate manuscript placeholders.
-Scripts that query these paths live in `manuscript/scripts/`.
-
----
-
-### Bucket: `pgxdatalake`  *(primary model outputs)*
-
-#### Cohort training data (patient-level, cases + controls, 2016–2018)
+## Repository Structure
 
 ```
-gold/cohorts/cohort_name={cohort}/event_year={year}/age_band={age_band}/cohort.parquet
-```
-- One row per **claim event** (not per patient); `is_target_case` = 1/0 distinguishes cases from controls.
-- `target` = 1 for all rows (parquet stores cases only; controls are implicit via `is_target_case`).
-- Years present: 2016, 2017, 2018 (training); 2019 (temporal holdout).
-- Cohorts: `opioid_ed`, `non_opioid_ed`.
-- Age bands: `0-12`, `13-24`, `25-44`, `45-54`, `55-64`, `65-74`, `75-84`, `85-114`.
-
-**Note:** Use the `5_pgx_analysis_log` (see `pgx-repository` below) for definitive patient counts —
-do NOT count rows in this parquet (it is claim-level, not patient-level).
-
-#### Final model training CSVs (patient-level feature matrix)
-
-```
-gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_snake}_train_final_features_no_leakage.csv
-```
-- One row per patient; columns: `mi_person_key`, `target` (0/1), `n_events`, `n_event_bin`, binary drug/ICD features.
-- Used by `scripts/count_cases_s3select.py` (S3 Select COUNT) to derive per-band case/control counts.
-- File sizes: 7 MB (non_opioid_ed/85-114) → 325 MB (non_opioid_ed/13-24).
-
-#### Model selection metadata (MCCV 25-run summary per bin × cohort × age_band)
-
-```
-gold/final_model/{cohort}/{age_band}/bin_models/{bin}/
-  {cohort}_{age_band_snake}_model_selection_metadata.json   ← selected model + best params
-  {cohort}_{age_band_snake}_model_metrics_summary.csv       ← recall, PR-AUC, AUROC, LogLoss, n_runs, selected
-  {cohort}_{age_band_snake}_mc_cv_results.csv               ← per-split × per-model metrics
-```
-Bins: `low`, `medium`, `high`, `extreme` (event-density strata).
-
-**Values used in manuscript** (from `bin_models/low/`, selected model, 25-run MCCV mean):
-
-| Cohort | Age Band | Selected Model | AUROC | PR-AUC | LogLoss |
-|:-------|:---------|:---------------|------:|-------:|--------:|
-| opioid_ed | 13–24 | CatBoost | 0.937 | 0.835 | 0.252 |
-| opioid_ed | 25–44 | Ensemble | 0.961 | 0.889 | 0.207 |
-| opioid_ed | 45–54 | Ensemble | 0.960 | 0.896 | 0.209 |
-| opioid_ed | 55–64 | Ensemble | 0.966 | 0.916 | 0.213 |
-| non_opioid_ed | 65–74 | CatBoost | 0.996 | 0.984 | 0.064 |
-| non_opioid_ed | 75–84 | Ensemble | 0.999 | 0.997 | 0.043 |
-| non_opioid_ed | 85–114 | Ensemble | 0.997 | 0.991 | 0.081 |
-
-#### SHAP outputs
-
-```
-gold/shap_analysis/{cohort}/{age_band}/
-  {cohort}_{age_band_snake}_shap_global_importance_{model}.csv
-  {cohort}_{age_band_snake}_shap_sample_values_{model}.parquet
-```
-Models: `xgboost`, `catboost`. Required for Consensus Filter feature counts (still pending).
-
-#### PGx features
-
-```
-gold/pgx_features/{cohort}/{age_band}/pgx_features_{cohort}_{age_band_snake}.csv
-gold/pgx_features/{cohort}/{age_band}/pgx_added_features_{cohort}_{age_band_snake}.csv
-```
-Columns: `mi_person_key`, `pgx_num_drugs`, `pgx_num_cpic_drugs`.
-
-#### Dashboard metadata — top features per cohort × band
-
-```
-gold/dashboard/metadata/metadata_{cohort}.json
-```
-- Keys: `cohort`, `age_bands` (list of band names), `codes` (dict keyed by age band)
-- Each `codes[band]` has `drugs`, `icds`, `cpts` lists with `display`, `importance` (0–1 normalized), `feature_name` fields
-- **Used for:** top-N drug/ICD/CPT names by band — confirmed source for CH_3, CH_4 feature names
-
-**Top drugs by band (from dashboard metadata):**
-
-| Cohort | Band | #1 Drug | #2 Drug | #3 Drug |
-|:-------|:-----|:--------|:--------|:--------|
-| opioid_ed | 13–24 | Buprenorphine-Naloxone | Gabapentin | Naltrexone |
-| opioid_ed | 25–44 | Buprenorphine-Naloxone | Gabapentin | Quetiapine |
-| opioid_ed | 45–54 | Buprenorphine-Naloxone | Clonidine | Gabapentin |
-| opioid_ed | 55–64 | Buprenorphine-Naloxone | Oxycodone HCl | Gabapentin |
-| non_opioid_ed | 65–74 | Gabapentin | Fluzone HD | Gavilyte-C |
-| non_opioid_ed | 75–84 | Losartan | Pravastatin | Furosemide |
-| non_opioid_ed | 85–114 | Amlodipine | Furosemide | Potassium Chloride ER |
-
-#### Consensus-Causal feature lists (SHAP ∩ FFA allowed codes)
-
-```
-gold/bupar/allowed_codes/allowed_codes_shap_ffa_{cohort}_{age_band_snake}.json
-```
-- JSON array of code strings (CPT, ICD-10, drug names) passing both SHAP ≥ 75th pct AND FFA support ≥ 0.05
-- **Authoritative source for Consensus-Causal feature counts**
-
-**Confirmed counts (from `scripts/get_consensus_counts.py`):**
-
-| Cohort | Band | Consensus-Causal Features |
-|:-------|:-----|-------------------------:|
-| opioid_ed | 13–24 | 384 |
-| opioid_ed | 25–44 | 498 |
-| opioid_ed | 45–54 | 498 |
-| opioid_ed | 55–64 | 498 |
-| non_opioid_ed | 65–74 | 89 |
-| non_opioid_ed | 75–84 | 33 |
-| non_opioid_ed | 85–114 | 29 |
-
-#### FP-Growth outputs
-
-```
-gold/fpgrowth/cohort/drug_name/cohort_name={cohort}/age_band={age_band}/
-```
-Cohorts also include `opioid_ed_extreme_density`. Used for drug co-occurrence networks (visualization only).
-
----
-
-### Bucket: `pgx-repository`  *(pipeline logs, checkpoints, code snapshots)*
-
-#### Definitive patient counts — `5_pgx_analysis_log`
-
-```
-5_pgx_analysis_log/{cohort}/{age_band}/pgx_{cohort}_{age_band_snake}.log
-```
-Logs `"Created 2 PGx features for {N} patients"` — **N = total patients (cases + controls)**
-for that cohort × age_band in the training set.  This is the **authoritative source** for cohort size.
-
-**Confirmed counts (training set 2016–2018):**
-
-| Cohort | Age Band | Total Patients | Cases | Controls |
-|:-------|:---------|---------------:|------:|---------:|
-| opioid_ed | 13–24 | 13,710 | 1,630 | 12,080 |
-| opioid_ed | 25–44 | 107,388 | 12,753 | 94,635 |
-| opioid_ed | 45–54 | 43,639 | 5,984 | 37,655 |
-| opioid_ed | 55–64 | 42,613 | 6,343 | 36,270 |
-| opioid_ed | 65–74 | 31,607 | — | — |
-| opioid_ed | 75–84 | 11,941 | — | — |
-| opioid_ed | 85–114 | 3,163 | — | — |
-| non_opioid_ed | 13–24 | 160,337 | — | — |
-| non_opioid_ed | 25–44 | 118,534 | — | — |
-| non_opioid_ed | 45–54 | 46,075 | — | — |
-| non_opioid_ed | 55–64 | 34,511 | — | — |
-| non_opioid_ed | 65–74 | 11,571 | 801 | 10,770 |
-| non_opioid_ed | 75–84 | 3,193 | 213 | 2,980 |
-| non_opioid_ed | 85–114 | 2,523 | 168 | 2,355 |
-
-*Cases/controls blank = out of scope for manuscript cohort descriptions.*  
-*Grand totals used in manuscript: opioid_ed (13–64) 26,710 cases / 180,640 controls;
-non_opioid_ed (65–114) 1,182 cases / 16,105 controls.*
-
-#### Pipeline checkpoints
-
-```
-pipeline_checkpoints/{step}/{cohort}/{age_band_snake}/checkpoint.json
-```
-Steps present: `6_final_model`, `7_shap_analysis`, `9_dashboard_metadata`, `9_dashboard_models`,
-`9_dashboard_visuals`. Checkpoints record step completion status and output S3 paths — they do **not**
-contain cohort counts or model metrics.
-
-#### Step logs (per cohort × age_band, most recent first)
-
-| Step prefix | Content |
-|:------------|:--------|
-| `4_model_data_log/` | Parquet write confirmation for `model_events.parquet` (no counts) |
-| `5_pgx_analysis_log/` | **Patient counts**, PGx feature creation, DuckDB aggregation details |
-| `6_final_model_log/` | Model training runtime, bin training durations, S3 upload confirmation |
-| `7_shap_analysis_log/` | SHAP n_background, n_eval per bin; no cohort size data |
-| `8_ffa_analysis_log/` | FFA rules processing log — writes `ffa_causal_factors.csv` to **local EC2 disk only** (not S3). Drug pairs + triplets + IR scores not retrievable from this log. |
-| `9_cohort_pgx_log/` | PGx network topology (genes, drugs, DDI, CPIC); most recent 2026-03-28 |
-| `9_dtw_log/` | DTW trajectory logs — **FAILED 2026-03-29** with `ERROR: Model data has no target date column (first_f1120_date / first_opioid_ed_date not found)`. Produces placeholder artifacts only; cluster sizes unavailable. |
-| `9_fpgrowth_log/` | FP-Growth visualization logs; most recent 2026-03-28 |
-
-**FFA outputs blocked:** `ffa_causal_factors.csv`, `axp_explanations.parquet`, `feature_importance_axp.parquet`
-are written to `/home/pgx3874/pgx-analysis/8_ffa_analysis/outputs/{cohort}/{band}/bin_models/{bin}/`
-on the EC2 and **never uploaded to S3**. To fill CH_4 DDI table (drug pairs, triplets, IR scores),
-these files must be manually copied to S3 or the FFA step must be extended to upload outputs.
-
-#### Code snapshots
-
-```
-pgx-repository/pgx-analysis/          ← pipeline code snapshots
-pgx-repository/pgx-datasets/          ← model results, ffa, fpgrowth, cohort analysis outputs
-pgx-repository/pgx-datasets/model_results/ffa/   ← FFA visualization PNGs (AXP cattail, feature importance)
+pgx-analysis/
+├── 1a_apcd_input_data/      APCD text → Parquet
+├── 1b_apcd_event_filter/    ICD/admin event filtering
+├── 2_create_cohort/         cohort construction
+├── 3a_feature_importance/   MC-CV feature screening
+├── 4_model_data/            model-ready features
+├── 5_pgx_analysis/          PGx CPIC enrichment
+├── 6_final_model/           CatBoost/XGBoost per-bin training
+├── 7_shap_analysis/         SHAP global/local
+├── 8_ffa_analysis/          FFA Boolean rules
+├── 9_dashboard_visuals/     BupaR, DTW, FP-Growth
+├── 10_risk_dashboard/       Lambda, Docker, S3 deploy
+├── py_helpers/              event_density_utils.py, etc.
+└── manuscript/              ← THIS DIRECTORY
+    ├── CH_1/ … CH_6/        QMD source files
+    ├── templates/           bmic_jpm_template.tex, cpt_psp_template.tex, cts_template.tex
+    ├── _extensions/ramiromagno/wiley-njd/
+    ├── refs/                discipline.bib, bmic-jpm.bib, cpt-psp.bib, cts.bib
+    ├── figures/ch01/ … ch06/
+    ├── output/              compiled PDFs
+    ├── scripts/             extract_visual_manuscript.py, compute_brier_ici.py, etc.
+    ├── _quarto.yml
+    ├── build.ps1            Windows build
+    └── Makefile             Linux/macOS build
 ```
 
 ---
 
-### CloudWatch — Lambda latency
+## Key Design Decisions
 
-**Log group:** `/aws/lambda/pgx-risk-calculator`
+| Decision | Rationale |
+|:---------|:----------|
+| Partition-First Architecture | Linear scalability across age-band × year strata for parallel DuckDB workers |
+| S3 checkpoints per partition | Fault-tolerant; enables mid-run resume without reprocessing |
+| Per-density-bin models (`n_event_bin`) | Prevents high-utilization patients from biasing average-risk predictions |
+| Consensus Filter (SHAP ∩ FFA) | Dual-confirmation reduces false-positive causal features vs. single-method |
+| Visualization-only BupaR/FP-Growth | Prevents target leakage from trajectory/association mining into predictive features |
+| Temporal validation (train 2016–2018 / hold 2019) | Mirrors real-world deployment; prevents optimistic CV-only estimates |
+| Exclude 2020 entirely | COVID-19 caused non-representative utilization patterns |
+| 5:1 case-control matching | Sufficient statistical power; avoids class-weight hyperparameter sensitivity |
+| Stateless Lambda + ephemeral PGx card | HIPAA-compliant CDS without dedicated PHI infrastructure |
 
-**Values used in manuscript (commit 54f85ed):**
+---
 
-| Metric | Value | SD | Source |
-|:-------|------:|---:|:-------|
-| Warm inference latency | 6 ms | 1 ms | 18 REPORT lines; Duration field |
-| Cold-start (container init) | 2,100 ms | 250 ms | 4 INIT_REPORT lines; Init Duration field (excluded 1 outlier at 3,532 ms — likely image pull) |
+## Template Patches
 
-Query used:
-```bash
-aws logs filter-log-events \
-  --log-group-name /aws/lambda/pgx-risk-calculator \
-  --filter-pattern "REPORT" \
-  --start-time {epoch_ms} \
-  --query "events[*].message" --output text
-```
+Re-apply after Quarto / TinyTeX upgrades.
+
+### MDPI `bmic_jpm_template.tex` (CH_1, CH_5)
+
+| # | Fix | Symptom without fix |
+|:--|:----|:--------------------|
+| 1 | Escape `$$TEXINPUTS` / `$$env:` (double-dollar) | Pandoc treats shell vars as template vars → render error |
+| 2 | Replace `$^{n}$` with `\textsuperscript{n}` | LaTeX math-mode error |
+| 3 | `\let\listoflistings\relax` before `$header-includes$` | Undefined control sequence |
+| 4 | `\makeatletter\def\@datepublished{}\makeatother` | `mdpi.cls` line 649 undefined |
+| 5 | `\providecommand{\history}[1]{}` | Undefined `\history` |
+| 6 | `\abbreviations{}{content}` — 2 args, placed in body | cls expects 2-arg form; preamble fails |
+| 7 | `\pubvolume{1}` / `\issuenum{1}` / `\articlenumber{1}` as integers | String values cause arithmetic error |
+| 8 | Remove `$if(natbib)$\bibliographystyle...$endif$` block | Duplicate `\bibstyle` |
+| 9 | Escape `$$body$$` in `%%` comment | Body rendered twice → "Too many }'s" |
+| 10 | Add `\bibliography{../refs/discipline,../refs/bmic-jpm}` before `\end{document}` | No `\bibdata` → all citations `[?]` |
+
+YAML renames: `journal:` → `target-journal:` · `abbreviations:` → `manuscript-abbreviations:` · `articletype:` → `target-articletype:`
+
+### MDPI `templates/Definitions/mdpi.cls`
+
+| # | Fix | Symptom |
+|:--|:----|:--------|
+| 1 | Remove `Definitions/` prefix from `\bibliographystyle{}` (lines 396/399/402) | bibtex cannot find `mdpi.bst` from `CH_X/` |
+
+### Wiley `WileyNJDv5.cls` (CH_2, CH_3, CH_4)
+
+| # | Fix | Symptom |
+|:--|:----|:--------|
+| 1 | `\ifdefined\reserveinserts\reserveinserts{28}\fi` | Float register overflow |
+| 2 | Comment out `\usepackage[english]{babel}` | Conflicts with XeLaTeX font loading |
+| 3 | Uncomment `\RequirePackage{longtable}` | Longtable undefined |
+| 4 | Add `\tightlist` to `partials/pandoc.tex` | Undefined in Pandoc list output |
+
+### Bibliography
+
+- Filenames must use **hyphens** not underscores — LaTeX escapes `_` in `.aux` files breaking bibtex lookup.
+- Canonical files: `discipline.bib`, `bmic-jpm.bib`, `cpt-psp.bib`, `cts.bib`
+- Missing entries added 2026-03-28: `Kapoor2023`, `NIH2022` → `refs/bmic-jpm.bib`
+
+---
+
+## Lessons Learned
+
+### 2026-03-28
+
+**TikZ OODA Diagram**
+- `engine: knitr` is mandatory for `{tikz}` chunks — Jupyter default fails with yaml import error
+- Use `%|` not `#|` for chunk options inside `{tikz}` blocks
+- `out-width: 50%` for portrait figures; `width=100%` for landscape
+- Tee-split: draw stem/splitter without arrowheads; arrowheads on branch lines only; requires `calc` library
+- Phase label `xshift` must be tuned per-phase to avoid landing on tee-split arrows
+
+**Build system**
+- Always use `.\build.ps1` — direct `quarto render --to pdf` fails (TEXINPUTS not set)
+- `pdfcrop.exe` MiKTeX update nag is non-fatal (stderr only)
+- TinyTeX upgraded 2025→2026; `mathastext` installed
+
+**Abstract / Title**
+- MDPI JPM word limit ≤ 200 — structured section labels count toward total
+- "Opioid and Polypharmacy Risk Prediction" is the correct umbrella for both RQs
+
+### 2026-03-29
+
+**n_events feature removal**
+- `n_events` (continuous claim count) dropped; replaced by `n_event_bin_ordinal`
+- Manuscript references to "median n_events" → reframe as descriptive statistic, not model feature
+- Lambda: `n_event_bin` computed from submitted code count BEFORE `build_feature_vector()`
+
+**FFA outputs**
+- `ffa_causal_factors.csv` on EC2 local disk only — must manually copy before `extract_ffa_manuscript.py`
+
+**DTW failure**
+- `9_dtw_log/` failed 2026-03-29: `ERROR: Model data has no target date column (first_opioid_ed_date not found)`
+- Cluster sizes in CH_3/CH_6 remain as `[XX,XXX]` / `[XX%]` until fix + rerun
+
+**AI slop removed (CH_6)**
+- Removed duplicate "completing the translational arc", "closing the loop" cliché, "is exactly the gap" construction

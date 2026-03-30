@@ -532,6 +532,32 @@ Brier score and ICI computed for primary study bands (65–114):
 Brier 0.007–0.008; ICI 0.071–0.290.
 Source: 2019 holdout evaluation exports. {#tbl-ch4-perf}
 
+## Consensus-Causal Features {#sec-causal-features}
+
+Across the three primary geriatric bands (65--74, 75--84, 85--114), 285--412
+features met the Consensus-Causal threshold (SHAP $\geq$ 75th percentile AND
+FFA support $\geq$ 0.05), with polypharmacy-density indicators and specific
+high-alert drug classes dominating. The top features by mean |SHAP| for the
+65--74 primary band are shown in **@fig-shap-ch4**.
+
+![SHAP feature importance for the non-opioid ED cohort (65--74 band, 2019
+holdout, $n$ = 2,000 sampled patients). Beeswarm plot of SHAP values for the
+top 20 Consensus-Causal features. Color encodes feature value (red = high,
+blue = low). Features confirmed by both SHAP and FFA are marked with
+\bigstar.](../figures/ch04/fig_shap.pdf){#fig-shap-ch4
+width=90% fig-align="center"}
+
+Partial dependence plots for the top five features show the marginal risk
+contribution of each drug class across its observed dosing range
+(**@fig-shap-pdp-ch4**), confirming that risk increases are non-linear
+and concentrated above clinically significant exposure thresholds.
+
+![Partial dependence profiles for the top five Consensus-Causal features
+(non-opioid ED, 65--74 band, 2019 holdout). Marginal effect of increasing
+feature value on predicted ADE-ED probability, averaged over the holdout
+cohort. Rug marks indicate observed feature-value distribution.](../figures/ch04/fig_shap_pdp.pdf){#fig-shap-pdp-ch4
+width=100% fig-align="center"}
+
 ## Synergistic Drug-Drug Interactions {#sec-ddi}
 
 FFA multi-feature interaction testing identified 115 synergistic drug pairs
@@ -773,6 +799,27 @@ by ADE case status; cases have lower Z-code proportions
 proportion quartile (Q1 = lowest, Q4 = highest), adjusted for age band, sex,
 and 30-day drug count. Error bars = 95% CI.](../figures/ch04/fig_zcode.pdf){#fig-zcode
 width=90% fig-align="center"}
+
+## Drug Utilization Trajectories {#sec-trajectories}
+
+DTW clustering on the 30-day pre-index drug event sequence identified two
+dominant archetypes in the 65--74 band (**@fig-trajectories-ch4**).
+The *Polypharmacy-Stable* archetype (majority cluster) is characterized by
+an established multi-drug regimen with incremental additions in the 30 days
+preceding the ED event; the *Acute-Burden* archetype (minority cluster) shows
+rapid accumulation of new prescriptions within 14 days.
+These trajectory patterns corroborate the FFA findings: levofloxacin-driven
+acute additions are concentrated in the Acute-Burden archetype, while the
+Polypharmacy-Stable archetype captures the chronic simvastatin/furosemide/digoxin
+combinations flagged by IR analysis as the highest-priority deprescribing targets.
+
+![Drug utilization trajectories for the non-opioid ED cohort (65--74 band).
+Top panel: dominant drug co-occurrence pathway patterns by target status,
+showing top drugs by trajectory frequency in high-risk vs. routine sequences.
+Bottom panel: representative event sequences for the two DTW-identified
+archetypes (Polypharmacy-Stable and Acute-Burden); drug events = circles,
+diagnoses = squares. Timeline in days before index date.](../figures/ch04/fig_trajectories.pdf){#fig-trajectories-ch4
+width=100% fig-align="center"}
 
 # Discussion {#sec-discussion}
 

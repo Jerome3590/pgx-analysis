@@ -287,6 +287,27 @@ def write_shap_ffa_allowed_codes_for_bupar(
     return True
 
 
+def _allowed_codes_needs_regen(path: Path) -> bool:
+    """
+    Return True if the allowed_codes JSON at *path* is missing, empty, or contains
+    no drug codes (e.g. stale file that only has CPT/ICD codes from a previous run).
+    Used by workflow scripts to decide whether to regenerate rather than reuse.
+    """
+    if not path.exists() or path.stat().st_size == 0:
+        return True
+    try:
+        codes = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return True
+    if not codes:
+        return True
+    for c in codes:
+        code_type, _ = _parse_feature_name(str(c))
+        if code_type == "drug":
+            return False   # at least one drug code present — file is valid
+    return True            # only CPT/ICD/other codes — stale, needs regen
+
+
 def _load_final_feature_importance(
     cohort: str,
     age_band: str,

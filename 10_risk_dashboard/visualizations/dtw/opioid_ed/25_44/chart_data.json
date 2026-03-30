@@ -1,0 +1,279 @@
+{
+"summary": {
+"total_trajectories": 59496,
+"trajectories_with_time_between": 5924,
+"trajectories_target1_with_time_to_target": 7629,
+"trajectory_length": {
+"min": 1,
+"max": 585,
+"mean": 8.14,
+"median": 3.0
+},
+"has_dtw_distances": true,
+"target_counts": {
+"target_1": 7629,
+"target_0": 51867
+}
+},
+"routine_comparison": {
+"x": [
+"No routine appointments (0 admin ICD events)",
+"Routine appointments (1+ admin ICD events)"
+],
+"y": [
+0.1619,
+0.029
+],
+"n": [
+44417,
+15079
+],
+"type": "bar",
+"name": "Outcome rate",
+"x_label": "Routine vs no routine (admin ICD filter)",
+"y_label": "Target outcome rate"
+},
+"routine_by_medical_utilization": {
+"x": [
+"No routine (0 admin ICD)",
+"Routine (1+ admin ICD)"
+],
+"series": [
+{
+"name": "Low medical utilization",
+"y": [
+0.1518,
+0.2762
+],
+"n": [
+15005,
+105
+]
+},
+{
+"name": "Extreme medical utilization",
+"y": [
+0.0386,
+0.0075
+],
+"n": [
+1633,
+1334
+]
+}
+],
+"type": "bar",
+"x_label": "Routine vs no routine (admin ICD)",
+"y_label": "Target outcome rate",
+"name": "Outcome rate by routine and medical utilization (full unfiltered)",
+"note": "Low vs extreme medical utilization from full unfiltered event count (target cohort). Shows whether routine care associates with lower extreme medical events."
+},
+"high_risk_trajectories": {
+"x": [
+"Q1 (closest)",
+"Q2",
+"Q3",
+"Q4 (furthest)"
+],
+"y": [
+0.1001,
+0.1255,
+0.2033,
+0.0866
+],
+"n": [
+15908,
+14184,
+14651,
+14753
+],
+"type": "bar",
+"name": "Outcome rate by archetype",
+"x_label": "Trajectory archetype (by DTW distance)",
+"y_label": "Target outcome rate"
+},
+"target_pathway_patterns": {
+"x": [
+"DRUG:GABAPENTIN",
+"DRUG:IBUPROFEN",
+"DRUG:CLONAZEPAM",
+"DRUG:ALPRAZOLAM",
+"DRUG:LISINOPRIL",
+"DRUG:MIRTAZAPINE",
+"DRUG:ARIPIPRAZOLE",
+"DRUG:LYRICA"
+],
+"y": [
+40.4,
+19.6,
+18.8,
+14.1,
+8.0,
+7.2,
+5.8,
+4.8
+],
+"type": "bar",
+"name": "Common codes in adverse event trajectories",
+"x_label": "Activity Code (SHAP/FFA Important Features)",
+"y_label": "% of Target=1 Patients with Code",
+"metadata": {
+"total_target_patients": 7629,
+"total_control_patients": 51867
+}
+},
+"event_density_bins": [
+"low",
+"medium",
+"high",
+"extreme"
+],
+"routine_comparison_by_density": {
+"low": {
+"x": [
+"No routine appointments (0 admin ICD events)",
+"Routine appointments (1+ admin ICD events)"
+],
+"y": [
+0.0544,
+0.0062
+],
+"n": [
+39368,
+14733
+],
+"type": "bar",
+"name": "Outcome rate",
+"x_label": "Routine vs no routine (admin ICD filter)",
+"y_label": "Target outcome rate"
+},
+"high": {
+"x": [
+"No routine appointments (0 admin ICD events)",
+"Routine appointments (1+ admin ICD events)"
+],
+"y": [
+1.0,
+1.0
+],
+"n": [
+2255,
+174
+],
+"type": "bar",
+"name": "Outcome rate",
+"x_label": "Routine vs no routine (admin ICD filter)",
+"y_label": "Target outcome rate"
+},
+"extreme": {
+"x": [
+"No routine appointments (0 admin ICD events)",
+"Routine appointments (1+ admin ICD events)"
+],
+"y": [
+1.0,
+1.0
+],
+"n": [
+2794,
+172
+],
+"type": "bar",
+"name": "Outcome rate",
+"x_label": "Routine vs no routine (admin ICD filter)",
+"y_label": "Target outcome rate"
+}
+},
+"routine_comparison_counts_by_density": {},
+"high_risk_trajectories_by_density": {
+"low": {
+"x": [
+"Q1 (closest)",
+"Q2",
+"Q3",
+"Q4 (furthest)"
+],
+"y": [
+0.0815,
+0.0654,
+0.0159,
+0.001
+],
+"n": [
+14155,
+13077,
+13380,
+13489
+],
+"type": "bar",
+"name": "Outcome rate by archetype",
+"x_label": "Trajectory archetype (by DTW distance)",
+"y_label": "Target outcome rate"
+},
+"high": {
+"x": [
+"Q1 (closest)",
+"Q2",
+"Q3",
+"Q4 (furthest)"
+],
+"y": [
+1.0,
+1.0,
+1.0,
+1.0
+],
+"n": [
+613,
+606,
+607,
+603
+],
+"type": "bar",
+"name": "Outcome rate by archetype",
+"x_label": "Trajectory archetype (by DTW distance)",
+"y_label": "Target outcome rate"
+},
+"extreme": {
+"x": [
+"Q1 (closest)",
+"Q2",
+"Q3",
+"Q4 (furthest)"
+],
+"y": [
+1.0,
+1.0,
+1.0,
+1.0
+],
+"n": [
+746,
+741,
+737,
+742
+],
+"type": "bar",
+"name": "Outcome rate by archetype",
+"x_label": "Trajectory archetype (by DTW distance)",
+"y_label": "Target outcome rate"
+}
+},
+"metrics": {
+"dtw_rows": 59496,
+"charts_built": [
+"routine_comparison",
+"routine_by_medical_utilization",
+"high_risk_trajectories",
+"target_pathway_patterns"
+],
+"charts_not_built": {
+"routine_comparison_counts": "insufficient rows or aggregation failed",
+"times_between_sequences": "insufficient rows or no valid mean_days_between_events",
+"time_to_target_sequences": "insufficient target=1 rows or no valid days_first_event_to_target"
+},
+"success": false
+},
+"message": "Some charts were not built; see metrics.charts_not_built for reasons.",
+"empty": false
+}
