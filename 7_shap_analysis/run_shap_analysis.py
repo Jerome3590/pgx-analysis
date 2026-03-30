@@ -36,6 +36,7 @@ from py_helpers.event_density_utils import (  # type: ignore
     final_model_bin_has_trained_artifacts,
     resolve_step6_cohort_age_dir,
     resolve_step6_train_features_csv,
+    validate_per_bin_outputs,
 )
 
 
@@ -485,29 +486,14 @@ def _load_best_models(cohort: str, age_band: str, bin_name: str | None = None):
         _bin_base / "final_model_json" / f"{stem}.cbm",
     ]
     if not bin_name:
-        cb_binary_candidates.extend(
-            [
-                PROJECT_ROOT
-                / "6_final_model"
-                / "model_outputs"
-                / cohort
-                / age_band_fname
-                / "models"
-                / "catboost_model.cbm",
-                PROJECT_ROOT
-                / "6_final_model"
-                / "outputs"
-                / cohort
-                / age_band_fname
-                / "final_model_json"
-                / f"{stem}.cbm",
-                PROJECT_ROOT
-                / "6_final_model"
-                / "model_outputs"
-                / cohort
-                / age_band_fname
-                / f"{stem}.cbm",
-            ]
+        cb_binary_candidates.append(
+            PROJECT_ROOT
+            / "6_final_model"
+            / "outputs"
+            / cohort
+            / age_band_fname
+            / "final_model_json"
+            / f"{stem}.cbm",
         )
 
     for cb_path in cb_binary_candidates:
@@ -543,16 +529,6 @@ def _load_best_models(cohort: str, age_band: str, bin_name: str | None = None):
 
     # Joblib (saved by run_final_model.py in models/)
     cb_joblib_candidates: list[Path] = [_bin_base / "models" / "catboost.joblib"]
-    if not bin_name:
-        cb_joblib_candidates.append(
-            PROJECT_ROOT
-            / "6_final_model"
-            / "model_outputs"
-            / cohort
-            / age_band_fname
-            / "models"
-            / "catboost.joblib",
-        )
     for cb_joblib_path in cb_joblib_candidates:
         if cb_joblib_path.exists():
             print(f"CatBoost binary (.cbm) not found, loading from joblib: {cb_joblib_path}")
@@ -602,16 +578,6 @@ def _load_best_xgboost_model(cohort: str, age_band: str, bin_name: str | None = 
     _bin_base = _model_base.joinpath(*_bin_infix) if _bin_infix else _model_base
 
     xgb_binary_candidates: list[Path] = [_bin_base / "models" / "xgboost_model.ubj"]
-    if not bin_name:
-        xgb_binary_candidates.append(
-            PROJECT_ROOT
-            / "6_final_model"
-            / "model_outputs"
-            / cohort
-            / age_band_fname
-            / "models"
-            / "xgboost_model.ubj",
-        )
 
     for xgb_binary_path in xgb_binary_candidates:
         if xgb_binary_path.exists():
@@ -621,16 +587,6 @@ def _load_best_xgboost_model(cohort: str, age_band: str, bin_name: str | None = 
             return xgb_model
 
     xgb_joblib_candidates: list[Path] = [_bin_base / "models" / "xgboost.joblib"]
-    if not bin_name:
-        xgb_joblib_candidates.append(
-            PROJECT_ROOT
-            / "6_final_model"
-            / "model_outputs"
-            / cohort
-            / age_band_fname
-            / "models"
-            / "xgboost.joblib",
-        )
 
     xgb_joblib_path = next((p for p in xgb_joblib_candidates if p.exists()), None)
 
@@ -1197,6 +1153,17 @@ def main() -> None:
             "Omit --bin only when aggregate training produced models/, or pass --bin <density_bin> for per-bin SHAP."
         )
         sys.exit(1)
+
+    # Validate per-bin artifacts exist in outputs/ (never model_outputs/).
+    # When --bin is given: raise if that bin is missing (fast fail before model load).
+    # When no --bin:       print all-bin status as a warning (aggregate SHAP is legacy; per-bin preferred).
+    validate_per_bin_outputs(
+        PROJECT_ROOT,
+        args.cohort,
+        args.age_band,
+        bins=(args.bin,) if args.bin else None,
+        raise_on_missing=bool(args.bin),
+    )
 
     # File logger — logs/7_shap_analysis/{cohort}_{age_band}[_{bin}].log
     _logs_dir = PROJECT_ROOT / "logs" / "7_shap_analysis"

@@ -48,6 +48,7 @@ from py_helpers.event_density_utils import (
     final_model_bin_has_trained_artifacts,
     resolve_step6_cohort_age_dir,
     resolve_step6_train_features_csv,
+    validate_per_bin_outputs,
 )
 
 
@@ -289,7 +290,6 @@ def _find_xgboost_binary(cohort: str, age_band: str, bin_name: str | None = None
         _bin_base / "models" / "xgboost_model.ubj",
         _bin_base / "models" / "xgboost_model.model",
         _base / "models" / "xgboost_model.ubj",
-        PROJECT_ROOT / "6_final_model" / "model_outputs" / cohort / age_band_fname / "models" / "xgboost_model.ubj",
     ]
     for p in candidates:
         if p.exists():
@@ -523,6 +523,21 @@ def main() -> None:
             args.cohort,
             args.age_band,
         )
+        sys.exit(1)
+
+    # Validate per-bin artifacts exist in outputs/ (never model_outputs/).
+    # When --bin is given: raise if that bin is missing (fast fail before SHAP/FFA load).
+    # When no --bin:       print all-bin status report (aggregate FFA is legacy; per-bin preferred).
+    try:
+        validate_per_bin_outputs(
+            PROJECT_ROOT,
+            args.cohort,
+            args.age_band,
+            bins=(bin_name,) if bin_name else None,
+            raise_on_missing=bool(bin_name),
+        )
+    except FileNotFoundError as _vpe:
+        logger.error(str(_vpe))
         sys.exit(1)
 
     ffa_xgb_dir, ffa_base = _ffa_xgboost_and_base_dirs(args.cohort, args.age_band, bin_name)

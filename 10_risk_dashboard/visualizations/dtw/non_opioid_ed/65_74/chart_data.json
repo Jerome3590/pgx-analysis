@@ -1,0 +1,235 @@
+{
+"summary": {
+"total_trajectories": 8226,
+"trajectories_with_time_between": 23,
+"trajectories_target1_with_time_to_target": 656,
+"trajectory_length": {
+"min": 1,
+"max": 744,
+"mean": 30.91,
+"median": 17.0
+},
+"has_dtw_distances": true,
+"target_counts": {
+"target_1": 656,
+"target_0": 7570
+}
+},
+"routine_comparison": {
+"x": [
+"No routine appointments (0 admin ICD events)",
+"Routine appointments (1+ admin ICD events)"
+],
+"y": [
+0.151,
+0.0
+],
+"n": [
+4345,
+3881
+],
+"type": "bar",
+"name": "Outcome rate",
+"x_label": "Routine vs no routine (admin ICD filter)",
+"y_label": "Target outcome rate"
+},
+"routine_by_medical_utilization": {
+"x": [
+"No routine (0 admin ICD)",
+"Routine (1+ admin ICD)"
+],
+"series": [
+{
+"name": "Low medical utilization",
+"y": [
+0.3418,
+0.0
+],
+"n": [
+1919,
+174
+]
+},
+{
+"name": "Extreme medical utilization",
+"y": [
+0.0,
+0.0
+],
+"n": [
+172,
+240
+]
+}
+],
+"type": "bar",
+"x_label": "Routine vs no routine (admin ICD)",
+"y_label": "Target outcome rate",
+"name": "Outcome rate by routine and medical utilization (full unfiltered)",
+"note": "Low vs extreme medical utilization from full unfiltered event count (target cohort). Shows whether routine care associates with lower extreme medical events."
+},
+"high_risk_trajectories": {
+"x": [
+"Q1 (closest)",
+"Q2",
+"Q3",
+"Q4 (furthest)"
+],
+"y": [
+0.2419,
+0.0716,
+0.0054,
+0.0
+],
+"n": [
+2059,
+2054,
+2056,
+2057
+],
+"type": "bar",
+"name": "Outcome rate by archetype",
+"x_label": "Trajectory archetype (by DTW distance)",
+"y_label": "Target outcome rate"
+},
+"target_pathway_patterns": {
+"x": [
+"DRUG:AMOXICILLIN",
+"DRUG:AZITHROMYCIN",
+"DRUG:LISINOPRIL",
+"DRUG:SIMVASTATIN",
+"DRUG:HYDROCHLOROTHIAZIDE",
+"DRUG:PREDNISONE",
+"DRUG:CEPHALEXIN",
+"DRUG:SHINGRIX"
+],
+"y": [
+10.5,
+8.2,
+7.3,
+6.1,
+5.6,
+5.0,
+4.6,
+4.4
+],
+"type": "bar",
+"name": "Common codes in adverse event trajectories",
+"x_label": "Activity Code (SHAP/FFA Important Features)",
+"y_label": "% of Target=1 Patients with Code",
+"metadata": {
+"total_target_patients": 656,
+"total_control_patients": 7570
+}
+},
+"event_density_bins": [
+"low",
+"medium",
+"high",
+"extreme"
+],
+"routine_comparison_by_density": {
+"low": {
+"x": [
+"No routine appointments (0 admin ICD events)",
+"Routine appointments (1+ admin ICD events)"
+],
+"y": [
+0.1465,
+0.0
+],
+"n": [
+4322,
+3881
+],
+"type": "bar",
+"name": "Outcome rate",
+"x_label": "Routine vs no routine (admin ICD filter)",
+"y_label": "Target outcome rate"
+},
+"extreme": {
+"x": [
+"No routine appointments (0 admin ICD events)"
+],
+"y": [
+1.0
+],
+"n": [
+23
+],
+"type": "bar",
+"name": "Outcome rate",
+"x_label": "Routine vs no routine (admin ICD filter)",
+"y_label": "Target outcome rate",
+"note": "Only one bucket present (all patients no routine or all routine). Add administrative ICD codes in 1b_apcd_event_filter/administrative_codes_lookup.json or ensure model_events has routine codes in primary/secondary ICD columns."
+}
+},
+"routine_comparison_counts_by_density": {},
+"high_risk_trajectories_by_density": {
+"low": {
+"x": [
+"Q1 (closest)",
+"Q2",
+"Q3",
+"Q4 (furthest)"
+],
+"y": [
+0.2319,
+0.0713,
+0.0054,
+0.0
+],
+"n": [
+2053,
+2049,
+2050,
+2051
+],
+"type": "bar",
+"name": "Outcome rate by archetype",
+"x_label": "Trajectory archetype (by DTW distance)",
+"y_label": "Target outcome rate"
+},
+"extreme": {
+"x": [
+"Q1 (closest)",
+"Q2",
+"Q3",
+"Q4 (furthest)"
+],
+"y": [
+1.0,
+1.0,
+1.0,
+1.0
+],
+"n": [
+6,
+6,
+5,
+6
+],
+"type": "bar",
+"name": "Outcome rate by archetype",
+"x_label": "Trajectory archetype (by DTW distance)",
+"y_label": "Target outcome rate"
+}
+},
+"metrics": {
+"dtw_rows": 8226,
+"charts_built": [
+"routine_comparison",
+"routine_by_medical_utilization",
+"high_risk_trajectories",
+"target_pathway_patterns"
+],
+"charts_not_built": {
+"routine_comparison_counts": "insufficient rows or aggregation failed",
+"times_between_sequences": "insufficient rows or no valid mean_days_between_events",
+"time_to_target_sequences": "insufficient target=1 rows or no valid days_first_event_to_target"
+},
+"success": false
+},
+"message": "Some charts were not built; see metrics.charts_not_built for reasons.",
+"empty": false
+}

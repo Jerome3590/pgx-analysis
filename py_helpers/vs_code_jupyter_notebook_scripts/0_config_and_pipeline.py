@@ -180,7 +180,6 @@ PROJECT_OUTPUT_DIRS = [
     "4_model_data/cohort_name=non_opioid_ed",
     "5_pgx_analysis/outputs",
     "6_final_model/outputs",
-    "6_final_model/model_outputs",
     "7_shap_analysis/outputs",
     "8_ffa_analysis/results",
     "10_risk_dashboard/outputs",

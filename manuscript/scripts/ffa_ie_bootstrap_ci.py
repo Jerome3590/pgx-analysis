@@ -145,7 +145,7 @@ for (a, b) in TARGET_PAIRS:
     }
 
 # ── Save ─────────────────────────────────────────────────────────────────────
-with open("ffa_ie_ci.json", "w") as f:
+with open("data/ffa_ie_ci.json", "w") as f:
     json.dump(ci_results, f, indent=2)
 print("\nSaved ffa_ie_ci.json")
 

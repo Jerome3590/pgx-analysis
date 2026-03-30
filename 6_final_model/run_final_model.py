@@ -3086,52 +3086,6 @@ def train_and_evaluate(
         save_model_idempotent(cb_joblib_path, s3_cb_joblib, save_cb_joblib)
         print(f"Saved deployment-ready CatBoost model to {cb_joblib_path}")
 
-        # ------------------------------------------------------------------
-        # Mirror final cohort-level models into 6_final_model/model_outputs
-        # for FFA, SHAP, and future prediction consumption.
-        # ------------------------------------------------------------------
-        model_outputs_base = (
-            PROJECT_ROOT
-            / "6_final_model"
-            / "model_outputs"
-            / cohort
-            / age_band_fname
-        )
-        model_outputs_base.mkdir(parents=True, exist_ok=True)
-
-        # BEST XGBoost JSON (for FFA analysis) - mirror to model_outputs
-        xgb_json_out = (
-            model_outputs_base
-            / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
-        )
-        def save_xgb_json_out():
-            with open(xgb_json_out, "w") as f:
-                json.dump(ffa_model_json, f, indent=2)
-        
-        save_model_idempotent(xgb_json_out, s3_xgb_json, save_xgb_json_out)
-
-        # BEST CatBoost binary (.cbm) for SHAP analysis - mirror to model_outputs
-        cb_cbm_out = (
-            model_outputs_base
-            / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
-        )
-        def save_cb_cbm_out():
-            cb_final.save_model(str(cb_cbm_out), format="cbm")
-        
-        save_model_idempotent(cb_cbm_out, s3_cb_cbm, save_cb_cbm_out)
-
-        # Also save CatBoost JSON for reference - mirror to model_outputs
-        cb_json_out = (
-            model_outputs_base
-            / f"{cohort}_{age_band_fname}_best_catboost_model.json"
-        )
-        def save_cb_json_out():
-            cb_final.save_model(str(cb_json_out), format="json")
-        
-        save_model_idempotent(cb_json_out, s3_cb_json, save_cb_json_out)
-
-        print(f"Saved final model artifacts for {cohort} / {age_band} to {model_outputs_base}")
-
         # Save checkpoint with all S3 outputs
         try:
             from py_helpers.checkpoint_utils import save_step_checkpoint
@@ -3210,19 +3164,6 @@ def mirror_bin_artifacts_to_aggregate_root(
             shutil.copytree(item, dest)
         else:
             shutil.copy2(item, dest)
-
-    mo = PROJECT_ROOT / "6_final_model" / "model_outputs" / cohort / age_band_fname
-    mo.mkdir(parents=True, exist_ok=True)
-    fj = agg / "final_model_json"
-    if fj.exists():
-        for name in (
-            f"{cohort}_{age_band_fname}_best_xgboost_model.json",
-            f"{cohort}_{age_band_fname}_best_catboost_model.cbm",
-            f"{cohort}_{age_band_fname}_best_catboost_model.json",
-        ):
-            p = fj / name
-            if p.exists():
-                shutil.copy2(p, mo / name)
 
     print(
         f"[INFO] Mirrored bin '{src_bin}' artifacts to aggregate root for "
@@ -3359,8 +3300,6 @@ def main() -> None:
         "cb_joblib": out_base_check / "models" / "catboost.joblib",
         "fi_csv": out_base_check / f"{args.cohort}_{age_band_fname_check}_xgboost_feature_importance.csv",
         "features_csv": out_base_check / f"{args.cohort}_{age_band_fname_check}_train_final_features_no_leakage.csv",
-        # Also check model_outputs copies (needed by FFA/SHAP)
-        "model_outputs_xgb_json": PROJECT_ROOT / "6_final_model" / "model_outputs" / args.cohort / age_band_fname_check / f"{args.cohort}_{age_band_fname_check}_best_xgboost_model.json",
     }
 
     # Sparse bins get full-cohort copies inside train_per_bin(); if we skip that (checkpoint / S3
@@ -3380,24 +3319,6 @@ def main() -> None:
     if all_local_exist:
         logger.info(f"Step 6 outputs already exist locally for {args.cohort}/{args.age_band}; skipping regeneration.")
         logger.info(f"  Found {len(local_outputs)} output files")
-        
-        # Ensure model_outputs copies exist (needed by FFA/SHAP even if idempotent)
-        model_outputs_base = PROJECT_ROOT / "6_final_model" / "model_outputs" / args.cohort / age_band_fname_check
-        model_outputs_base.mkdir(parents=True, exist_ok=True)
-        
-        # Copy model JSON files to model_outputs if they don't exist there
-        import shutil
-        xgb_json_source = local_outputs["xgb_json"]
-        xgb_json_dest = model_outputs_base / f"{args.cohort}_{age_band_fname_check}_best_xgboost_model.json"
-        if xgb_json_source.exists() and not xgb_json_dest.exists():
-            shutil.copy2(xgb_json_source, xgb_json_dest)
-            logger.info(f"Copied XGBoost JSON to model_outputs: {xgb_json_dest}")
-        
-        cb_cbm_source = local_outputs["cb_cbm"]
-        cb_cbm_dest = model_outputs_base / f"{args.cohort}_{age_band_fname_check}_best_catboost_model.cbm"
-        if cb_cbm_source.exists() and not cb_cbm_dest.exists():
-            shutil.copy2(cb_cbm_source, cb_cbm_dest)
-            logger.info(f"Copied CatBoost CBM to model_outputs: {cb_cbm_dest}")
         
         # Idempotent upload to S3 (explicit keys; same as py_helpers.final_model_s3_upload)
         try:
@@ -3545,15 +3466,6 @@ def main() -> None:
                 )
                 if essential_ok and per_bin_ok:
                     logger.info(f"Step 6 outputs downloaded from S3; skipping regeneration.")
-                    # Ensure model_outputs copies exist (needed by FFA/SHAP)
-                    model_outputs_base = PROJECT_ROOT / "6_final_model" / "model_outputs" / args.cohort / age_band_fname_check
-                    model_outputs_base.mkdir(parents=True, exist_ok=True)
-                    import shutil
-                    xgb_json_source = local_outputs["xgb_json"]
-                    xgb_json_dest = model_outputs_base / f"{args.cohort}_{age_band_fname_check}_best_xgboost_model.json"
-                    if xgb_json_source.exists() and not xgb_json_dest.exists():
-                        shutil.copy2(xgb_json_source, xgb_json_dest)
-                        logger.info(f"Copied XGBoost JSON to model_outputs: {xgb_json_dest}")
                     return
                 else:
                     logger.warning(f"Some essential files missing after S3 download. Will regenerate.")

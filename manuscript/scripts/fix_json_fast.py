@@ -100,7 +100,7 @@ for cohort in COHORTS:
         cohort_counts[cohort][band] = {"cases": cases_total, "controls": ctrl_total}
         print(f"  {cohort:15s} | {band:7s} | cases={cases_total:7,} | controls={ctrl_total:8,}")
 
-with open("cohort_counts.json", "w") as f:
+with open("data/cohort_counts.json", "w") as f:
     json.dump(cohort_counts, f, indent=2)
 print("Saved cohort_counts.json\n")
 
@@ -142,7 +142,7 @@ for cohort in COHORTS:
         else:
             print(f"  SKIP {cohort}/{band}: no train data")
 
-with open("cohort_counts_train.json", "w") as f:
+with open("data/cohort_counts_train.json", "w") as f:
     json.dump(cohort_counts_train, f, indent=2)
 print("Saved cohort_counts_train.json\n")
 
@@ -169,7 +169,7 @@ for cohort in COHORTS:
             "total": cases + ctrl, "cases": cases, "controls": ctrl}
         print(f"  {cohort:15s} | {band:7s} | cases={cases:7,} | controls={ctrl:8,}")
 
-with open("cohort_counts_test.json", "w") as f:
+with open("data/cohort_counts_test.json", "w") as f:
     json.dump(cohort_counts_test, f, indent=2)
 print("Saved cohort_counts_test.json\n")
 
@@ -183,7 +183,7 @@ print("4. brier_ici_results.json  (extend existing with missing band entries)")
 print("=" * 70)
 
 try:
-    with open("brier_ici_results.json") as f:
+    with open("data/brier_ici_results.json") as f:
         brier_ici = json.load(f)
 except Exception:
     brier_ici = {}
@@ -215,7 +215,7 @@ for cohort in COHORTS:
                          if v.get("brier") is None]
     print(f"  {cohort}: computed={bands_with_data}, placeholder={bands_placeholder}")
 
-with open("brier_ici_results.json", "w") as f:
+with open("data/brier_ici_results.json", "w") as f:
     json.dump(brier_ici, f, indent=2)
 print("Saved brier_ici_results.json\n")
 
@@ -228,7 +228,7 @@ print("5. ffa_manuscript_data.json  (FFA causal factors, all bands)")
 print("=" * 70)
 
 try:
-    with open("ffa_manuscript_data.json") as f:
+    with open("data/ffa_manuscript_data.json") as f:
         ffa_data = json.load(f)
 except Exception:
     ffa_data = {}
@@ -274,7 +274,7 @@ for cohort in COHORTS:
         print(f"  Added {cohort}/{band}: n_feat={n_features}, "
               f"rules={total_rules:,}")
 
-with open("ffa_manuscript_data.json", "w") as f:
+with open("data/ffa_manuscript_data.json", "w") as f:
     json.dump(ffa_data, f, indent=2, default=str)
 print("Saved ffa_manuscript_data.json\n")
 

@@ -60,6 +60,6 @@ for c, bands in totals.items():
     gr = sum(v["controls"] for v in bands.values())
     print(f"{c}: cases={gc:,}  controls={gr:,}")
 
-with open("cohort_counts_train.json","w") as f:
+with open("data/cohort_counts_train.json","w") as f:
     json.dump(totals, f, indent=2)
 print("Saved cohort_counts_train.json")

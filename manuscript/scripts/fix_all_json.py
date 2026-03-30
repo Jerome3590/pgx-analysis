@@ -81,7 +81,7 @@ for cohort in COHORTS:
         cohort_counts[cohort][band] = {"cases": cases, "controls": ctrl}
         print(f"  {cohort:15s} | {band:7s} | cases={cases:7,} | controls={ctrl:8,}")
 
-with open("cohort_counts.json", "w") as f:
+with open("data/cohort_counts.json", "w") as f:
     json.dump(cohort_counts, f, indent=2)
 print("  Saved cohort_counts.json")
 
@@ -115,7 +115,7 @@ for cohort in COHORTS:
             "total": cases + ctrl, "cases": cases, "controls": ctrl}
         print(f"  {cohort:15s} | {band:7s} | cases={cases:7,} | controls={ctrl:8,}")
 
-with open("cohort_counts_train.json", "w") as f:
+with open("data/cohort_counts_train.json", "w") as f:
     json.dump(cohort_counts_train, f, indent=2)
 print("  Saved cohort_counts_train.json")
 
@@ -142,7 +142,7 @@ for cohort in COHORTS:
             "total": cases + ctrl, "cases": cases, "controls": ctrl}
         print(f"  {cohort:15s} | {band:7s} | cases={cases:7,} | controls={ctrl:8,}")
 
-with open("cohort_counts_test.json", "w") as f:
+with open("data/cohort_counts_test.json", "w") as f:
     json.dump(cohort_counts_test, f, indent=2)
 print("  Saved cohort_counts_test.json")
 
@@ -253,7 +253,7 @@ for cohort in COHORTS:
                                     "model": "catboost_per_bin"}
         print(f"  {cohort:15s} | {band:7s} | brier={b:.4f} | ici={i:.4f} | n={n:,}")
 
-with open("brier_ici_results.json", "w") as f:
+with open("data/brier_ici_results.json", "w") as f:
     json.dump(brier_ici, f, indent=2)
 print("  Saved brier_ici_results.json")
 
@@ -302,7 +302,7 @@ for cohort in COHORTS:
         print(f"  {cohort:15s} | {band:7s} | n_feat={n_features:3d} | "
               f"rules={total_rules:,} | top={top[feat_col].iloc[0] if len(top) else 'n/a'}")
 
-with open("ffa_manuscript_data.json", "w") as f:
+with open("data/ffa_manuscript_data.json", "w") as f:
     json.dump(ffa_data, f, indent=2, default=str)
 print("  Saved ffa_manuscript_data.json")
 

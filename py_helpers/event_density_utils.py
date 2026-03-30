@@ -423,3 +423,68 @@ def cohort_aggregate_final_model_has_artifacts(
         if _aggregate_cohort_age_dir_has_artifacts(cohort_dir, cohort, age_band):
             return True
     return False
+
+
+def validate_per_bin_outputs(
+    project_root: Path,
+    cohort: str,
+    age_band: str,
+    bins: "tuple | None" = None,
+    raise_on_missing: bool = True,
+) -> "dict[str, bool]":
+    """
+    Validate that density-bin Step 6 artifacts exist exclusively under
+    ``6_final_model/outputs/{cohort}/{age_band}/bin_models/{bin}/``
+    (never ``model_outputs/``).
+
+    Parameters
+    ----------
+    project_root      : repository root
+    cohort, age_band  : target cohort/age band
+    bins              : bins to check; None → all DENSITY_BINS
+    raise_on_missing  : raise FileNotFoundError listing missing bins + fix
+                        commands when True (default). Set False for a
+                        non-fatal status report.
+
+    Returns
+    -------
+    dict mapping each checked bin name → bool (True = artifacts found in outputs/)
+    """
+    if bins is None:
+        bins = DENSITY_BINS
+    abf = _age_band_fname(age_band)
+    results: dict[str, bool] = {
+        b: final_model_bin_has_trained_artifacts(project_root, cohort, age_band, b)
+        for b in bins
+    }
+    missing = [b for b, ok in results.items() if not ok]
+    found = [b for b, ok in results.items() if ok]
+
+    print(f"\n=== Per-bin Step 6 output validation: {cohort} / {age_band} ===")
+    print(f"  Canonical path: 6_final_model/outputs/{cohort}/{abf}/bin_models/<bin>/")
+    for b in bins:
+        mark = "OK     " if results[b] else "MISSING"
+        bpath = (
+            Path(project_root) / "6_final_model" / "outputs" / cohort / abf / "bin_models" / b
+        )
+        print(f"  [{mark}] {b:<8s}  {bpath}")
+    print(f"  Summary — found: {found or '(none)'}  |  missing: {missing or '(none)'}")
+    print()
+
+    if missing and raise_on_missing:
+        ab_h = age_band
+        lines = [
+            f"Missing Step 6 per-bin models for {cohort}/{age_band}: {missing}",
+            f"Expected under: 6_final_model/outputs/{cohort}/{abf}/bin_models/<bin>/",
+            "",
+            "Re-train Step 6 per-bin models:",
+            f"  python 6_final_model/run_final_model.py "
+            f"--cohort {cohort} --age_band {ab_h} --train-mode per_bin",
+            "",
+            "Or sync all bin artifacts from S3:",
+            f"  aws s3 sync s3://pgxdatalake/gold/final_model/{cohort}/{ab_h}/bin_models/ \\",
+            f"         6_final_model/outputs/{cohort}/{abf}/bin_models/",
+        ]
+        raise FileNotFoundError("\n".join(lines))
+
+    return results

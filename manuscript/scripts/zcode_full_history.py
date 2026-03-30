@@ -233,6 +233,6 @@ results = {
     "ci_hi": round(ci_hi_v, 2),
     "pval":  p_str,
 }
-with open("zcode_results.json", "w") as f:
+with open("data/zcode_results.json", "w") as f:
     json.dump(results, f, indent=2)
 print("\nSaved zcode_results.json")

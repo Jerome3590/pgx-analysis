@@ -145,6 +145,6 @@ results = {
     "crude_q3_vs_q1": round(crude_q3, 2),
     "pattern": "U-shaped: Q2/Q3 protective, Q4 similar to Q1 (reactive care)",
 }
-with open("zcode_results.json", "w") as f:
+with open("data/zcode_results.json", "w") as f:
     json.dump(results, f, indent=2)
 print("\nSaved zcode_results.json")

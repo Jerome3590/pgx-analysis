@@ -253,7 +253,7 @@ four functional tabs (Patient Input, Risk Score, Causal What-If,
 PGx Card). Center: API Gateway routes to AWS Lambda Docker container (ECR).
 Right: Lambda container internals, per-density-bin ensemble models (up to 84),
 CPIC database snapshot, and inference engine. Arrows indicate data flow; no patient
-data is written to persistent storage at any step.](../figures/ch05/fig_architecture.pdf){#fig-architecture
+data is written to persistent storage at any step.](../figures/ch05/pgx_dashboard_architecture.pdf){#fig-architecture
 width=100% fig-align="center"}
 
 ## Partition-First Routing
@@ -472,7 +472,7 @@ A representative risk output screenshot is shown in **@fig-dashboard**.
 3/3 models agree on High risk band. (C) Top 5 risk drivers with SHAP bars;
 hydrocodone count and chronic pain diagnosis are the dominant
 risk-increasing features; physical therapy referral is protective.
-Patient data shown are synthetic, for illustration only.](../figures/ch05/fig_dashboard.pdf){#fig-dashboard
+Patient data shown are synthetic, for illustration only.](../figures/ch05/pgx_dashboard.pdf){#fig-dashboard
 width=90% fig-align="center"}
 
 ## Feature 2: Causal "What-If" Counterfactual Analysis (Tab 3)

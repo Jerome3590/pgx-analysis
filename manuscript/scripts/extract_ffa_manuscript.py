@@ -136,8 +136,8 @@ for ab in ["65_74", "75_84", "85_114"]:
             break  # one model per bin is enough
 
 # ── Save summary JSON files ───────────────────────────────────────────
-out_ffa  = SCRIPT_DIR.parent / "ffa_manuscript_data.json"
-out_ie   = SCRIPT_DIR.parent / "ffa_ie_ci.json"
+out_ffa  = SCRIPT_DIR.parent / "data/ffa_manuscript_data.json"
+out_ie   = SCRIPT_DIR.parent / "data/ffa_ie_ci.json"
 
 out_ffa.write_text(json.dumps(results,    indent=2, default=str), encoding="utf-8")
 out_ie.write_text( json.dumps(ie_results, indent=2, default=str), encoding="utf-8")

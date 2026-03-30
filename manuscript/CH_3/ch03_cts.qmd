@@ -649,6 +649,17 @@ Consensus-Causal features in the 25–44 year age band (2019 holdout, $n$ =
 Features selected by both SHAP and FFA are marked with ★.](../figures/ch03/fig_shap.pdf){#fig-shap
 width=90% fig-align="center"}
 
+Partial dependence plots for the top five Consensus-Causal features clarify
+the marginal risk contribution of each variable across its observed range
+(**@fig-shap-pdp**).
+
+![Partial dependence profiles for the top five Consensus-Causal features
+(opioid ED, 25--44 band, 2019 holdout). Each panel shows the marginal effect
+of increasing feature value on predicted OUD-ED probability, averaged over the
+holdout cohort. Rug marks indicate observed feature-value distribution.
+Features ranked by mean |SHAP|.](../figures/ch03/fig_shap_pdp.pdf){#fig-shap-pdp
+width=100% fig-align="center"}
+
 ## Trajectory Analysis {#sec-trajectories}
 
 DTW clustering on the 12-month pre-diagnosis event sequence identified
@@ -692,6 +703,30 @@ two clusters are clearly separable.
 Chronic-Escalation cluster (bottom); drug events = circles,
 diagnoses = squares, procedures = triangles.
 Timeline in months before index date.](../figures/ch03/fig_trajectories.pdf){#fig-trajectories
+width=100% fig-align="center"}
+
+The dominant drug co-occurrence patterns within target trajectories are
+summarized in **@fig-dtw-pathways**, contrasting high-risk (target = 1)
+and routine (target = 0) event sequences across event-density bands.
+Gabapentin and buprenorphine-naloxone co-occurrence are the distinguishing
+features of high-risk pathways, consistent with the SHAP and FFA rankings.
+
+![DTW drug pathway patterns for the opioid ED cohort (25--44 band).
+Top panel: drug co-occurrence frequency in high-risk trajectories;
+bottom panel: pathway comparison between high-risk and routine sequences
+by event-density stratum. Drugs ordered by SHAP/FFA allowed-code rank.](../figures/ch03/fig_dtw_pathways.pdf){#fig-dtw-pathways
+width=100% fig-align="center"}
+
+The event-count heatmap (**@fig-trajectories-heatmap**) shows the distribution
+of allowed drug events across sequential trajectory positions, revealing
+that gabapentinoid and benzodiazepine fills cluster in mid-trajectory
+positions (months 6--12 before the index date) rather than at onset.
+
+![Event-count heatmap for SHAP/FFA-allowed drugs across trajectory position
+(opioid ED, 25--44 cohort; training sequences).
+Columns = sequential event position (1--20 before index date);
+rows = drug name ordered by SHAP importance;
+cell color = normalized event count (darker = more frequent).](../figures/ch03/fig_trajectories_heatmap.pdf){#fig-trajectories-heatmap
 width=100% fig-align="center"}
 
 # Discussion {#sec-discussion}

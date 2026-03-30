@@ -1,103 +1,150 @@
-% Standalone PDF for CH2 @fig-consensus — Model tournament → SHAP ∩ FFA → Causal Features.
-% Build: pdflatex -interaction=nonstopmode -jobname=fig_consensus fig_consensus_standalone.tex
-%
-% Merges two TikZ designs: (A) hatched SHAP circle + solid FFA + clipped intersection (checkmark,
-%   north-east line pattern, muted shapBlue/ffaPeach, L-shaped pointer to CAUSAL FEATURES);
-%   (B) model pool → selection (Best → SHAP; fixed XGB → FFA) as ensemble-of-ensembles + FFA path.
-% Graphic encodes: (1) tournament / best-of-three for robust SHAP; (2) fixed XGBoost for comparable FFA;
-% (3) intersection as consensus safety gate (high SHAP ∧ population-consistent FFA; filters ``lucky'' correlations).
-\documentclass[border=14pt]{standalone}
-\usepackage{tikz}
-\usepackage{amssymb}
-\usetikzlibrary{patterns, calc, positioning, shapes.geometric, arrows.meta, shadows}
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage{amsmath}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric,fit,backgrounds}
 
-\definecolor{shapBlue}{HTML}{E8EDF2}
-\definecolor{ffaPeach}{HTML}{EBCABF}
-\definecolor{lineGray}{HTML}{333333}
+\definecolor{shapcolor}{RGB}{255,215,0}   % yellow
+\definecolor{ffacolor}{RGB}{34,139,34}    % green
+\definecolor{consensuspurple}{RGB}{128,90,180}
+\definecolor{softgray}{RGB}{245,245,245}
+\definecolor{linegray}{RGB}{60,60,60}
+
+\tikzset{
+  flow/.style={-Latex, very thick, draw=linegray},
+  poolbox/.style={
+    draw=linegray, thick, rounded corners=2pt,
+    fill=softgray, align=left,
+    minimum width=4.0cm, minimum height=3.8cm,
+    inner sep=8pt
+  },
+  procbox/.style={
+    draw=linegray, thick, rounded corners=2pt,
+    fill=white, align=center,
+    minimum width=2.8cm, minimum height=1.0cm
+  },
+  decision/.style={
+    diamond, draw=linegray, thick, fill=white,
+    aspect=1.5, align=center, inner sep=1.5pt,
+    minimum width=2.2cm, minimum height=1.3cm
+  },
+  outbox/.style={
+    draw=linegray, thick, rounded corners=2pt,
+    fill=white, align=center,
+    minimum width=3.2cm, minimum height=1.1cm
+  },
+  note/.style={
+    align=left, font=\small, text width=15.5cm
+  }
+}
 
 \begin{document}
-\begin{tikzpicture}[
-  font=\sffamily\small,
-  arr/.style={-{Stealth[length=2.2mm]}, thick},
-]
+\begin{tikzpicture}[font=\sffamily]
 
-    % ---------- Title: tournament-of-ensembles (DECIDE) ----------
-    \node[font=\sffamily\bfseries, anchor=south, text=lineGray, align=center] (hdr) at (-0.2, 2.62) {%
-        Tournament of Models (ensemble-of-ensembles)\\[0.12em]
-        {\sffamily\bfseries\normalsize $\rightarrow$ SHAP $\cap$ FFA $\rightarrow$ causal consensus}};
+%--------------------------------------------------
+% Title block
+%--------------------------------------------------
+\node[font=\bfseries\LARGE, align=center] (title) at (8.0,8.8)
+{Tournament of Models};
 
-    % ---------- 1. Model pool (inputs to tournament) ----------
-    \node[draw=lineGray, fill=gray!5, inner sep=6pt, align=left, drop shadow={opacity=0.22, shadow xshift=0.6pt, shadow yshift=-0.8pt}] (models) at (-5.85, 0.15) {%
-        \begin{tabular}{@{}l@{}}
-        \textbf{Model pool} \\[0.15em]
-        \hline \\[-0.5em]
-        \footnotesize $\bullet$ CatBoost \\
-        \footnotesize $\bullet$ XGBoost \\
-        \footnotesize $\bullet$ XGBoost RF
-        \end{tabular}};
+\node[font=\large, align=center] at (8.0,8.1)
+{Ensemble-of-ensembles};
 
-    % ---------- 2. Selection: Best → SHAP; fixed XGB → FFA ----------
-    \node[draw=lineGray, diamond, fill=blue!8, inner sep=1pt, minimum size=1.2cm, aspect=1.5, drop shadow={opacity=0.2, shadow xshift=0.5pt, shadow yshift=-0.7pt}] (best) at (-3.35, 0.9) {\textbf{\tiny Best}};
-    \node[draw=lineGray, rectangle, fill=orange!10, minimum width=1.2cm, minimum height=0.58cm, drop shadow={opacity=0.2, shadow xshift=0.5pt, shadow yshift=-0.7pt}] (xgbffa) at (-3.35, -0.68) {\textbf{\small XGB}};
+\node[font=\bfseries\large, align=center] at (8.0,7.35)
+{$\rightarrow$ SHAP $\cap$ FFA $\rightarrow$ causal consensus};
 
-    \coordinate (fork) at ($(models.east)+(0.45,0)$);
-    \draw[arr, lineGray] (models.east) -- (fork);
-    \draw[arr, lineGray] (fork) |- (best.west);
-    \draw[arr, lineGray] (fork) |- (xgbffa.west);
+%--------------------------------------------------
+% Left: model pool
+%--------------------------------------------------
+\node[poolbox, anchor=west] (pool) at (0.2,3.5) {};
 
-    \node[font=\tiny\bfseries, text=lineGray!88!black, anchor=south] at (-4.55, 1.42) {Selection};
+\node[anchor=north west, font=\bfseries\Large] at ([xshift=0.25cm,yshift=-0.3cm]pool.north west)
+{Model pool};
 
-    % ---------- 3. Venn filter: SHAP (hatched) from best ensemble; FFA (solid peach) from fixed XGB ----------
-    \coordinate (Cshap) at (-0.05, 0);
-    \coordinate (Cffa) at (1.55, 0);
-    \def\R{1.2cm}
+\draw[linegray, thin] ([xshift=0.25cm,yshift=-1.0cm]pool.north west) --
+                      ([xshift=-0.25cm,yshift=-1.0cm]pool.north east);
 
-    \draw[fill=shapBlue, draw=lineGray, thick] (Cshap) circle (\R);
-    \fill[pattern=north east lines, pattern color=lineGray!40] (Cshap) circle (\R);
-    \node[font=\sffamily\bfseries] at ($(Cshap)+(-0.42,0)$) {\large SHAP};
+\node[anchor=north west, font=\Large] at ([xshift=0.25cm,yshift=-1.35cm]pool.north west)
+{$\bullet$ CatBoost};
 
-    \draw[fill=ffaPeach, draw=lineGray, thick] (Cffa) circle (\R);
-    \node[font=\sffamily\bfseries] at ($(Cffa)+(0.42,0)$) {\large FFA};
+\node[anchor=north west, font=\Large] at ([xshift=0.25cm,yshift=-2.0cm]pool.north west)
+{$\bullet$ XGBoost};
 
-    \begin{scope}
-        \clip (Cshap) circle (\R);
-        \clip (Cffa) circle (\R);
-        \fill[ffaPeach!80!black!20] (-2,-2) rectangle (3,2);
-        \fill[pattern=north east lines, pattern color=lineGray!60] (-2,-2) rectangle (3,2);
-        \node at ($(Cshap)!0.5!(Cffa)+(0,0.08)$) {\huge \checkmark};
-    \end{scope}
+\node[anchor=north west, font=\Large] at ([xshift=0.25cm,yshift=-2.65cm]pool.north west)
+{$\bullet$ XGBoost RF};
 
-    % ---------- 4. Connectors: tournament outputs into the filter ----------
-    \draw[arr, blue!55!black] (best.east) to[out=0, in=135] ($(Cshap)+(135:\R)$);
-    \draw[arr, orange!70!black] (xgbffa.east) to[out=0, in=225] ($(Cffa)+(225:\R)$);
+%--------------------------------------------------
+% Decision and branch boxes
+%--------------------------------------------------
+\node[decision] (bestq) at (5.2,5.0) {\textbf{Best}\\[1pt]\textbf{Model?}};
 
-    \node[below=0.12cm of best, font=\tiny, text=blue!65!black, align=center]
-        {Source: Best Ensemble};
-    \node[below=0.12cm of xgbffa, font=\tiny, text=orange!75!black, align=center]
-        {Source: XGBoost Fixed (FFA)};
+\node[procbox] (bestens) at (5.2,3.6) {\textbf{Best Ensemble}\\[-1mm]\small(for SHAP)};
 
-    % ---------- 5. L-shaped pointer + CAUSAL FEATURES (stacked label; geometry like centered Venn) ----------
-    \coordinate (pointerBase) at ($(Cshap)!0.5!(Cffa)+(0,-0.4)$);
-    \draw[thick, lineGray] (pointerBase) -- ++(0,-1.4) -- ++(0.2,0);
+\node[procbox] (fixedxgb) at (5.2,2.0) {\textbf{Fixed XGBoost}\\[-1mm]\small(for FFA)};
 
-    \node[anchor=west, align=left, inner sep=2pt] at ($(pointerBase)+(0.2,-1.4)$) {%
-        \fontsize{8}{9}\selectfont\bfseries CAUSAL\\[-0.2ex]
-        \fontsize{8}{9}\selectfont\bfseries FEATURES};
+% arrows from pool to decision / fixed path
+\draw[flow] (pool.east) -- ++(0.8,0) |- (bestq.west);
+\draw[flow] (pool.east) -- ++(0.8,0) |- (fixedxgb.west);
 
-    \fill[lineGray] ($(pointerBase)-(0.05,0.05)$) rectangle ($(pointerBase)+(0.05,0.05)$);
+\draw[flow] (bestq.south) -- node[right, font=\small] {selected} (bestens.north);
 
-    % ---------- 6. Rationale strip (Robustness / Consistency / Consensus gate) ----------
-    \node[
-      anchor=north,
-      text width=13.2cm,
-      align=left,
-      font=\sffamily\tiny,
-      text=lineGray!92!black,
-      yshift=-0.15cm,
-    ] at ($(pointerBase)+(0,-2.12)$) {%
-      \textbf{Robustness (SHAP):} Best-of-three (CatBoost / XGBoost / XGBoost RF) reduces model-specific bias; high SHAP under the selected ensemble strengthens a feature's claim as claims-level signal.\par\smallskip
-      \textbf{Consistency (FFA):} FFA is locked to a standard XGBoost model so feature-frequency baselines stay comparable across temporal holdouts (e.g., 2018 vs.\ 2019).\par\smallskip
-      \textbf{Consensus filter (safety gate):} In causal terms, the intersection is the gate: high SHAP with negligible FFA can reflect unstable, one-off patterns. Requiring both impact (SHAP) and repeated rule support (FFA) filters out ``lucky'' correlations in high-dimensional clinical data.};
+%--------------------------------------------------
+% SHAP / FFA circles
+%--------------------------------------------------
+\coordinate (shapc) at (10.2,3.75);
+\coordinate (ffac)  at (12.9,3.75);
+
+% filled circles with strong intersection
+\begin{scope}[blend mode=multiply]
+  \fill[shapcolor, opacity=0.60] (shapc) circle (2.15cm);
+  \fill[ffacolor, opacity=0.60]  (ffac)  circle (2.15cm);
+\end{scope}
+
+\draw[linegray, very thick] (shapc) circle (2.15cm);
+\draw[linegray, very thick] (ffac)  circle (2.15cm);
+
+\node[font=\bfseries\LARGE] at (shapc) {SHAP};
+\node[font=\bfseries\LARGE] at (ffac)  {FFA};
+
+% intersection label
+\node[
+  draw=consensuspurple,
+  very thick,
+  rounded corners=2pt,
+  fill=white,
+  inner sep=3pt,
+  font=\bfseries\small,
+  align=center
+] (consensuslabel) at ($(shapc)!0.5!(ffac)$)
+{Consensus\\[-1mm]\small SHAP $\cap$ FFA};
+
+%--------------------------------------------------
+% Branch arrows to circles
+%--------------------------------------------------
+\draw[flow] (bestens.east) -- (8.0,3.6) -- ([xshift=-2.15cm]shapc);
+
+\draw[flow] (fixedxgb.east) -- (8.0,2.0) |- ([xshift=-2.15cm]ffac);
+
+%--------------------------------------------------
+% Output: Causal Features to the right
+%--------------------------------------------------
+\node[outbox] (causal) at (16.5,3.75) {\textbf{Causal Features}};
+
+% arrow from overlap region to output
+\draw[flow, consensuspurple] ($(shapc)!0.5!(ffac)+(1.0,0)$) -- (causal.west);
+
+%--------------------------------------------------
+% Optional small caption under circles
+%--------------------------------------------------
+\node[font=\small, align=center, text width=6cm] at (11.55,1.0)
+{Consensus gate: retain features supported by both impact (SHAP) and repeated support (FFA).};
+
+%--------------------------------------------------
+% Compact explanatory notes
+%--------------------------------------------------
+\node[note, anchor=north west] (notes) at (1.6,0.0) {
+\textbf{Robustness (SHAP):} best-of-three selection reduces model-specific bias.\\[1mm]
+\textbf{Consistency (FFA):} fixed XGBoost keeps frequency baselines comparable across temporal holdouts.\\[1mm]
+\textbf{Consensus filter:} the overlap acts as the safety gate, filtering unstable one-off correlations.
+};
 
 \end{tikzpicture}
 \end{document}
