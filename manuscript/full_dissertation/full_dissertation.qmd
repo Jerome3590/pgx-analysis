@@ -193,7 +193,7 @@ Chapter 1 establishes the knowledge gap through a Systematic Quantitative Litera
 
 `\mainmatter`
 
-# Chapter 1: Bridging Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk Prediction {#chap-1}
+# Chapter 1: Bridging Explainable Artificial Intelligence and Pharmacogenomics for Opioid and Polypharmacy Risk Prediction: A Systematic Quantitative Literature Review {#chap-1}
 
 ```{r ch01}
 #| results: asis
@@ -202,7 +202,7 @@ include_chapter("../CH_1/ch01_bmic.qmd")
 
 \cleardoublepage
 
-# Chapter 2: Building the Clinical OODA Loop {#chap-2}
+# Chapter 2: Building the Clinical OODA Loop: A Partition-First Data Architecture for Model-Based Precision Therapeutics {#chap-2}
 
 **Foreword to Chapter 2**
 
@@ -219,7 +219,7 @@ include_chapter("../CH_2/ch02_psp.qmd")
 
 \cleardoublepage
 
-# Chapter 3: Causal Temporal Drivers of Opioid-Related ED Visits {#chap-3}
+# Chapter 3: Causal Temporal Drivers of Opioid-Related Emergency Department Visits in Young and Mid-Life Adults: An Ensemble Machine Learning Study with Consensus-Based Feature Attribution {#chap-3}
 
 **Foreword to Chapter 3**
 
@@ -236,7 +236,7 @@ include_chapter("../CH_3/ch03_cts.qmd")
 
 \cleardoublepage
 
-# Chapter 4: Formal Feature Attribution as a Causal Calculator for Polypharmacy Risk {#chap-4}
+# Chapter 4: Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Polypharmacy: A Systems Pharmacology Approach Using All-Payer Claims Data {#chap-4}
 
 **Foreword to Chapter 4**
 
@@ -253,7 +253,7 @@ include_chapter("../CH_4/ch04_psp.qmd")
 
 \cleardoublepage
 
-# Chapter 5: A Privacy-First Serverless Pharmacogenomic Risk Dashboard {#chap-5}
+# Chapter 5: A Privacy-First Serverless Pharmacogenomic Risk Dashboard: Translating Ensemble Models and Causal Rules to Clinical Decision Support {#chap-5}
 
 **Foreword to Chapter 5**
 
