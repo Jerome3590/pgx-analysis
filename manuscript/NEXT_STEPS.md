@@ -85,3 +85,43 @@ When you run **`prepare_models.py`** and deploy a **new** Lambda image, repeat t
 | `visual_manuscript_data.json` | FP-Growth + DTW + SHAP per cohort/band/bin | reference |
 | `pgx_coverage.json` | PGx feature coverage % per cohort/band | CH_5 |
 | `cloudwatch/LAST_RUN.txt` + optional `*.json` / `*.log.txt` | Dated CloudWatch CLI snapshot for CH_5 benchmark table; keep until next redeploy | CH_5 (`{#tbl-benchmarks}`) |
+
+---
+
+## 🚀 Future: FDA SaMD Commercial Deployment
+
+> **Scope:** Transitioning the `pgx-analysis` dashboard from a **research prototype** to a
+> regulatory-ready **Software as a Medical Device (SaMD)** requires the following phases.
+> None of these are in scope for the dissertation; document here for post-defense roadmap.
+
+### Regulatory & Quality Assurance
+- Conduct formal FDA regulatory classification analysis under **21 CFR Part 820**.
+- Establish comprehensive **Quality Management System (QMS)** documentation.
+- Reference: CH_5 §Discussion already flags SaMD oversight risk — cite FDA Digital Health
+  Center of Excellence guidance.
+
+### Clinical-Grade Data Parsing
+- Replace consumer-grade 23andMe input with parsers for:
+  - **VCF v4.3** — standard clinical genomics variant call format
+  - **HL7 FHIR R4 Genomics** profiles — EHR-interoperable genomic data exchange
+
+### Automated Guideline Updates
+- Implement container-start version check comparing bundled CPIC DB snapshot hash
+  against live CPIC API; issue warning if offline data is stale.
+- Current CPIC snapshot: March 2026 (573 gene-drug pairs, Level A/B).
+
+### Live PDMP Integration
+- Integrate real-time **Prescription Drug Monitoring Program (PDMP)** data directly
+  into the opioid risk scoring pipeline to supplement retrospective claims-based features.
+
+### Prospective Clinical Pilot
+- Move beyond retrospective holdout validation:
+  - Formal prospective trial in an ED or opioid treatment program
+  - **$\ge$ 200 eligible encounters** with **6-month follow-up**
+  - Measure clinician acceptance, time-to-decision, and prescribing behavior impact
+
+### Frontend & Scaling Enhancements
+- **Mobile-responsive frontend** for tablet use at point of care
+- **Multi-lingual card generation** for high-LEP populations
+- **Federated learning framework** — multi-state model weight updates without
+  pooling patient data (architecture reference: Joshi et al. 2022)

@@ -8,6 +8,7 @@
 #   .\build.ps1 -Draft       # plain article class, no journal template
 #   .\build.ps1 -Clean       # remove output/ and edits/ artifacts
 #   .\build.ps1 -Full        # full dissertation → output/dissertation_dixon_<yyyyMMdd_HHmmss>.pdf
+#   .\build.ps1 -Full -Docx    # full dissertation → edits/dissertation_dixon_<yyyyMMdd_HHmmss>.docx
 #
 # Prerequisites:
 #   Quarto CLI  : https://quarto.org/docs/get-started/
@@ -87,7 +88,26 @@ if ($Full) {
         Write-Error "Full dissertation QMD not found: $FullQmd"
         exit 1
     }
+    if (-not (Test-Path $Output)) { New-Item -ItemType Directory $Output | Out-Null }
+    if (-not (Test-Path $Edits))  { New-Item -ItemType Directory $Edits  | Out-Null }
+
     $DissertationStamp = Get-Date -Format "yyyyMMdd_HHmmss"
+
+    if ($Docx) {
+        $DissertationDocx = "dissertation_dixon_$DissertationStamp.docx"
+        Write-Host "`n==> Building full dissertation DOCX ..." -ForegroundColor Magenta
+        Write-Host "    Output file: $DissertationDocx" -ForegroundColor DarkGray
+        quarto render $FullQmd --to docx `
+            --output-dir $Edits `
+            --output $DissertationDocx
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "    OK  -> $Edits\$DissertationDocx" -ForegroundColor Green
+        } else {
+            Write-Error "    FAILED: full dissertation docx (exit $LASTEXITCODE)"
+        }
+        exit 0
+    }
+
     $DissertationPdf = "dissertation_dixon_$DissertationStamp.pdf"
     Write-Host "`n==> Building full dissertation PDF ..." -ForegroundColor Cyan
     Write-Host "    Output file: $DissertationPdf" -ForegroundColor DarkGray

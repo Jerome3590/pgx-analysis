@@ -5,6 +5,7 @@
 #   make all          - build every chapter (journal PDFs → output/)
 #   make ch01         - build Chapter 1 only
 #   make docx         - build all chapters as Word .docx → edits/ (for advisor)
+#   make docx-full    - full dissertation .docx → edits/ (timestamped filename)
 #   make docx-ch01    - single chapter to edits/
 #   make clean        - remove compiled PDFs from output/ and .docx from edits/
 #   make draft        - build all chapters in draft mode (plain article class)
@@ -76,6 +77,12 @@ draft:
 
 # ── Word .docx for advisor review (Google Docs compatible) ───────────────────
 docx: docx-ch01 docx-ch02 docx-ch03 docx-ch04 docx-ch05 docx-ch06
+
+# Full dissertation (matches build.ps1 -Full -Docx)
+docx-full:
+	mkdir -p $(EDITS)
+	quarto render full_dissertation/full_dissertation.qmd --to docx \
+	  --output-dir $(EDITS) --output dissertation_dixon_$$(date +%Y%m%d_%H%M%S).docx
 
 docx-ch01:
 	mkdir -p $(EDITS)
