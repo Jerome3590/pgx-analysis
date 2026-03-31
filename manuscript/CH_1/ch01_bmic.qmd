@@ -104,7 +104,7 @@ bibliography:
      REFERENCES: no limit for reviews; target 80–120
      ============================================================ -->
 
-# Introduction and Conceptual Framework {#sec-intro}
+# Introduction and Conceptual Framework {#ch01-intro}
 
 ## Background: OUD, Polypharmacy, and the Clinical Decision Gap
 
@@ -222,7 +222,7 @@ data integrity from raw ingest through model deployment. It comprises:
 
 ---
 
-# Methods {#sec-methods}
+# Methods {#ch01-methods}
 
 ## Protocol and Registration
 
@@ -557,7 +557,7 @@ figures were generated using R (ggplot2 v3.4.4, pheatmap v1.0.12).
 All analysis code is publicly available at
 \url{https://github.com/Jerome3590/pgx-analysis}.
 
-# Results {#sec-results}
+# Results {#ch01-results}
 
 ## Search Results and Study Selection
 
@@ -751,7 +751,7 @@ trained without PGx signal cannot account for the 20–30% of patients whose
 genotypic metabolizer status would change their risk classification if properly
 modeled.
 
-## Temporal Validation and Data Leakage {#sec-leakage}
+## Temporal Validation and Data Leakage {#ch01-leakage}
 
 Temporal leakage, the inadvertent inclusion of post-outcome information in
 predictor features, was documented or suspected in 28 studies (30%).
@@ -845,7 +845,7 @@ consistent with the target population); predictor applicability was lower
 (48% low concern) due to EHR-based studies that cannot be replicated with
 claims data alone.
 
-# Discussion {#sec-discussion}
+# Discussion {#ch01-discussion}
 
 ## Key Findings
 
@@ -964,7 +964,7 @@ the Virginia APCD's all-payer coverage (6,929,576 patients; commercial,
 Medicaid, Medicare, self-insured) make this source increasingly accessible
 but currently underutilized in the pharmacoepidemiology ML literature.
 
-# Conclusions {#sec-conclusions}
+# Conclusions {#ch01-conclusions}
 
 Ninety-four studies demonstrate that ensemble ML methods, particularly
 gradient boosting (XGBoost, CatBoost) and neural network ensembles, are

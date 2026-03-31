@@ -107,7 +107,7 @@ bibliography:
      REFERENCES: 60–90
      ============================================================ -->
 
-# Introduction {#sec-intro}
+# Introduction {#ch05-intro}
 
 High-performance ML models for clinical risk prediction face a well-documented
 translational barrier: even when performance metrics satisfy publication
@@ -169,7 +169,7 @@ that model development (Chapters 2–4) has produced validated, performant
 models, and focuses entirely on making those models usable, trustworthy,
 and accessible to non-data-scientist clinicians in real-world prescribing contexts.
 
-# System Architecture {#sec-architecture}
+# System Architecture {#ch05-architecture}
 
 ## Design Philosophy
 
@@ -326,7 +326,7 @@ that even doubling the model count (e.g., adding a third cohort or
 extending to additional age bands) would approach but not exceed the
 10 GB Lambda container image limit.
 
-# The Inference Engine {#sec-inference}
+# The Inference Engine {#ch05-inference}
 
 ## Ensemble Risk Scoring
 
@@ -370,7 +370,7 @@ The risk score is returned on a 0–100% scale, accompanied by:
   shown to the clinician to contextualize which sub-population model was applied
   and whether the patient's claim history volume is typical or atypical
 
-## Handling Real-World Data Sparsity: Imputation of Normality {#sec-imputation}
+## Handling Real-World Data Sparsity: Imputation of Normality {#ch05-imputation}
 
 **The challenge:** Clinicians rarely present a patient's complete 3-year
 prescription history at the point of care.
@@ -435,7 +435,7 @@ Shaded band = ± 1 SD. Prediction stability is maintained up to 70% sparsity.
 Band assignment is stable up to ~60% sparsity.](../figures/ch05/fig_imputation.pdf){#fig-imputation
 width=90% fig-align="center"}
 
-# Final PGx Risk Dashboard {#sec-features}
+# Final PGx Risk Dashboard {#ch05-features}
 
 This section documents the **deployed** interface: the **Risk Assessment**
 screenshot under Tab~2 below is the **canonical manuscript figure** for the
@@ -495,7 +495,7 @@ that removing this drug may have compound benefits.
 
 $$\Delta\hat{p}(\text{remove } f_i) = \hat{p}(\mathbf{x}) - \hat{p}(\mathbf{x}_{f_i \to \text{med}})$$
 
-## Feature 3: Exploratory Visualizations (Tab 4) {#sec-exploratory}
+## Feature 3: Exploratory Visualizations (Tab 4) {#ch05-exploratory}
 
 The Exploratory tab delivers three complementary population-context
 visualizations that answer the clinician question:
@@ -645,7 +645,7 @@ occurring within 6 months; Chronic-Escalation correctly identified
 demonstrating that the visualization accurately represents the population
 patterns it is intended to convey.
 
-## Feature 4: PGx Patient Card (Tab 5) {#sec-pgx-card}
+## Feature 4: PGx Patient Card (Tab 5) {#ch05-pgx-card}
 
 ### Privacy Architecture
 
@@ -700,7 +700,7 @@ Example CPIC card entries:
 : Representative PGx Patient Card entries for a hypothetical patient
 profile. CPIC, Clinical Pharmacogenomics Implementation Consortium. {#tbl-pgx-card}
 
-### PGx Feature Coverage in Study Cohort {#sec-pgx-coverage}
+### PGx Feature Coverage in Study Cohort {#ch05-pgx-coverage}
 
 To validate the clinical relevance of PGx feature engineering, we computed
 the proportion of APCD patients with at least one pharmacogenomically-relevant
@@ -727,7 +727,7 @@ PGx Coverage = proportion of patients with `pgx_num_drugs` ≥ 1; Mean PGx Drugs
 mean `pgx_num_drugs`; Mean CPIC Drugs = mean `pgx_num_cpic_drugs` (CPIC Level A/B).
 Source: `pgx_coverage.json` (2019 holdout). {#tbl-pgx-coverage}
 
-# Deployment and Reliability {#sec-deployment}
+# Deployment and Reliability {#ch05-deployment}
 
 ## CI/CD Pipeline
 
@@ -771,7 +771,7 @@ the pipeline creates a GitHub Actions annotation warning and does not
 update the Lambda alias pointing to `latest`, leaving the prior
 container version live without manual intervention.
 
-## Performance Benchmarks {#sec-benchmarks}
+## Performance Benchmarks {#ch05-benchmarks}
 
 Lambda performance was characterized across three benchmark scenarios:
 cold-start invocations (first request after container initialization),
@@ -842,7 +842,7 @@ are logic-based (IF phenotype THEN action) rather than probabilistic;
 the implementation fidelity of the CPIC lookup module can be fully
 unit-tested against the CPIC guideline specification.
 
-# Discussion {#sec-discussion}
+# Discussion {#ch05-discussion}
 
 ## Resolving the Last-Mile Problem
 
@@ -955,7 +955,7 @@ patient data, following the architecture described by Joshi et al.
 (5) VCF v4.3 and FHIR R4 Genomics input parser for EHR-integrated\
 deployment.
 
-# Conclusions {#sec-conclusions}
+# Conclusions {#ch05-conclusions}
 
 The PGx Risk Dashboard translates the ensemble models, causal rules, and
 PGx guidelines developed across Chapters 2–4 into a production-ready,

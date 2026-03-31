@@ -109,7 +109,8 @@ $endif$
 
 $body$
 
-%% References are emitted by Quarto inside $body$ when cite-method: natbib is set.
-%% Do NOT add \bibliographystyle or \bibliography here — causes duplicate \bibstyle error.
+%% Natbib + BibTeX: style is set by WileyNJDv5.cls (\bibliographystyle{WileyNJD-AMA} when AMA).
+%% Do not repeat \bibliographystyle here. Paths are relative to the chapter .tex directory (CH_*/).
+\bibliography{../refs/discipline,../refs/cts}
 
 \end{document}

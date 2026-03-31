@@ -7,6 +7,7 @@
 #   .\build.ps1 -Docx -Chapter 2  # single chapter to edits/
 #   .\build.ps1 -Draft       # plain article class, no journal template
 #   .\build.ps1 -Clean       # remove output/ and edits/ artifacts
+#   .\build.ps1 -Full        # full dissertation → output/dissertation_dixon_<yyyyMMdd_HHmmss>.pdf
 #
 # Prerequisites:
 #   Quarto CLI  : https://quarto.org/docs/get-started/
@@ -86,12 +87,15 @@ if ($Full) {
         Write-Error "Full dissertation QMD not found: $FullQmd"
         exit 1
     }
+    $DissertationStamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $DissertationPdf = "dissertation_dixon_$DissertationStamp.pdf"
     Write-Host "`n==> Building full dissertation PDF ..." -ForegroundColor Cyan
+    Write-Host "    Output file: $DissertationPdf" -ForegroundColor DarkGray
     quarto render $FullQmd --to pdf `
         --output-dir $Output `
-        --output "dissertation_dixon.pdf"
+        --output $DissertationPdf
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "    OK  -> $Output\dissertation_dixon.pdf" -ForegroundColor Green
+        Write-Host "    OK  -> $Output\$DissertationPdf" -ForegroundColor Green
     } else {
         Write-Error "    FAILED: full dissertation (exit $LASTEXITCODE)"
     }
