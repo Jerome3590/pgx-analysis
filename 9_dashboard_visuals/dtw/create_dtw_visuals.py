@@ -322,6 +322,21 @@ def create_dtw_visuals(
                 "success": False,
             },
         }
+    # Inject missing-density-bin reasons into charts_not_built so the frontend has a single object to read
+    for _missing_bin in sorted(set(("low", "medium", "high", "extreme")) - bin_stems):
+        _cs_path = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}_density_{_missing_bin}.json"
+        _reason = f"No DTW data for density bin '{_missing_bin}' (no parquet produced by create_dtw_features)"
+        if _cs_path.exists():
+            try:
+                with open(_cs_path, encoding="utf-8") as _f:
+                    _cs = json.load(_f)
+                if _cs.get("empty") and _cs.get("message"):
+                    _reason = _cs["message"]
+            except Exception:
+                pass
+        if isinstance(chart_data.get("metrics"), dict):
+            chart_data["metrics"].setdefault("charts_not_built", {})[f"density_bin_{_missing_bin}"] = _reason
+        _log("info", "chart_data.metrics.charts_not_built[density_bin_%s]: %s", _missing_bin, _reason)
     with open(chart_path, "w", encoding="utf-8") as f:
         json.dump(chart_data, f, indent=0)
     _log("info", "Wrote %s", chart_path)
@@ -375,6 +390,41 @@ def create_dtw_visuals(
             _bin_df = dtw_df[dtw_df["event_density_bin"] == _bin].copy()
             if len(_bin_df) < 5:
                 _log("info", "Per-bin DTW visuals: skipping %s (n=%d < 5)", _bin, len(_bin_df))
+                _bin_out = out_dir / "density" / _bin
+                _bin_out.mkdir(parents=True, exist_ok=True)
+                _cs_path = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}_density_{_bin}.json"
+                _reason = f"Too few trajectories for DTW visualization (n={len(_bin_df)}, minimum 5 required)."
+                if _cs_path.exists():
+                    try:
+                        with open(_cs_path, encoding="utf-8") as _f:
+                            _cs = json.load(_f)
+                        if _cs.get("empty") and _cs.get("message"):
+                            _reason = _cs["message"]
+                    except Exception:
+                        pass
+                _empty_payload = {"message": _reason, "empty": True, "cohort": cohort_name,
+                                  "age_band": age_band, "density_bin": _bin,
+                                  "metrics": {"reason": "too_few_trajectories", "dtw_rows": len(_bin_df)}}
+                _bin_chart_path = _bin_out / "chart_data.json"
+                _bin_heatmap_path = _bin_out / "sequence_heatmap.json"
+                with open(_bin_chart_path, "w", encoding="utf-8") as _f:
+                    json.dump(_empty_payload, _f, indent=0)
+                with open(_bin_heatmap_path, "w", encoding="utf-8") as _f:
+                    json.dump(_empty_payload, _f, indent=0)
+                _log("info", "Per-bin DTW: wrote empty-state chart_data+heatmap for bin=%s -> %s", _bin, _bin_out)
+                if (os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() not in ("1", "true", "yes"):
+                    try:
+                        import boto3 as _boto3
+                        _s3_bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+                        _dash_prefix = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+                        _s3_base = f"{_dash_prefix.rstrip('/')}/visualizations/dtw/{cohort_name}/{age_band}/density/{_bin}"
+                        _s3 = _boto3.client("s3")
+                        for _local, _key_name in [(_bin_chart_path, "chart_data.json"), (_bin_heatmap_path, "sequence_heatmap.json")]:
+                            _s3.put_object(Bucket=_s3_bucket, Key=f"{_s3_base}/{_key_name}",
+                                           Body=_local.read_bytes(), ContentType="application/json")
+                        _log("info", "Per-bin DTW empty-state uploaded: s3://%s/%s/", _s3_bucket, _s3_base)
+                    except Exception as _upload_err:
+                        _log("warning", "Per-bin DTW empty-state S3 upload failed (%s): %s", _bin, _upload_err)
                 continue
             _bin_out = out_dir / "density" / _bin
             _bin_out.mkdir(parents=True, exist_ok=True)
