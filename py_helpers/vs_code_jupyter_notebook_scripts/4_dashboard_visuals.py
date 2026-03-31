@@ -722,7 +722,7 @@ else:
 # FP-Growth uses **SHAP/FFA-refined** model data: inputs come from `4_model_data` (built from Step 3b `cohort_feature_importance.csv`). **Item types included: drugs (`drug_name`), ICD diagnosis codes (`icd_code`), and CPT procedure codes (`cpt_code`)** (plus combined `medical_code`). For each cohort/age band this step: (1) ensures itemsets exist, (2) creates PNGs and **Plotly interactive network HTML**, (3) **saves locally** to `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/` and `.../data/` (notebook 5 Step 6 syncs to S3 `visualizations/fpgrowth/{cohort}/{age_band}/`). The dashboard then shows the **network plot for the user-selected cohort** via the `/visualizations/fpgrowth` API. **FP-Growth itemsets and rules are not used for feature engineering** (same as DTW and BupaR); they are computed for dashboard visualization and analysis.
 
 # %% [markdown]
-# Run the cell below in parallel (FPGROWTH_WORKERS at a time; builds itemsets and Plotly HTML, saves to final local destination). **Exit 0** = itemsets/plots produced for that cohort/age_band; **exit 1** = no outputs (e.g. model_data missing or too few transactions). Logs: `9_dashboard_visuals/logs/fpgrowth/` and S3 `6_fpgrowth_log/{cohort}/{age_band}/`.
+# Run the cell below in parallel (FPGROWTH_WORKERS at a time; builds itemsets and Plotly HTML, saves to final local destination). **Exit 0** = itemsets/plots produced for that cohort/age_band; **exit 1** = no outputs (e.g. model_data missing or too few transactions). Logs: `logs/9_fpgrowth/` (EC2) and S3 `s3://pgx-repository/9_fpgrowth_log/{cohort}/{age_band}/` (mirrored on log_summary()).
 
 # %%
 import subprocess
@@ -756,7 +756,7 @@ with ThreadPoolExecutor(max_workers=FPGROWTH_WORKERS) as ex:
         print(f"  [FP-Growth] {cohort_name} / {age_band} -> exit {code}")
         if code != 0:
             ab_f = age_band.replace("-", "_")
-            print(f"    No itemsets produced (exit 1). Check 9_dashboard_visuals/logs/fpgrowth/fpgrowth_{cohort_name}_{ab_f}.log or s3://pgx-repository/6_fpgrowth_log/{cohort_name}/{age_band}/")
+            print(f"    No itemsets produced (exit 1). Check logs/9_fpgrowth/create_fpgrowth_visuals_{cohort_name}_{ab_f}_*.log or s3://pgx-repository/9_fpgrowth_log/{cohort_name}/{age_band}/")
             if stderr:
                 print("    stderr:", (stderr[:1500] + "..." if len(stderr) > 1500 else stderr))
             if stdout:
