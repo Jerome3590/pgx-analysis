@@ -298,15 +298,26 @@ def run_alignment(
             any_ok = False
             for bin_name in bins_present:
                 df_bin = df.loc[df["event_density_bin"] == bin_name].copy()
+                bin_common = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}_density_{bin_name}.json"
                 if len(df_bin) < 2:
-                    log("info", "Skipping bin %s: too few trajectories (%d)", bin_name, len(df_bin))
+                    reason = f"Too few trajectories for DTW alignment (n={len(df_bin)}, minimum 2 required). Check next density bin."
+                    log("info", "Skipping bin %s: %s", bin_name, reason)
+                    with open(bin_common, "w", encoding="utf-8") as f:
+                        json.dump({"empty": True, "density_bin": bin_name, "n_trajectories": len(df_bin),
+                                   "message": reason, "prototypes": []}, f, indent=2)
+                    log("info", "Wrote empty-state common_sequences for bin=%s -> %s", bin_name, bin_common)
                     continue
                 log("info", "DTW alignment density=%s: %d patients, n_prototypes=%d", bin_name, len(df_bin), n_prototypes)
                 df_out_bin, common_bin = compute_dtw_distances(df_bin, n_prototypes=n_prototypes)
                 if common_bin is None:
+                    reason = f"DTW alignment produced no prototypes (n={len(df_bin)} trajectories). Sequences may lack encodable drug events."
+                    log("warning", "bin %s: %s", bin_name, reason)
+                    with open(bin_common, "w", encoding="utf-8") as f:
+                        json.dump({"empty": True, "density_bin": bin_name, "n_trajectories": len(df_bin),
+                                   "message": reason, "prototypes": []}, f, indent=2)
+                    log("warning", "Wrote empty-state common_sequences for bin=%s -> %s", bin_name, bin_common)
                     continue
                 bin_csv = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}_density_{bin_name}.csv"
-                bin_common = fe_dir / f"common_sequences_{cohort_name}_{age_band_fname}_density_{bin_name}.json"
                 bin_parquet = fe_dir / f"dtw_features_{cohort_name}_{age_band_fname}_density_{bin_name}.parquet"
                 df_out_bin.to_parquet(bin_parquet, index=False)
                 df_out_bin.to_csv(bin_csv, index=False)
