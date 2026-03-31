@@ -160,10 +160,10 @@ After EC2 Notebooks 3 + 4 complete and local extraction scripts run:
 - [x] **CH_4 IR scores** — simvastatin/furosemide/alprazolam IR values confirmed
 - [x] **CH_3 SHAP values** — `pgx_num_drugs` rank #1 (1.22), `pgx_num_cpic_drugs` rank #2 (0.63), gabapentin rank #3 (0.23); chapter updated
 - [ ] **CH_3 FP-Growth rule** — opioid_ed/25-44/low has 0 rules; check medium/high bins in `visual_manuscript_data.json`
-- [ ] **CH_5 PGx coverage table** — `pgx_coverage.json` generated; add coverage table to CH_5 results section
-- [ ] **CH_5 benchmark table** — Lambda latency from CloudWatch post-redeploy
-- [ ] Regenerate all figures: `python manuscript/generate_figures.py`
-- [ ] Rebuild all PDFs: `.\build.ps1`
+- [x] **CH_5 PGx coverage table** — `pgx_coverage.json` + table in CH_5 (`{#tbl-pgx-coverage}`)
+- [x] **CH_5 benchmark tables** — Synthetic `{#tbl-benchmarks}` + CloudWatch ops `{#tbl-benchmarks-cw}`; snapshot **`2026-03-31T16:46:25Z`** post-deploy (`manuscript/cloudwatch/benchmark_snapshot.json`, `lambda_timing*_20260331.txt`)
+- [ ] Regenerate all figures: `python manuscript/scripts/generate_figures/generate_figures.py`
+- [ ] Rebuild all PDFs: `cd manuscript; .\build.ps1`
 
 ---
 

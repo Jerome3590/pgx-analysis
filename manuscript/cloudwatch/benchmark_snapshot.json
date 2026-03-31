@@ -1,0 +1,46 @@
+{
+  "completed_at_utc": "2026-03-31T16:46:25Z",
+  "region": "us-east-1",
+  "function_name": "pgx-risk-calculator",
+  "log_group": "/aws/lambda/pgx-risk-calculator",
+  "scripts": [
+    "manuscript/scripts/metrics/lambda_timing.py",
+    "manuscript/scripts/metrics/lambda_timing2.py",
+    "manuscript/scripts/metrics/lambda_timing3.py"
+  ],
+  "cloudwatch_metric_duration_180d": {
+    "namespace": "AWS/Lambda",
+    "metric": "Duration",
+    "mean_ms": 1332.8,
+    "max_ms": 31928.8,
+    "sample_count": 623
+  },
+  "logs_insights_init_duration_cold": {
+    "mean_init_ms": 2967.79,
+    "n": 198,
+    "source": "REPORT lines with Init Duration (lambda_timing.py query)"
+  },
+  "logs_insights_report_warm_no_init": {
+    "n": 436,
+    "mean_duration_ms": 747.486,
+    "sd_duration_ms": 3698.845,
+    "p50_ms": 84.33,
+    "p95_ms": 829.35,
+    "p99_ms": 24075.65,
+    "billed_p50_ms": 84.93,
+    "source": "lambda_timing3.py warm-only REPORT filter"
+  },
+  "logs_insights_report_by_cold_flag": {
+    "cold": {"avg_dur_ms": 892.81, "sd_ms": 3655.96, "n": 198},
+    "warm": {"avg_dur_ms": 747.49, "sd_ms": 3698.85, "n": 436},
+    "source": "lambda_timing2.py ispresent(init_ms)"
+  },
+  "ecr_pgx_risk_calculator": {
+    "repository": "pgx-risk-calculator",
+    "image_size_mb": 618,
+    "pushed_at_utc": "2026-03-31T11:47:57Z",
+    "source": "lambda_timing3.py describe_images (latest tagged)"
+  },
+  "note": "Operational CloudWatch aggregates mix traffic and tail latency; not identical to controlled n=1000 synthetic benchmarks in CH_5 table above.",
+  "note_post_deploy": "2026-03-31: Re-pull after Lambda/ECR deploy. CW Duration and Logs Insights stats matched prior snapshot (rolling windows; n unchanged). New image: see ecr_pgx_risk_calculator."
+}

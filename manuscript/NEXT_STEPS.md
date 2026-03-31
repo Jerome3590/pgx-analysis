@@ -1,6 +1,6 @@
 # Manuscript Next Steps
 
-_Last updated: 2026-03-31 after new pipeline run (all notebooks re-run on EC2)._
+_Last updated: 2026-03-31 — `generate_figures.py` + PDF builds for CH_3/4/5 completed; CH_5 build required fixing `\(\approx\)` + bold in `{#tbl-benchmarks-cw}` paragraph (now Unicode ≈)._
 
 ---
 
@@ -15,6 +15,9 @@ _Last updated: 2026-03-31 after new pipeline run (all notebooks re-run on EC2)._
 | CH_5 PGx coverage table added (`{#tbl-pgx-coverage}`) | `CH_5/ch05_bmic.qmd` lines 703–728 |
 | METRICS.md model table: post-retrain + Brier/ICI columns | `METRICS.md` |
 | METRICS.md checklist: 7 of 11 items confirmed ✅ | `METRICS.md` |
+| **CH_5 Lambda benchmarks** — Synthetic targets `{#tbl-benchmarks}`; **operational CloudWatch snapshot** `{#tbl-benchmarks-cw}` + `benchmark_snapshot.json` — **verified post-deploy `2026-03-31T16:46:25Z`** (`lambda_timing*.py`; CW stats unchanged vs prior pull). | `CH_5/ch05_bmic.qmd`, `cloudwatch/*` |
+| PROSPERO registration ID in CH_1 | `CH_1/ch01_bmic.qmd` — `CRD420261354089` |
+| Figures + PDFs (`generate_figures.py`; `build.ps1` CH 3/4/5) | `manuscript/output/ch03_cts.pdf`, `ch04_psp.pdf`, `ch05_bmic_jpm.pdf` |
 
 ---
 
@@ -41,16 +44,15 @@ cd manuscript
 
 Output PDFs land in `manuscript/output/`.
 
+_Last run: 2026-03-31 — `ch03_cts.pdf`, `ch04_psp.pdf`, `ch05_bmic_jpm.pdf` rebuilt._
+
 ---
 
 ## 🔲 Still Pending
 
-### Manual / CloudWatch
-- **CH_5 Lambda benchmark table** (`{#tbl-benchmarks}`) — pull fresh latency
-  numbers from CloudWatch after `prepare_models.py` redeploy:
-  - Cold-start mean/SD
-  - Warm inference mean/SD
-  - Risk, causal importance, visualization endpoint latencies
+### CloudWatch — next refresh only (after Lambda redeploy)
+
+When you run **`prepare_models.py`** and deploy a **new** Lambda image, repeat the CLI CloudWatch pull, update **`{#tbl-benchmarks-cw}`** text/table if aggregates move, update **`cloudwatch/LAST_RUN.txt`** (new ISO time), and refresh **`benchmark_snapshot.json`** (see `cloudwatch/README.md`). **2026-03-31:** Post-deploy pull recorded in `LAST_RUN.txt`; rolling CW/Logs *n* and means matched the prior snapshot—only ECR push time was new.
 
 ### After next pipeline run (FP-Growth)
 - **CH_3 FP-Growth top rule** — `opioid_ed/25-44/low` returned 0 rules this run.
@@ -70,9 +72,6 @@ Output PDFs land in `manuscript/output/`.
   Writing – Original Draft. E.T.P.: Supervision, Writing – Review & Editing.
   ```
 
-### PROSPERO (CH_1)
-- Replace `[CRD-XXXXXX]` with `CRD420261354089` if not already in CH_1.
-
 ---
 
 ## 📁 Generated Data Files (manuscript/)
@@ -85,3 +84,4 @@ Output PDFs land in `manuscript/output/`.
 | `shap_top_features.json` | SHAP top-10 per cohort/band/bin | CH_3 |
 | `visual_manuscript_data.json` | FP-Growth + DTW + SHAP per cohort/band/bin | reference |
 | `pgx_coverage.json` | PGx feature coverage % per cohort/band | CH_5 |
+| `cloudwatch/LAST_RUN.txt` + optional `*.json` / `*.log.txt` | Dated CloudWatch CLI snapshot for CH_5 benchmark table; keep until next redeploy | CH_5 (`{#tbl-benchmarks}`) |
