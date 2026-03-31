@@ -584,6 +584,13 @@ centrality is one that, if discontinued, would sever multiple high-risk
 edges simultaneously---making it a priority deprescribing candidate
 regardless of its individual IR score.
 
+**OODA alignment.** The dashboard inherits the same stance: a fully
+populated rule list in every cohort $\times$ band $\times$ bin is not a
+prerequisite for action. The priority is compressing time from evidence
+to display---new associations emerge as pipelines and releases repeat.
+Bins with no rules under the current thresholds indicate insufficient
+frequent co-occurrence at that grain for FP-Growth, not a broken loop.
+
 **Results.** In the geriatric (65--74) training cohort, the most
 consistently identified hub drug was **levofloxacin** (betweenness
 centrality ≥ 90th percentile in all three geriatric age bands),
@@ -814,6 +821,17 @@ rather than the model computation itself.
 : Performance benchmarks. All metrics meet stated targets. Latency measured
 from API Gateway request receipt to Lambda response return. $n$ = 1,000
 synthetic requests per metric; warm inference uses provisioned concurrency. {#tbl-benchmarks}
+
+**CloudWatch operational snapshot (production, `us-east-1`).** Independent of the controlled synthetic rows above, `manuscript/scripts/metrics/lambda_timing*.py` was re-run against `/aws/lambda/pgx-risk-calculator` with raw exports in `manuscript/cloudwatch/` (`benchmark_snapshot.json`, `lambda_timing*_20260331.txt`). Last run **2026-03-31T16:46Z** (UTC), after the **2026-03-31** Lambda/ECR deploy (latest `pgx-risk-calculator` image **618 MB** in ECR, per script output). Rolling CloudWatch and Logs Insights windows were **unchanged** versus the prior pull (same means and *n*); a new image does not reset historical aggregates. REPORT-line statistics mix traffic patterns and tail latency; **p50** warm billed duration ≈ **85 ms** versus mean **748 ms** (long tail); mean **`Init Duration`** on cold invocations ≈ **2,968 ms** (*n* = 198); CloudWatch **Duration** metric (180 d) mean **1,333 ms** (*n* = 623). Use the snapshot JSON for exact figures; refresh after the next Lambda redeploy.
+
+| Metric (CloudWatch / Logs Insights) | Value |
+|:---|---:|
+| Cold `Init Duration`, mean | 2,968 ms |
+| Warm REPORT billed duration, p50 | 85 ms |
+| Warm REPORT duration, mean | 748 ms |
+| CW `Duration` metric (180 d), mean | 1,333 ms |
+
+: Operational telemetry for `pgx-risk-calculator`; not interchangeable with the synthetic benchmark means in @tbl-benchmarks. {#tbl-benchmarks-cw}
 
 ![Latency distribution. (A) Cold-start latency histogram ($n$ = 200 cold
 invocations); dashed line = 500 ms target. (B) Warm inference latency

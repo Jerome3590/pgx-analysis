@@ -1,0 +1,17 @@
+=== Warm (non-cold) REPORT durations ===
+  n=436  avg=747.486ms  SD=3698.845ms  p50=84.3338ms  p95=829.3483ms  p99=24075.6531ms
+
+=== Billed duration (warm only) ===
+  n=436  avg=747.9748ms  SD=3698.832ms  p50=84.9259ms
+
+=== ECR image sizes ===
+  pgx-risk-calculator: 618 MB  (pushed 2026-03-31 07:47:57.435000-04:00)
+  (other repositories omitted; full list from script stdout if needed)
+
+=== Amplify apps ===
+
+=== CloudFront distributions ===
+  E3FKBD5BT7YMAT: aliases=[]  origins=['jdixon-ils-research.s3.us-east-1.amazonaws.com']
+  E3MZK5HYTJ14P3: aliases=['jerome-dixon.io']  origins=['jerome-dixon.io.s3-website-us-east-1.amazonaws.com']
+  E1XXVKXXHHICH7: aliases=[]  origins=['cana-repository.s3.us-east-1.amazonaws.com']
+  EJTGE51OALNMA: aliases=[]  origins=['cana-analytics-roundtable.s3-website-us-east-1.amazonaws.com']

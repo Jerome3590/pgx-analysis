@@ -470,6 +470,14 @@ for pattern exploration, but the ensemble model is trained exclusively
 on pre-outcome drug and diagnosis counts where temporal ordering is
 strictly enforced.
 
+Within the OODA loop outlined above, FP-Growth is not held to uniform
+rule coverage across every cohort--age--density partition. Fixed support
+and confidence thresholds imply thin or empty rule sets in some strata;
+that reflects stratum sparsity rather than methodological failure. The
+aim is continuous learning: each successive mining and deployment cycle
+can add or refine association structure, rather than treating any single
+snapshot as a complete catalogue.
+
 ## Ensemble Modeling {#ch02-models}
 
 ### Model Architecture
