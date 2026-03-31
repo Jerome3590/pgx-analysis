@@ -196,6 +196,30 @@ def _save_per_density_fpgrowth_outputs(
         logger.warning("Per-density FP-Growth local save failed (%s/%s): %s", density, item_type, e)
         return
 
+    # Per-density network HTML (drug_name only — matches FPGROWTH_GRAPH_ITEM_TYPES)
+    network_html_path = None
+    if item_type == "drug_name":
+        try:
+            from py_helpers.create_fpgrowth_visualizations import (  # noqa: E402
+                _build_combined_rules_graph,
+                _network_combined_plotly_with_filter,
+                _write_empty_network_html,
+            )
+            plots_dir = density_dir / "plots"
+            plots_dir.mkdir(parents=True, exist_ok=True)
+            G = _build_combined_rules_graph([(item_type, rs_df)])
+            if G is not None:
+                network_html_path = _network_combined_plotly_with_filter(
+                    G, cohort_name, age_band, plots_dir, logger=logger
+                )
+            if network_html_path is None:
+                network_html_path = _write_empty_network_html(
+                    cohort_name, age_band, plots_dir, logger=logger
+                )
+            logger.info("Per-density network HTML: %s", network_html_path)
+        except Exception as e:
+            logger.warning("Per-density network HTML failed (%s/%s): %s", density, item_type, e)
+
     if (_os.environ.get("SKIP_DASHBOARD_S3_UPLOAD", "") or "").strip().lower() in ("1", "true", "yes"):
         return
     try:
@@ -213,6 +237,13 @@ def _save_per_density_fpgrowth_outputs(
                 Key=f"{s3_plots_prefix}/{key_name}",
                 Body=path.read_bytes(),
                 ContentType="application/json",
+            )
+        if network_html_path is not None and network_html_path.exists():
+            _s3.put_object(
+                Bucket=s3_bucket,
+                Key=f"{s3_plots_prefix}/{network_html_path.name}",
+                Body=network_html_path.read_bytes(),
+                ContentType="text/html",
             )
         logger.info("Per-density FP-Growth: uploaded to s3://%s/%s", s3_bucket, s3_plots_prefix)
     except Exception as e:

@@ -42,5 +42,29 @@
           <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drugs are most strongly associated with each other in this cohort, and do these associations cluster into polypharmacy groups? Nodes = drugs; edges = association rules (confidence: if a patient takes Drug A, they also take Drug B). Edge thickness/color reflects rule strength (lift). Dense clusters indicate polypharmacy combinations — groups of drugs that are routinely prescribed together — which may represent treatment regimens, drug interaction risks, or shared therapeutic targets relevant to the adverse outcome.</small></p>
           <div id="fpgrowth-network-container"></div>
         </div>
+        <div class="panel full-width">
+          <h2>Itemset Support by Event Density Bin</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;"><small style="color: #64748b;"><strong>Research question:</strong> Which drug itemsets have the highest co-occurrence support within each density stratum, and do those patterns differ across low/medium/high/extreme? Toggle between grouped bars and a full matrix heatmap. Itemsets are ranked by peak support across all bins.</small></p>
+          <div style="display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+            <div>
+              <span style="font-size:0.875rem;font-weight:600;margin-right:0.5rem;">Chart type:</span>
+              <label style="font-size:0.875rem;margin-right:0.75rem;cursor:pointer;">
+                <input type="radio" name="fpgrowth-bin-chart-type" value="bar" checked onchange="renderFPGrowthBinChartView('bar')"> Grouped Bars
+              </label>
+              <label style="font-size:0.875rem;cursor:pointer;">
+                <input type="radio" name="fpgrowth-bin-chart-type" value="heatmap" onchange="renderFPGrowthBinChartView('heatmap')"> Heatmap
+              </label>
+            </div>
+            <div id="fpgrowth-bin-bar-topn-wrapper">
+              <label for="fpgrowth-bin-bar-topn" style="font-size:0.875rem;">Show top:</label>
+              <select id="fpgrowth-bin-bar-topn" style="font-size:0.875rem;margin-left:0.4rem;" onchange="renderFPGrowthBinChartView('bar')">
+                <option value="10" selected>10 itemsets</option>
+                <option value="20">20 itemsets</option>
+                <option value="30">30 itemsets</option>
+              </select>
+            </div>
+          </div>
+          <div id="fpgrowth-bin-bar-container" style="min-height: 360px;"></div>
+          <div id="fpgrowth-bin-heatmap-container" style="min-height: 300px; display:none;"></div>
+        </div>
       </div>
-    

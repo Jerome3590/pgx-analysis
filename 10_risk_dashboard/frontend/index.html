@@ -1835,6 +1835,10 @@
     _renderBinChartView(type, "bupar-bin-bar-container", "bupar-bin-heatmap-container", "bupar-bin-bar-topn-wrapper", "bupar-bin-bar-topn", "_buparBinHeatmapCache");
   };
 
+  window.renderFPGrowthBinChartView = function(type) {
+    _renderBinChartView(type, "fpgrowth-bin-bar-container", "fpgrowth-bin-heatmap-container", "fpgrowth-bin-bar-topn-wrapper", "fpgrowth-bin-bar-topn", "_fpgrowthBinHeatmapCache");
+  };
+
   function renderDTWBinComparison(combinedHeatmap, transitions) {
     if (!window.Plotly) return;
     // Cache heatmap data for toggle; render bar chart by default
@@ -2673,7 +2677,7 @@
       const manifest = await getDashboardManifest().catch(function() { return null; });
       let fgBasePath = "visualizations/fpgrowth/" + cohort + "/" + ageBand;
       const fpgBinSubdir = nEventBinFPG && nEventBinFPG !== "all" ? "/density/" + nEventBinFPG : "";
-      let itemsetsJsonUrl = staticJsonPath(fgBasePath + fpgBinSubdir + "/data/drug_name_itemsets.json");
+      let itemsetsJsonUrl = staticJsonPath(fgBasePath + fpgBinSubdir + "/plots/drug_name_itemsets.json");
       let binSpecificConfirmed = false;
       if (fpgBinSubdir) {
         try { const r = await fetch(itemsetsJsonUrl, { method: "HEAD" }); if (r.ok) { binSpecificConfirmed = true; fgBasePath = fgBasePath + fpgBinSubdir; } else { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/data/drug_name_itemsets.json"); } } catch (_) { itemsetsJsonUrl = staticJsonPath(fgBasePath + "/data/drug_name_itemsets.json"); }
@@ -2728,6 +2732,17 @@
       renderFPGrowthVisualizations(data, { cohort, ageBand, nEventBin: nEventBinFPG });
       document.getElementById("fpgrowth-status").textContent = "FP-Growth visualizations loaded successfully";
       document.getElementById("fpgrowth-status").className = "status-message success";
+      // Background fetch of combined bin itemset heatmap for Bin Comparison panel
+      const ageBandFnameFPG = ageBand.replace(/-/g, "_");
+      fetch(staticJsonPath(`visualizations/fpgrowth/${cohort}/${ageBandFnameFPG}/density/combined/fpgrowth_itemset_heatmap.json`))
+        .then(r => r.ok ? r.json().catch(() => null) : null)
+        .then(hm => {
+          window._fpgrowthBinHeatmapCache = hm;
+          const topN = parseInt(document.getElementById("fpgrowth-bin-bar-topn")?.value || "10", 10);
+          _renderBinBarChart("fpgrowth-bin-bar-container", hm, topN);
+          const hmEl = document.getElementById("fpgrowth-bin-heatmap-container");
+          if (hmEl) { hmEl.style.display = "none"; hmEl.innerHTML = ""; }
+        }).catch(() => {});
     } catch (err) {
       document.getElementById("fpgrowth-status").textContent = `Error: ${err.message}`;
       document.getElementById("fpgrowth-status").className = "status-message error";
