@@ -71,6 +71,52 @@ Allowed codes for **BupaR, DTW, and FP-Growth** are mandatory from a single sour
 - **Path:** `s3://pgx-repository/pipeline_checkpoints/9_dashboard_visuals/{cohort}/{age_band}/checkpoint.json`
 - Per–cohort/age_band checkpoints are written by `create_dtw_visuals.py`; BupaR and FP-Growth use local-output idempotency.
 
+## Manuscript checkpoint writer (production validation)
+
+The final cell of [4_dashboard_visuals.ipynb](../4_dashboard_visuals.ipynb) writes **per-cohort / per-age-band / per-bin** production checkpoints and prints a validation summary. Checkpoints are uploaded to `s3://pgxdatalake/gold/manuscript_checkpoints/` and consumed by `manuscript/scripts/extract_visual_manuscript.py`.
+
+### Checkpoint fields (per cohort / age_band; all four bins: low / medium / high / extreme)
+
+| Field | What it checks | Notes |
+|-------|----------------|-------|
+| `[PGx]` | Full-cohort PGx drug coverage (%) | Non-zero float; from cohort PGx network stats |
+| `[CohortPGx]` | Full-cohort Gene–Drug–Phenotype network HTML | `network_html=✓` — must exist before bin-level checks |
+| `[BupaR/bin]` | Per-bin BupaR: `n_activities` + `top` activity code | Top activity is the most frequent drug/ICD/CPT in the bin's process log |
+| `[FPG/bin]` | Per-bin FP-Growth: `total_rules` | 0 = no rules generated (too few transactions); still passes |
+| `[DTW/bin]` | Per-bin DTW: `trajectories`, `rapid_onset_n`, `chronic_escalation_n` | 0 = no trajectories; still passes |
+| `[CohortPGx/bin]` | Per-bin Gene–Drug–Phenotype network HTML | Built from bin-stratified causal features |
+| `[SHAP/bin]` | Per-bin top SHAP feature name | `n/a` when SHAP outputs missing; top feature name when present |
+| `[FFA/bin]` | Per-bin FFA feature count | Integer ≥ 0 |
+
+### Example production output
+
+```
+── non_opioid_ed/65-74 ──
+  [PGx] coverage=78.54%  ✓
+  [CohortPGx] network_html=✓
+  [BupaR/low] n_activities=40  top=DRUG:AMOXICILLIN  ✓
+  [FPG/low] total_rules=0  ✓
+  [DTW/low] trajectories=8203  rapid_onset_n=2053  chronic_escalation_n=2051  ✓
+  [CohortPGx/low] network_html=✓
+  [SHAP/low] top=pgx_num_drugs  ✓
+  [FFA/low] features=39  ✓
+  [BupaR/medium] n_activities=40  top=DRUG:AMOXICILLIN  ✓
+  [FPG/medium] total_rules=0  ✓
+  [DTW/medium] trajectories=8226  rapid_onset_n=2059  chronic_escalation_n=2057  ✓
+  [CohortPGx/medium] network_html=✓
+  [SHAP/medium] top=pgx_num_drugs  ✓
+  [FFA/medium] features=39  ✓
+  ...
+```
+
+### After notebooks complete
+
+```bash
+python manuscript/scripts/extract_visual_manuscript.py
+```
+
+This pulls manuscript metrics (PGx coverage, trajectory counts, SHAP top features, FFA feature counts) from `s3://pgxdatalake/gold/manuscript_checkpoints/` and formats them for the dissertation chapters.
+
 ## Test notebook
 
 **[test_dashboard_visuals.ipynb](test_dashboard_visuals.ipynb)** – (1) Validates that BupaR, DTW, and FP-Growth outputs exist locally for each cohort/age_band. (2) **Tests actual creation** by running the BupaR, DTW, and FP-Growth creation scripts for one cohort/age_band (smoke test) and verifying outputs. Run from repo root; creation test requires 4_model_data and (for BupaR) R + bupaR.

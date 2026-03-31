@@ -67,6 +67,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 | Date       | Scope / tab              | Change |
 |------------|--------------------------|--------|
+| 2026-03-31 | Full production workflow | Notebook 4 final production workflow: BupaR → DTW → FP-Growth → Causal → Cohort PGx (VIP reports + PubMed citations + network topology, full cohort + per-bin) → PGx patient card → manifest → time-between-events histogram → manuscript checkpoint writer (416 checkpoints, 0 errors). Checkpoint fields now include `[BupaR/bin]` (n_activities + top activity), `[CohortPGx/bin]` (network_html), and `[SHAP/bin]` (top feature name). Documented in `9_dashboard_visuals/README.md` and `README_execution_workflow.md`. |
 | 2025-02-25 | Production finalization  | Removed legacy orphaned "Feature Interactions" tab (`#interactions-tab`). Interactions remain only as panel inside Causal Analysis tab. |
 | 2025-02-25 | Validation README        | Added per-tab and main-page sections; this updates log for tracking. |
 | 2025-02-25 | CORS & static paths      | Documented same-origin path URLs (metadata, doc metrics); added CORS checklist and S3_CORS_SETUP reference; fixed s3-cors-config.json to CORSRules format for put-bucket-cors. |

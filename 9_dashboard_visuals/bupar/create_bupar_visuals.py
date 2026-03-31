@@ -602,7 +602,7 @@ def generate_per_bin_activity_frequency(
 
     # Compute n_events per patient and assign density bin
     try:
-        patient_col = next((c for c in ("patient_id", "member_id", "id") if c in df.columns), None)
+        patient_col = next((c for c in ("patient_id", "member_id", "id", "mi_person_key") if c in df.columns), None)
         if patient_col is None:
             logger.warning("No patient ID column found; skipping per-bin BupaR")
             return False
@@ -626,26 +626,26 @@ def generate_per_bin_activity_frequency(
 
     written = 0
     for bin_name in _DENSITY_BINS:
-        bin_df = df[df["n_event_bin"] == bin_name]
-        n_events = len(bin_df)
-        n_patients = int(bin_df[patient_col].nunique()) if n_events > 0 else 0
+        try:
+            bin_df = df[df["n_event_bin"] == bin_name]
+            n_events = len(bin_df)
+            n_patients = int(bin_df[patient_col].nunique()) if n_events > 0 else 0
 
-        bin_plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "density" / bin_name / "plots"
-        bin_plots_dir.mkdir(parents=True, exist_ok=True)
-        out_path = bin_plots_dir / f"{base}_activity_frequency.json"
+            bin_plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "density" / bin_name / "plots"
+            bin_plots_dir.mkdir(parents=True, exist_ok=True)
+            out_path = bin_plots_dir / f"{base}_activity_frequency.json"
 
-        if n_events < 10:
-            # Write empty-state so every bin has a file (dashboard can show "insufficient data")
-            freq_json = {
-                "year_labels": ["all"],
-                "data": {},
-                "density_bin": bin_name,
-                "n_patients": n_patients,
-                "n_events": n_events,
-                "empty": True,
-                "message": "Insufficient events for visualization (minimum 10 required)",
-            }
-            try:
+            if n_events < 10:
+                # Write empty-state so every bin has a file (dashboard can show "insufficient data")
+                freq_json = {
+                    "year_labels": ["all"],
+                    "data": {},
+                    "density_bin": bin_name,
+                    "n_patients": n_patients,
+                    "n_events": n_events,
+                    "empty": True,
+                    "message": "Insufficient events for visualization (minimum 10 required)",
+                }
                 out_path.write_text(json.dumps(freq_json, indent=2), encoding="utf-8")
                 logger.info("Per-bin BupaR activity_frequency (empty-state) written: %s (n=%d events)", out_path, n_events)
                 written += 1
@@ -665,11 +665,8 @@ def generate_per_bin_activity_frequency(
                         logger.info("Uploaded per-bin BupaR empty-state to s3://%s/%s", s3_bucket, s3_key)
                     except Exception as e:
                         logger.warning("Per-bin BupaR S3 upload failed (%s): %s", bin_name, e)
-            except Exception as e:
-                logger.warning("Per-bin BupaR activity_frequency empty-state failed (%s): %s", bin_name, e)
-            continue
+                continue
 
-        try:
             # Build activity frequency: top-N codes by count, split by year if available
             if year_col and year_col in bin_df.columns:
                 years = sorted(bin_df[year_col].dropna().unique().astype(int).tolist())
@@ -715,7 +712,7 @@ def generate_per_bin_activity_frequency(
                 except Exception as e:
                     logger.warning("Per-bin BupaR S3 upload failed (%s): %s", bin_name, e)
         except Exception as e:
-            logger.warning("Per-bin BupaR activity_frequency failed (%s): %s", bin_name, e)
+            logger.warning("Per-bin BupaR activity_frequency loop error (bin=%s): %s; skipping this bin", bin_name, e)
 
     logger.info("Per-bin BupaR activity frequency: %d bins written for %s/%s (all bins get file: full or empty-state)", written, cohort_name, age_band)
     return written > 0
@@ -742,15 +739,36 @@ def create_bupar_visuals(
     else:
         check_plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
     if not force and check_plots_dir.exists() and list(check_plots_dir.glob("*.png")):
-        logger_bupar = setup_pipeline_logger(
-            step_name="9_bupar",
-            cohort=cohort_name,
-            age_band=age_band,
-            script_name="create_bupar_visuals_skip",
-            mirror_to_s3=False
-        )
-        logger_bupar.info("Output exists at %s; skipping (use --force to re-run)", check_plots_dir)
-        return True
+        # Only skip the full run if all per-bin activity_frequency.json files are also present
+        if bin_name is None:
+            _ab_f = age_band.replace("-", "_")
+            _per_bin_complete = all(
+                (DASHBOARD_BUPAR_OUT / cohort_name / _ab_f / "density" / _b / "plots" /
+                 f"{cohort_name}_{_ab_f}_activity_frequency.json").exists()
+                for _b in _DENSITY_BINS
+            )
+            if not _per_bin_complete:
+                pass  # fall through: re-run per-bin parts without repeating full-cohort R run
+            else:
+                logger_bupar = setup_pipeline_logger(
+                    step_name="9_bupar",
+                    cohort=cohort_name,
+                    age_band=age_band,
+                    script_name="create_bupar_visuals_skip",
+                    mirror_to_s3=False
+                )
+                logger_bupar.info("Output exists at %s; skipping (use --force to re-run)", check_plots_dir)
+                return True
+        else:
+            logger_bupar = setup_pipeline_logger(
+                step_name="9_bupar",
+                cohort=cohort_name,
+                age_band=age_band,
+                script_name="create_bupar_visuals_skip",
+                mirror_to_s3=False
+            )
+            logger_bupar.info("Output exists at %s; skipping (use --force to re-run)", check_plots_dir)
+            return True
 
     logger = setup_pipeline_logger(
         step_name="9_bupar",
@@ -772,21 +790,27 @@ def create_bupar_visuals(
         logger.info("Starting BupaR visuals for %s / %s", cohort_name, age_band)
 
         # Full-cohort BupaR run (when no specific bin requested)
+        # Skip if cohort-level plots already exist (idempotency fell through due to incomplete per-bin files)
+        _cohort_plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
+        _cohort_plots_done = _cohort_plots_dir.exists() and bool(list(_cohort_plots_dir.glob("*.png")))
         if bin_name is None:
-            if not create_bupar_outputs(cohort_name, age_band, logger=logger.logger, local_test=local_test):
-                logger.error("BupaR outputs step failed; aborting")
-                if not local_test:
-                    logger.log_summary()
-                return False
+            if not _cohort_plots_done:
+                if not create_bupar_outputs(cohort_name, age_band, logger=logger.logger, local_test=local_test):
+                    logger.error("BupaR outputs step failed; aborting")
+                    if not local_test:
+                        logger.log_summary()
+                    return False
 
-            if not local_test:
-                if export_csv_to_json:
-                    plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
-                    features_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "features"
-                    n = export_bupar_feature_csvs_to_json(plots_dir, features_dir, cohort_name, age_band_fname, logger=logger.logger)
-                    if n:
-                        logger.logger.info("Exported %s BupaR feature CSV(s) to JSON in plots/", n)
-                upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger.logger)
+                if not local_test:
+                    if export_csv_to_json:
+                        plots_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "plots"
+                        features_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "features"
+                        n = export_bupar_feature_csvs_to_json(plots_dir, features_dir, cohort_name, age_band_fname, logger=logger.logger)
+                        if n:
+                            logger.logger.info("Exported %s BupaR feature CSV(s) to JSON in plots/", n)
+                    upload_bupar_plots_to_dashboard_s3(cohort_name, age_band, logger=logger.logger)
+            else:
+                logger.info("Full-cohort BupaR plots already exist at %s; skipping R re-run (completing per-bin only)", _cohort_plots_dir)
 
         # Per-bin full process mining: run R once per density bin
         # When bin_name is explicitly set, run only that bin; otherwise loop all bins

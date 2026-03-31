@@ -306,16 +306,31 @@ ls -lh 8_ffa_analysis/outputs/{cohort}/{age_band}/
 
 ## Step 5: Generate Dashboard Visuals ✅
 
-**Purpose**: Generate all dashboard visualization artifacts (BupaR, DTW, FP-Growth). Distinct step before building and deploying the dashboard.
+**Purpose**: Generate all dashboard visualization artifacts. Distinct step before building and deploying the dashboard.
 
-**Run from repo root.** Produces BupaR, DTW, and FP-Growth artifacts; all are **SHAP/FFA-driven** (filter original data to model-important features from Step 7 / Step 8). Causal tab uses the same importance data. The notebook/script also includes Deploy Lambda and Deploy frontend cells (idempotent; run to refresh live backend and S3 frontend).
+**Run from repo root.** All artifacts are **SHAP/FFA-driven** (filter original data to model-important features from Step 7 / Step 8). The notebook cell sequence is:
+
+1. **Setup** — repo paths, S3 config, `S3_VISUALIZATIONS_BUILDS=1` (uploads to `.../builds/`)
+2. **BupaR** — process mining sequences and plots, per cohort/age_band; outputs to `10_risk_dashboard/visualizations/bupar/`
+3. **DTW** — trajectory features, bins, and plots, per cohort/age_band; outputs to `10_risk_dashboard/visualizations/dtw/`
+4. **FP-Growth** — drug itemsets, association rules, network HTML, per cohort/age_band; outputs to `10_risk_dashboard/visualizations/fpgrowth/`
+5. **Causal** — FFA + SHAP combined dashboard JSON; outputs to `10_risk_dashboard/visualizations/causal/`
+6. **Cohort PGx** — per cohort/age_band (full cohort + per-bin low/medium/high/extreme):
+   - Fetch PharmGKB VIP reports (`fetch_vip_reports.py`)
+   - Fetch PubMed citations + radar data (`fetch_pubmed_citations.py`)
+   - Build Gene–Drug–Phenotype network topology HTML (`build_network_topology.py`)
+   - Outputs to `10_risk_dashboard/visualizations/cohort_pgx/networks/`
+7. **PGx patient card** — download CPIC Excel, fetch VIP JSON, generate QR codes, build PGx database; outputs to `pgx-patient-card/data/` and `pgx-patient-card/qr_codes/`
+8. **Dashboard visual manifest** — writes `10_risk_dashboard/visualizations/dashboard_visual_objects.json` for notebook 5
+9. **Time-between-events histogram** — per cohort/age_band JSON for DTW tab
+10. **Manuscript checkpoint writer** — validates all outputs for every cohort/age_band/bin; uploads to `s3://pgxdatalake/gold/manuscript_checkpoints/`
 
 **Option A – Notebook:**
 
 ```bash
 cd ~/pgx-analysis
 jupyter notebook 4_dashboard_visuals.ipynb
-# Run cells: Setup → Symlinks → Config → BupaR → DTW → FP-Growth → Deploy Lambda → Deploy frontend
+# Run all cells in order (Setup → BupaR → DTW → FP-Growth → Causal → Cohort PGx → PGx Card → Manifest → Checkpoints)
 ```
 
 **Option B – Python script (VS Code Jupyter `# %%` or CLI):**
@@ -326,12 +341,34 @@ python pgx_dashboard_visuals.py
 # Set SKIP_DEPLOY_LAMBDA=1 / SKIP_DEPLOY_FRONTEND=1 to skip deploy when needed
 ```
 
-**Prerequisites:** Step 4 (model data), Step 7 (SHAP), Step 8 (FFA) for SHAP/FFA-driven filtering; R and bupaR for BupaR.
+**Prerequisites:** Step 4 (model data), Step 7 (SHAP), Step 8 (FFA) for SHAP/FFA-driven filtering; R and bupaR for BupaR; AWS credentials for Cohort PGx VIP/PubMed fetches and S3 uploads.
 
-**Verify:**
-- BupaR: `10_risk_dashboard/visualizations/bupar/outputs/` and S3 `gold/bupar/`
-- DTW: `10_risk_dashboard/visualizations/dtw/outputs/`, S3 `gold/feature_engineering/6_dtw/{cohort}/{age_band}/`
-- FP-Growth: `10_risk_dashboard/visualizations/fpgrowth/outputs/` and S3 `gold/fpgrowth/`
+**Verify (manuscript checkpoint output):**
+
+The final cell prints a per-cohort/age_band/bin summary. A passing run looks like:
+
+```
+── non_opioid_ed/65-74 ──
+  [PGx] coverage=78.54%  ✓
+  [CohortPGx] network_html=✓
+  [BupaR/low] n_activities=40  top=DRUG:AMOXICILLIN  ✓
+  [FPG/low] total_rules=0  ✓
+  [DTW/low] trajectories=8203  rapid_onset_n=2053  chronic_escalation_n=2051  ✓
+  [CohortPGx/low] network_html=✓
+  [SHAP/low] top=pgx_num_drugs  ✓
+  [FFA/low] features=39  ✓
+  ...
+Manuscript checkpoints written: 416  errors: 0
+```
+
+**Local output directories:**
+- BupaR: `10_risk_dashboard/visualizations/bupar/`
+- DTW: `10_risk_dashboard/visualizations/dtw/`
+- FP-Growth: `10_risk_dashboard/visualizations/fpgrowth/`
+- Cohort PGx: `10_risk_dashboard/visualizations/cohort_pgx/networks/`
+- Causal: `10_risk_dashboard/visualizations/causal/`
+
+See [9_dashboard_visuals/README.md](9_dashboard_visuals/README.md) for the full checkpoint field reference.
 
 ---
 
