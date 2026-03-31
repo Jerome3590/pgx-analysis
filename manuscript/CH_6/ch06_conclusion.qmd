@@ -820,6 +820,64 @@ or an opioid treatment program, with pre-specified primary outcomes
   pharmacogenomic risk score, with direct causal evidence for PGx signal
 recovery from claims data replacing proxy-based attribution.
 
+## FDA SaMD Commercial Deployment
+
+The PGx Risk Dashboard is currently a **research prototype** operating
+under an IRB waiver for non-human-subjects research (HM20022300).
+Transitioning to a commercially deployed Software as a Medical Device
+(SaMD) — one that influences opioid prescribing decisions in a clinical
+workflow — requires a structured regulatory and engineering program
+beyond the scope of this dissertation.
+
+**Regulatory and Quality Assurance.**
+A formal FDA regulatory classification analysis under 21 CFR Part 820
+and the establishment of a Quality Management System (QMS) are
+prerequisites for any commercial deployment.
+The FDA's Digital Health Center of Excellence has indicated that
+AI/ML-based CDS tools that influence clinical management may be subject
+to SaMD oversight; the PGx Risk Dashboard falls squarely within this
+category given its opioid prescribing risk scores.
+
+**Clinical-Grade Data Parsing.**
+The current PGx Patient Card accepts consumer-grade 23andMe raw files.
+Clinical deployment requires parsers for **VCF v4.3** (standard
+clinical genomics variant call format) and **HL7 FHIR R4 Genomics**
+profiles for direct EHR interoperability, replacing the consumer
+file-upload workflow.
+
+**Automated Guideline Currency.**
+The bundled CPIC snapshot (March 2026; 573 gene-drug pairs) is static
+within each container image.
+A production system should implement a container-start version check
+that compares the bundled snapshot hash against the live CPIC API,
+issuing a staleness warning when the offline data lags a published
+guideline update.
+
+**Live PDMP Integration.**
+Real-time **Prescription Drug Monitoring Program (PDMP)** data — active
+prescription fills, prescriber history, and cross-state dispensing — is
+the most actionable supplement to the retrospective claims-based risk
+scores produced by the current pipeline.
+PDMP API integration would allow the risk score to reflect the patient's
+current opioid burden at the moment of the clinical encounter, not only
+the 12-month pre-index history captured in the APCD.
+
+**Prospective Clinical Pilot.**
+Retrospective holdout performance (AUROC 0.957–0.992; PR-AUC 0.840–0.979)
+establishes model quality but cannot demonstrate clinical utility.
+A formal prospective pilot — minimum **200 eligible encounters** with
+**6-month follow-up** in an emergency department or opioid treatment
+program — is required to measure clinician acceptance, time-to-decision
+impact, and the effect on opioid prescribing behavior before any
+regulatory submission.
+
+**Frontend and Scaling Enhancements.**
+Point-of-care deployment requires a **mobile-responsive frontend** for
+tablet use in ED and clinic settings, **multi-lingual card generation**
+to serve high-LEP populations, and a **federated learning framework**
+enabling multi-state model weight updates without pooling patient data
+across state APCD data-use agreements.
+
 # Conclusions {#ch06-conclusions}
 
 This dissertation establishes three propositions whose combination has not

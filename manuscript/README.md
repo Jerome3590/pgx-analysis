@@ -50,6 +50,7 @@ Virginia Commonwealth University · PhD Health Related Sciences (Translational H
 .\build.ps1 -Draft             # plain article (no journal template)
 .\build.ps1 -Clean             # remove output/ and edits/
 .\build.ps1 -Full              # full dissertation PDF (timestamped name in output/)
+.\build.ps1 -Full -Docx        # full dissertation Word (timestamped name in edits/)
 
 # Post-retrain: regenerate figures then rebuild
 python manuscript/generate_figures.py
@@ -63,7 +64,7 @@ make all | make ch01 | make docx | make docx-ch01 | make clean
 
 > Always use `.\build.ps1` — never `quarto render --to pdf` directly (TEXINPUTS/BSTINPUTS not set).
 
-**Full dissertation (`-Full`):** Each chapter QMD uses **chapter-scoped section IDs** (`{#ch01-…}`, `{#ch02-…}`, …) so included chapters do not produce duplicate Pandoc identifiers. Use `[link text](#ch02-cohort)` for in-text links to sections—avoid `@ch02-…` (Quarto treats `@…` as citations).
+**Full dissertation (`-Full`):** Each chapter QMD uses **chapter-scoped section IDs** (`{#ch01-…}`, `{#ch02-…}`, …) so included chapters do not produce duplicate Pandoc identifiers. Use `[link text](#ch02-cohort)` for in-text links to sections—avoid `@ch02-…` (Quarto treats `@…` as citations). For a single Word file of the compiled dissertation, use `.\build.ps1 -Full -Docx` (timestamped `edits/dissertation_dixon_<yyyyMMdd_HHmmss>.docx`); on Linux/macOS, `make docx-full`.
 
 ---
 
