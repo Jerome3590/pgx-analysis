@@ -90,6 +90,8 @@ abbreviations-note: >-
 
 format:
   wiley-njd-pdf:
+    pdf-engine: xelatex
+    cite-method: natbib
     template: ../templates/cts_template.tex
     classoption: [AMA, STIX1COL]
     article-type: "Original Article"
@@ -118,7 +120,7 @@ bibliography:
      REFERENCES TARGET: 40–55
      ============================================================ -->
 
-# Background {#sec-background}
+# Background {#ch03-background}
 
 Opioid use disorder (OUD) affects approximately 2.7 million Americans and
 contributes to more than 80,000 opioid-related deaths and 1.5 million ED
@@ -174,7 +176,7 @@ developed in Chapter 2 to the opioid ED cohort, with three specific aims:
    (DTW) clustering to define clinically distinct risk archetypes with
    different intervention windows.
 
-# Methods {#sec-methods}
+# Methods {#ch03-methods}
 
 **Utilization density (read first).** Throughout this chapter, the total
 pre-index event count per patient (`n_events`) is used **only** to assign a
@@ -210,7 +212,7 @@ All features were constructed exclusively from 2016–2018 data; threshold quant
 (for n\_event\_bin\_ordinal binning) were derived from training-partition
 cases only, then applied to holdout data without recomputation.
 
-## Cohort Construction {#sec-cohort}
+## Cohort Construction {#ch03-cohort}
 
 Opioid use disorder-related ED visits were identified using ICD-10-CM
 codes F11.10–F11.99 (opioid-related disorders, including opioid abuse,
@@ -295,7 +297,7 @@ least one FFA rule with support ≥ 0.05 and confidence ≥ 0.70.
 Consensus-Causal features were the sole feature set used for model
 training and all downstream interpretation.
 
-## Trajectory Analysis {#sec-trajectory}
+## Trajectory Analysis {#ch03-trajectory}
 
 DTW served two distinct roles in this pipeline, sequenced to prevent
 target leakage at each stage.
@@ -426,7 +428,7 @@ same definitions as Chapter 2) were computed for each partition.
 Observed range (2019 holdout): Brier **0.007–0.051**;
 ICI **0.108–0.164**.
 
-# Results {#sec-results}
+# Results {#ch03-results}
 
 ## Cohort Characteristics
 
@@ -475,7 +477,7 @@ final analytic cohort of cases and 5:1 matched controls. Exclusion reasons
 are shown at each step with patient counts.](../figures/ch03/fig_attrition.pdf){#fig-attrition
 width=85% fig-align="center"}
 
-## Predictive Performance {#sec-performance}
+## Predictive Performance {#ch03-performance}
 
 Ensemble performance on the 2019 temporal holdout is summarized for all
 seven opioid ED age bands in **@tbl-performance** and **@fig-curves**.
@@ -538,7 +540,7 @@ calibration. (C) Ensemble weight distribution across age bands; CatBoost
 dominates 25–44 and 45–54; XGBoost-RF contributes more in
 13–24.](../figures/ch03/fig_curves.pdf){#fig-curves width=100% fig-align="center"}
 
-## Consensus-Causal Features {#sec-causal-features}
+## Consensus-Causal Features {#ch03-causal-features}
 
 Across the primary study bands (13–64), 384–498 features met the
 Consensus-Causal threshold (SHAP ≥ 75th pct AND FFA support ≥ 0.05;
@@ -661,7 +663,7 @@ holdout cohort. Rug marks indicate observed feature-value distribution.
 Features ranked by mean |SHAP|.](../figures/ch03/fig_shap_pdp.pdf){#fig-shap-pdp
 width=100% fig-align="center"}
 
-## Trajectory Analysis {#sec-trajectories}
+## Trajectory Analysis {#ch03-trajectories}
 
 DTW clustering on the 12-month pre-diagnosis event sequence identified
 $k$ = 2 as the optimal cluster count (elbow criterion), yielding two
@@ -730,7 +732,7 @@ rows = drug name ordered by SHAP importance;
 cell color = normalized event count (darker = more frequent).](../figures/ch03/fig_trajectories_heatmap.pdf){#fig-trajectories-heatmap
 width=100% fig-align="center"}
 
-# Discussion {#sec-discussion}
+# Discussion {#ch03-discussion}
 
 ## Modifiable Causal Drivers
 
@@ -887,7 +889,7 @@ external validation on a second-state APCD is required before
 national policy generalization, as prescribing regulations, formulary
 structures, and Medicaid expansion status vary by state.
 
-# Conclusions {#sec-conclusions}
+# Conclusions {#ch03-conclusions}
 
 Ensemble ML with Consensus Filter feature selection identifies robust, causal,
 and *modifiable* drivers of OUD-related ED visits up to 22 months before

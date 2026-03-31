@@ -49,6 +49,7 @@ Virginia Commonwealth University · PhD Health Related Sciences (Translational H
 .\build.ps1 -Docx -Chapter 2   # single chapter .docx
 .\build.ps1 -Draft             # plain article (no journal template)
 .\build.ps1 -Clean             # remove output/ and edits/
+.\build.ps1 -Full              # full dissertation PDF (timestamped name in output/)
 
 # Post-retrain: regenerate figures then rebuild
 python manuscript/generate_figures.py
@@ -61,6 +62,8 @@ make all | make ch01 | make docx | make docx-ch01 | make clean
 ```
 
 > Always use `.\build.ps1` — never `quarto render --to pdf` directly (TEXINPUTS/BSTINPUTS not set).
+
+**Full dissertation (`-Full`):** Each chapter QMD uses **chapter-scoped section IDs** (`{#ch01-…}`, `{#ch02-…}`, …) so included chapters do not produce duplicate Pandoc identifiers. Use `[link text](#ch02-cohort)` for in-text links to sections—avoid `@ch02-…` (Quarto treats `@…` as citations).
 
 ---
 
@@ -226,6 +229,9 @@ CH_1 systematic review pipeline:
 3. **Bulk import** — `CH_1/Literature_Review/scripts/import_to_zotero.py` → Zotero Web API
 
 Full instructions: `CH_1/Literature_Review/scripts/README_ZOTERO_IMPORT.md`
+
+**`.bib` layout, Zotero → repo export, and CTS/BibTeX template notes:** [`refs/README.md`](refs/README.md).
+
 Credentials: User ID `6037399`, collection `LS75EWXU`, API key in local env — do **not** commit.
 
 ---

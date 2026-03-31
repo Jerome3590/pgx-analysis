@@ -76,7 +76,7 @@ bibliography:
      Word count target: 4,000–6,000 words.
      ============================================================ -->
 
-# Overview of the Dissertation {#sec-overview}
+# Overview of the Dissertation {#ch06-overview}
 
 This dissertation addresses one fundamental challenge in translational
 informatics: the gap between high-performance predictive models trained on
@@ -111,7 +111,7 @@ Journal of Personalized Medicine (MDPI); CTS, Clinical and Translational
 Science (Wiley ASCPT); CPT:PSP, CPT: Pharmacometrics \& Systems
 Pharmacology (Wiley ASCPT). {#tbl-chapter-summary}
 
-# Summary of Key Contributions {#sec-contributions}
+# Summary of Key Contributions {#ch06-contributions}
 
 ## Chapter 1: Establishing the Knowledge Gap
 
@@ -281,7 +281,7 @@ dashboard artifact governance in the project documentation
 The **canonical Risk Assessment figure** (Tab~2) lives in **Chapter 5**
 (**Final PGx Risk Dashboard**); this section does not repeat it.
 
-## Dashboard tabs, visuals, and the clinical OODA loop for pharmacogenomic outcomes {#sec-ch6-dashboard}
+## Dashboard tabs, visuals, and the clinical OODA loop for pharmacogenomic outcomes {#ch06-ch6-dashboard}
 
 The PGx Risk Assessment Dashboard is not only a deployment shell for the
 ensemble models: it is the **surface on which the dissertation's operational
@@ -440,7 +440,7 @@ pharmacovigilance instrument: each "no guideline" return at the encounter level
 becomes a data point that, aggregated across thousands of patients, feeds back
 into the evidence base that generated the CPIC snapshot the dashboard draws on.
 
-# Integrated Findings {#sec-integrated}
+# Integrated Findings {#ch06-integrated}
 
 ## The XAI–PGx–Causal Integration
 
@@ -568,7 +568,7 @@ PR-AUC, area under the precision-recall curve;
 Recall, sensitivity at optimal threshold.
 Source: 2019 holdout evaluation exports. {#tbl-performance}
 
-# Broader Implications {#sec-implications}
+# Broader Implications {#ch06-implications}
 
 ## For Translational Informatics
 
@@ -668,7 +668,7 @@ This precision deprescribing approach complements existing tools such as
 the Beers Criteria and STOPP/START by adding an empirically derived,
 cohort-specific IR ranking that Beers Criteria cannot provide.
 
-# Limitations {#sec-limitations}
+# Limitations {#ch06-limitations}
 
 ## Data Limitations
 
@@ -736,7 +736,7 @@ PGx signal in claims-derived data.
    IR-prioritized drug discontinuation reduces ED visits at the
    population level.
 
-# Future Work {#sec-future}
+# Future Work {#ch06-future}
 
 ## Near-Term (1–2 Years)
 
@@ -820,7 +820,7 @@ or an opioid treatment program, with pre-specified primary outcomes
   pharmacogenomic risk score, with direct causal evidence for PGx signal
 recovery from claims data replacing proxy-based attribution.
 
-# Conclusions {#sec-conclusions}
+# Conclusions {#ch06-conclusions}
 
 This dissertation establishes three propositions whose combination has not
 previously been demonstrated in the pharmacoepidemiology literature:

@@ -129,7 +129,7 @@ bibliography:
      REFERENCES TARGET: 40–55
      ============================================================ -->
 
-# Introduction {#sec-intro}
+# Introduction {#ch04-intro}
 
 Polypharmacy (concurrent use of ≥5 medications [@Masnoon2017]) affects
 more than 40% of adults aged ≥65 years in the United States [@Qato2016],
@@ -199,7 +199,7 @@ reconciliation tools that cannot resolve acute DDI timing.
 4. Investigate the relationship between high transaction density (Z-codes)
    and ADE risk to distinguish managed from unmanaged polypharmacy.
 
-# Methods {#sec-methods}
+# Methods {#ch04-methods}
 
 **Utilization density (read first).** The ensemble risk models use the
 same convention as Chapter~2 (*Ensemble Modeling*: utilization density): total pre-index
@@ -232,7 +232,7 @@ served as the strictly withheld prospective temporal holdout for model
 evaluation, consistent with the temporal validation strategy applied
 across all dissertation chapters.
 
-## Cohort Construction {#sec-cohort}
+## Cohort Construction {#ch04-cohort}
 
 **Case definition:** Adults aged 65–114 years with at least one emergency
 department visit identified by Milliman Healthcare Cost Group (HCG) codes
@@ -261,7 +261,7 @@ matching calendar year to anchor the 30-day lookback window.
 (declining renal clearance, body composition changes, and
 polypharmacy burden escalation across the geriatric age spectrum).
 
-## Feature Engineering {#sec-features}
+## Feature Engineering {#ch04-features}
 
 **Primary feature domain: Drug exposure**
 
@@ -293,7 +293,7 @@ statistical methods) use raw claim counts as covariates; they are
 distinct from the ordinal density encoding in the ensemble models
 (Chapter~2).
 
-## Ensemble Model {#sec-model}
+## Ensemble Model {#ch04-model}
 
 The three-model ensemble (CatBoost [@Prokhorenkova2018], XGBoost [@Chen2016],
 and XGBoost-RF) with MCCV performance-based weighting is identical to the
@@ -318,7 +318,7 @@ ICD-10 and CPT features were retained as secondary covariates to control
 for comorbidity confounding, but drug-exposure binary features
 received priority weighting in MCCV recall ranking.
 
-## Formal Feature Attribution: Multi-Feature Interaction Testing {#sec-ffa}
+## Formal Feature Attribution: Multi-Feature Interaction Testing {#ch04-ffa}
 
 ### Pairwise Interaction Score
 
@@ -426,7 +426,7 @@ consistency).
 All chapter-specific analyses were performed in Python 3.11
 (scipy v1.11; statsmodels v0.14; scikit-learn v1.3); $\alpha$ = 0.05.
 
-# Results {#sec-results}
+# Results {#ch04-results}
 
 ## Cohort Characteristics
 
@@ -532,7 +532,7 @@ Brier score and ICI computed for primary study bands (65–114):
 Brier 0.007–0.008; ICI 0.071–0.290.
 Source: 2019 holdout evaluation exports. {#tbl-ch4-perf}
 
-## Consensus-Causal Features {#sec-causal-features}
+## Consensus-Causal Features {#ch04-causal-features}
 
 Across the three primary geriatric bands (65--74, 75--84, 85--114), 285--412
 features met the Consensus-Causal threshold (SHAP $\geq$ 75th percentile AND
@@ -558,7 +558,7 @@ feature value on predicted ADE-ED probability, averaged over the holdout
 cohort. Rug marks indicate observed feature-value distribution.](../figures/ch04/fig_shap_pdp.pdf){#fig-shap-pdp-ch4
 width=100% fig-align="center"}
 
-## Synergistic Drug-Drug Interactions {#sec-ddi}
+## Synergistic Drug-Drug Interactions {#ch04-ddi}
 
 FFA multi-feature interaction testing identified 115 synergistic drug pairs
 and 5,021 high-risk triplets with IE > 1.0 (lift-based independence baseline)
@@ -729,7 +729,7 @@ prevalence. Error bars = bootstrap 95% CI. Drugs are ranked within each of
 the three geriatric age bands; rankings are highly consistent
 across bands.](../figures/ch04/fig_ir.pdf){#fig-ir width=90% fig-align="center"}
 
-## Z-Code Analysis: Managed vs. Unmanaged Polypharmacy {#sec-zcode}
+## Z-Code Analysis: Managed vs. Unmanaged Polypharmacy {#ch04-zcode}
 
 Z-code proportion (protective monitoring codes Z00–Z13 and Z23–Z28 only)
 exhibited a U-shaped association with ADE risk.
@@ -800,7 +800,7 @@ proportion quartile (Q1 = lowest, Q4 = highest), adjusted for age band, sex,
 and 30-day drug count. Error bars = 95% CI.](../figures/ch04/fig_zcode.pdf){#fig-zcode
 width=90% fig-align="center"}
 
-## Drug Utilization Trajectories {#sec-trajectories}
+## Drug Utilization Trajectories {#ch04-trajectories}
 
 DTW clustering on the 30-day pre-index drug event sequence identified two
 dominant archetypes in the 65--74 band (**@fig-trajectories-ch4**).
@@ -821,7 +821,7 @@ archetypes (Polypharmacy-Stable and Acute-Burden); drug events = circles,
 diagnoses = squares. Timeline in days before index date.](../figures/ch04/fig_trajectories.pdf){#fig-trajectories-ch4
 width=100% fig-align="center"}
 
-# Discussion {#sec-discussion}
+# Discussion {#ch04-discussion}
 
 ## The FFA Causal Calculator
 
@@ -930,7 +930,7 @@ rather than confirmed causal effects; randomized deprescribing
 trials guided by IR rankings are needed to confirm that IR-prioritized
 drug discontinuation reduces ED visits at the population level.
 
-# Conclusions {#sec-conclusions}
+# Conclusions {#ch04-conclusions}
 
 FFA multi-feature interaction testing applied to a 30-day causality window
 constitutes a data-driven causal calculator for polypharmacy ADE risk in

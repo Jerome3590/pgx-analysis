@@ -119,7 +119,7 @@ engine: knitr
      REFERENCES TARGET: 40–60
      ============================================================ -->
 
-# Introduction {#sec-intro}
+# Introduction {#ch02-intro}
 
 All-Payer Claims Databases (APCD) provide rich longitudinal data for
 pharmacoepidemiological research, capturing multi-year prescription histories,
@@ -191,7 +191,7 @@ barrier through architectural design rather than post-hoc correction.
    full pipeline, from APCD partition to bedside risk score, within
    standard AWS Lambda latency and cost constraints.
 
-# Methods {#sec-methods}
+# Methods {#ch02-methods}
 
 ## Analytical Framework
 
@@ -260,7 +260,7 @@ augmented cohort outcome labeling as a secondary corroborating source.
 ![Process Mining Analytics Platform --- Preprocessing pipeline (adapted from ICPM 2024). Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer. FAERS pharmacovigilance signals augment cohort labeling (dashed).](../figures/ch02/pgx_architecture2.pdf){#fig-architecture
 width=100% fig-align="center"}
 
-## Partition-First Architecture {#sec-partition}
+## Partition-First Architecture {#ch02-partition}
 
 ### Motivation
 
@@ -319,7 +319,7 @@ without cross-node shuffles, skewed age bands (e.g., geriatric 65-94 cohorts
 with higher diagnosis density) slow only their own worker and do not induce
 straggler delays across the pool.
 
-## Cohort Construction {#sec-cohort}
+## Cohort Construction {#ch02-cohort}
 
 Cohort fact tables were produced by a modular **cohort-creation** pipeline that
 ingests Gold-tier medical and pharmacy partitions (Age Band $\times$ Event Year),
@@ -403,7 +403,7 @@ Retaining these patients in the main cohort would distort feature distributions
 for all other patients; the high-density stratum is analyzed separately in the
 per-density-bin model architecture described in Chapter 3.
 
-## Feature Engineering {#sec-features}
+## Feature Engineering {#ch02-features}
 
 ### Bronze-to-Gold Feature Flow
 
@@ -470,7 +470,7 @@ for pattern exploration, but the ensemble model is trained exclusively
 on pre-outcome drug and diagnosis counts where temporal ordering is
 strictly enforced.
 
-## Ensemble Modeling {#sec-models}
+## Ensemble Modeling {#ch02-models}
 
 ### Model Architecture
 
@@ -500,7 +500,7 @@ subsample 0.6–1.0; colsample\_bytree 0.6–1.0).
 Early stopping (20 rounds without improvement on validation PR-AUC)
 prevented overfitting within each Optuna trial.
 
-### Utilization density: raw event count versus ordinal stratum {#sec-density-encoding}
+### Utilization density: raw event count versus ordinal stratum {#ch02-density-encoding}
 
 **Final implementation (training and deployment).** For each patient, the
 pipeline computes the total number of pre-index utilization events
@@ -572,7 +572,7 @@ ensemble weight derivation.
 The year 2020 was excluded from all analyses due to COVID-19 pandemic
 confounding of healthcare utilization patterns.
 
-## Deployed Risk Dashboard {#sec-dashboard}
+## Deployed Risk Dashboard {#ch02-dashboard}
 
 Ensemble model outputs and Consensus-Causal rules are translated to the
 point of care via a serverless PGx Risk Dashboard (@fig-dashboard).
@@ -602,7 +602,7 @@ Full deployment details are described in Chapter 5.
 ![Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across 2 cohorts, 7 age bands, and 4 density bins) are stored in an AWS Lambda container. At inference time, the container selects the appropriate per-bin model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response.](../figures/ch02/pgx_dashboard_architecture.pdf){#fig-dashboard
 width=100% fig-align="center"}
 
-## The Consensus Filter {#sec-consensus}
+## The Consensus Filter {#ch02-consensus}
 
 ### Rationale
 
@@ -638,7 +638,7 @@ values without sampling approximation.
 Both XGBoost and CatBoost SHAP importances were retained: when CatBoost was
 the best-performing model in a partition, its SHAP values were used for
 distributional filtering; the best XGBoost variant's SHAP values were
-used to prioritize rule sets in the FFA stage (see §\ref{sec-ffa}).
+used to prioritize rule sets in the FFA stage (see §\ref{ch02-ffa}).
 
 **Threshold.** A feature was designated **SHAP-positive** if its global
 importance (mean $|\text{SHAP}|$ across the training partition) exceeded the
@@ -665,7 +665,7 @@ Because SHAP measures model behavior rather than the true data-generating
 process, it has no mechanism for distinguishing a causal drug exposure from a
 utilization proxy that co-occurs with high-risk patients.
 
-### Formal Feature Attribution (FFA) {#sec-ffa}
+### Formal Feature Attribution (FFA) {#ch02-ffa}
 
 FFA transforms the opaque decision trees of the best-performing XGBoost
 variant into explicit symbolic Boolean rules suitable for formal causal
@@ -811,7 +811,7 @@ The interactive analytics and deployment workflow is illustrated in @fig-insight
 ![Process Mining Analytics Platform --- Interactive Insights (adapted from ICPM 2024). Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team.](../figures/ch02/pgx_dashboard_architecture.pdf){#fig-insights
 width=100% fig-align="center"}
 
-## Analytical Methods and Statistical Analysis {#sec-analytical}
+## Analytical Methods and Statistical Analysis {#ch02-analytical}
 
 ### Study Design
 
@@ -922,7 +922,7 @@ performance metrics to quantify uncertainty in holdout estimates.
 All statistical analyses were performed in Python 3.11 (SciPy 1.11;
 statsmodels 0.14).
 
-# Results {#sec-results}
+# Results {#ch02-results}
 
 ## Cohort Characteristics
 
@@ -932,7 +932,7 @@ insured population of the Commonwealth across all payer types
 (commercial, Medicaid, Medicare, self-insured employer plans).
 Operational definitions of **cases** versus **controls**, HCG-based routing for
 the polypharmacy cohort, and strict opioid ICD exclusion rules are documented
-in @sec-cohort.
+in [Cohort Construction](#ch02-cohort).
 
 The opioid ED cohort comprised N = 26,710 cases and N = 180,640
 matched controls across the four primary age bands (13–24, 25–44, 45–54,
@@ -976,7 +976,7 @@ Full cohort attrition is depicted in @fig-attrition.
 ![CONSORT-style cohort attrition diagram. Left column: opioid ED cohort
 construction from raw APCD through Bronze/Silver/Gold layers.
 Right column: Polypharmacy (non-opioid ED). Case definitions, cross-cohort
-opioid exclusions, and binary target labeling are given in @sec-cohort;
+opioid exclusions, and binary target labeling are given in [Cohort Construction](#ch02-cohort);
 step counts are sourced from pipeline logs or cloud data-lake queries.
 Exclusion counts are shown between stages.](../figures/ch02/fig_attrition.pdf){#fig-attrition
 width=90% fig-align="center"}
@@ -1063,7 +1063,7 @@ for the polypharmacy cohort, 34 of 89 features (38%) overlapped with
 CPIC-annotated drugs, reflecting the higher CYP interaction density
 of geriatric cardiovascular and CNS polypharmacy.
 
-## Consensus Filter Results {#sec-consensus-results}
+## Consensus Filter Results {#ch02-consensus-results}
 
 Across all age-band partitions, the Consensus Filter designated
 49% of MCCV-screened features as Consensus-Causal (confirmed by both SHAP
@@ -1193,7 +1193,7 @@ PR-AUC, area under the precision-recall curve;
 Recall, sensitivity at optimal classification threshold.
 Source: 2019 holdout evaluation exports. {#tbl-validation}
 
-# Discussion {#sec-discussion}
+# Discussion {#ch02-discussion}
 
 The partition-first architecture resolves the scalability barrier in
 APCD-based pharmacoepidemiology by distributing independent cohort strata
@@ -1303,7 +1303,7 @@ Ensemble weights may therefore vary slightly across re-runs; the
 observed PR-AUC variability (± 0.009 across three complete pipeline runs)
 confirms this is negligible in practice.
 
-# Conclusions {#sec-conclusions}
+# Conclusions {#ch02-conclusions}
 
 The partition-first architecture and Consensus Filter together deliver a
 replicable, causally valid framework for large-scale pharmacoepidemiological
