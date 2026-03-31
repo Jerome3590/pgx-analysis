@@ -36,6 +36,7 @@ print("\n=== CH_5: PGx Risk Dashboard ===")
 import generate_figures_ch5 as ch5
 ch5.fig_architecture()
 ch5.fig_imputation()
+ch5.fig_dashboard()
 ch5.fig_latency()
 
 print("\n" + "=" * 60)
@@ -52,13 +53,13 @@ expected = {
     "ch05": ["pgx_dashboard_architecture.pdf","fig_imputation.pdf",
              "pgx_dashboard.pdf","fig_latency.pdf"],
 }
-fig_root = SCRIPT_DIR / "figures"
+fig_root = SCRIPT_DIR.parent.parent / "figures"  # manuscript/figures (same paths Quarto uses)
 missing = []
 for ch, figs in expected.items():
     for f in figs:
         p = fig_root / ch / f
         if not p.exists() or p.stat().st_size < 1000:
-            missing.append(str(p.relative_to(SCRIPT_DIR)))
+            missing.append(str(p.relative_to(fig_root.parent)))
 
 if missing:
     print("\n⚠ Missing or empty figures:")

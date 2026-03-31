@@ -63,7 +63,7 @@ abstract: >
   trajectories in the oldest-old.
   Consensus-Causal features included gabapentin (NDC 68382-080-xx),
   long-term opioid use (ICD-10 Z79.891), and the PGx polydrug exposure
-  score `pgx_num_cpic_drugs` (SHAP rank \#1; mean |SHAP| = 2.22).
+  score `pgx_num_drugs` (SHAP rank \#1; mean |SHAP| = 1.22).
   DTW clustering identified two dominant trajectory archetypes: Rapid-Onset
   ($n$ = 5,481; 21\%; median 4.2 months to OUD-ED) and Chronic-Escalation
   ($n$ = 21,229; 79\%; median 22.1 months with ≥3 identifiable intervention windows).
@@ -424,7 +424,7 @@ with high local confidence that do not replicate across age bands.
 and ICI (10-bin `calibration_curve` with `strategy="uniform"`;
 same definitions as Chapter 2) were computed for each partition.
 Observed range (2019 holdout): Brier **0.007–0.051**;
-ICI **0.108–0.163**.
+ICI **0.108–0.164**.
 
 # Results {#sec-results}
 
@@ -510,7 +510,7 @@ reflecting smaller case counts (N = 52,629; 2.5% of total)
 and the predominance of acute single-episode opioid presentations in
 younger patients, which produce fewer anticipatory prescription signals
 in the 12-month lookback window.
-Brier scores (0.007–0.051) and ICI values (0.108–0.163) for the primary
+Brier scores (0.007–0.051) and ICI values (0.108–0.164) for the primary
 study bands (13–64) confirm well-calibrated probability outputs suitable
 for direct risk-band assignment.
 
@@ -553,7 +553,7 @@ The highest-ranked Consensus-Causal features were:
 
 1. **Gabapentin count** (`gabapentin_count`; generic: gabapentin;
    brand: Neurontin, Gralise; NDC prefix 00071-0805-xx and 68382-080-xx;
-   mean |SHAP| = 0.34, 25–44 band):
+   mean |SHAP| = 0.23, 25–44 band):
    gabapentinoids co-prescribed with opioids represent a convergent CNS
    depression risk that the FDA flagged with a black-box warning in 2019
    [@Crews2021].
@@ -573,15 +573,16 @@ The highest-ranked Consensus-Causal features were:
    (prevalence ratio 5.6), making it the single most discriminating
    ICD-10 code in the cohort.
 
-3. **PGx polydrug exposure score** (`pgx_num_cpic_drugs`;
-   mean |SHAP| = 2.22, rank \#1 across all bands):
+3. **PGx polydrug exposure score** (`pgx_num_drugs`;
+   mean |SHAP| = 1.22, rank \#1 across all bands):
    the highest-ranked feature overall, exceeding any individual drug code.
-   Counts drugs with CPIC Level A/B evidence:
-   opioids (codeine NDC 65162-0673-xx, tramadol NDC 65862-063-xx,
-   hydrocodone NDC 00406-3780-xx, oxycodone NDC 00406-0510-xx),
-   gabapentinoids, benzodiazepines, and antidepressants with
-   CYP2D6/CYP2C19 interactions.
-   A score of 4 (four co-prescribed CPIC drugs) increases OUD-ED
+   Counts all pharmacogenomically-relevant drug exposures across any
+   gene-drug interaction pair in the CPIC/PharmGKB reference set.
+   The CPIC Level A/B subset (`pgx_num_cpic_drugs`; counts opioids,
+   gabapentinoids, benzodiazepines, and CYP2D6/CYP2C19 antidepressants)
+   ranked \#2 (mean |SHAP| = 0.63), confirming PGx pharmacokinetic
+   polydrug burden as the primary causal axis across all age-density partitions.
+   A score of 4 (four co-prescribed PGx drugs) increases OUD-ED
    probability by a mean of 0.18 (SHAP delta) over a score of 0.
 
 4. **Gabapentin ⊕ Alprazolam co-prescription** (FFA pair;
@@ -602,7 +603,7 @@ The highest-ranked Consensus-Causal features were:
 6. **Oxycodone count** (`oxycodone_count`; includes all formulations:
    immediate-release oxycodone NDC 00406-0510-xx, oxycodone/APAP NDC
    00406-0512-xx, extended-release OxyContin NDC 59011-0410-xx;
-   mean |SHAP| = 0.28, 25–44 band):
+   SHAP contribution varies by density bin):
    the number of distinct oxycodone fills in the 12-month window is a
    direct dose-escalation signal, with each additional fill associated
    with an incremental 0.05 SHAP probability shift in the medium-density

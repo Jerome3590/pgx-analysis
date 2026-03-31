@@ -11,10 +11,10 @@ import numpy as np
 warnings.filterwarnings("ignore")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-STATUS_DIR = PROJECT_ROOT / "status"
-FIG_CH02 = SCRIPT_DIR / "figures" / "ch02"
-FIG_CH05 = SCRIPT_DIR / "figures" / "ch05"
+MANUSCRIPT_ROOT = SCRIPT_DIR.parent.parent  # .../manuscript (Quarto reads ../figures/ from CH_*)
+STATUS_DIR = MANUSCRIPT_ROOT / "status"
+FIG_CH02 = MANUSCRIPT_ROOT / "figures" / "ch02"
+FIG_CH05 = MANUSCRIPT_ROOT / "figures" / "ch05"
 FIG_CH02.mkdir(parents=True, exist_ok=True)
 FIG_CH05.mkdir(parents=True, exist_ok=True)
 
