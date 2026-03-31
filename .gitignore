@@ -14,6 +14,9 @@
 .cursorignore
 !manuscript/.cursorrules
 
+# Legacy duplicate figure output from older generator paths (canonical: manuscript/figures/)
+manuscript/scripts/generate_figures/figures/
+
 data/*
 testing/*
 from_s3/*

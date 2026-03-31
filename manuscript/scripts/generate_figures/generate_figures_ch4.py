@@ -13,9 +13,10 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent  # pgx-analysis repo root (SHAP outputs)
+MANUSCRIPT_ROOT = SCRIPT_DIR.parent.parent  # .../manuscript
 SHAP_BASE = PROJECT_ROOT / "7_shap_analysis" / "outputs"
-FIG_CH04 = SCRIPT_DIR / "figures" / "ch04"
+FIG_CH04 = MANUSCRIPT_ROOT / "figures" / "ch04"
 FIG_CH04.mkdir(parents=True, exist_ok=True)
 
 plt.rcParams.update({

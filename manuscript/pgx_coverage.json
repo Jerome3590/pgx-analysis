@@ -1,0 +1,118 @@
+{
+  "opioid_ed": {
+    "0-12": {
+      "n_patients": 173,
+      "n_with_pgx": 116,
+      "pct_coverage": 67.05,
+      "mean_pgx_drugs": 3.156,
+      "mean_cpic_drugs": 1.439
+    },
+    "13-24": {
+      "n_patients": 13710,
+      "n_with_pgx": 10170,
+      "pct_coverage": 74.18,
+      "mean_pgx_drugs": 4.352,
+      "mean_cpic_drugs": 1.421
+    },
+    "25-44": {
+      "n_patients": 107388,
+      "n_with_pgx": 87919,
+      "pct_coverage": 81.87,
+      "mean_pgx_drugs": 6.146,
+      "mean_cpic_drugs": 1.871
+    },
+    "45-54": {
+      "n_patients": 43639,
+      "n_with_pgx": 37489,
+      "pct_coverage": 85.91,
+      "mean_pgx_drugs": 8.256,
+      "mean_cpic_drugs": 2.338
+    },
+    "55-64": {
+      "n_patients": 42613,
+      "n_with_pgx": 36578,
+      "pct_coverage": 85.84,
+      "mean_pgx_drugs": 9.552,
+      "mean_cpic_drugs": 2.535
+    },
+    "65-74": {
+      "n_patients": 31607,
+      "n_with_pgx": 24321,
+      "pct_coverage": 76.95,
+      "mean_pgx_drugs": 10.237,
+      "mean_cpic_drugs": 2.669
+    },
+    "75-84": {
+      "n_patients": 11941,
+      "n_with_pgx": 8941,
+      "pct_coverage": 74.88,
+      "mean_pgx_drugs": 11.056,
+      "mean_cpic_drugs": 2.808
+    },
+    "85-114": {
+      "n_patients": 3163,
+      "n_with_pgx": 2233,
+      "pct_coverage": 70.6,
+      "mean_pgx_drugs": 10.143,
+      "mean_cpic_drugs": 2.652
+    }
+  },
+  "non_opioid_ed": {
+    "0-12": {
+      "n_patients": 270258,
+      "n_with_pgx": 195749,
+      "pct_coverage": 72.43,
+      "mean_pgx_drugs": 3.18,
+      "mean_cpic_drugs": 1.373
+    },
+    "13-24": {
+      "n_patients": 160337,
+      "n_with_pgx": 125577,
+      "pct_coverage": 78.32,
+      "mean_pgx_drugs": 4.642,
+      "mean_cpic_drugs": 1.452
+    },
+    "25-44": {
+      "n_patients": 118534,
+      "n_with_pgx": 100612,
+      "pct_coverage": 84.88,
+      "mean_pgx_drugs": 6.367,
+      "mean_cpic_drugs": 1.821
+    },
+    "45-54": {
+      "n_patients": 46075,
+      "n_with_pgx": 40522,
+      "pct_coverage": 87.95,
+      "mean_pgx_drugs": 8.42,
+      "mean_cpic_drugs": 2.201
+    },
+    "55-64": {
+      "n_patients": 34511,
+      "n_with_pgx": 30384,
+      "pct_coverage": 88.04,
+      "mean_pgx_drugs": 9.928,
+      "mean_cpic_drugs": 2.414
+    },
+    "65-74": {
+      "n_patients": 11571,
+      "n_with_pgx": 9088,
+      "pct_coverage": 78.54,
+      "mean_pgx_drugs": 10.826,
+      "mean_cpic_drugs": 2.601
+    },
+    "75-84": {
+      "n_patients": 3193,
+      "n_with_pgx": 2472,
+      "pct_coverage": 77.42,
+      "mean_pgx_drugs": 11.633,
+      "mean_cpic_drugs": 2.781
+    },
+    "85-114": {
+      "n_patients": 2523,
+      "n_with_pgx": 1902,
+      "pct_coverage": 75.39,
+      "mean_pgx_drugs": 11.209,
+      "mean_cpic_drugs": 2.775
+    }
+  }
+}

@@ -700,6 +700,33 @@ Example CPIC card entries:
 : Representative PGx Patient Card entries for a hypothetical patient
 profile. CPIC, Clinical Pharmacogenomics Implementation Consortium. {#tbl-pgx-card}
 
+### PGx Feature Coverage in Study Cohort {#sec-pgx-coverage}
+
+To validate the clinical relevance of PGx feature engineering, we computed
+the proportion of APCD patients with at least one pharmacogenomically-relevant
+drug exposure (`pgx_num_drugs` ≥ 1) across all cohorts and age bands.
+Coverage was high across all primary study bands (**@tbl-pgx-coverage**),
+with opioid ED cases showing increasing PGx drug burden with age
+(mean `pgx_num_drugs` 4.4 in 13–24 rising to 11.1 in 75–84).
+The mean number of CPIC Level A/B drugs (`pgx_num_cpic_drugs`) similarly
+increases with age, confirming that the PGx polydrug exposure features
+capture clinically relevant pharmacokinetic complexity in the cohort.
+
+| Cohort | Age Band | $N$ Patients | PGx Coverage | Mean PGx Drugs | Mean CPIC Drugs |
+|:-------|:---------|-------------:|-------------:|---------------:|----------------:|
+| opioid_ed | 13–24 | 13,710 | 74.2% | 4.35 | 1.42 |
+| opioid_ed | 25–44 | 107,388 | 81.9% | 6.15 | 1.87 |
+| opioid_ed | 45–54 | 43,639 | 85.9% | 8.26 | 2.34 |
+| opioid_ed | 55–64 | 42,613 | 85.8% | 9.55 | 2.54 |
+| non_opioid_ed | 65–74 | 11,571 | 78.5% | 10.83 | 2.60 |
+| non_opioid_ed | 75–84 | 3,193 | 77.4% | 11.63 | 2.78 |
+| non_opioid_ed | 85–114 | 2,523 | 75.4% | 11.21 | 2.78 |
+
+: PGx feature coverage across primary study cohorts and age bands.
+PGx Coverage = proportion of patients with `pgx_num_drugs` ≥ 1; Mean PGx Drugs =
+mean `pgx_num_drugs`; Mean CPIC Drugs = mean `pgx_num_cpic_drugs` (CPIC Level A/B).
+Source: `pgx_coverage.json` (2019 holdout). {#tbl-pgx-coverage}
+
 # Deployment and Reliability {#sec-deployment}
 
 ## CI/CD Pipeline

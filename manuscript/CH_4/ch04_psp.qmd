@@ -544,7 +544,7 @@ high-alert drug classes dominating. The top features by mean |SHAP| for the
 holdout, $n$ = 2,000 sampled patients). Beeswarm plot of SHAP values for the
 top 20 Consensus-Causal features. Color encodes feature value (red = high,
 blue = low). Features confirmed by both SHAP and FFA are marked with
-\bigstar.](../figures/ch04/fig_shap.pdf){#fig-shap-ch4
+$\bigstar$.](../figures/ch04/fig_shap.pdf){#fig-shap-ch4
 width=90% fig-align="center"}
 
 Partial dependence plots for the top five features show the marginal risk

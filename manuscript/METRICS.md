@@ -35,20 +35,18 @@ APCD overall: ~4.2M unique patients, 380M claims; years 2016–2019 (2020 exclud
 Source: `s3://pgxdatalake/gold/final_model/{cohort}/{ab}/bin_models/low/{cohort}_{ab_snake}_model_metrics_summary.csv`  
 Temporal holdout: 2019. LOW event-density bin reported (primary manuscript tables).
 
-> ⚠️ **Pre-retrain values.** Update after Notebook 3 reruns without `n_events` feature. Run `scripts/compute_brier_ici.py`.
+| Cohort | Band | Selected Model | AUROC | PR-AUC | Recall | Brier | ICI |
+|:-------|:-----|:---------------|------:|-------:|-------:|------:|-----:|
+| opioid_ed | 13–24 | XGBoost | 0.957 | 0.840 | 0.648 | 0.008 | 0.164 |
+| opioid_ed | 25–44 | XGBoost | 0.979 | 0.935 | 0.799 | 0.013 | 0.108 |
+| opioid_ed | 45–54 | Ensemble | 0.987 | 0.955 | 0.816 | 0.007 | 0.154 |
+| opioid_ed | 55–64 | Ensemble | 0.991 | 0.974 | 0.874 | 0.051 | 0.138 |
+| non_opioid_ed | 65–74 | CatBoost | 0.996 | 0.984 | 0.977 | 0.008 | 0.071 |
+| non_opioid_ed | 75–84 | Ensemble | 0.999 | 0.997 | 0.973 | 0.007 | 0.290 |
+| non_opioid_ed | 85–114 | Ensemble | 0.997 | 0.992 | 0.971 | 0.007 | 0.212 |
 
-| Cohort | Band | Selected Model | ROC-AUC | PR-AUC | Recall | LogLoss |
-|:-------|:-----|:---------------|--------:|-------:|-------:|--------:|
-| opioid_ed | 13–24 | CatBoost | 0.937 | 0.835 | 0.550 | 0.252 |
-| opioid_ed | 25–44 | Ensemble | 0.961 | 0.889 | 0.671 | 0.207 |
-| opioid_ed | 45–54 | Ensemble | 0.960 | 0.896 | 0.679 | 0.209 |
-| opioid_ed | 55–64 | Ensemble | 0.966 | 0.916 | 0.728 | 0.213 |
-| non_opioid_ed | 65–74 | CatBoost | 0.996 | 0.984 | 0.977 | 0.064 |
-| non_opioid_ed | 75–84 | Ensemble | 0.999 | 0.997 | 0.973 | 0.043 |
-| non_opioid_ed | 85–114 | Ensemble | 0.997 | 0.992 | 0.971 | 0.081 |
-
-Brier score range (pre-retrain): 0.0070–0.0509 (opioid_ed); ICI range: 0.1084–0.1635.  
-MCCV: 50+ random 80/20 stratified splits on 2016–2018 training data.
+Brier: `brier_ici_results.json` (catboost_per_bin, 2019 holdout).  
+MCCV: 25-run 80/20 stratified splits on 2016–2018 training data.
 
 ---
 
@@ -127,16 +125,24 @@ aws logs filter-log-events \
 | `[Chair]`, `[Member 1–3]` | See committee in README.md | CH_6 |
 | Data Availability statement | VHI DUA canonical language | CH_2–CH_4, CH_6 |
 
-### ⏳ Still Needed (post-retrain)
+### ✅ Confirmed Post-Retrain
+
+| Item | Chapter(s) | Source |
+|:-----|:-----------|:-------|
+| Brier / ICI per cohort × band | CH_3, CH_4 | `data/brier_ici_results.json` |
+| FFA pair/triplet counts (115 pairs; 5,021 triplets) | CH_4 | `data/ffa_ie_ci.json` |
+| FFA IE scores table (top 5 pairs with 95% CI) | CH_4 | `data/ffa_ie_ci.json` |
+| IR scores (simvastatin/furosemide/alprazolam) | CH_4 | `data/ffa_manuscript_data.json` |
+| DTW archetypes (Rapid-Onset n=5,481/21%; Chronic-Escalation n=21,229/79%) | CH_3 | chapter text |
+| SHAP rank #1 `pgx_num_drugs` (mean\|SHAP\|=1.22); rank #2 `pgx_num_cpic_drugs` (0.63); gabapentin (0.23) | CH_3 | `shap_top_features.json` opioid_ed/25-44/low |
+| PGx coverage data generated (opioid_ed 13–24: 74.2%; 25–44: 81.9%; 45–54: 85.9%; 55–64: 85.8%) | CH_5 | `pgx_coverage.json` |
+
+### ⏳ Still Needed
 
 | Placeholder | Chapter(s) | Source file | Notes |
 |:-----------|:-----------|:------------|:------|
-| Brier score / ICI per cohort × band | CH_3, CH_4 | `scripts/compute_brier_ici.py` → `brier_ici_results.json` | Run after Notebook 3 |
-| SHAP top-10 feature names + mean\|SHAP\| | CH_3, CH_4, CH_5 | `scripts/extract_visual_manuscript.py` → `shap_top_features.json` | |
-| FP-Growth top rule (support, confidence) | CH_3, CH_4 | `visual_manuscript_data.json` → `fpgrowth.top_rules[0]` (opioid_ed/25-44/low) | |
-| DTW cluster N / % / median months | CH_3, CH_6 | `dtw_manuscript_summary.json` → `archetypes_by_dtw_quartile` | DTW failed 2026-03-29; rerun after fix |
-| FFA pair/triplet counts + IE/IR scores | CH_4 | `ffa_ie_ci.json`, `ffa_manuscript_data.json` | EC2 local files — copy to S3 first |
-| PGx feature coverage % | CH_5 | `pgx_coverage.json` | |
+| FP-Growth top rule (support, confidence) | CH_3 | `visual_manuscript_data.json` → opioid_ed/25-44 medium/high bin | low bin has 0 rules |
+| CH_5 PGx coverage table | CH_5 | `pgx_coverage.json` | Add table to results section |
 | CRediT author contributions | CH_1–CH_5 | Manual — MDPI/Wiley required field | ✍️ |
 | Lambda benchmarks (post-redeploy) | CH_5 | CloudWatch post `prepare_models.py` redeploy | Manual |
 
@@ -146,14 +152,15 @@ aws logs filter-log-events \
 
 After EC2 Notebooks 3 + 4 complete and local extraction scripts run:
 
-- [ ] **CH_3 Table 2** — AUROC/PR-AUC/Brier/ICI from `brier_ici_results.json`
-- [ ] **CH_3 abstract** — update mean PR-AUC (currently 0.88) and AUROC (currently 0.96) averages
-- [ ] **CH_3 SHAP values** (~line 301) — top features + mean|SHAP| from `shap_top_features.json`
-- [ ] **CH_3 FP-Growth rule** — top association rule from `visual_manuscript_data.json`
-- [ ] **CH_3 DTW cluster N/%** — Rapid-Onset / Chronic-Escalation sizes from `dtw_manuscript_summary.json`
-- [ ] **CH_4 DDI pair/triplet counts** (~line 313) — from `ffa_ie_ci.json`
-- [ ] **CH_4 tbl-ddi IE scores table** — from `ffa_ie_ci.json`
-- [ ] **CH_4 IR scores** (~line 359) — from `ffa_manuscript_data.json`
+- [x] **CH_3 Table 2** — AUROC/PR-AUC/Brier/ICI confirmed (ICI range corrected to 0.108–0.164)
+- [x] **CH_3 abstract** — PR-AUC 0.840–0.979; AUROC 0.957–0.992 confirmed
+- [x] **CH_3 DTW cluster N/%** — Rapid-Onset n=5,481/21%; Chronic-Escalation n=21,229/79% confirmed
+- [x] **CH_4 DDI pair/triplet counts** — 115 synergistic pairs; 5,021 high-risk triplets confirmed
+- [x] **CH_4 tbl-ddi IE scores table** — top 5 pairs with 95% CI from `ffa_ie_ci.json` confirmed
+- [x] **CH_4 IR scores** — simvastatin/furosemide/alprazolam IR values confirmed
+- [x] **CH_3 SHAP values** — `pgx_num_drugs` rank #1 (1.22), `pgx_num_cpic_drugs` rank #2 (0.63), gabapentin rank #3 (0.23); chapter updated
+- [ ] **CH_3 FP-Growth rule** — opioid_ed/25-44/low has 0 rules; check medium/high bins in `visual_manuscript_data.json`
+- [ ] **CH_5 PGx coverage table** — `pgx_coverage.json` generated; add coverage table to CH_5 results section
 - [ ] **CH_5 benchmark table** — Lambda latency from CloudWatch post-redeploy
 - [ ] Regenerate all figures: `python manuscript/generate_figures.py`
 - [ ] Rebuild all PDFs: `.\build.ps1`
