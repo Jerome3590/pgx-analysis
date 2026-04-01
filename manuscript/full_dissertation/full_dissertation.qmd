@@ -8,6 +8,10 @@ author: "R. Jerome Dixon, B.S., M.S."
 date: "June 2026"
 
 format:
+  docx:
+    toc: true
+    toc-depth: 3
+    number-sections: true
   pdf:
     documentclass: book
     pdf-engine: xelatex
