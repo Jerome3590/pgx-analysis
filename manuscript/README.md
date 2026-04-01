@@ -381,5 +381,11 @@ YAML renames: `journal:` → `target-journal:` · `abbreviations:` → `manuscri
 - Fix applied to `_quarto.yml`: replace `\hypersetup{hidelinks}` with `\PassOptionsToPackage{hidelinks}{hyperref}` (safe to call before hyperref loads)
 - Affects all chapters — fix lives in `_quarto.yml` global PDF block, no per-chapter changes needed
 
+**Full dissertation build — `\(\hat{p}\)` inline math**
+- Symptom: `Missing $ inserted` at `(\hat{p})` in `full_dissertation` xelatex pass
+- Root cause: `\(\hat{p}\)` (LaTeX `\(...\)` delimiter) in `CH_5/ch05_bmic.qmd` does not survive the `include_chapter` R pipeline — pandoc emits it as literal text rather than math
+- Fix: replace `\(\hat{p}\)` with `$\hat{p}$` (standard markdown math) — applies to any chapter QMD included via `include_chapter()`
+- Rule: never use `\(...\)` or `\[...\]` delimiters in chapter QMDs; always use `$...$` / `$$...$$`
+
 **AI slop removed (CH_6)**
 - Removed duplicate "completing the translational arc", "closing the loop" cliché, "is exactly the gap" construction

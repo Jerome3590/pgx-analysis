@@ -441,7 +441,7 @@ and satellite tools are meant to support at the point of care:
 
 1. **Stratified risk** — For this patient’s age band and utilization-density stratum, what is the estimated probability of the modeled ED outcome, and how is it mapped to a Low / Moderate / High band?
 2. **Drivers and model agreement** — Which drugs, diagnoses, and procedures most increase or decrease the score (SHAP summary), and do the three per-bin algorithms agree on the band?
-3. **Counterfactuals** — If a drug were added, removed, or substituted, how would \(\hat{p}\) change, and do Chapter 4 FFA-derived synergy rules warrant an alert for that change?
+3. **Counterfactuals** — If a drug were added, removed, or substituted, how would $\hat{p}$ change, and do Chapter 4 FFA-derived synergy rules warrant an alert for that change?
 4. **Population context** — Among APCD training patients most similar to this profile in risk-driving features, what care-sequence and co-prescription patterns appear (Tab 4 visualizations)?
 5. **Pharmacogenomics** — Given user-supplied genotyping (e.g., 23andMe), which CPIC gene--drug pairs are actionable for medications on the current list (Tab 5 Patient Card)?
 
