@@ -115,7 +115,7 @@ bibliography:
 
 <!-- ============================================================
      WORD COUNT TARGET: 4,000–5,000 words (CTS Original Article)
-     FIGURES TARGET: ≤ 5
+     FIGURES TARGET: 4 main + 3 supplementary (CTS journal limit: main text)
      TABLES TARGET: ≤ 4
      REFERENCES TARGET: 40–55
      ============================================================ -->
@@ -646,22 +646,16 @@ These absence-of-care features are invisible to cross-sectional models
 that lack temporal ordering but are recoverable from the 12-month
 lookback claims sequence.
 
-![SHAP feature importance. Beeswarm plot of SHAP values for the top 20
-Consensus-Causal features in the 25–44 year age band (2019 holdout, $n$ =
-2,000 sampled patients). Feature value encoded by color (red = high, blue = low).
-Features selected by both SHAP and FFA are marked with ★.](../figures/ch03/fig_shap.pdf){#fig-shap
+![SHAP feature importance. Horizontal bar chart of mean |SHAP| for the top 20
+Consensus-Causal features in the 25--44 year age band (2019 holdout; TreeExplainer
+on a stratified holdout sample, $n$ = 2,000, per Methods). Bar color indicates
+code type (Drug, ICD-10, CPT, PGx, Other). Features selected by both SHAP and FFA
+are marked with ★.](../figures/ch03/fig_shap.pdf){#fig-shap
 width=90% fig-align="center"}
 
 Partial dependence plots for the top five Consensus-Causal features clarify
 the marginal risk contribution of each variable across its observed range
-(**@fig-shap-pdp**).
-
-![Partial dependence profiles for the top five Consensus-Causal features
-(opioid ED, 25--44 band, 2019 holdout). Each panel shows the marginal effect
-of increasing feature value on predicted OUD-ED probability, averaged over the
-holdout cohort. Rug marks indicate observed feature-value distribution.
-Features ranked by mean |SHAP|.](../figures/ch03/fig_shap_pdp.pdf){#fig-shap-pdp
-width=100% fig-align="center"}
+(**Supplementary Figure S1**; @fig-supp-pdp).
 
 ## Trajectory Analysis {#ch03-trajectories}
 
@@ -709,28 +703,15 @@ Timeline in months before index date.](../figures/ch03/fig_trajectories.pdf){#fi
 width=100% fig-align="center"}
 
 The dominant drug co-occurrence patterns within target trajectories are
-summarized in **@fig-dtw-pathways**, contrasting high-risk (target = 1)
+summarized in **Supplementary Figure S2** (@fig-supp-pathways), contrasting high-risk (target = 1)
 and routine (target = 0) event sequences across event-density bands.
 Gabapentin and buprenorphine-naloxone co-occurrence are the distinguishing
 features of high-risk pathways, consistent with the SHAP and FFA rankings.
 
-![DTW drug pathway patterns for the opioid ED cohort (25--44 band).
-Top panel: drug co-occurrence frequency in high-risk trajectories;
-bottom panel: pathway comparison between high-risk and routine sequences
-by event-density stratum. Drugs ordered by SHAP/FFA allowed-code rank.](../figures/ch03/fig_dtw_pathways.pdf){#fig-dtw-pathways
-width=100% fig-align="center"}
-
-The event-count heatmap (**@fig-trajectories-heatmap**) shows the distribution
+**Supplementary Figure S3** (@fig-supp-heatmap) shows the distribution
 of allowed drug events across sequential trajectory positions, revealing
 that gabapentinoid and benzodiazepine fills cluster in mid-trajectory
 positions (months 6--12 before the index date) rather than at onset.
-
-![Event-count heatmap for SHAP/FFA-allowed drugs across trajectory position
-(opioid ED, 25--44 cohort; training sequences).
-Columns = sequential event position (1--20 before index date);
-rows = drug name ordered by SHAP importance;
-cell color = normalized event count (darker = more frequent).](../figures/ch03/fig_trajectories_heatmap.pdf){#fig-trajectories-heatmap
-width=100% fig-align="center"}
 
 # Discussion {#ch03-discussion}
 
@@ -924,6 +905,19 @@ These findings enable proactive, trajectory-stratified clinical decision support
 for opioid ED risk before the pre-diagnosis stage of OUD,
 closing the gap identified in the Chapter 1 systematic review where 81% of
 published models omit PGx context and 88% lack temporal leakage protection.
+
+## Supplementary Figures {#ch03-supplementary-figures}
+
+The main text presents four figures aligned with Clinical and Translational Science reporting expectations: (1) cohort attrition from the APCD to the analytic cohort; (2) model performance (precision--recall, calibration, ensemble weights) on the 2019 holdout; (3) SHAP feature importance (mean |SHAP| bar chart) for Consensus-Causal features in the 25--44 age band; and (4) DTW trajectory archetypes (Rapid-Onset vs.\ Chronic-Escalation). The following supplemental figures provide marginal-effect and pathway-level detail for readers who require additional granularity.
+
+![Supplementary Figure S1. Partial dependence profiles for the top five Consensus-Causal features (opioid ED, 25--44 band, 2019 holdout). Each panel shows the marginal effect of increasing feature value on predicted OUD-ED probability, averaged over the holdout cohort. Rug marks indicate observed feature-value distribution. Features ranked by mean |SHAP|.](../figures/ch03/fig_shap_pdp.pdf){#fig-supp-pdp
+width=100% fig-align="center"}
+
+![Supplementary Figure S2. DTW drug pathway patterns for the opioid ED cohort (25--44 band). Top panel: drug co-occurrence frequency in high-risk trajectories; bottom panel: pathway comparison between high-risk and routine sequences by event-density stratum. Drugs ordered by SHAP/FFA allowed-code rank.](../figures/ch03/fig_dtw_pathways.pdf){#fig-supp-pathways
+width=100% fig-align="center"}
+
+![Supplementary Figure S3. Event-count heatmap for SHAP/FFA-allowed drugs across trajectory position (opioid ED, 25--44 cohort; training sequences). Columns = sequential event position (1--20 before index date); rows = drug name ordered by SHAP importance; cell color = normalized event count (darker = more frequent).](../figures/ch03/fig_trajectories_heatmap.pdf){#fig-supp-heatmap
+width=100% fig-align="center"}
 
 **Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
 formal analysis, R.J.D.; writing, R.J.D.

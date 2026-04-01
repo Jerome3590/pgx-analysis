@@ -269,7 +269,7 @@ pgx-analysis/
     ├── templates/           bmic_jpm_template.tex, cpt_psp_template.tex, cts_template.tex
     ├── _extensions/ramiromagno/wiley-njd/
     ├── refs/                discipline.bib, bmic-jpm.bib, cpt-psp.bib, cts.bib
-    ├── figures/ch01/ … ch06/
+    ├── figures/ch01/ … ch06/ + `shared/` (cross-chapter assets)
     ├── output/              compiled PDFs
     ├── scripts/             extract_visual_manuscript.py, compute_brier_ici.py, etc.
     ├── _quarto.yml
@@ -372,6 +372,14 @@ YAML renames: `journal:` → `target-journal:` · `abbreviations:` → `manuscri
 **DTW failure**
 - `9_dtw_log/` failed 2026-03-29: `ERROR: Model data has no target date column (first_opioid_ed_date not found)`
 - Cluster sizes in CH_3/CH_6 remain as `[XX,XXX]` / `[XX%]` until fix + rerun
+
+### 2026-04-01
+
+**TinyTeX 2026 — `\hypersetup` undefined**
+- Symptom: `Undefined control sequence. l.111 \hypersetup{hidelinks}` on any chapter build
+- Root cause: `_quarto.yml` had `include-in-header: text: \hypersetup{hidelinks}` — in TinyTeX 2026 this fires before hyperref loads in the default Pandoc template
+- Fix applied to `_quarto.yml`: replace `\hypersetup{hidelinks}` with `\PassOptionsToPackage{hidelinks}{hyperref}` (safe to call before hyperref loads)
+- Affects all chapters — fix lives in `_quarto.yml` global PDF block, no per-chapter changes needed
 
 **AI slop removed (CH_6)**
 - Removed duplicate "completing the translational arc", "closing the loop" cliché, "is exactly the gap" construction

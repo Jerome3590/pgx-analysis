@@ -125,9 +125,14 @@ if ($Full) {
 # ── Clean ────────────────────────────────────────────────────────────────────
 if ($Clean) {
     Write-Host "Cleaning output/ and edits/ ..." -ForegroundColor Yellow
-    Get-ChildItem $Output -Include *.pdf,*.tex,*.log -Recurse | Remove-Item -Force
-    Get-ChildItem $Edits  -Include *.docx            -Recurse | Remove-Item -Force
-    Write-Host "Done." -ForegroundColor Green
+    Get-ChildItem $Output -Include *.pdf,*.tex,*.log -Recurse -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem $Edits  -Include *.docx -Recurse -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+    # Quarto may leave a PDF in the chapter cwd on failed moves
+    Get-ChildItem $Root -Filter "ch*_*.pdf" -File -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host "Done. (Close any open PDFs in output/ if files could not be deleted.)" -ForegroundColor Green
     exit 0
 }
 

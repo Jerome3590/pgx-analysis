@@ -206,6 +206,10 @@ the deployment barriers identified in Chapter 1's systematic review:
 
 The system uses a hybrid deployment combining a static frontend and a
 containerized serverless backend (**@fig-architecture**).
+The figure shows how a single request flows from the browser through
+API Gateway to the Lambda bundle (per-bin models, imputation, CPIC snapshot)
+and back, with the ephemeral privacy boundary: it answers *where* inference runs,
+*which* artifacts are co-located, and *why* patient-linked data never persist.
 This architecture was selected over three alternatives evaluated during
 design:
 
@@ -248,12 +252,7 @@ single container that is destroyed after each invocation:
 : Hybrid deployment component summary. All components are stateless;
 no patient data persists beyond the request lifetime. {#tbl-architecture}
 
-![PGx Risk Dashboard architecture. Left: S3-hosted static frontend with
-four functional tabs (Patient Input, Risk Score, Causal What-If,
-PGx Card). Center: API Gateway routes to AWS Lambda Docker container (ECR).
-Right: Lambda container internals, per-density-bin ensemble models (up to 84),
-CPIC database snapshot, and inference engine. Arrows indicate data flow; no patient
-data is written to persistent storage at any step.](../figures/ch05/pgx_dashboard_architecture.pdf){#fig-architecture
+![Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across two cohorts, age bands, and four density bins) are packaged in an AWS Lambda container. At inference time, the container selects the appropriate per-bin ensemble, applies Imputation of Normality for sparse inputs, and returns the ensemble risk score. API Gateway exposes REST endpoints to the static frontend; CloudFront delivers the SPA over HTTPS. The CPIC PGx Patient Card path performs a stateless gene--drug lookup with no persistent PII. The dashed boundary marks ephemeral compute: patient-linked inputs are processed in-memory and discarded after the response.](../figures/shared/pgx_architecture_risk_dashboard.pdf){#fig-architecture
 width=100% fig-align="center"}
 
 ## Partition-First Routing
@@ -437,6 +436,18 @@ width=90% fig-align="center"}
 
 # Final PGx Risk Dashboard {#ch05-features}
 
+The **PGx Risk Dashboard** is organized around concrete questions the ensemble
+and satellite tools are meant to support at the point of care:
+
+1. **Stratified risk** — For this patient’s age band and utilization-density stratum, what is the estimated probability of the modeled ED outcome, and how is it mapped to a Low / Moderate / High band?
+2. **Drivers and model agreement** — Which drugs, diagnoses, and procedures most increase or decrease the score (SHAP summary), and do the three per-bin algorithms agree on the band?
+3. **Counterfactuals** — If a drug were added, removed, or substituted, how would \(\hat{p}\) change, and do Chapter 4 FFA-derived synergy rules warrant an alert for that change?
+4. **Population context** — Among APCD training patients most similar to this profile in risk-driving features, what care-sequence and co-prescription patterns appear (Tab 4 visualizations)?
+5. **Pharmacogenomics** — Given user-supplied genotyping (e.g., 23andMe), which CPIC gene--drug pairs are actionable for medications on the current list (Tab 5 Patient Card)?
+
+**Tab 2** (**@fig-dashboard**) is the primary view for questions **(1)** and **(2)**.
+**@fig-architecture** situates how those answers are produced (routing, bundled models, privacy boundary); Tabs 3--5 implement **(3)**--**(5)**.
+
 This section documents the **deployed** interface: the **Risk Assessment**
 screenshot under Tab~2 below is the **canonical manuscript figure** for the
 live ensemble output. **Chapter 6** synthesizes how **all tabs and pipeline
@@ -467,12 +478,12 @@ Output panel shows:
 
 A representative risk output screenshot is shown in **@fig-dashboard**.
 
-![Dashboard Tab 2: Risk Score display for a representative patient profile.
-(A) Ensemble risk gauge showing 74% risk (High band). (B) Model agreement:
-3/3 models agree on High risk band. (C) Top 5 risk drivers with SHAP bars;
-hydrocodone count and chronic pain diagnosis are the dominant
-risk-increasing features; physical therapy referral is protective.
-Patient data shown are synthetic, for illustration only.](../figures/ch05/pgx_dashboard.pdf){#fig-dashboard
+![**Tab 2 (Risk Score)** addresses *What is this patient’s stratified risk?,*
+*Which coded features drive the score?,* and *Do the three per-bin models agree?*
+**(A)** Ensemble risk gauge and probability scale. **(B)** Model-agreement indicator
+(e.g., 3/3 algorithms on the same band). **(C)** Directional SHAP summary of top
+drivers (risk-increasing vs protective). Values illustrate interface behavior;
+patient data are synthetic.](../figures/shared/pgx_dashboard.pdf){#fig-dashboard
 width=90% fig-align="center"}
 
 ## Feature 2: Causal "What-If" Counterfactual Analysis (Tab 3)

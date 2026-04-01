@@ -57,36 +57,56 @@ def _label(f, n=30):
 def fig_attrition():
     from matplotlib.patches import FancyBboxPatch
     fig, ax = plt.subplots(figsize=(6.5, 9))
-    ax.set_xlim(0,10); ax.set_ylim(-0.5,15); ax.axis("off")
+    # Right margin > 10 so exclusion box strokes are not clipped at the axis edge
+    ax.set_xlim(0, 10.2); ax.set_ylim(-0.5, 15); ax.axis("off")
     steps = [
-        (5,13.8,"APCD 2016–2019\n6,929,576 unique patients",C_BLUE),
-        (5,11.8,"Any pharmacy claim\nin 12-month lookback",C_BLUE),
-        (5, 9.8,"F11.xx OUD-ED diagnosis identified\nor qualified as control\n1,505,138 cases",C_BLUE),
-        (5, 7.8,"Age ≥ 13 years at index date\n(−893 pediatric OUD)",C_BLUE),
-        (5, 5.8,"12-mo continuous enrollment\n+ no cohort overlap\nFinal: 26,710 cases",C_BLUE),
-        (5, 3.6,"5:1 Nearest-Neighbor Matching\n26,710 cases / 180,640 controls",C_GREEN),
-        (5, 1.4,"Final Analytic Dataset\n207,350 patients\n(Train 2016–2018 / Holdout 2019)",C_TEAL),
+        (5, 13.8, "APCD 2016–2019\n6,929,576 unique patients", C_BLUE),
+        (5, 11.8, "Any pharmacy claim\nin 12-month lookback", C_BLUE),
+        (5, 9.8, "F11.xx OUD-ED diagnosis identified\nor qualified as control\n1,505,138 cases", C_BLUE),
+        (5, 7.8, "Age ≥ 13 years at index date\n(−893 pediatric OUD)", C_BLUE),
+        (5, 5.8, "12-mo continuous enrollment\n+ no cohort overlap\nFinal: 26,710 cases", C_BLUE),
+        (5, 3.6, "5:1 Nearest-Neighbor Matching\n26,710 cases / 180,640 controls", C_GREEN),
+        (5, 1.4, "Final Analytic Dataset\n207,350 patients\n(Train 2016–2018 / Holdout 2019)", C_TEAL),
     ]
+    # Workflow column: keep narrow so exclusion callouts sit fully inside frame (not flush to x=10).
+    main_w, main_h = 4.15, 1.5
+    main_right = 5 + main_w / 2  # 7.075 when centered at x=5
+    # Compact exclusion callouts: narrow box, minimal corner padding, tight text
+    ex_w, ex_h = 1.38, 0.74
+    ex_x_c = 9.05  # right edge ≈ 9.74 — margin before axis limit to avoid PDF stroke clipping
+    ex_box_pad = 0.018  # FancyBboxPatch internal pad (smaller = less margin inside border)
     excls = [
-        (8.4,12.8,"Excluded: ~406K\nno pharmacy claim"),
-        (8.4,10.8,"Excluded: non-OUD /\nnon-control eligible"),
-        (8.4, 8.8,"Excluded: 893 pediatric\n(0–12; N too small)"),
-        (8.4, 6.8,"Excluded: enrollment gap\nor cohort overlap"),
+        (ex_x_c, 11.8, "Excluded:\n~406K no\npharmacy"),
+        (ex_x_c, 9.8, "Excluded:\nnon-OUD /\nnon-control"),
+        (ex_x_c, 7.8, "Excluded:\n893 pediatric\n(0–12)"),
+        (ex_x_c, 5.8, "Excluded:\nenroll. gap\nor overlap"),
     ]
-    for x,y,txt,fc in steps:
-        ax.add_patch(FancyBboxPatch((x-3,y-0.75),6,1.5,boxstyle="round,pad=0.1",fc=fc,ec="white",lw=0,alpha=0.88))
-        ax.text(x,y,txt,ha="center",va="center",fontsize=7.2,color="white",fontweight="bold",linespacing=1.45)
-    ys=[s[1] for s in steps]
-    for i in range(len(ys)-1):
-        ax.annotate("",xy=(5,ys[i+1]+0.75),xytext=(5,ys[i]-0.75),
-                    arrowprops=dict(arrowstyle="-|>",color=C_GRAY,lw=1.3))
-    for ex_x,ex_y,ex_txt in excls:
-        ax.add_patch(FancyBboxPatch((ex_x-1.85,ex_y-0.48),3.7,0.96,
-                                    boxstyle="round,pad=0.08",fc="#fff5f0",ec=C_RED,lw=0.9))
-        ax.text(ex_x,ex_y,ex_txt,ha="center",va="center",fontsize=6.5,color=C_RED,linespacing=1.4)
-        ax.annotate("",xy=(ex_x-1.85,ex_y),xytext=(8,ex_y+0.3),
-                    arrowprops=dict(arrowstyle="-|>",color=C_RED,lw=0.8,linestyle="dashed"))
-    ax.set_title("Opioid ED Cohort Attrition",fontsize=10,fontweight="bold",pad=4)
+    for x, y, txt, fc in steps:
+        ax.add_patch(FancyBboxPatch(
+            (x - main_w / 2, y - main_h / 2), main_w, main_h,
+            boxstyle="round,pad=0.1", fc=fc, ec="white", lw=0, alpha=0.88,
+        ))
+        ax.text(x, y, txt, ha="center", va="center", fontsize=6.75, color="white", fontweight="bold", linespacing=1.42)
+    ys = [s[1] for s in steps]
+    for i in range(len(ys) - 1):
+        ax.annotate("", xy=(5, ys[i + 1] + 0.75), xytext=(5, ys[i] - 0.75),
+                    arrowprops=dict(arrowstyle="-|>", color=C_GRAY, lw=1.3))
+    for (ex_x, ex_y, ex_txt) in excls:
+        ax.add_patch(FancyBboxPatch(
+            (ex_x - ex_w / 2, ex_y - ex_h / 2), ex_w, ex_h,
+            boxstyle=f"round,pad={ex_box_pad}", fc="#fff5f0", ec=C_RED, lw=0.85,
+        ))
+        ax.text(
+            ex_x, ex_y, ex_txt, ha="center", va="center",
+            fontsize=5.6, color=C_RED, linespacing=1.08,
+        )
+        ex_left = ex_x - ex_w / 2
+        ax.annotate(
+            "", xy=(ex_left, ex_y), xytext=(main_right, ex_y),
+            arrowprops=dict(arrowstyle="-|>", color=C_RED, lw=0.95, linestyle="solid",
+                            shrinkA=0, shrinkB=3, mutation_scale=10),
+        )
+    ax.set_title("Opioid ED Cohort Attrition", fontsize=10, fontweight="bold", pad=4)
     _save(fig, FIG_CH03/"fig_attrition.pdf")
 
 def fig_curves():

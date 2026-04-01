@@ -13,10 +13,10 @@ warnings.filterwarnings("ignore")
 SCRIPT_DIR = Path(__file__).resolve().parent
 MANUSCRIPT_ROOT = SCRIPT_DIR.parent.parent  # .../manuscript (Quarto reads ../figures/ from CH_*)
 STATUS_DIR = MANUSCRIPT_ROOT / "status"
-FIG_CH02 = MANUSCRIPT_ROOT / "figures" / "ch02"
 FIG_CH05 = MANUSCRIPT_ROOT / "figures" / "ch05"
-FIG_CH02.mkdir(parents=True, exist_ok=True)
+FIG_SHARED = MANUSCRIPT_ROOT / "figures" / "shared"
 FIG_CH05.mkdir(parents=True, exist_ok=True)
+FIG_SHARED.mkdir(parents=True, exist_ok=True)
 
 plt.rcParams.update({
     "font.family": "sans-serif", "font.size": 8.5, "axes.labelsize": 8.5,
@@ -34,134 +34,8 @@ def _save(fig, path):
     print(f"  ✓ {path.name}")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# fig_architecture  –  system architecture diagram
-# ─────────────────────────────────────────────────────────────────────────────
-
-def fig_architecture():
-    C_DARKGREEN = "#1b7837"
-
-    fig, ax = plt.subplots(figsize=(17, 9))
-    ax.set_xlim(0, 25); ax.set_ylim(0, 10); ax.axis("off")
-    ax.set_facecolor("#f8f9fa"); fig.patch.set_facecolor("#f8f9fa")
-
-    def box(x, y, w, h, txt, fc, ec="white", fs=7.5):
-        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.25",
-                                    fc=fc, ec=ec, lw=1.5, alpha=0.92, zorder=2))
-        ax.text(x + w/2, y + h/2, txt, ha="center", va="center", fontsize=fs,
-                color="white", fontweight="bold", linespacing=1.55, zorder=3)
-
-    def arrow(x1, y1, x2, y2, label="", bidir=False):
-        style = "<|-|>" if bidir else "-|>"
-        ax.annotate("", xy=(x2, y2), xytext=(x1, y1),
-                    arrowprops=dict(arrowstyle=style, color=C_GRAY,
-                                   lw=1.4, mutation_scale=10), zorder=1)
-        if label:
-            mx, my = (x1 + x2) / 2, (y1 + y2) / 2
-            ax.text(mx, my + 0.22, label, ha="center", fontsize=6.5,
-                    color=C_GRAY, zorder=4)
-
-    # ── Tier 1: Frontend  (Route 53 → CloudFront → S3) ───────────────────────
-    box(0.3, 5.3, 2.3, 2.4,
-        "Route 53\n\nDNS Routing\n(CNAME)",
-        C_AMBER, fs=7.2)
-
-    box(3.3, 5.3, 2.6, 2.4,
-        "CloudFront\n\nCDN / HTTPS\nEdge Caching",
-        C_TEAL, fs=7.2)
-
-    box(6.7, 4.5, 2.9, 3.4,
-        "S3 Static\nFrontend\n\n"
-        "Tab 1: Patient Input\n"
-        "Tab 2: Risk Score\n"
-        "Tab 3: What-If\n"
-        "Tab 4: Visualizations\n"
-        "Tab 5: PGx Card",
-        C_BLUE, fs=7)
-
-    ax.text(4.95, 8.55,
-            "Tier 1: Frontend  (Route 53 → CloudFront → S3)",
-            ha="center", fontsize=9, fontweight="bold", color=C_BLUE)
-
-    # ── Tier 2: API Gateway ───────────────────────────────────────────────────
-    box(10.6, 5.3, 2.8, 2.4,
-        "API Gateway\n(HTTPS / REST)\n\nCORS: enabled\nNo auth (demo)",
-        C_TEAL, fs=7.2)
-
-    ax.text(12.0, 8.55, "Tier 2: AWS",
-            ha="center", fontsize=9, fontweight="bold", color=C_TEAL)
-
-    # ── Tier 3: Lambda ────────────────────────────────────────────────────────
-    box(14.5, 4.3, 3.7, 4.0,
-        "AWS Lambda\n(Docker / ECR)\n\n"
-        "/risk\n"
-        "/causal-importance\n"
-        "/visualizations\n"
-        "/pgx-card",
-        C_PURPLE, fs=7.2)
-
-    ax.text(16.35, 8.82, "Tier 3: Serverless Compute",
-            ha="center", fontsize=9, fontweight="bold", color=C_PURPLE)
-
-    # ── S3 Backend (visual artifact storage) ─────────────────────────────────
-    box(14.5, 1.2, 3.7, 2.7,
-        "S3 Backend\n\n"
-        "Visual Artifacts\n"
-        "( .json  ·  .png )\n\n"
-        "Dashboard Output\nCache",
-        C_GREEN, fs=7.2)
-
-    # ── Tier 4: Container internals ───────────────────────────────────────────
-    box(19.4, 7.5, 5.3, 2.0,
-        "Per-Density-Bin Models  (up to 84)\n"
-        "CatBoost + XGBoost + XGBoost-RF\n"
-        "3 alg. × 4 bins × 7 age bands  (~469 MB)",
-        C_RED, fs=7)
-
-    box(19.4, 5.1, 5.3, 2.1,
-        "CPIC DB Snapshot  (March 2026)\n"
-        "573 gene-drug pairs · Level A/B only\n"
-        "12 PGx genes  (~48 MB)",
-        C_DARKGREEN, fs=7)
-
-    box(19.4, 2.8, 5.3, 2.0,
-        "Feature Schemas + Training Medians\n"
-        "Per-bin thresholds · Imputation of Normality\n"
-        "(~18 MB)",
-        C_ORANGE, "black", fs=7)
-
-    ax.text(22.05, 9.82, "Tier 4: Container (619 MB total, ECR)",
-            ha="center", fontsize=9, fontweight="bold", color=C_RED)
-
-    # ── Arrows: main horizontal flow ──────────────────────────────────────────
-    arrow(2.6,  6.5,  3.3,  6.5,  "DNS")
-    arrow(5.9,  6.5,  6.7,  6.2,  "CDN")
-    arrow(9.6,  6.2,  10.6, 6.5,  "HTTP/S")
-    arrow(13.4, 6.5,  14.5, 6.3,  "JSON")
-
-    # Lambda ↔ S3 Backend (vertical, bidirectional)
-    arrow(16.35, 4.3, 16.35, 3.9, "artifacts", bidir=True)
-
-    # Lambda → Container boxes
-    arrow(18.2, 7.8,  19.4, 8.5,  "models")
-    arrow(18.2, 6.3,  19.4, 6.15, "CPIC")
-    arrow(18.2, 5.0,  19.4, 3.8,  "schemas")
-
-    # Privacy note
-    ax.text(10.5, 0.35,
-            "★  No patient data written to persistent storage — all computation ephemeral  "
-            "(HIPAA privacy-first; no BAA required)",
-            ha="center", fontsize=7.5, color=C_TEAL, style="italic",
-            bbox=dict(boxstyle="round,pad=0.3", fc="#e8f4f8", ec=C_TEAL, lw=0.8))
-
-    ax.set_title("PGx Risk Dashboard — Hybrid Serverless Architecture",
-                 fontsize=12, fontweight="bold", pad=10)
-    _save(fig, FIG_CH02 / "pgx_dashboard_architecture.pdf")
-    import shutil
-    shutil.copy2(FIG_CH02 / "pgx_dashboard_architecture.pdf",
-                 FIG_CH05 / "pgx_dashboard_architecture.pdf")
-    print("  ✓ pgx_dashboard_architecture.pdf (ch02 + ch05)")
-
+# Architecture + Tab 2 screenshot: hand-maintained under `figures/shared/`
+# (`pgx_architecture_risk_dashboard.pdf`, `pgx_dashboard.pdf`).
 
 # ─────────────────────────────────────────────────────────────────────────────
 # fig_imputation  –  Imputation of Normality sensitivity analysis
@@ -231,7 +105,7 @@ def fig_dashboard():
         ax.set_title("PGx Risk Dashboard — Tab 2: Risk Score Output\n"
                      "(Synthetic patient data for illustration only)",
                      fontsize=10, fontweight="bold")
-        _save(fig, FIG_CH05/"pgx_dashboard.pdf")
+        _save(fig, FIG_SHARED / "pgx_dashboard.pdf")
         return
 
     # Schematic fallback
@@ -296,7 +170,7 @@ def fig_dashboard():
     ax.set_title("PGx Risk Dashboard — Tab 2: Risk Score Display\n"
                  "(Representative output; synthetic patient profile)",
                  fontsize=10,fontweight="bold",pad=4)
-    _save(fig, FIG_CH05/"pgx_dashboard.pdf")
+    _save(fig, FIG_SHARED / "pgx_dashboard.pdf")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -377,7 +251,6 @@ def fig_latency():
 
 if __name__ == "__main__":
     print("\n=== Generating CH_5 Figures ===")
-    fig_architecture()
     fig_imputation()
     fig_latency()
-    print("CH_5 done.  (pgx_dashboard.pdf placed manually by user)")
+    print("CH_5 done. (pgx_architecture_risk_dashboard.pdf + pgx_dashboard.pdf live under figures/shared/)")

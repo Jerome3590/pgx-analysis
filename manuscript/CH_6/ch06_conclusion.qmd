@@ -147,7 +147,7 @@ achieving a **15× throughput improvement** over the monolithic baseline
 (18.1 M vs. 1.2 M records per minute) with zero straggler amplification
 even for skewed geriatric partitions.
 
-The Consensus Filter (SHAP ∩ FFA) established a principled causal
+The Consensus Filter (SHAP $\cap$ FFA) established a principled causal
 feature selection standard: a feature is designated Consensus-Causal only
 when confirmed by both distributional SHAP importance (≥75th percentile)
 and structural FFA rule extraction (support ≥0.05, confidence ≥0.70).
@@ -364,29 +364,29 @@ width=100% fig-align="center"}
 **SNP data transforms population-level CPIC guidance into patient-specific pathway reasoning.**
 The claims-derived `pgx_num_cpic_drugs` proxy identifies this patient as a likely CYP2D6
 Poor Metabolizer from her drug-exposure pattern alone.
-When a measured genotype is available, the specific diplotype --- CYP2D6 $^{*}$4/$^{*}$4
-(rs3892097; 1846G$>$A splice-site variant) --- reveals the exact molecular mechanism:
-the $^{*}$4 allele abolishes splicing of intron~3, eliminating CYP2D6 protein expression
+When a measured genotype is available, the specific diplotype --- CYP2D6 *4/*4
+(rs3892097; 1846G>A splice-site variant) --- reveals the exact molecular mechanism:
+the *4 allele abolishes splicing of intron~3, eliminating CYP2D6 protein expression
 entirely.
 Without any functional CYP2D6, oxycodone cannot be O-demethylated to oxymorphone
 (its 10$\times$-more-potent active metabolite), so the patient achieves inadequate
 analgesia from the prescribed opioid while accumulating parent oxycodone, increasing CNS
 and respiratory depression risk --- an effect invisible to a standard dosing protocol.
 
-A co-occurring **OPRM1 A118G** variant (rs1799971; present in $\sim$20--30% of the
+A co-occurring **OPRM1 A118G** variant (rs1799971; present in \textasciitilde{}20--30% of the
 population) compounds this failure: the G allele reduces $\mu$-opioid receptor binding
-affinity for oxymorphone by $\sim$3-fold, meaning that even if trace oxymorphone were
+affinity for oxymorphone by \textasciitilde{}3-fold, meaning that even if trace oxymorphone were
 produced, receptor activation would be blunted.
-Together, CYP2D6 $^{*}$4/$^{*}$4 and OPRM1 A118G describe a patient for whom the
+Together, CYP2D6 *4/*4 and OPRM1 A118G describe a patient for whom the
 oxycodone prescription is both pharmacokinetically and pharmacodynamically ineffective
 --- driving dose escalation that the claims record will capture as a high-frequency
 refill pattern (the exact signal ranked \#3 by SHAP in this band).
 
-The proposed switch to **hydromorphone** is further validated by **CYP3A4 $^{*}$1/$^{*}$1**
+The proposed switch to **hydromorphone** is further validated by **CYP3A4 *1/*1**
 (rs2740574; normal function): hydromorphone is metabolized primarily by UGT1A3
 glucuronidation and does not require CYP2D6, and with normal CYP3A4 activity,
 clearance is predictable at standard dosing --- no dose adjustment needed.
-If a **CYP2C9** intermediate metabolizer status is also present (rs1799853; $^{*}$1/$^{*}$2),
+If a **CYP2C9** intermediate metabolizer status is also present (rs1799853; *1/*2),
 NSAID alternatives carry elevated GI and renal risk, directing the non-opioid adjuvant
 choice toward acetaminophen rather than celecoxib or ibuprofen.
 
@@ -584,14 +584,14 @@ parallel DuckDB processing; Step~3b feature importance and Consensus
 Filter (SHAP $\cap$ FFA) produce causal feature sets; trained ensemble
 models are containerized in AWS Lambda; the PGx Risk Dashboard delivers
 risk scores, causal counterfactuals, and CPIC Patient Cards to
-clinicians via CloudFront CDN.](../figures/ch02/pgx_dashboard_architecture.pdf){#fig-pipeline
+clinicians via CloudFront CDN.](../figures/shared/pgx_architecture_risk_dashboard.pdf){#fig-pipeline
 width=100% fig-align="center"}
 
 ![Consensus Filter: SHAP $\cap$ FFA causal feature selection mechanism
 (Chapter 2). Features must achieve SHAP importance $\geq$ 75th percentile
 (distributional confirmation) AND FFA rule support $\geq$ 0.05
 (structural Boolean confirmation) to be designated
-Consensus-Causal.](../figures/ch02/fig_consensus.pdf){#fig-consensus
+Consensus-Causal.](../figures/ch02/pgx_architecture_consensus_filter.pdf){#fig-consensus
 width=80% fig-align="center"}
 
 Each step was evaluated for both technical performance and clinical validity
