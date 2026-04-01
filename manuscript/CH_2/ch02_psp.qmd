@@ -53,7 +53,7 @@ abstract: >
   matrix and no raw continuous event-count predictor, feeds a novel Consensus
   Filter: a feature is designated causal only when identified by *both*
   distributional (SHAP) and structural (Formal Feature Attribution, FFA)
-  analysis. FP-Growth and BupaR process-mining methods are strictly
+  analysis. FP-Growth, BupaR, and DTW trajectory methods are strictly
   restricted to exploratory visualization to prevent target leakage.
   Temporal validation uses 2016–2018 training and a 2019 prospective holdout;
   the pandemic year 2020 is excluded.
@@ -181,7 +181,7 @@ barrier through architectural design rather than post-hoc correction.
    subsets using Brier score on the 2019 prospective holdout as the
    primary calibration criterion.
 3. Detail leakage-prevention mechanisms, including the visualization-only
-   restriction on FP-Growth and BupaR, and demonstrate that these
+   restriction on FP-Growth, BupaR, and DTW, and demonstrate that these
    restrictions preserve causal validity without sacrificing exploratory
    clinical insight.
 4. Report per-partition temporal validation results (AUROC, PR-AUC, Brier
@@ -196,7 +196,7 @@ barrier through architectural design rather than post-hoc correction.
 ## Analytical Framework
 
 The analytical pipeline is structured as an OODA loop [@Boyd1986]
-(@fig-framework), providing an explicit causal map from raw claims
+(@fig-pgx-ooda-framework), providing an explicit causal map from raw claims
 data through to clinical intervention and back.
 The present chapter implements the **Orient** and **Decide** phases,
 with the **Observe** phase established by the Virginia APCD ingestion
@@ -231,7 +231,7 @@ Two structural loops are embedded in this framework:
   spurious predictive signal, enabling the OODA cycle to generalise
   across temporal partitions.
 
-![OODA loop operational data flow for the Chapter 2 pipeline. Observe phase ingests 2016--2018 APCD claims (Drug/ICD/CPT), FAERS pharmacovigilance data, and RQ1/RQ2 targets into Aggregated Observations. Orient defines the prediction target (B1 leakage guard), ranks features by Step~3b importance, and fans out to parallel exploratory visualisation (BupaR, DTW, FP-Growth). Decide trains the Final GBT ensemble, applies SHAP and FFA explainers in parallel, and combines them into the Consensus-Causal filter. Act delivers the RQ1/RQ2 Risk Dashboard; feedback closes the loop to the 2019 test cohort.](../figures/ch02/pgx_architecture1.pdf){#fig-framework
+![Clinical OODA loop: operational data flow for the empirical pipeline. Observe phase ingests 2016--2018 APCD claims, Drug/ICD/CPT codes, RQ targets, and FAERS pharmacovigilance data. Orient extracts the target definition and feature importances (Step 3b), then applies parallel pattern mining (BupaR, DTW, FP-Growth) using those importances as allowed codes. Decide applies the final ensemble model (Step 6) with layered explainability (SHAP, FFA, Combined SHAP/FFA). Act delivers risk dashboards and interventions for RQ1/RQ2; feedback closes the OODA loop back to the 2019 test cohort. B1 = balancing constraint enforced by temporal leakage prevention.](../figures/ch02/pgx_architecture_clinical_ooda_loop.pdf){#fig-pgx-ooda-framework
 width=100% fig-align="center"}
 
 ## Data Source
@@ -257,7 +257,7 @@ holds analysis-ready feature tables and trained model artifacts.
 FAERS pharmacovigilance signals (quarterly MedWatch extracts, 2016–2019)
 augmented cohort outcome labeling as a secondary corroborating source.
 
-![Process Mining Analytics Platform --- Preprocessing pipeline (adapted from ICPM 2024). Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer. FAERS pharmacovigilance signals augment cohort labeling (dashed).](../figures/ch02/pgx_architecture2.pdf){#fig-architecture
+![Preprocessing pipeline: Process Mining Analytics Platform. Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer.](../figures/ch02/pgx_architecture_pipeline.pdf){#fig-architecture
 width=100% fig-align="center"}
 
 ## Partition-First Architecture {#ch02-partition}
@@ -339,14 +339,11 @@ and a warning is logged). The modeling label is the usual binary indicator
 (`target` / `is_target_case` $=1$ for cases, $0$ for controls).
 
 **Opioid ED cohort.** A patient is a **case** if they have at least one
-qualifying **opioid-related emergency presentation** (OUD; ICD-10-CM **F11.xx**)
-on medical claims, with codes appearing in
-**any of the ten** diagnosis fields carried on the claim (primary through
-tertiary and additional positions), consistent with the pipeline’s SQL that
-expands opioid ICD predicates across all ten diagnosis columns. Event
-classification gives **priority to opioid ICD/CPT targets** before HCG-based ED
-routing, so OUD-coded visits are labeled as opioid-cohort targets rather than as
-polypharmacy-route ED events. **Controls** are patients who are not opioid-
+medical claim with **ICD-10-CM F11.xx** (opioid-related diagnoses) in **any of
+the ten** diagnosis fields carried on the claim (primary through additional
+positions), consistent with the pipeline’s SQL that expands F11 predicates
+across all ten columns. **Case status for this cohort is ICD-based;** it does
+not use HCG routing. **Controls** are patients who are not opioid-
 cohort cases in that partition, sampled at random up to five per case (without
 replacement within the cohort). The pipeline allows the **same** patient to
 appear as a control in **both** cohorts’ outputs across partitions; within a
@@ -354,16 +351,19 @@ given cohort, controls are not reused. Full longitudinal
 drug history is retained for feature construction subject to the temporal B1
 windowing rules in later steps.
 
-**Polypharmacy (non-opioid ED) cohort.** A patient is a **case** if they have at
-least one **non-opioid ED (or urgent-care) utilization** identified via Milliman
-**Healthcare Cost Group (HCG) line** codes on medical claims (ED, observation,
-and urgent-care lines used in production, e.g., **P51**, **O11**, **P33**;
-exact literals match the Gold tier and cohort pipeline). **Opioid exclusion is strict:** any patient with
+**Polypharmacy (non-opioid ED) cohort.** A patient is a **case** if they meet
+the **non-opioid ED** target definition based on **Milliman Healthcare Cost
+Group (HCG)** lines for ED and urgent-care utilization (production literals
+include **P51** (ED visits, with **P51b** distinguishing true ED from observation),
+**O11**, and **P33**), combined with a **windowed temporal rule** linking
+prescription drug activity to the first qualifying HCG-identified ED or urgent-care
+visit (e.g., **21 days** for most adult age bands; **age-band–specific windows**
+apply in pediatric and geriatric strata). **Opioid exclusion is strict:** any patient with
 an **opioid-related ICD code in any of the ten diagnosis columns** is **removed
 entirely** from this cohort’s **target and control** pools, so that opioid-
 defined patients cannot appear as polypharmacy cases or as matched controls.
 This enforces **mutual exclusivity** of case definitions at the patient level
-for targets. Pharmacy-heavy feature windows for this cohort use a **balanced
+for targets. Pharmacy-heavy **feature** windows for this cohort use a **balanced
 30-day** lookback relative to the index reference date for targets and controls,
 so that cases and controls are compared under the same temporal window structure.
 
@@ -580,34 +580,14 @@ ensemble weight derivation.
 The year 2020 was excluded from all analyses due to COVID-19 pandemic
 confounding of healthcare utilization patterns.
 
-## Deployed Risk Dashboard {#ch02-dashboard}
+## Analytics Platform and Interactive Insights {#ch02-analytics}
 
-Ensemble model outputs and Consensus-Causal rules are translated to the
-point of care via a serverless PGx Risk Dashboard (@fig-dashboard).
-The system is stateless and ephemeral: no patient data are stored at any tier.
+Curated Gold partitions feed persistent EC2 analytics for model training,
+hyperparameter tuning (Optuna), and notebook-based exploration (BupaR, DTW,
+FP-Growth); a parallel CI/CD pipeline packages trained models for deployment.
+@fig-insights summarizes this dual-track architecture.
 
-The dashboard exposes four functional tabs: (1) **Patient Input**, where
-clinicians enter patient demographics and submitted drug/diagnosis codes;
-(2) **Risk Score**, displaying the weighted ensemble risk probability with
-contributions from each of the three models; (3) **Causal What-If**, where
-clinicians can simulate counterfactual drug removal or substitution and
-observe the predicted risk delta based on FFA Intervention Rate rules;
-and (4) **PGx Patient Card**, which accepts optional 23andMe-format
-genotype data and performs a stateless CPIC lookup for 573 gene-drug pairs
-without storing any PII.
-
-At inference time, the Lambda container determines the patient's
-density-bin classification from the count of submitted clinical codes,
-loads the corresponding per-bin models for the patient's age band and
-cohort, and returns a calibrated ensemble probability within the
-sub-100 ms warm-inference latency target.
-Ensemble weights are pre-serialized to a JSON schema alongside each
-per-bin model artifact and loaded at container start rather than at
-request time, ensuring that weight computation overhead does not
-contribute to per-request latency.
-Full deployment details are described in Chapter 5.
-
-![Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across 2 cohorts, 7 age bands, and 4 density bins) are stored in an AWS Lambda container. At inference time, the container selects the appropriate per-bin model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response.](../figures/ch02/pgx_dashboard_architecture.pdf){#fig-dashboard
+![Process Mining Analytics Platform --- Interactive Insights. Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), sequence alignment (DTW), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team.](../figures/ch02/pgx_architecture_analysis.pdf){#fig-insights
 width=100% fig-align="center"}
 
 ## The Consensus Filter {#ch02-consensus}
@@ -629,7 +609,7 @@ XGBoost). The intersection (checkmark) designates **Causal Features**;
 diagonal hatching emphasizes the SHAP region and the overlap. The note
 below the figure summarizes **robustness** (best-of-three SHAP), **consistency** (FFA on
 fixed XGB), and the **consensus gate** (intersection filters spurious
-correlations).](../figures/ch02/fig_consensus.pdf){#fig-consensus
+correlations).](../figures/ch02/pgx_architecture_consensus_filter.pdf){#fig-consensus
 width=88% fig-align="center"}
 
 The subsections that follow operationalize distributional SHAP and symbolic FFA;
@@ -814,9 +794,34 @@ to SHAP-only or FFA-only feature subsets, confirming that the intersection
 criterion filters genuine distributional noise rather than discarding
 predictive signal.
 
-The interactive analytics and deployment workflow is illustrated in @fig-insights.
+## Deployed Risk Dashboard {#ch02-dashboard}
 
-![Process Mining Analytics Platform --- Interactive Insights (adapted from ICPM 2024). Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team.](../figures/ch02/pgx_dashboard_architecture.pdf){#fig-insights
+Ensemble model outputs and Consensus-Causal rules are translated to the
+point of care via a serverless PGx Risk Dashboard (@fig-dashboard).
+The system is stateless and ephemeral: no patient data are stored at any tier.
+
+The dashboard exposes four functional tabs: (1) **Patient Input**, where
+clinicians enter patient demographics and submitted drug/diagnosis codes;
+(2) **Risk Score**, displaying the weighted ensemble risk probability with
+contributions from each of the three models; (3) **Causal What-If**, where
+clinicians can simulate counterfactual drug removal or substitution and
+observe the predicted risk delta based on FFA Intervention Rate rules;
+and (4) **PGx Patient Card**, which accepts optional 23andMe-format
+genotype data and performs a stateless CPIC lookup for 573 gene-drug pairs
+without storing any PII.
+
+At inference time, the Lambda container determines the patient's
+density-bin classification from the count of submitted clinical codes,
+loads the corresponding per-bin models for the patient's age band and
+cohort, and returns a calibrated ensemble probability within the
+sub-100 ms warm-inference latency target.
+Ensemble weights are pre-serialized to a JSON schema alongside each
+per-bin model artifact and loaded at container start rather than at
+request time, ensuring that weight computation overhead does not
+contribute to per-request latency.
+Full deployment details are described in Chapter 5.
+
+![Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across 2 cohorts, 7 age bands, and 4 density bins) are stored in an AWS Lambda container. At inference time, the container selects the appropriate per-bin model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response.](../figures/shared/pgx_architecture_risk_dashboard.pdf){#fig-dashboard
 width=100% fig-align="center"}
 
 ## Analytical Methods and Statistical Analysis {#ch02-analytical}
@@ -895,15 +900,13 @@ Two calibration metrics were computed for each partition:
   Observed range across opioid ED bands: **0.007–0.051**;
   non-opioid ED geriatric bands: **0.007–0.008**.
 - **Integrated Calibration Index (ICI)**: mean absolute deviation between
-  observed event rates and mean predicted probabilities across 10
-  equal-width probability bins, computed as:
-  ```python
-  frac_pos, mean_pred = calibration_curve(
-      y_true, y_prob, n_bins=10, strategy="uniform")
-  ICI = mean(abs(frac_pos - mean_pred))
-  ```
-  (sklearn `calibration_curve`; same binning as the primary holdout evaluation).
-  ICI = 0 indicates perfect calibration.
+  observed event rates and mean predicted probabilities across 10 equal-width
+  probability bins. Implementation follows scikit-learn's
+  `calibration_curve` with `n_bins=10` and `strategy="uniform"`: ICI is the
+  mean, over bins, of the absolute difference between each bin's observed
+  positive fraction and its mean predicted probability (same binning as the
+  primary holdout evaluation).
+  ICI $= 0$ indicates perfect calibration.
   Observed range: opioid ED **0.108–0.163**; non-opioid ED geriatric bands
   **0.071–0.290**.
 
@@ -938,9 +941,10 @@ The analytic cohorts were drawn from 6,929,576 unique patients with any
 APCD medical claim in Virginia (2016–2019), representing the full
 insured population of the Commonwealth across all payer types
 (commercial, Medicaid, Medicare, self-insured employer plans).
-Operational definitions of **cases** versus **controls**, HCG-based routing for
-the polypharmacy cohort, and strict opioid ICD exclusion rules are documented
-in [Cohort Construction](#ch02-cohort).
+Operational definitions of **cases** versus **controls** (ICD-10-CM **F11.xx**
+for the opioid ED cohort; **HCG**-based ED/urgent-care targets with **windowed**
+drug–ED linkage for the polypharmacy cohort), and strict cross-cohort opioid ICD
+exclusion, are documented in [Cohort Construction](#ch02-cohort).
 
 The opioid ED cohort comprised N = 26,710 cases and N = 180,640
 matched controls across the four primary age bands (13–24, 25–44, 45–54,
@@ -1267,7 +1271,7 @@ SHAP-only) is practically meaningful: in clinical risk models, calibration
 stability across temporal cohorts determines whether risk bands translate
 consistently from training year to deployment year.
 
-Restricting FP-Growth and BupaR to visualization prevents a documented
+Restricting FP-Growth, BupaR, and DTW to visualization prevents a documented
 leakage hazard: association rules built without temporal constraints encode
 target-outcome co-occurrence into predictor features, inflating AUC-PR by
 up to 15–20 percentage points [@Kapoor2023].

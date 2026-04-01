@@ -34,7 +34,6 @@ ch4.fig_shap_pdp()
 
 print("\n=== CH_5: PGx Risk Dashboard ===")
 import generate_figures_ch5 as ch5
-ch5.fig_architecture()
 ch5.fig_imputation()
 ch5.fig_dashboard()
 ch5.fig_latency()
@@ -49,9 +48,9 @@ expected = {
     "ch03": ["fig_attrition.pdf","fig_curves.pdf","fig_shap.pdf",
              "fig_shap_pdp.pdf","fig_trajectories.pdf"],
     "ch04": ["fig_network.pdf","fig_ir.pdf","fig_zcode.pdf","fig_shap_pdp.pdf"],
-    "ch02": ["pgx_dashboard_architecture.pdf"],
-    "ch05": ["pgx_dashboard_architecture.pdf","fig_imputation.pdf",
-             "pgx_dashboard.pdf","fig_latency.pdf"],
+    # Cross-chapter dashboard figures (draw.io + optional `fig_dashboard()` refresh).
+    "shared": ["pgx_architecture_risk_dashboard.pdf", "pgx_dashboard.pdf"],
+    "ch05": ["fig_imputation.pdf", "fig_latency.pdf"],
 }
 fig_root = SCRIPT_DIR.parent.parent / "figures"  # manuscript/figures (same paths Quarto uses)
 missing = []

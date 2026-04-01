@@ -11,6 +11,9 @@ format:
     keep-tex: false
     geometry: margin=1in
     fontsize: 11pt
+    include-in-header:
+      text: |
+        \PassOptionsToPackage{hidelinks}{hyperref}
   docx:
     number-sections: true
     toc: true

@@ -7,7 +7,7 @@ Export Chapter 6 manuscript figures for the PGx Risk Dashboard (all tabs).
    `10_risk_dashboard/backend/lambda_function.py` visualization handlers).
    Sources mirror local outputs from Step 9 (`9_dashboard_visuals` / notebook 4/5).
 
-2) **Tab 2 (risk score)** — Copies `manuscript/figures/ch05/fig_dashboard.pdf`, the same
+2) **Tab 2 (risk score)** — Copies `manuscript/figures/shared/pgx_dashboard.pdf`, the same
    representative screenshot used in Chapter 5.
 
 3) **Optional `--ui`** — Starts `python -m http.server` in `10_risk_dashboard/frontend`
@@ -39,7 +39,7 @@ MANUSCRIPT = REPO_ROOT / "manuscript"
 OUT_DIR = MANUSCRIPT / "figures" / "ch06"
 FRONTEND = REPO_ROOT / "10_risk_dashboard" / "frontend"
 VIS = REPO_ROOT / "10_risk_dashboard" / "visualizations"
-CH5_DASHBOARD_PDF = MANUSCRIPT / "figures" / "ch05" / "pgx_dashboard.pdf"
+CH5_DASHBOARD_PDF = MANUSCRIPT / "figures" / "shared" / "pgx_dashboard.pdf"
 
 
 def _age_fname(age_band: str) -> str:

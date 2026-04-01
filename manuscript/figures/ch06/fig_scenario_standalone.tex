@@ -2,7 +2,7 @@
 \usepackage{tikz}
 \usepackage{xcolor}
 \usepackage{amsmath}
-\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,fit,backgrounds}
+\usetikzlibrary{shapes.geometric,positioning,calc,fit,backgrounds}
 
 %% ── Phase colours (consistent with OODA diagram in CH1) ──────────────────
 \definecolor{obsblue}{RGB}{219,234,254}      % observe  – light blue
@@ -10,19 +10,19 @@
 \definecolor{decyellow}{RGB}{254,249,195}    % decide   – light yellow
 \definecolor{actpink}{RGB}{252,231,243}      % act      – light pink
 \definecolor{patgray}{RGB}{241,245,249}      % patient profile
-\definecolor{outgreen}{RGB}{209,250,229}     % outcome box
+\definecolor{outorange}{RGB}{255,231,180}     % outcome box – light orange
 \definecolor{arrowgray}{RGB}{107,114,128}
 
 \tikzset{
   phasebox/.style={
     rectangle, rounded corners=4pt,
-    minimum width=4.1cm, minimum height=8.6cm,
-    text width=3.85cm, align=left,
+    minimum width=4.3cm, minimum height=8.6cm,
+    text width=3.8cm, align=left,
     inner sep=7pt, font=\fontsize{7.4}{9.2}\selectfont
   },
   phaselabel/.style={
     font=\fontsize{8}{10}\selectfont\bfseries,
-    text width=4.1cm, align=center
+    text width=4.3cm, align=center
   },
   topbox/.style={
     rectangle, rounded corners=4pt,
@@ -36,8 +36,6 @@
     align=left, inner sep=9pt,
     font=\fontsize{7.8}{10}\selectfont
   },
-  arr/.style={-Stealth, thick, arrowgray},
-  bigarr/.style={-Stealth, very thick, arrowgray!80},
   bullet/.style={font=\fontsize{7.4}{9.2}\selectfont},
 }
 
@@ -64,7 +62,7 @@
 
 %% ── Phase boxes ──────────────────────────────────────────────────────────
 \node[phasebox, fill=obsblue, draw=blue!20,
-      below=1.0cm of patient, xshift=-6.35cm] (obs) {%
+      below=1.2cm of patient, xshift=-6.75cm] (obs) {%
   \textbf{\color{blue!70!black}Tab~1--2 · Risk Assessment}\\[5pt]
   Risk score:\enspace\textbf{0.87}\\
   Risk band:\enspace\textbf{HIGH}\\[4pt]
@@ -84,7 +82,7 @@
 };
 
 \node[phasebox, fill=origreen, draw=green!30,
-      below=1.0cm of patient, xshift=-2.1cm] (ori) {%
+      right=0.2cm of obs] (ori) {%
   \textbf{\color{green!60!black}Tab~4 · Causal \& Trajectories}\\[5pt]
   \textit{SHAP top features:}\\
   \quad 1.\enspace gabapentin\_count\\
@@ -104,7 +102,7 @@
 };
 
 \node[phasebox, fill=decyellow, draw=yellow!50!gray,
-      below=1.0cm of patient, xshift=2.15cm] (dec) {%
+      right=0.2cm of ori] (dec) {%
   \textbf{\color{orange!80!black}Tab~3 · What-If \& CPIC}\\[5pt]
   \textit{Counterfactual $\Delta\hat{p}$:}\\[2pt]
   Add PT referral:\\
@@ -125,7 +123,7 @@
 };
 
 \node[phasebox, fill=actpink, draw=pink!60!gray,
-      below=1.0cm of patient, xshift=6.4cm] (act) {%
+      right=0.2cm of dec] (act) {%
   \textbf{\color{red!65!black}Tab~5 · PGx Patient Card}\\[5pt]
   \textit{CPIC recommendation:}\\
   \quad CYP2D6 PM phenotype\\
@@ -160,14 +158,10 @@
 \node[phaselabel, above=1pt of act.north]
   {\textcolor{red!65!black}{(4) ACT}};
 
-%% ── Horizontal arrows between phase boxes ────────────────────────────────
-\draw[arr] (obs.east) -- (ori.west);
-\draw[arr] (ori.east) -- (dec.west);
-\draw[arr] (dec.east) -- (act.west);
-
-%% ── Outcome box (bottom) ─────────────────────────────────────────────────
-\node[botbox, fill=outgreen, draw=green!50!gray,
-      below=0.9cm of obs.south |- act.south] (outcome) {%
+%% ── Outcome box (bottom, centered via phase midpoint) ─────────────────────────
+\coordinate (phasemid) at ($(obs.south)!0.5!(act.south)$);
+\node[botbox, fill=outorange, draw=orange!60!gray,
+      below=1.2cm of phasemid] (outcome) {%
   \textbf{PGx Intervention Outcome} (30-day reassessment target)\\[3pt]
   \textbf{(1) Drug switch:}\enspace
     Oxycodone (CYP2D6-metabolized, CPIC Level~A caution for Poor Metabolizers)
@@ -186,9 +180,6 @@
     Next PDMP review at 30~days; PGx Card downloadable for dispensing pharmacist.
 };
 
-%% ── Arrow from ACT down to outcome ──────────────────────────────────────
-\coordinate (midphase) at ($(obs.south)!0.5!(act.south)$);
-\draw[bigarr] (midphase) -- (outcome.north);
 
 \end{tikzpicture}
 \end{document}

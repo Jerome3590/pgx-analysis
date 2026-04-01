@@ -49,6 +49,10 @@
 %% Quarto then fails with \newcommand*\listoflistings (already defined). Undefine it first.
 \let\listoflistings\relax
 
+%% Quarto/knitr emits \hypersetup{hidelinks} in the preamble before mdpi.cls loads hyperref
+%% (hyperref is loaded in \AtBeginDocument). Stub the command so the preamble is valid; hyperref replaces it.
+\providecommand{\hypersetup}[1]{}
+
 $if(header-includes)$
 $header-includes$
 $endif$

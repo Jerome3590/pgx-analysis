@@ -13,28 +13,29 @@
 | CH_1 | `figures/ch01/fig_prisma.pdf` | `fig-prisma` | ✅ |
 | CH_1 | `figures/ch01/fig_ml_methods.pdf` | `fig-ml-methods` | ✅ |
 | CH_1 | `figures/ch01/fig_evidence_map.pdf` | `fig-evidence-map` | ✅ |
-| CH_2 | `figures/ch02/fig_architecture.pdf` | `fig-architecture` | ✅ |
+| **Shared** | `figures/shared/pgx_architecture_risk_dashboard.pdf` | CH_2 `fig-dashboard`, CH_5 `fig-architecture`, CH_6 `fig-pipeline` | ✅ |
+| **Shared** | `figures/shared/pgx_dashboard.pdf` | CH_5 `fig-dashboard` (Tab 2) | ✅ |
+| CH_2 | `figures/ch02/pgx_architecture_clinical_ooda_loop.pdf` | `fig-pgx-ooda-framework` | ✅ |
+| CH_2 | `figures/ch02/pgx_architecture_pipeline.pdf` | `fig-architecture` | ✅ |
+| CH_2 | `figures/ch02/pgx_architecture_analysis.pdf` | `fig-insights` | ✅ |
 | CH_2 | `figures/ch02/fig_attrition.pdf` | `fig-attrition` | ✅ |
-| CH_2 | `figures/ch02/fig_consensus.pdf` | `fig-consensus` | ✅ |
-| CH_3 | `figures/ch03/fig_attrition.pdf` | `fig-attrition` | ✅ |
-| CH_3 | `figures/ch03/fig_curves.pdf` | `fig-curves` | ✅ |
-| CH_3 | `figures/ch03/fig_shap.pdf` | `fig-shap` | ✅ |
-| CH_3 | `figures/ch03/fig_shap_pdp.pdf` | `fig-shap-pdp` | ✅ |
-| CH_3 | `figures/ch03/fig_trajectories.pdf` | `fig-trajectories` | ✅ |
-| CH_3 | `figures/ch03/fig_dtw_pathways.pdf` | `fig-dtw-pathways` | ✅ |
-| CH_3 | `figures/ch03/fig_trajectories_heatmap.pdf` | `fig-trajectories-heatmap` | ✅ |
+| CH_2 | `figures/ch02/pgx_architecture_consensus_filter.pdf` | `fig-consensus` | ✅ |
+| CH_3 | `figures/ch03/fig_attrition.pdf` | `fig-attrition` (main) | ✅ |
+| CH_3 | `figures/ch03/fig_curves.pdf` | `fig-curves` (main) | ✅ |
+| CH_3 | `figures/ch03/fig_shap.pdf` | `fig-shap` (main) | ✅ |
+| CH_3 | `figures/ch03/fig_trajectories.pdf` | `fig-trajectories` (main) | ✅ |
+| CH_3 | `figures/ch03/fig_shap_pdp.pdf` | `fig-supp-pdp` (Supplementary S1) | ✅ |
+| CH_3 | `figures/ch03/fig_dtw_pathways.pdf` | `fig-supp-pathways` (Supplementary S2) | ✅ |
+| CH_3 | `figures/ch03/fig_trajectories_heatmap.pdf` | `fig-supp-heatmap` (Supplementary S3) | ✅ |
 | CH_4 | `figures/ch04/fig_network.pdf` | `fig-network` | ✅ |
 | CH_4 | `figures/ch04/fig_ir.pdf` | `fig-ir` | ✅ |
 | CH_4 | `figures/ch04/fig_zcode.pdf` | `fig-zcode` | ✅ |
 | CH_4 | `figures/ch04/fig_shap.pdf` | `fig-shap` | ✅ |
 | CH_4 | `figures/ch04/fig_shap_pdp.pdf` | `fig-shap-pdp` | ✅ |
-| CH_5 | `figures/ch05/fig_architecture.pdf` | `fig-architecture` | ✅ |
-| CH_5 | `figures/ch05/fig_dashboard.pdf` | `fig-dashboard` | ✅ |
 | CH_5 | `figures/ch05/fig_imputation.pdf` | `fig-imputation` | ✅ |
 | CH_5 | `figures/ch05/fig_latency.pdf` | `fig-latency` | ✅ |
 | CH_6 | `figures/ch06/fig_scenario.pdf` | `fig-scenario` | ✅ |
 | CH_6 | `figures/ch02/fig_consensus.pdf` (cross-ref) | `fig-consensus` | ✅ |
-| CH_6 | `figures/ch06/pgx_dashboard_architecture.pdf` | `fig-dashboard-arch` | ✅ |
 
 ---
 
@@ -47,9 +48,9 @@
 python manuscript/generate_figures.py
 
 # Chapter-specific
-python manuscript/generate_figures_ch3.py   # SHAP beeswarm, PDP, DTW heatmap, trajectory clusters
+python manuscript/generate_figures_ch3.py   # SHAP bar chart, PDP, DTW heatmap, trajectory clusters
 python manuscript/generate_figures_ch4.py   # FP-Growth network, IR rankings, Z-code violin
-python manuscript/generate_figures_ch5.py   # Architecture diagram, latency histograms, imputation
+python manuscript/generate_figures_ch5.py   # Tab 2 schematic → `shared/pgx_dashboard.pdf`; imputation; latency
 ```
 
 Data inputs read from `manuscript/scripts/` extraction JSON outputs:
@@ -72,8 +73,11 @@ Packages required: `tikz`, `amsmath` (do **not** add `microtype` — conflicts w
 ### Static / pre-generated figures (CH_1, CH_2)
 
 - CH_1: PRISMA flow diagram — `prisma2020` R package or prisma-statement.org; export PDF
-- CH_2: Architecture diagram — draw.io / Lucidchart; export PDF
-- CH_2: `fig_consensus.pdf` — compiled from `figures/ch02/fig_consensus_standalone.tex`
+- CH_2: `pgx_architecture_clinical_ooda_loop.pdf` (`fig-pgx-ooda-framework`) — draw.io; export PDF to `figures/ch02/`
+- CH_2: `pgx_architecture_pipeline.pdf` (`fig-architecture`, Figure 2) — draw.io / Lucidchart; export PDF to `figures/ch02/`
+- CH_2: `pgx_architecture_analysis.pdf` (`fig-insights`, after ensemble modeling) — draw.io; export PDF to `figures/ch02/`
+- **Shared:** `pgx_architecture_risk_dashboard.pdf` — draw.io; single canonical export to `figures/shared/` (cited by CH_2, CH_5, CH_6). **`pgx_dashboard.pdf`** — Tab 2 screenshot or `fig_dashboard()` fallback; same folder.
+- CH_2: `pgx_architecture_consensus_filter.pdf` (`fig-consensus`) — draw.io; export PDF to `figures/ch02/` (legacy TikZ: `fig_consensus_standalone.tex` → `fig_consensus.pdf`, not used in CH_2)
 - CH_2: `fig_attrition.pdf` — CONSORT-style; R ggplot2 or draw.io
 
 ---
@@ -101,9 +105,9 @@ After `generate_figures.py` runs on new extraction JSONs:
 |:--------|:--------|:-------:|:-----:|:------:|
 | CH_1 | MDPI JPM (review) | 3 | ≤ 8 | ✅ |
 | CH_2 | CPT:PSP | 3 | ≤ 5 | ✅ |
-| CH_3 | CTS | 7 | ≤ 5 | ⚠️ consolidate 2 |
+| CH_3 | CTS | 4 main + 3 supp | ≤ 5 main | ✅ |
 | CH_4 | CPT:PSP | 5 | ≤ 5 | ✅ |
 | CH_5 | MDPI JPM (article) | 4 | ≤ 7 | ✅ |
 | CH_6 | dissertation | 3 | — | ✅ |
 
-> ⚠️ **CH_3** exceeds CTS limit of 5 — consider merging `fig_dtw_pathways` + `fig_trajectories_heatmap` into one composite panel, or moving one to supplementary.
+> **CH_3 (CTS):** Main text uses four figures (attrition, model performance, SHAP mean-|SHAP| bar chart 25--44, DTW archetypes). PDP, DTW drug pathways, and event-count heatmap are **Supplementary Figures S1--S3** in `ch03_cts.qmd`.
