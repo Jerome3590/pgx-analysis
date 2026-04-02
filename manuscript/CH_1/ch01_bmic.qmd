@@ -1,40 +1,39 @@
 ---
-title: >
+title: >-
   Bridging Explainable Artificial Intelligence and Pharmacogenomics
   for Opioid and Polypharmacy Risk Prediction: A Systematic Quantitative Literature Review
-target-journal: "Journal of Personalized Medicine"
-target-journal-short: "JPM"
-target-articletype: "review"
-year: 2026
 
 author:
   - name: "R. Jerome Dixon"
-    number: "1,2"
+    email: dixonrj@vcu.edu
     orcid: "0000-0001-8622-0597"
+    corresponding: true
+    affiliations:
+      - id: pts
+        name: >-
+          Department of Pharmacotherapy and Outcomes Science,
+          School of Pharmacy, Virginia Commonwealth University
+        city: Richmond
+        state: VA
+        country: USA
+      - id: ils
+        name: >-
+          Ph.D. Program in Integrative Life Sciences,
+          School of Life Sciences and Sustainability,
+          Virginia Commonwealth University
+        city: Richmond
+        state: VA
+        country: USA
   - name: "Elvin T. Price"
-    number: "1,3"
     orcid: "0000-0001-6046-7540"
+    affiliations:
+      - ref: pts
+      - id: cvl
+        name: "ConvergenceLabs@VCU—Health Outcomes, Virginia Commonwealth University"
+        city: Richmond
+        state: VA
+        country: USA
 
-affiliation:
-  - number: 1
-    name: >
-      Department of Pharmacotherapy and Outcomes Science,
-      School of Pharmacy, Virginia Commonwealth University,
-      Richmond, VA 23284, USA
-    email: "dixonrj@vcu.edu"
-  - number: 2
-    name: >
-      Ph.D. Program in Integrative Life Sciences,
-      School of Life Sciences and Sustainability,
-      Virginia Commonwealth University,
-      Richmond, VA 23284, USA
-  - number: 3
-    name: >
-      ConvergenceLabs@VCU---Health Outcomes,
-      Virginia Commonwealth University,
-      Richmond, VA 23284, USA
-
-correspondence: "dixonrj@vcu.edu"
 engine: knitr
 
 abstract: >
@@ -70,7 +69,7 @@ keywords:
   - "clinical decision support"
   - "machine learning"
 
-manuscript-abbreviations: >
+abbreviations-note: >-
   APCD, All-Payer Claims Database; CPIC, Clinical Pharmacogenomics
   Implementation Consortium; CDS, clinical decision support; CRISP-DM,
   Cross-Industry Standard Process for Data Mining;
@@ -83,18 +82,29 @@ manuscript-abbreviations: >
   intelligence
 
 format:
-  pdf:
+  wiley-njd-pdf:
     pdf-engine: xelatex
-    template: ../templates/bmic_jpm_template.tex
+    cite-method: natbib
+    template: ../templates/cts_template.tex
+    classoption: [AMA, STIX1COL]
+    article-type: "Review"
+    journal: "Clinical and Translational Science"
+    year: 2026
+    copy-year: 2026
+    volume: "00"
+    issue: "00"
+    pages: "1--30"
+    author-mark: "DIXON"
+    title-mark: "BRIDGING XAI AND PHARMACOGENOMICS: A SYSTEMATIC QUANTITATIVE LITERATURE REVIEW"
     number-sections: true
     toc: false
     keep-tex: true
-    cite-method: natbib
 
-csl: ../templates/csl/mdpi.csl
+csl: ../templates/csl/ama.csl
 bibliography:
   - ../refs/discipline.bib
   - ../refs/bmic-jpm.bib
+  - ../refs/cts.bib
 ---
 
 <!-- ============================================================

@@ -1,10 +1,10 @@
-%% Pandoc/Quarto LaTeX template for Wiley – Clinical and Translational Science (CTS)
+%% Pandoc/Quarto LaTeX template for Wiley – Clinical Pharmacology & Therapeutics (CPT)
 %%
 %% Used via:  format: wiley-njd-pdf:  (extension bundles WileyNJDv5.cls + .bst files automatically)
-%%   template: ../templates/cts_template.tex   <- add this line to the wiley-njd-pdf block
+%%   template: ../templates/cpt_template.tex   <- add this line to the wiley-njd-pdf block
 %%
 %% Citation style : AMA  (American Medical Association – numeric superscript)
-%% Font / layout  : STIX 1-column  (CTS single-column submission format)
+%% Font / layout  : STIX 1-column  (CPT single-column submission format)
 %% ============================================================
 
 \documentclass[$for(classoption)$$classoption$$sep$,$endfor$]{WileyNJDv5}
@@ -30,12 +30,12 @@ $highlighting-macros$
 $endif$
 
 %% ---- Article metadata ----
-%% CTS types: Original Article | Brief Report | Methods | Review | Commentary | Letter
+%% CPT types: Original Article | Brief Report | Review | Commentary | Letter
 \articletype{$if(article-type)$$article-type$$else$Original Article$endif$}
 \received{$if(received)$$received$$else$$endif$}
 \revised{$if(revised)$$revised$$else$$endif$}
 \accepted{$if(accepted)$$accepted$$else$$endif$}
-\journal{$if(journal)$$journal$$else$Clinical and Translational Science$endif$}
+\journal{$if(journal)$$journal$$else$Clinical Pharmacology \& Therapeutics$endif$}
 \volume{$if(volume)$$volume$$else$00$endif$}
 \copyyear{$if(copy-year)$$copy-year$$else$$if(year)$$year$$else$2026$endif$$endif$}
 \startpage{1}
@@ -82,7 +82,7 @@ $endfor$
 %% ---- Abstract (structured: Background / Methods / Results / Conclusions) ----
 \abstract[Abstract]{$abstract$}
 
-%% ---- Keywords (3–6 terms per CTS guidelines) ----
+%% ---- Keywords (3–6 terms per CPT guidelines) ----
 $if(keywords)$
 \keywords{$for(keywords)$$it$$sep$, $endfor$}
 $endif$
@@ -91,7 +91,7 @@ $endif$
 \jnlcitation{\cname{%
 $for(by-author)$\author{$by-author.name.literal$}$sep$, $endfor$}.
 \ctitle{$title$.}
-\cjournal{\it $if(journal)$$journal$$else$Clinical and Translational Science$endif$}
+\cjournal{\it $if(journal)$$journal$$else$Clinical Pharmacology \& Therapeutics$endif$}
 \cvol{$if(year)$$year$$else$2026$endif$;$if(volume)$$volume$$else$00$endif$($if(issue)$$issue$$else$00$endif$):$if(pages)$$pages$$else$1--20$endif$}.}
 
 %% ============================================================
