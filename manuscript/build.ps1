@@ -37,7 +37,7 @@ $env:BIBINPUTS = ".;$Root\refs\;;$env:BIBINPUTS"
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 function Build-Chapter {
-    param([string]$QmdPath, [string]$Format, [string]$PdfName, [string]$DocxName)
+    param([string]$QmdPath, [string]$Format, [string]$PdfName, [string]$DocxName, [string]$SubDir = "")
 
     $FullQmd = Join-Path $Root $QmdPath
     if (-not (Test-Path $FullQmd)) {
@@ -45,14 +45,20 @@ function Build-Chapter {
         return
     }
 
+    # Resolve journal subdirectory paths
+    $PdfDir  = if ($SubDir) { Join-Path $Output $SubDir } else { $Output }
+    $DocxDir = if ($SubDir) { Join-Path $Edits  $SubDir } else { $Edits  }
+    if (-not (Test-Path $PdfDir))  { New-Item -ItemType Directory $PdfDir  | Out-Null }
+    if (-not (Test-Path $DocxDir)) { New-Item -ItemType Directory $DocxDir | Out-Null }
+
     if ($Docx) {
         # ── Word / Google Docs output for advisor review ──────────────────────
         Write-Host "`n==> Building $DocxName (docx) ..." -ForegroundColor Magenta
         quarto render $FullQmd --to docx `
-            --output-dir $Edits `
+            --output-dir $DocxDir `
             --output $DocxName
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "    OK  -> $Edits\$DocxName" -ForegroundColor Green
+            Write-Host "    OK  -> $DocxDir\$DocxName" -ForegroundColor Green
         } else {
             Write-Error "    FAILED: $DocxName (exit $LASTEXITCODE)"
         }
@@ -64,18 +70,18 @@ function Build-Chapter {
 
     if ($Draft) {
         quarto render $FullQmd --to pdf `
-            --output-dir $Output `
+            --output-dir $PdfDir `
             --output $PdfName `
             -M "format.pdf.template=" `
             -M "format.pdf.documentclass=article"
     } else {
         quarto render $FullQmd --to $Format `
-            --output-dir $Output `
+            --output-dir $PdfDir `
             --output $PdfName
     }
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "    OK  -> $Output\$PdfName" -ForegroundColor Green
+        Write-Host "    OK  -> $PdfDir\$PdfName" -ForegroundColor Green
     } else {
         Write-Error "    FAILED: $PdfName (exit $LASTEXITCODE)"
     }
@@ -141,20 +147,21 @@ if (-not (Test-Path $Output)) { New-Item -ItemType Directory $Output | Out-Null 
 if (-not (Test-Path $Edits))  { New-Item -ItemType Directory $Edits  | Out-Null }
 
 # ── Chapter definitions ───────────────────────────────────────────────────────
-# Format: pdf for MDPI/plain; wiley-njd-pdf for Wiley chapters (extension required)
+# Format: pdf for plain article; wiley-njd-pdf for all Wiley/ASCPT journals
+# SubDir: journal subdirectory under output/ and edits/
 $Chapters = @(
-    @{ Num=1; Qmd="CH_1\ch01_bmic.qmd";       Format="pdf";           Pdf="ch01_bmic_jpm.pdf";   Docx="ch01_bmic_draft.docx"      },
-    @{ Num=2; Qmd="CH_2\ch02_psp.qmd";        Format="wiley-njd-pdf"; Pdf="ch02_psp.pdf";        Docx="ch02_psp_draft.docx"        },
-    @{ Num=3; Qmd="CH_3\ch03_cts.qmd";        Format="wiley-njd-pdf"; Pdf="ch03_cts.pdf";        Docx="ch03_cts_draft.docx"        },
-    @{ Num=4; Qmd="CH_4\ch04_psp.qmd";        Format="wiley-njd-pdf"; Pdf="ch04_psp.pdf";        Docx="ch04_psp_draft.docx"        },
-    @{ Num=5; Qmd="CH_5\ch05_bmic.qmd";       Format="pdf";           Pdf="ch05_bmic_jpm.pdf";   Docx="ch05_bmic_draft.docx"       },
-    @{ Num=6; Qmd="CH_6\ch06_conclusion.qmd"; Format="pdf";           Pdf="ch06_conclusion.pdf"; Docx="ch06_conclusion_draft.docx" }
+    @{ Num=1; Qmd="CH_1\ch01_bmic.qmd";       Format="wiley-njd-pdf"; Pdf="ch01_cts.pdf";        Docx="ch01_cts_draft.docx";        SubDir="cts"     },
+    @{ Num=2; Qmd="CH_2\ch02_psp.qmd";        Format="wiley-njd-pdf"; Pdf="ch02_psp.pdf";        Docx="ch02_psp_draft.docx";        SubDir="cpt_psp" },
+    @{ Num=3; Qmd="CH_3\ch03_cts.qmd";        Format="wiley-njd-pdf"; Pdf="ch03_cts.pdf";        Docx="ch03_cts_draft.docx";        SubDir="cts"     },
+    @{ Num=4; Qmd="CH_4\ch04_psp.qmd";        Format="wiley-njd-pdf"; Pdf="ch04_psp.pdf";        Docx="ch04_psp_draft.docx";        SubDir="cpt_psp" },
+    @{ Num=5; Qmd="CH_5\ch05_bmic.qmd";       Format="wiley-njd-pdf"; Pdf="ch05_cpt.pdf";        Docx="ch05_cpt_draft.docx";        SubDir="cpt"     },
+    @{ Num=6; Qmd="CH_6\ch06_conclusion.qmd"; Format="pdf";           Pdf="ch06_conclusion.pdf"; Docx="ch06_conclusion_draft.docx"; SubDir=""        }
 )
 
 # ── Build ────────────────────────────────────────────────────────────────────
 if ($Chapter -eq 0) {
     foreach ($ch in $Chapters) {
-        Build-Chapter -QmdPath $ch.Qmd -Format $ch.Format -PdfName $ch.Pdf -DocxName $ch.Docx
+        Build-Chapter -QmdPath $ch.Qmd -Format $ch.Format -PdfName $ch.Pdf -DocxName $ch.Docx -SubDir $ch.SubDir
     }
 } else {
     $target = $Chapters | Where-Object { $_.Num -eq $Chapter }
@@ -162,7 +169,7 @@ if ($Chapter -eq 0) {
         Write-Error "Unknown chapter: $Chapter  (valid: 1-6)"
         exit 1
     }
-    Build-Chapter -QmdPath $target.Qmd -Format $target.Format -PdfName $target.Pdf -DocxName $target.Docx
+    Build-Chapter -QmdPath $target.Qmd -Format $target.Format -PdfName $target.Pdf -DocxName $target.Docx -SubDir $target.SubDir
 }
 
 if ($Docx) {
