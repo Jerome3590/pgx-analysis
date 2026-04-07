@@ -460,6 +460,16 @@ summarized in **Supplementary Figure S2**, contrasting high-risk (target = 1)
 and routine (target = 0) event sequences across event-density bands.
 Gabapentin and buprenorphine-naloxone co-occurrence are the distinguishing
 features of high-risk pathways, consistent with the SHAP and FFA rankings.
+Target-class association rule mining (FP-Growth, high-density bin, support ≥ 0.01,
+confidence ≥ 0.50) identified omeprazole and naproxen as co-occurring antecedents
+predicting hydrochlorothiazide fills in the 25–44 band (lift = 49, ED-positive class
+only). Cross-validation against CPIC Level A guidelines and PharmGKB VIP gene
+summaries confirmed pharmacogenomic actionability of both antecedents: omeprazole
+is a CYP2C19 substrate (elevated exposure in poor metabolizers) and naproxen is a
+CYP2C9 substrate (prolonged half-life in poor metabolizers), creating amplified
+prostaglandin-mediated sodium retention that blunts hydrochlorothiazide efficacy —
+a drug-drug-gene interaction that standard single-drug prescribing alerts would not
+flag [@Dunnenberger2015].
 
 **Supplementary Figure S3** shows the distribution
 of allowed drug events across sequential trajectory positions, revealing
@@ -484,7 +494,7 @@ The highest-ranking causal pattern was opioid-plus-chronic-pain *in the absence*
 
 Gabapentin co-prescription is the single most actionable prescribing-level intervention target: the CDC 2022 guidelines flag opioid-gabapentinoid co-prescription as high-risk [@Dowell2022]; the Consensus Filter's ranking of gabapentin count as the top single-drug feature (mean |SHAP| = 0.34) provides population-level APCD evidence consistent with that warning.
 
-PGx features ranked consistently in the top 10 Consensus-Causal features across bands. `pgx_num_cpic_drugs` captures compound CYP enzyme burden from multiple co-prescribed drugs: a patient on both a CYP2D6 substrate (opioid) and a CYP2D6 inhibitor (fluoxetine, paroxetine) shifts phenotypically toward poor metabolizer status through drug interaction — a drug-drug-gene scenario that standard genotype testing alone cannot detect [@Crews2021].
+PGx features ranked consistently in the top 10 Consensus-Causal features across bands. `pgx_num_cpic_drugs` captures compound CYP enzyme burden from multiple co-prescribed drugs: a patient on both a CYP2D6 substrate (opioid) and a CYP2D6 inhibitor (fluoxetine, paroxetine) shifts phenotypically toward poor metabolizer status through drug interaction — a drug-drug-gene scenario that standard genotype testing alone cannot detect [@Crews2021]. The FP-Growth target-class rule (omeprazole + naproxen → hydrochlorothiazide, lift = 49) provides convergent evidence: population-level co-prescription patterns can surface pharmacogenomically amplified drug-drug interactions that individual CYP burden scores alone would not capture, illustrating the complementary value of association-rule mining alongside causal feature attribution when both are anchored to CPIC Level A evidence [@Relling2011].
 
 Per-age-band patterns reveal meaningful clinical heterogeneity: younger bands (13–24) are dominated by acute single-fill opioid events without chronic escalation signals (explaining lower PR-AUC 0.840/recall 0.648); the high-volume 25–44 band is driven by oxycodone–gabapentin co-prescription with low back pain (M54.5) and physical therapy absence; the 45–54 band transitions to chronic-pain–psychiatric comorbidity (F32.9, F41.1 + Z79.891); the 55–64 band shows the strongest discriminating feature in the cohort (Z79.891 in 67% of cases vs. 12% controls; prevalence ratio 5.6); geriatric bands shift toward hydrocodone/APAP with chronic pain and, in the 85–114 band, palliative opioid presentations (Z51.5) that reduce recall to 0.552. Full per-band feature rankings are available in supplementary data.
 
