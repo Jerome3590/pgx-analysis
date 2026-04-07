@@ -112,6 +112,32 @@ inserting a page break. This creates the correct page-1 / page-2 structure.
 
 ---
 
+## Figure Format and Upload
+
+CTS requires **both** embedded figures in the manuscript DOCX **and** separate figure file uploads in Manuscript Central.
+
+| Item | CTS requirement | Build output |
+|:-----|:----------------|:-------------|
+| Main figures in DOCX | Embedded (each on a separate page) | `insert_docx_images.py` inserts PNGs at render time |
+| Separate figure uploads | TIFF, ≥ 300 DPI, RGB (CMYK not required) | `export_figures_psp.py` → `output/submission/cts/chNN/figures/` |
+| Supplementary figures | PNG or TIFF acceptable | `make_supp_tables.py` → `output/submission/cts/chNN/supp/` as PNG |
+
+**Manuscript Central upload order:**
+1. DOCX file → **Article File** (with embedded figures for reviewer convenience)
+2. `figures/Figure_1.tiff` … `Figure_N.tiff` → **Figure 1** … **Figure N** (one file per figure)
+3. `supp/Figure_S*.png` and `supp/File_S*.docx/.csv` → **Supporting Information**
+
+> **Contrast with PSP/CPT**: those journals require figures NOT embedded in the DOCX.
+> CTS allows embedded for review but still expects separate high-res files in the portal.
+
+**Rebuild command:**
+```powershell
+.\build.ps1 -Submit -Chapter 1   # or -Chapter 3
+```
+This runs DOCX build (with embedded figures) + TIFF export in one step.
+
+---
+
 ## Supplementary Files
 
 - Upload separately in the submission system (not embedded in the manuscript DOCX)
