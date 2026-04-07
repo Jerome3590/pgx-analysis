@@ -145,6 +145,81 @@ def para_elem_text(para_elem) -> str:
     return "".join(t.text or "" for t in para_elem.iter(f"{{{ns}}}t")).strip()
 
 
+def is_heading1(elem) -> bool:
+    """True if the w:p element uses Heading 1 style."""
+    if elem.tag != qn("w:p"):
+        return False
+    pPr = elem.find(qn("w:pPr"))
+    if pPr is None:
+        return False
+    pStyle = pPr.find(qn("w:pStyle"))
+    if pStyle is None:
+        return False
+    val = pStyle.get(qn("w:val"), "").lower()
+    return "heading1" in val or val == "1"
+
+
+def move_study_highlights(doc: Document) -> None:
+    """Move Study Highlights section to just before the Introduction heading.
+
+    PSP/CPT requires Study Highlights to appear after the abstract and before
+    the main text body.  In the QMD source it sits near the end of the document
+    for PDF rendering; here we relocate it for the DOCX submission package.
+    """
+    body     = doc.element.body
+    children = list(body)
+
+    def elem_text(elem) -> str:
+        return "".join(t.text or "" for t in elem.iter(qn("w:t"))).strip()
+
+    # 1. Find the Study Highlights Heading 1
+    sh_start = None
+    for i, elem in enumerate(children):
+        if is_heading1(elem) and "Study Highlights" in elem_text(elem):
+            sh_start = i
+            break
+    if sh_start is None:
+        print("  Study Highlights heading not found — skipped")
+        return
+
+    # 2. Collect paragraphs through the next Heading 1 (exclusive)
+    sh_end = len(children)
+    for i in range(sh_start + 1, len(children)):
+        if is_heading1(children[i]):
+            sh_end = i
+            break
+
+    # 3. Find the Introduction Heading 1 (must appear BEFORE Study Highlights)
+    intro_elem = None
+    for i in range(sh_start):
+        if is_heading1(children[i]) and "Introduction" in elem_text(children[i]):
+            intro_elem = children[i]
+            break
+    if intro_elem is None:
+        print("  Introduction heading not found before Study Highlights — skipped")
+        return
+
+    # 4. Deep-copy the Study Highlights block, then remove from current location
+    sh_elems = [copy.deepcopy(children[i]) for i in range(sh_start, sh_end)]
+    for i in range(sh_end - 1, sh_start - 1, -1):
+        body.remove(children[i])
+
+    # 5. Re-fetch Introduction element (index may have shifted after removal)
+    intro_elem = None
+    for elem in body:
+        if is_heading1(elem) and "Introduction" in elem_text(elem):
+            intro_elem = elem
+            break
+    if intro_elem is None:
+        print("  Introduction heading lost after Study Highlights removal — skipped")
+        return
+
+    # 6. Insert Study Highlights block just before Introduction
+    for elem in reversed(sh_elems):
+        intro_elem.addprevious(elem)
+    print(f"  Study Highlights ({sh_end - sh_start} paragraphs) moved before Introduction")
+
+
 def format_psp(docx_path: Path, chapter: int) -> None:
     ch_map = FIGURE_MAP.get(chapter, {})
     if not ch_map:
@@ -198,6 +273,9 @@ def format_psp(docx_path: Path, chapter: int) -> None:
                 sect.addprevious(legend_elem)
             else:
                 body.append(legend_elem)
+
+    # Move Study Highlights section to before Introduction (PSP/CPT submission order)
+    move_study_highlights(doc)
 
     doc.save(str(docx_path))
     print(f"  {docx_path.name}: {replaced} callout(s) inserted, "
