@@ -6,86 +6,89 @@
 ---
 
 ## Talk Title
-*Consensus-Causal Feature Selection for Opioid ED Risk: SHAP ∩ FFA Across Seven Age Bands in a State-Level All-Payer Claims Database*
+*Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Geriatric Polypharmacy: Evidence from a State-Level All-Payer Claims Database*
 
 **Speaker:** R. Jerome Dixon, Ph.D. Candidate
 **Co-author:** Elvin T. Price, Pharm.D., Ph.D., FAHA
-**Based on:** Dixon & Price, manuscript submitted to *Clinical and Translational Science* (Wiley)
+**Based on:** Dixon & Price, manuscript submitted to *CPT: Pharmacometrics & Systems Pharmacology* (Wiley)
 
-**Topical areas:** Personalized Medicine · AI/Machine Learning · Bioinformatics · Data Analytics
+**Topical areas:** Personalized Medicine · AI/Machine Learning · Bioinformatics · Data Analytics · Geriatrics
 
 ---
 
 ## Abstract (250 words)
 
-**Background:** Ensemble machine learning applied to all-payer claims data (APCD) can identify opioid use disorder–related ED (OUD-ED) risk, but most published models are cross-sectional and do not characterize modifiable causal drivers across age bands.
+**Background:** Polypharmacy (≥5 concurrent medications) affects more than 40% of adults aged ≥65 years and drives adverse drug events (ADEs) responsible for an estimated 100,000 hospitalizations annually. Pairwise DDI databases flag co-prescribed pairs in isolation, missing synergistic multi-drug effects where each constituent pair appears benign.
 
-**Methods:** A partition-first DuckDB architecture processed Virginia APCD data (2016–2019; 6.9M patients) across seven age bands (13–114 years) using ensemble models (CatBoost/XGBoost/XGBoost-RF). A Consensus Filter required that features be confirmed by both SHAP (gradient-based) and Formal Feature Attribution (FFA; Boolean rule extraction), yielding features designated causal rather than merely associational. Dynamic time warping (DTW) identified pre-diagnosis trajectory archetypes.
+**Methods:** Using Virginia's All-Payer Claims Database (APCD; 6,929,576 patients; 2016–2019), we constructed a non-opioid ED cohort (n = 1,182 geriatric cases; 65–114 years; 5:1 matched controls). A 30-day causality window isolated proximal drug exposures. A per-event-density ensemble (CatBoost/XGBoost/XGBoost-RF; Optuna-tuned; training: 2016–2018; holdout: 2019) fed Formal Feature Attribution (FFA) extended to multi-feature interaction testing of drug pairs and triplets, with Intervention Rate (IR) scores quantifying expected risk reduction per deprescribing action. FP-Growth network visualization contextualized causal findings within drug co-occurrence topology.
 
-**Results:** Ensemble models achieved PR-AUC 0.840–0.979 on a prospective 2019 holdout. The pharmacogenomic polydrug score (`pgx_num_cpic_drugs`; CYP2D6/2C19 burden) ranked as the highest-SHAP causal feature (mean |SHAP| = 1.22). Gabapentin co-prescription (41% cases vs. 18% controls) and long-term opioid ICD-10 Z79.891 (prevalence ratio 5.6 in 55–64 band) were top actionable features. Notably, 23–41 FFA rules per band contained NOT clauses (absence of physical therapy or preventive monitoring), capturing protective care gaps invisible to cross-sectional models. DTW clustering identified two archetypes: Rapid-Onset (21%; 4.2-month trajectory — shorter than 90-day PDMP review cycles) and Chronic-Escalation (79%; 22.1 months with ≥3 identifiable care-addition windows).
+**Results:** All 8 age bands achieved PR-AUC ≥ 0.908 (peak: 0.997 at 75–84 band). FFA identified 115 synergistic drug pairs and 5,021 high-risk triplets invisible to pairwise DDI databases. Levofloxacin acted as a pharmacological hub (CYP1A2 inhibition), appearing in 4 of the top 5 synergistic pairs: acetaminophen + levofloxacin (IE = 16.3) and levofloxacin + lorazepam (IE = 11.9). Top IR-ranked deprescribing targets: simvastatin (IR 7.0×10⁻⁴), furosemide (IR 2.0×10⁻⁴), alprazolam (IR 1.0×10⁻⁴). A U-shaped Z-code monitoring effect identified a fragmented-care phenotype (Q4; OR ≈ 0.94 vs. unmonitored) distinct from protectively monitored patients (Q2; OR = 0.25).
 
-**Conclusions:** PGx-enriched Consensus-Causal features from standard claims data identify modifiable OUD-ED drivers up to 22 months before presentation, enabling trajectory-stratified precision intervention protocols without genotyping infrastructure.
+**Conclusions:** FFA multi-feature interaction analysis constitutes a causal calculator for polypharmacy ADE risk, detecting synergistic combinations invisible to pairwise DDI databases and yielding IR-ranked deprescribing priorities actionable from standard claims data without prospective genotyping.
 
 ---
 
 ## Slide Outline (~20 min)
 
-### Slide 1 — Motivation
-- Cross-sectional ML models predict OUD risk but cannot identify *modifiable* causal drivers
-- Virginia APCD: 6.9M patients, 2016–2019; 7 age bands (13–114 yrs)
-- Gap: no published framework simultaneously resolving scalability + causal validity + temporal leakage prevention
+### Slide 1 — Motivation (2 min)
+- Polypharmacy ≥5 drugs: >40% of adults ≥65 yrs; 100,000 hospitalizations/yr
+- Pairwise DDI databases (Drugs.com, Micromedex): flag pairs in isolation → miss synergistic multi-drug risk
+- Gap: no claims-based causal calculator that quantifies multi-drug synergy AND ranks deprescribing priorities
 
-### Slide 2 — The Consensus Filter
-- Two orthogonal attribution methods: SHAP (gradient-based) + FFA (Boolean rule extraction from XGB)
-- Consensus threshold: SHAP ≥ 75th percentile **AND** FFA support ≥ 0.05
-- Features passing both = "causal" (not merely associational)
-- **Figure:** `fig_shap.png` — top 20 Consensus-Causal features, 25–44 band; ★ marks intersection
+### Slide 2 — FFA as a Causal Calculator (3 min)
+- FFA extracts Boolean rules from XGBoost decision trees → symbolic, interpretable causal hypotheses
+- Extended to **multi-feature interaction testing**: pairs (IE score) and triplets
+- IE = lift-based interaction effect; IE > 1.0 = synergistic; 95% CI bootstrapped (n=1,000)
+- Intervention Rate (IR) = expected Δp̂ if drug removed; ranks deprescribing priority over raw frequency
 
-### Slide 3 — Top Causal Features
-- `pgx_num_cpic_drugs` — rank #1 (mean |SHAP| = 1.22); compound CYP enzyme burden
-- Gabapentin count — rank #2 in 25–44 band; 41% cases vs. 18% controls; FDA 2019 black-box warning
-- Z79.891 (long-term opioid) — 67% of 55–64 cases vs. 12% controls (prevalence ratio 5.6)
-- **Protective absence features:** physical therapy absence (CPT 97110/97530) elevates risk; 23–41 NOT-clause FFA rules per band — invisible to cross-sectional models
+### Slide 3 — The Levofloxacin Hub (4 min)
+- FFA identified 115 synergistic drug pairs and 5,021 high-risk triplets across geriatric bands
+- Levofloxacin in 4 of top 5 pairs — CYP1A2 hub: frequently prescribed for CAP without medication review
+  - Acetaminophen + Levofloxacin: IE = 16.3 (CYP1A2 reactive metabolite production)
+  - Levofloxacin + Lorazepam: IE = 11.9 (QT prolongation + CNS depression)
+  - Carvedilol + Levofloxacin: IE = 10.5 (beta-blocker plasma level elevation)
+- **Figure:** `fig_network.png` — FP-Growth co-occurrence network overlaid with FFA synergistic pairs
 
-### Slide 4 — FFA Rules (verbatim examples)
-```
-[25–44] Oxycodone ≥ 2 AND M54.5 (low back pain) AND NOT PT → P(OUD-ED) ↑↑
-        [support=0.12, confidence=0.83]
+### Slide 4 — Triplet Interactions: Beyond Pairwise Alerts (3 min)
+- 312 triplets exceeded synergistic IE threshold (IE > 1, 95% CI > 0)
+- **Triple Whammy** (85–114 band): furosemide + hydrochlorothiazide + lisinopril — present in 12.3% of cases; STOPP D4 criterion; convergent renal clearance burden
+- **Digoxin + furosemide + amiodarone** (75–84 band; IE = 8.7): each pairwise flag = "major" → alert fatigue; triplet reveals convergent pharmacokinetic + pharmacodynamic synergy
+- Pairwise review alone = insufficient; triplet-level FFA catches what individual DDI alerts miss
 
-[45–54] Z79.891 AND Gabapentin ≥ 1 AND F41.1 (anxiety) → P(OUD-ED) ↑↑
-        [support=0.09, confidence=0.78]
+### Slide 5 — IR-Ranked Deprescribing Priorities (3 min)
+- **Figure:** `fig_ir.png` — top 15 drugs by IR score across three geriatric bands
+- Top 3 targets (consistent across 65–74, 75–84, 85–114):
+  1. **Simvastatin** — IR 7.0×10⁻⁴; Beers (CYP3A4); interaction with amlodipine/diltiazem
+  2. **Furosemide** — IR 2.0×10⁻⁴; triple-whammy + digoxin toxicity via hypokalemia
+  3. **Alprazolam** — IR 1.0×10⁻⁴; Beers CNS/falls; IE amplified by levofloxacin co-prescription
+- IR rank correlation ρ = 0.53–0.68 across bands → same deprescribing protocol generalizes to 65–114
 
-[55–64] Hydrocodone ≥ 3 AND G89.29 (chronic pain) AND NOT Z23 → P(OUD-ED) ↑↑
-        [support=0.07, confidence=0.75]
-```
+### Slide 6 — The Z-Code Paradox: Managed vs. Unmanaged Polypharmacy (3 min)
+- U-shaped monitoring–risk relationship (adjusted for age band, sex, drug count)
+- **Q2** (1–12% Z-code claims): OR = 0.25 (95% CI 0.18–0.34) — protective; driven by Z71.89 medication counseling
+- **Q4** (≥12% Z-code claims): OR ≈ 0.94 — equivalent risk to unmonitored patients
+- Q4 = fragmented-care phenotype: preventive screenings without coordinated medication reconciliation
+- **Figure:** `fig_zcode.png` — violin plots + adjusted OR by quartile
+- Clinical implication: monitoring *type* matters more than monitoring *volume*
 
-### Slide 5 — Trajectory Archetypes
-- DTW clustering → k=2 (elbow criterion)
-- **Rapid-Onset** (21%; 4.2 mo) — shorter than 90-day PDMP review cycle → patients deteriorate *before* protocols detect them
-- **Chronic-Escalation** (79%; 22.1 mo) — ≥3 identifiable intervention windows at 3, 9, 15 months
-- **Figure:** `fig_trajectories.png`
-
-### Slide 6 — Performance
-- PR-AUC 0.840–0.979 across 7 age bands on 2019 prospective holdout
-- 384–498 Consensus-Causal features per band
-- Training: 2016–2018 | Holdout: 2019 | 2020 excluded (COVID disruption)
-
-### Slide 7 — Clinical Implications
-- **Rapid-Onset:** trigger at first high-dose opioid fill, not 90 days → ~1 in 5 OUD-ED cases interceptable
-- **Chronic-Escalation:** non-opioid care *addition* at 3/9/15 months (not discontinuation)
-- PGx polydrug score deployable from standard claims — no genotyping infrastructure required
-- Based on: Dixon & Price, manuscript under review, *Clinical and Translational Science*
+### Slide 7 — Clinical So-What (2 min)
+- FFA causal calculator goes beyond "flag and forget": IR scores give a continuous deprescribing priority
+- Levofloxacin is *substitutable* (amoxicillin/clavulanate) → highest-yield intervention for CAP in geriatric patients
+- Medication *counseling* (Z71.89), not volume of visits, is the protective monitoring activity
+- Deployable from standard claims data — no prospective genotyping infrastructure required
+- Based on: Dixon & Price, manuscript under review, *CPT: Pharmacometrics & Systems Pharmacology*
 
 ---
 
 ## Source Chapter
-`CH_3/ch03_cts.qmd` — submitted to *Clinical and Translational Science* (Wiley, CTS)
+`CH_4/ch04_psp.qmd` — submitted to *CPT: Pharmacometrics & Systems Pharmacology* (Wiley, PSP)
 
 ## Key Figures (from submission package)
 | Figure | File | Used in Talk |
 |--------|------|-------------|
-| Figure 3 — SHAP feature importance | `output/submission/cts/ch03/figures/Figure_3.tiff` | Slide 2, 3 |
-| Figure 4 — DTW trajectory archetypes | `output/submission/cts/ch03/figures/Figure_4.tiff` | Slide 5 |
+| Figure 2 — Drug network + FFA overlay | `output/submission/cpt_psp/ch04/figures/Figure_2.tiff` | Slide 3 |
+| Figure 3 — IR scores (top 15 drugs) | `output/submission/cpt_psp/ch04/figures/Figure_3.tiff` | Slide 5 |
+| Figure 4 — Z-code U-shape | `output/submission/cpt_psp/ch04/figures/Figure_4.tiff` | Slide 6 |
 
 ## Ethics / Dual-Submission Note
-Presenting journal-submitted work at INFORMS Healthcare is permitted under ICMJE norms — conference presentations are a distinct channel from duplicate publication. Slides should note: *"Based on manuscript submitted to Clinical and Translational Science (Dixon & Price, under review)."* No INFORMS proceedings paper is required or requested (abstract only).
+Presenting journal-submitted work at INFORMS Healthcare is permitted under ICMJE norms — conference presentations are a distinct channel from duplicate publication. Slides should note: *"Based on manuscript submitted to CPT: Pharmacometrics & Systems Pharmacology (Dixon & Price, under review)."* No INFORMS proceedings paper is required or requested (abstract only).
