@@ -172,8 +172,8 @@ reconciliation tools that cannot resolve acute DDI timing.
    combinations in the 65–114 year polypharmacy cohort.
 2. Quantify Intervention Rate (IR) scores as deprescribing priorities for
    the highest-risk drug-drug combinations.
-3. Characterize the "hairball" of drug co-occurrence networks via FP-Growth
-   visualization to contextualize FFA causal findings.
+3. Apply FP-Growth visualizations to untangle complex drug co-occurrence
+   patterns and situate FFA causal findings within this network.
 4. Investigate the relationship between high transaction density (Z-codes)
    and ADE risk to distinguish managed from unmanaged polypharmacy.
 
