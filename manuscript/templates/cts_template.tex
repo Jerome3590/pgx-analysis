@@ -14,6 +14,12 @@
 \usepackage{longtable}  % Pandoc renders markdown tables as longtables
 \usepackage{booktabs}   % \toprule, \midrule, \bottomrule
 \usepackage{array}      % extended column types in tabular
+\usepackage[section]{placeins} % prevent floats drifting past section boundaries
+%% Aggressive float placement: prefer inline over float pages
+\renewcommand{\floatpagefraction}{.9}
+\renewcommand{\textfraction}{.05}
+\renewcommand{\topfraction}{.9}
+\renewcommand{\bottomfraction}{.7}
 
 %% ---- Pandoc/Quarto compatibility shims (BEFORE header-includes) ----
 %% \tightlist required by Pandoc compact lists

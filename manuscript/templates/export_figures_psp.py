@@ -1,0 +1,202 @@
+"""
+export_figures_psp.py
+Convert chapter source PNG figures to PSP submission-ready TIFF files.
+
+PSP requirements (CPT: Pharmacometrics & Systems Pharmacology):
+  - Format:    TIFF (or PDF/EPS)
+  - Color:     CMYK, 300 dpi
+  - Halftone:  300 dpi
+  - Text/flow: 400 dpi
+  - Line art:  1,000 dpi
+  - Width:     86 mm (single column) or 178 mm (double column)
+  - Supp figs: max 640 × 480 pixels (per journal spec)
+
+Output folders:
+  output/final_submission/cpt_psp/chNN/figures/   ← main manuscript TIFFs
+  output/final_submission/cpt_psp/chNN/supp/      ← supplementary (resized TIFF)
+
+Usage:
+    python templates/export_figures_psp.py            # all PSP chapters
+    python templates/export_figures_psp.py --chapter 4
+"""
+import sys
+import argparse
+from dataclasses import dataclass
+from pathlib import Path
+from PIL import Image
+
+# ── Constants ──────────────────────────────────────────────────────────────
+
+MM_PER_INCH = 25.4
+SINGLE_COL_MM = 86.0
+DOUBLE_COL_MM = 178.0
+SUPP_MAX_W_PX = 640
+SUPP_MAX_H_PX = 480
+
+
+@dataclass
+class FigSpec:
+    src: str          # source filename in figures/chNN/
+    label: str        # submission label, e.g. "Figure_1"
+    width_mm: float   # 86 or 178
+    dpi: int          # 300, 400, or 1000
+    cmyk: bool = True # convert to CMYK (False for line art / grayscale)
+
+
+# ── Per-chapter figure definitions ─────────────────────────────────────────
+
+CHAPTER_FIGURES = {
+    2: [
+        # CH_2 / PSP-2026-0108 main figures (order = in-text citation order)
+        FigSpec("pgx_architecture_clinical_ooda_loop.png", "Figure_1", DOUBLE_COL_MM, 300),
+        FigSpec("pgx_architecture_pipeline.png",           "Figure_2", DOUBLE_COL_MM, 300),
+        FigSpec("pgx_architecture_consensus_filter.png",   "Figure_3", DOUBLE_COL_MM, 300),
+        FigSpec("pgx_architecture_risk_dashboard.png",     "Figure_4", DOUBLE_COL_MM, 300),  # in figures/shared/
+        FigSpec("fig_attrition.png",                       "Figure_5", SINGLE_COL_MM, 400, cmyk=False),
+    ],
+    4: [
+        # CH_4 / PSP-2026-0109 main figures
+        FigSpec("fig_shap.png",    "Figure_1", SINGLE_COL_MM, 300),
+        FigSpec("fig_network.png", "Figure_2", DOUBLE_COL_MM, 300),
+        FigSpec("fig_ir.png",      "Figure_3", SINGLE_COL_MM, 300),
+        FigSpec("fig_zcode.png",   "Figure_4", DOUBLE_COL_MM, 300),
+    ],
+    5: [
+        # CH_5 / CPT main figures (copied from shared/ to figures/ch05/)
+        FigSpec("pgx_architecture_risk_dashboard.png", "Figure_1", DOUBLE_COL_MM, 300),
+        FigSpec("fig_imputation.png",                  "Figure_2", SINGLE_COL_MM, 300),
+        FigSpec("pgx_dashboard.png",                   "Figure_3", SINGLE_COL_MM, 300),
+        FigSpec("fig_latency.png",                     "Figure_4", SINGLE_COL_MM, 300, cmyk=False),
+    ],
+}
+
+CHAPTER_SUPP_FIGURES = {
+    2: [
+        ("pgx_architecture_analysis.png", "Figure_S1"),
+    ],
+    4: [
+        ("fig_shap_pdp.png",   "Figure_S1"),
+        ("fig_trajectories.png", "Figure_S2"),
+    ],
+    5: [],  # CH_5 supplementary files are documents (S1-S4), not figures
+}
+
+# Journal subdirectory for each chapter
+CHAPTER_JOURNAL = {
+    2: "cpt_psp",
+    4: "cpt_psp",
+    5: "cpt",
+}
+
+
+# ── Conversion helpers ─────────────────────────────────────────────────────
+
+def mm_to_px(mm: float, dpi: int) -> int:
+    return round(mm / MM_PER_INCH * dpi)
+
+
+def convert_main_figure(src: Path, dest: Path, spec: FigSpec) -> None:
+    """Resize and convert a main figure PNG to a PSP-ready TIFF."""
+    with Image.open(src) as img:
+        # Convert to RGB first (handles RGBA palette modes etc.)
+        if img.mode not in ("RGB", "CMYK", "L"):
+            img = img.convert("RGB")
+
+        target_w_px = mm_to_px(spec.width_mm, spec.dpi)
+        orig_w, orig_h = img.size
+        aspect = orig_h / orig_w
+        target_h_px = round(target_w_px * aspect)
+
+        img = img.resize((target_w_px, target_h_px), Image.LANCZOS)
+
+        if spec.cmyk and img.mode != "CMYK":
+            img = img.convert("CMYK")
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        img.save(str(dest), format="TIFF", dpi=(spec.dpi, spec.dpi), compression="lzw")
+
+    print(f"  {spec.label}.tiff  {target_w_px}×{target_h_px}px  "
+          f"{spec.dpi}dpi  {'CMYK' if spec.cmyk else img.mode}  "
+          f"({spec.width_mm:.0f}mm col)  ← {src.name}")
+
+
+def convert_supp_figure(src: Path, dest: Path, label: str) -> None:
+    """Resize a supplementary figure to PSP supplementary limits (≤640×480px)."""
+    with Image.open(src) as img:
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+
+        w, h = img.size
+        if w > SUPP_MAX_W_PX or h > SUPP_MAX_H_PX:
+            ratio = min(SUPP_MAX_W_PX / w, SUPP_MAX_H_PX / h)
+            new_w = round(w * ratio)
+            new_h = round(h * ratio)
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+        else:
+            new_w, new_h = w, h
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        img.save(str(dest), format="TIFF", compression="lzw")
+
+    print(f"  {label}.tiff  {new_w}×{new_h}px  (supp ≤640×480)  ← {src.name}")
+
+
+# ── Per-chapter export ─────────────────────────────────────────────────────
+
+def find_figure(root: Path, ch: int, filename: str) -> Path | None:
+    """Search canonical locations for a figure file."""
+    journal = CHAPTER_JOURNAL.get(ch, "cpt_psp")
+    candidates = [
+        root / "figures" / f"ch{ch:02d}" / filename,
+        root / "figures" / "shared" / filename,
+        root / "output" / "final_submission" / journal / f"ch{ch:02d}" / "supp" / filename,
+    ]
+    return next((p for p in candidates if p.exists()), None)
+
+
+def export_chapter(ch: int, root: Path) -> None:
+    journal  = CHAPTER_JOURNAL.get(ch, "cpt_psp")
+    ch_dir   = root / "output" / "final_submission" / journal / f"ch{ch:02d}"
+    fig_out  = ch_dir / "figures"
+    supp_out = ch_dir / "supp"
+
+    print(f"\n==> CH_{ch} main figures  -> {fig_out}")
+    for spec in CHAPTER_FIGURES.get(ch, []):
+        src = find_figure(root, ch, spec.src)
+        if src is None:
+            print(f"  WARNING: source not found: {spec.src}")
+            continue
+        dest = fig_out / f"{spec.label}.tiff"
+        convert_main_figure(src, dest, spec)
+
+    print(f"\n==> CH_{ch} supp figures  -> {supp_out}")
+    for src_name, label in CHAPTER_SUPP_FIGURES.get(ch, []):
+        # Supp PNGs already copied to output/supp folder; also check source
+        candidates = [
+            root / "figures" / f"ch{ch:02d}" / src_name,
+            root / "output" / "final_submission" / CHAPTER_JOURNAL.get(ch, "cpt_psp") / f"ch{ch:02d}" / "supp" / f"{label}.png",
+        ]
+        src = next((p for p in candidates if p.exists()), None)
+        if src is None:
+            print(f"  WARNING: source not found: {src_name}")
+            continue
+        dest = supp_out / f"{label}.tiff"
+        convert_supp_figure(src, dest, label)
+
+
+# ── Entry point ────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--chapter", type=int, default=0,
+                        help="Chapter number (0 = all chapters: 2, 4, 5)")
+    args = parser.parse_args()
+
+    root = Path(__file__).parent.parent
+    chapters = [args.chapter] if args.chapter else list(CHAPTER_FIGURES.keys())
+    for ch in chapters:
+        export_chapter(ch, root)
+
+
+if __name__ == "__main__":
+    main()

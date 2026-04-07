@@ -174,3 +174,4 @@ output/CH_1/Literature_Review/lit_review_files/
 
 # Lit review data mirror under 9_dashboard_visuals (duplicate of manuscript/)
 9_dashboard_visuals/cohort_pgx/lit_review/data/
+/.luarc.json

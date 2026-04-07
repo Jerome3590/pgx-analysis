@@ -1,5 +1,13 @@
 /.quarto/
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Node modules (root-level Puppeteer install)
+node_modules/
+
 # Generated build artifacts — do not commit
 output/*.pdf
 output/*.tex
@@ -7,7 +15,9 @@ output/*.log
 output/*.html
 output/CH_*/
 output/figures/
-edits/*.docx
+output/edits/
+output/final_submission/
+output/submission/
 
 # PNG figure artifacts — canonical format is PDF
 figures/**/*.png
@@ -43,5 +53,5 @@ CH_*/CH*/
 CH_*/*.pag
 
 # Lambda local outputs and logs (large data files)
-lambda_local/outputs/
-lambda_local/cohort_logs/
+infrastructure_setup/lambda_local/outputs/
+infrastructure_setup/lambda_local/cohort_logs/

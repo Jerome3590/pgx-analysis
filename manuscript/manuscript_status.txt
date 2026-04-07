@@ -1,0 +1,72 @@
+April 6, 2026
+
+Dear Mr. Dixon,
+
+Thank you for submitting your manuscript, CTS-2026-0196, entitled "Causal Temporal Drivers of Opioid-Related ED Visits: An Ensemble Machine Learning Study with Consensus-Based Feature Attribution" to Clinical and Translational Science. However, before it can be considered for publication by the Editorial Team, please address the following concerns:
+
+1) The author names and affiliations should be placed below the title on the title page.
+
+2) The manuscript mentions Supplemental Figure S1, S2, and S3, but the figures are missing. -- Please do not embed supplemental material or its references within the manuscript file. The supplemental Figures/Tables should be referred to and labeled as Figure S1, Figure S2, etc; Table S1, Table S2, etc. The supplemental figure/table captions should be placed within the corresponding supplemental figure/table file. Supplemental material does not receive copyediting or get reformatted and should be submitted exactly as you want it to appear online. Supplemental material can be submitted as one file or multiple files.
+
+To upload the revised text file, follow the link below to login to your manuscript record. Your paper has been placed back in the Awaiting Author Approval folder. Click the "Continue Halted Submission" link and go to the "Files" tab to modify your files by removing and replacing files as needed:
+
+https://cts.msubmit.net/cgi-bin/main.plex?el=A3Jl3ByD4A6NAX2F3A9ftd0LE5DSokXNRnqoJKfFrQZ
+
+
+Dear Mr. Dixon,
+
+Thank you for submitting your manuscript, CTS-2026-0197, entitled "Bridging Explainable Artificial Intelligence and Pharmacogenomics for Opioid and Polydrug Risk Prediction: A Systematic Quantitative Literature Review" to Clinical and Translational Science. However, before it can be considered for publication by the Editorial Team, please address the following concerns:
+
+1) The author names and affiliations should be placed below the title on the title page.
+
+2) The manuscript mentions Supplemental Files S1, S2, S3, S4, and S5 but the files are missing. -- Please do not embed supplemental material or its references within the manuscript file. The supplemental Figures/Tables should be referred to and labeled as Figure S1, Figure S2, etc; Table S1, Table S2, etc. The supplemental figure/table captions should be placed within the corresponding supplemental figure/table file. Supplemental material does not receive copyediting or get reformatted and should be submitted exactly as you want it to appear online. Supplemental material can be submitted as one file or multiple files.
+
+To upload the revised text file, follow the link below to login to your manuscript record. Your paper has been placed back in the Awaiting Author Approval folder. Click the "Continue Halted Submission" link and go to the "Files" tab to modify your files by removing and replacing files as needed:
+
+https://cts.msubmit.net/cgi-bin/main.plex?el=A6Jl3ByE5A1NAX5F5A9ftdf3Dm6brnjewcmbjPJJJJgZ
+
+
+
+
+April 6, 2026
+
+Dear Mr. Dixon,
+
+Thank you for submitting your manuscript, PSP-2026-0108, entitled "Building the Clinical OODA Loop: A Partition-First Data Architecture for Model-Based Precision Analytics" to CPT: Pharmacometrics & Systems Pharmacology. However, before it can be considered for publication by the Editorial Team, please address the following concerns:
+
+The manuscript mentions Supplemental Figure S1 but the supplemental figure is missing. -- Please do not embed supplemental material or its references within the manuscript file. The supplemental Figures/Tables should be referred to and labeled as Figure S1, Figure S2, etc; Table S1, Table S2, etc. The supplemental figure/table captions should be placed within the corresponding supplemental figure/table file. Supplemental material does not receive copyediting or get reformatted and should be submitted exactly as you want it to appear online. Supplemental material can be submitted as one file or multiple files.
+
+
+To upload the revised text file, follow the link below to login to your manuscript record. Your paper has been placed back in the Awaiting Author Approval folder. Click the "Continue Halted Submission" link and go to the "Files" tab to modify your files by removing and replacing files as needed:
+
+https://psp.msubmit.net/cgi-bin/main.plex?el=A5JQ7BVk4A3DQm3F3A9ftdiew1Akn6gfR1l6LD5ffNWgZ
+
+
+
+April 6, 2026
+
+Dear Mr. Dixon,
+
+Thank you for submitting your manuscript, PSP-2026-0109, entitled "Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Polypharmacy: A Systems Pharmacology Approach Using Virginia APCD" to CPT: Pharmacometrics & Systems Pharmacology. However, before it can be considered for publication by the Editorial Team, please address the following concerns:
+
+Supplemental Table S1 is missing. -- Please do not embed supplemental material or its references within the manuscript file. The supplemental Figures/Tables should be referred to and labeled as Figure S1, Figure S2, etc; Table S1, Table S2, etc. The supplemental figure/table captions should be placed within the corresponding supplemental figure/table file. Supplemental material does not receive copyediting or get reformatted and should be submitted exactly as you want it to appear online. Supplemental material can be submitted as one file or multiple files.
+
+
+To upload the revised text file, follow the link below to login to your manuscript record. Your paper has been placed back in the Awaiting Author Approval folder. Click the "Continue Halted Submission" link and go to the "Files" tab to modify your files by removing and replacing files as needed:
+
+https://psp.msubmit.net/cgi-bin/main.plex?el=A5JQ4BVl3A1DQm6F6A9ftdbb3XjGKQmglPEVYhC1CWowZ
+
+
+
+Dear Dr. Dixon,
+
+On April 3, 2026, the manuscript entitled "A Serverless Pharmacogenomic Risk Dashboard: Translating Ensemble Models and Causal Rules to Clinical Decision Support" by Richard Dixon and Elvin Price was approved by the author.
+
+The manuscript has been assigned the Paper #: 2026-0568.
+
+You may check on the status of this manuscript by selecting the "Check Manuscript Status" link under the following URL:
+
+https://cpt.msubmit.net/cgi-bin/main.plex?el=A6JP3ItY5A4YHu3F4A9ftdrW8RmLZwA22gmRnoWNfoYgZ
+
+(Press/Click on the above link to be automatically sent to the web page.)
+

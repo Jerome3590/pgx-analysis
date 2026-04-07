@@ -4,10 +4,15 @@
 Virginia Commonwealth University · PhD Health Related Sciences (Translational Health Research)
 **Defense:** 1 June 2026 (planned) · **Dept:** Pharmacotherapy & Outcomes Science, School of Pharmacy
 
-> **Three reference files** — keep these as the single source of truth:
+> **Reference files** — keep these as the single source of truth:
 > - **README.md** (this file) — writing status, build, checklists, lessons learned
 > - **[FIGURES.md](FIGURES.md)** — figure inventory, generation scripts, post-retrain figure checklist
 > - **[METRICS.md](METRICS.md)** — cohort counts, model performance, placeholder tracker, S3 sources
+>
+> **Per-journal submission guides** (`docs/`):
+> - **[docs/README_CTS.md](docs/README_CTS.md)** — CTS (CH_1, CH_3): title page spec, format limits, document order
+> - **[docs/README_PSP.md](docs/README_PSP.md)** — CPT:PSP (CH_2, CH_4): title page spec, format limits, article types
+> - **[docs/README_CPT.md](docs/README_CPT.md)** — CPT (CH_5): title page spec, format limits, article types
 
 ---
 
@@ -25,14 +30,14 @@ Virginia Commonwealth University · PhD Health Related Sciences (Translational H
 
 ## Chapter → Journal Map
 
-| # | File | Journal | Template | Output PDF |
-|:--|:-----|:--------|:---------|:-----------|
-| 1 | `CH_1/ch01_bmic.qmd` | *Journal of Personalized Medicine* (MDPI) | `bmic_jpm_template.tex` | `ch01_bmic_jpm.pdf` |
-| 2 | `CH_2/ch02_psp.qmd` | *CPT: Pharmacometrics & Systems Pharmacology* (Wiley) | `wiley-njd-pdf` | `ch02_psp.pdf` |
-| 3 | `CH_3/ch03_cts.qmd` | *Clinical and Translational Science* (Wiley) | `wiley-njd-pdf` | `ch03_cts.pdf` |
-| 4 | `CH_4/ch04_psp.qmd` | *CPT: Pharmacometrics & Systems Pharmacology* (Wiley) | `wiley-njd-pdf` | `ch04_psp.pdf` |
-| 5 | `CH_5/ch05_bmic.qmd` | *Journal of Personalized Medicine* (MDPI) | `bmic_jpm_template.tex` | `ch05_bmic_jpm.pdf` |
-| 6 | `CH_6/ch06_conclusion.qmd` | *(dissertation only)* | plain article | `ch06_conclusion.pdf` |
+| # | File | Journal | SubDir | Status |
+|:--|:-----|:--------|:-------|:-------|
+| 1 | `CH_1/ch01_cts.qmd` | *Clinical and Translational Science* (CTS, Wiley) | `cts` | Under revision (CTS-2026-0197) |
+| 2 | `CH_2/ch02_psp.qmd` | *CPT: Pharmacometrics & Systems Pharmacology* (Wiley) | `cpt_psp` | Submitted (PSP-2026-0108) |
+| 3 | `CH_3/ch03_cts.qmd` | *Clinical and Translational Science* (CTS, Wiley) | `cts` | Draft |
+| 4 | `CH_4/ch04_psp.qmd` | *CPT: Pharmacometrics & Systems Pharmacology* (Wiley) | `cpt_psp` | Draft |
+| 5 | `CH_5/ch05_cpt.qmd` | *Clinical Pharmacology & Therapeutics* (CPT, Wiley) | `cpt` | Draft |
+| 6 | `CH_6/ch06_conclusion.qmd` | *(dissertation only)* | — | Draft |
 
 **IRB:** HM20022300 (non-human-subjects waiver) applied to CH_3, CH_4.
 **PROSPERO:** CRD420261354089 (awaiting publication) — CH_1.
@@ -43,14 +48,15 @@ Virginia Commonwealth University · PhD Health Related Sciences (Translational H
 
 ```powershell
 # Windows
-.\build.ps1                    # all chapters → output/
-.\build.ps1 -Chapter 1         # single chapter PDF
-.\build.ps1 -Docx              # all chapters → edits/ (.docx for advisor)
-.\build.ps1 -Docx -Chapter 2   # single chapter .docx
-.\build.ps1 -Draft             # plain article (no journal template)
-.\build.ps1 -Clean             # remove output/ and edits/
-.\build.ps1 -Full              # full dissertation PDF (timestamped name in output/)
-.\build.ps1 -Full -Docx        # full dissertation Word (timestamped name in edits/)
+.\build.ps1                      # all chapters → output/<journal>/ (journal PDFs)
+.\build.ps1 -Chapter 1           # single chapter PDF
+.\build.ps1 -Submit -Chapter 2   # full submission package: DOCX + TIFFs → output/final_submission/
+.\build.ps1 -Submit              # all chapters, full submission packages
+.\build.ps1 -Docx -Chapter 2     # advisor review draft only → output/edits/
+.\build.ps1 -Draft               # plain article (no journal template)
+.\build.ps1 -Clean               # remove all output/ artifacts
+.\build.ps1 -Full                # full dissertation PDF (timestamped, in output/)
+.\build.ps1 -Full -Docx          # full dissertation Word (timestamped, in output/edits/)
 
 # Post-retrain: regenerate figures then rebuild
 python manuscript/generate_figures.py
@@ -64,7 +70,21 @@ make all | make ch01 | make docx | make docx-ch01 | make clean
 
 > Always use `.\build.ps1` — never `quarto render --to pdf` directly (TEXINPUTS/BSTINPUTS not set).
 
-**Full dissertation (`-Full`):** Each chapter QMD uses **chapter-scoped section IDs** (`{#ch01-…}`, `{#ch02-…}`, …) so included chapters do not produce duplicate Pandoc identifiers. Use `[link text](#ch02-cohort)` for in-text links to sections—avoid `@ch02-…` (Quarto treats `@…` as citations). For a single Word file of the compiled dissertation, use `.\build.ps1 -Full -Docx` (timestamped `edits/dissertation_dixon_<yyyyMMdd_HHmmss>.docx`); on Linux/macOS, `make docx-full`.
+### Output folder structure
+
+```
+output/
+├── edits/<journal>/              ← DOCX drafts for advisor review  (.\build.ps1 -Docx)
+├── final_submission/<journal>/chNN/
+│   ├── ch0N_*_draft.docx         ← submission-ready DOCX + TIFF package
+│   └── supp/                     ← supplementary files (S1–S5 DOCX/CSV)
+├── submission/<journal>/         ← LaTeX+TIFF ZIP packages          (.\build_submission.ps1)
+└── <journal>/                    ← compiled journal PDFs             (.\build.ps1)
+```
+
+> `output/edits/`, `output/final_submission/`, and `output/submission/` are `.gitignore`d — never committed.
+
+**Full dissertation (`-Full`):** Each chapter QMD uses **chapter-scoped section IDs** (`{#ch01-…}`, `{#ch02-…}`, …) so included chapters do not produce duplicate Pandoc identifiers. Use `[link text](#ch02-cohort)` for in-text links to sections—avoid `@ch02-…` (Quarto treats `@…` as citations). For a single Word file of the compiled dissertation, use `.\build.ps1 -Full -Docx` (timestamped `output/edits/dissertation_dixon_<yyyyMMdd_HHmmss>.docx`); on Linux/macOS, `make docx-full`.
 
 ---
 
@@ -107,15 +127,16 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    QMD[".qmd (draft)"] -->|".\build.ps1 -Docx"| DOCX["edits/ · ch0X_*_draft.docx"]
+    QMD[".qmd (draft)"] -->|"`.\build.ps1 -Docx`"| DOCX["output/edits/<journal>/ · ch0X_*_draft.docx"]
     DOCX -->|"Share via email / Google Drive"| ADV["Advisor edits in Word"]
     ADV -->|"Incorporate tracked changes back into .qmd"| QMD
-    QMD -->|".\build.ps1"| PDF["output/ · ch0X_*.pdf"]
+    QMD -->|".\build.ps1"| PDF["output/<journal>/ · ch0X_*.pdf"]
+    DOCX -->|"auto-copied by build"| PKG["output/final_submission/<journal>/chNN/"]
 ```
 
 ---
 
-## Writing Status — ALL CHAPTERS COMPLETE ✅
+## Writing Status — ALL CHAPTERS COMPLETE 
 
 All train-trip sessions (HAR→WAS Mar 24; RGH→CLE Mar 26–27; CLE→WAS Mar 29, 2026) complete.
 
@@ -154,7 +175,7 @@ All train-trip sessions (HAR→WAS Mar 24; RGH→CLE Mar 26–27; CLE→WAS Mar 
 
 | Ch | Section | Dependency |
 |:---|:--------|:-----------|
-| 3 | Cohort Characteristics, Consensus-Causal Features (SHAP), Trajectory cluster N | `shap_top_features.json`, `dtw_manuscript_summary.json` |
+| 3 | Cohort Characteristics, Consensus-Causal Features (SHAP), Trajectory cluster N | `data/shap_top_features.json`, `dtw_manuscript_summary.json` |
 | 4 | DDI pair/triplet counts, IE/IR score tables | `ffa_ie_ci.json` (EC2 local) |
 | 5 | Performance Benchmarks | CloudWatch post-deploy |
 | 6 | Performance Summary table | post-retrain metrics |
@@ -188,6 +209,32 @@ All train-trip sessions (HAR→WAS Mar 24; RGH→CLE Mar 26–27; CLE→WAS Mar 
 - [ ] Conflict of interest + funding statement
 - [ ] CRediT author contributions
 
+### CH_1 & CH_3 — CTS (Wiley) — Title Page Requirements
+
+CTS requires a **dedicated Title Page (page 1)** containing exactly these elements, in order:
+
+1. Complete manuscript title
+2. All authors' names with superscript affiliation numbers (e.g., `R. Jerome Dixon,¹·² Elvin T. Price¹·³`)
+3. All affiliations numbered to match superscripts
+4. **Corresponding author** — full name, department, institution, mailing address (with Box), city/state/zip, **phone**, email, ORCID
+5. **Running title** (short title ≤ 50 characters)
+6. **Figures:** N · **Tables:** N  (exact counts)
+7. **Keywords** (3–7 terms, semicolon-separated)
+
+**What does NOT go on the title page:** Abstract (page 2), Study Highlights, Introduction, Author Contributions, Funding, Conflicts of Interest (all go at end of manuscript body).
+
+**No TOC page.** CTS does not request a table-of-contents page in the manuscript file.
+Suppress it in the YAML `format:` block:
+```yaml
+format:
+  docx:
+    toc: false
+```
+(Required because `_quarto.yml` globally sets `toc: true` for docx — the per-chapter override wins.)
+
+**Document order for CTS submission:**
+`Title Page → Abstract → Study Highlights → Introduction → Methods → Results → Discussion → Limitations → Conclusions → Acknowledgements → Author Contributions → Funding → Conflicts of Interest → Data Availability → References → Supplementary Materials note`
+
 ### CH_3 — CTS (Wiley)
 
 - [ ] Abstract: structured, ≤ 250 words
@@ -197,6 +244,8 @@ All train-trip sessions (HAR→WAS Mar 24; RGH→CLE Mar 26–27; CLE→WAS Mar 
 - [ ] TRIPOD reporting checklist in supplement
 - [ ] Ethics statement / VCHI DUA statement present; IRB waiver HM20022300 cited
 - [ ] Lay summary (1–2 sentences) recommended
+- [ ] Title page contains: running title (≤ 50 chars), figure/table counts, keywords, full corresponding author contact with phone
+- [ ] `docx: toc: false` set in chapter YAML (overrides global `_quarto.yml` toc: true)
 
 ### All Chapters
 
@@ -205,6 +254,10 @@ All train-trip sessions (HAR→WAS Mar 24; RGH→CLE Mar 26–27; CLE→WAS Mar 
 - [ ] Abbreviations section complete
 - [ ] No `[?]` citations in compiled PDF (check `.blg` for bibtex warnings)
 - [ ] `keep-tex: false` or `.tex` intermediate not included in submission package
+- [ ] **No forward chapter references** — `Select-String -Path CH_*/ch*.qmd -Pattern 'Chapter [1-6]|Chapters [1-6]'` returns zero hits (see Standalone Chapter Policy)
+- [ ] Companion series cited as `(Dixon and Price, manuscripts under review)` — not as chapter numbers; no unpublished performance metrics quoted
+- [ ] `\quad` not used as table-cell indent in DOCX-targeted markdown tables (use plain spaces)
+- [ ] Pipeline-derived statistics verified by script before submission (source cited in table caption)
 
 ---
 
@@ -271,11 +324,57 @@ pgx-analysis/
     ├── refs/                discipline.bib, bmic-jpm.bib, cpt-psp.bib, cts.bib
     ├── figures/ch01/ … ch06/ + `shared/` (cross-chapter assets)
     ├── output/              compiled PDFs
-    ├── scripts/             extract_visual_manuscript.py, compute_brier_ici.py, etc.
+    ├── infrastructure_setup/scripts/   extract_visual_manuscript.py, compute_brier_ici.py, etc.
     ├── _quarto.yml
     ├── build.ps1            Windows build
     └── Makefile             Linux/macOS build
 ```
+
+---
+
+## Standalone Chapter Policy
+
+Each chapter is submitted to a **different journal** and must be fully self-contained.
+Reviewers cannot access unpublished companion papers; forward references will be flagged.
+
+### Rules
+
+1. **No `Chapter N` forward references.** Replace every instance of
+   *"as described in Chapter 3"* or *"implemented in Chapters 2–5"* with a
+   description of the **architectural requirement the gap calls for** — what any
+   future system *must do*, not what an unpublished paper *did*.
+
+2. **Cite the companion series once, generically.** When results from companion
+   papers are essential context, use:
+   > *(Dixon and Price, manuscripts under review)*
+   Do **not** include specific performance metrics from those papers in this paper.
+
+3. **Results belong in the paper that ran them.** A statistic computed in CH_3
+   must not appear as a claim in CH_1.
+
+4. **Audit command** — run before every submission:
+   ```powershell
+   Select-String -Path CH_*/ch*.qmd -Pattern 'Chapter [1-6]|Chapters [1-6]'
+   ```
+   Zero results = ready. Any hit must be resolved using rules 1–2.
+
+5. **Pipeline stats must be reproducible.** Any number derivable from the pipeline
+   (year distributions, N counts, tag rates) must come from a script, not manual
+   entry. Document the source in the table caption.
+   Pattern: `CH_1/Literature_Review/scripts/gen_study_chars.py`
+
+6. **`\quad` does not render in DOCX.** Use plain spaces for table cell indentation
+   in markdown tables. `| \quad 2013–2018 |` renders as `| –2018 |` in Word.
+
+### Audit Status (2026-04-07)
+
+| Chapter | Forward refs | Notes |
+|:--------|:------------:|:------|
+| CH_1 | 0 | Cleaned 2026-04-07; companion series cited as *manuscripts under review* |
+| CH_2 | 0 | Clean |
+| CH_3 | 0 | Clean |
+| CH_4 | 0 | Clean |
+| CH_5 | 0 | Two figure-caption "Chapter" matches are labels, not forward citations |
 
 ---
 
@@ -389,3 +488,34 @@ YAML renames: `journal:` → `target-journal:` · `abbreviations:` → `manuscri
 
 **AI slop removed (CH_6)**
 - Removed duplicate "completing the translational arc", "closing the loop" cliché, "is exactly the gap" construction
+
+### 2026-04-07
+
+**Standalone chapter policy established**
+- Each chapter submits to a different journal — reviewers cannot see companion papers
+- All `Chapter N` / `Chapters 2–5` forward references in CH_1 replaced with architectural *requirements* (what a system must do) rather than implementation claims
+- Companion series cited once as `(Dixon and Price, manuscripts under review)` — no unpublished performance metrics quoted in CH_1
+- CH_2, CH_3, CH_4 were already clean; CH_5 has two figure-caption hits that are labels, not forward citations
+- Audit command: `Select-String -Path CH_*/ch*.qmd -Pattern 'Chapter [1-6]|Chapters [1-6]'`
+
+**`\quad` silently truncates DOCX table cell content**
+- `\quad` is a LaTeX spacing command — pandoc strips it in DOCX mode, consuming the text that immediately follows
+- `| \quad 2013–2018 |` renders as `| –2018 |` in Word (start year disappears)
+- Fix: use plain spaces for indentation in all markdown tables targeting DOCX output
+
+**Pipeline-derived statistics — reproducibility (CH_1 Table 1)**
+- Publication year bins were stale manually-entered values (2013–2024); pipeline shows actual range 2019–2026
+- Created `CH_1/Literature_Review/scripts/gen_study_chars.py`: auto-derives year bins from pipeline, writes `study_chars_snapshot.csv` for diff tracking
+- Rule: any count derivable from pipeline must come from a script; source cited in table caption; manually coded fields noted separately
+
+**Gap analysis — CH_1 SQLR expanded from 3 → 5 gaps**
+- Gap 4 added: explainability is model-centric not user-centric (only 15% user-tested)
+- Gap 5 added: model transparency (14.5%) and calibration (8.0%) rarely reported
+- OODA structural imbalance added to Key Findings: 54% Act-phase vs 3% Decide-phase
+- Opioid-specific prediction gap quantified: 1.2% of Decide-phase studies target opioid ED risk; 2.4% use APCD/claims
+- Abstract denominators clarified: `19% of ML prediction studies (n=18/94)`
+- S3 (151 studies), S4 (56 studies), S5 (5,839 studies) supplementary files populated from pipeline
+
+**CTS reviewer response — CH_1**
+- Reviewer flagged: author names/affiliations must appear below title on title page → fixed in YAML + docx content-visible block
+- Reviewer flagged: supplemental files S1–S5 missing → generated via `make_supp_tables.py --chapter 1`; files in `output/cts/ch01/supp/`
