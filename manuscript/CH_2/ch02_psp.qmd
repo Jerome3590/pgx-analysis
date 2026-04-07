@@ -553,7 +553,7 @@ Windsurf (Codeium, Inc.) with Claude Sonnet 4.6 (Anthropic, PBC) was used
 for AI-assisted manuscript drafting. All AI-generated content was reviewed,
 verified, and edited by the authors.
 
-**Author Contributions:** R.J.D. and E.T.P. wrote the manuscript; E.T.P. and R.J.D. designed the research; R.J.D. performed the research; R.J.D. analyzed the data; R.J.D. and E.T.P. contributed new reagents/analytical tools.
+**Author Contributions:** R.J.D.: Conceptualization, Data curation, Formal analysis, Methodology, Resources, Software, Validation, Visualization, Writing – original draft. E.T.P.: Conceptualization, Supervision, Writing – review & editing.
 
 **Funding:** This research received no external funding.
 
