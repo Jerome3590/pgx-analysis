@@ -16,7 +16,6 @@ output/*.html
 output/CH_*/
 output/figures/
 output/edits/
-output/final_submission/
 output/submission/
 
 # PNG figure artifacts — canonical format is PDF

@@ -1,7 +1,7 @@
 """
 make_supp_tables.py
 Generate supplementary DOCX and CSV files for each chapter and place them
-in the corresponding output/final_submission/<journal>/chNN/supp/ folder.
+in the corresponding output/submission/<journal>/chNN/supp/ folder.
 
 Supplementary content is defined here (mirroring QMD content) rather than
 embedded in the manuscript body, consistent with the image workflow.
@@ -484,7 +484,7 @@ def main():
             print(f"  Chapter {ch}: no supplementary tables defined — skipped")
             continue
         journal, ch_dir, builder = CHAPTER_MAP[ch]
-        supp_dir = root / "output" / "final_submission" / journal / ch_dir / "supp"
+        supp_dir = root / "output" / "submission" / journal / ch_dir / "supp"
         print(f"\n==> CH_{ch} supplementary tables -> {supp_dir}")
         builder(supp_dir)
 

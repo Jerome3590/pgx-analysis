@@ -5,20 +5,19 @@
 #   .\build.ps1 -Chapter 1  # build Chapter 1 only
 #   .\build.ps1 -Docx        # build all chapters → output/edits/ (Word .docx for advisor)
 #   .\build.ps1 -Docx -Chapter 2  # single chapter to output/edits/
-#   .\build.ps1 -Submit         # full submission package: DOCX + TIFFs → output/final_submission/
+#   .\build.ps1 -Submit         # full submission package: DOCX + TIFFs → output/submission/
 #   .\build.ps1 -Submit -Chapter 2  # single chapter submission package
 #   .\build.ps1 -Draft       # plain article class, no journal template
 #   .\build.ps1 -Clean       # remove output/ artifacts
 #   .\build.ps1 -Full        # full dissertation → output/dissertation_dixon_<yyyyMMdd_HHmmss>.pdf
 #   .\build.ps1 -Full -Docx    # full dissertation → output/edits/dissertation_dixon_<yyyyMMdd_HHmmss>.docx
-#   .\build.ps1 -ExportFigures    # export PSP-ready TIFF figures only → output/final_submission/
+#   .\build.ps1 -ExportFigures    # export PSP-ready TIFF figures only → output/submission/
 #   .\build.ps1 -ExportFigures -Chapter 4  # single PSP chapter TIFF export
 #
 # Output folder structure:
 #   output/
 #   ├── edits/<journal>/              ← DOCX drafts for advisor review
-#   ├── final_submission/<journal>/chNN/   ← submission-ready packages (DOCX + TIFFs + supp)
-#   ├── submission/<journal>/         ← LaTeX+TIFF ZIP packages (build_submission.ps1)
+#   ├── submission/<journal>/chNN/        ← submission-ready packages (DOCX + TIFFs + supp + LaTeX ZIPs)
 #   └── <journal>/                    ← compiled journal PDFs
 #
 # Prerequisites:
@@ -31,10 +30,10 @@ param(
     [int]$Chapter         = 0,      # 0 = all chapters
     [switch]$Draft         = $false,
     [switch]$Docx          = $false,
-    [switch]$Submit        = $false,  # DOCX + TIFFs → output/final_submission/ (one-step submission)
+    [switch]$Submit        = $false,  # DOCX + TIFFs → output/submission/ (one-step submission)
     [switch]$Clean         = $false,
     [switch]$Full          = $false,  # build full dissertation PDF
-    [switch]$ExportFigures = $false   # export PSP-ready TIFFs only → output/final_submission/cpt_psp/
+    [switch]$ExportFigures = $false   # export PSP-ready TIFFs only → output/submission/cpt_psp/
 )
 
 # -Submit implies -Docx (builds DOCX first, then exports figures)
@@ -44,7 +43,7 @@ if ($IsSubmit) { $Docx = $true }
 $Root    = $PSScriptRoot
 $Output  = Join-Path $Root "output"
 $Edits   = Join-Path $Output "edits"
-$SubmitDir  = Join-Path $Output "final_submission"
+$SubmitDir  = Join-Path $Output "submission"
 
 # ── TEXINPUTS: lets xelatex find templates/Definitions/mdpi.cls ─────────────
 $env:TEXINPUTS = ".;$Root\templates\;;$env:TEXINPUTS"
@@ -94,7 +93,7 @@ function Build-Chapter {
                 python "$Root\templates\move_titlepage.py" "$DocxDir\$DocxName"
                 # Pass 2d: generate supplementary table DOCX files
                 python "$Root\templates\make_supp_tables.py" --chapter $ChapterNum
-                # Pass 2e: copy DOCX into final_submission package folder
+                # Pass 2e: copy DOCX into submission package folder
                 if ($SubDir) {
                     $ChNN = "ch{0:d2}" -f $ChapterNum
                     $PkgDir = Join-Path $SubmitDir "$SubDir\$ChNN"
@@ -126,7 +125,7 @@ function Build-Chapter {
                 python "$Root\templates\move_titlepage.py" "$DocxDir\$DocxName"
                 # Pass 2d: generate supplementary table DOCX/CSV files
                 python "$Root\templates\make_supp_tables.py" --chapter $ChapterNum
-                # Pass 2e: copy DOCX into final_submission package folder
+                # Pass 2e: copy DOCX into submission package folder
                 if ($SubDir) {
                     $ChNN = "ch{0:d2}" -f $ChapterNum
                     $PkgDir = Join-Path $SubmitDir "$SubDir\$ChNN"
