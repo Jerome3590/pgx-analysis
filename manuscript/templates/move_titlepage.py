@@ -79,37 +79,51 @@ def move_titlepage_to_front(docx_path: Path) -> None:
     for i in range(tp_end - 1, tp_start - 1, -1):
         body.remove(children[i])
 
-    # 5. Find insertion point: just before the abstract ("Background:" paragraph).
-    #    This keeps the YAML-generated title + authors at the top of page 1 and
-    #    places our affiliations/COI block between the authors and the abstract.
+    # 5. Find insertion point.
+    #
+    #    Two cases:
+    #    (a) Quarto already rendered an "Abstract" Heading 1 from the abstract: YAML
+    #        key (typical for CTS and other journals).  Insert title page block
+    #        BEFORE that heading so the abstract section is self-contained on page 2.
+    #        Do NOT add a second "Abstract" heading.
+    #    (b) Quarto did not render an "Abstract" heading (PSP/CPT with custom template).
+    #        Insert before the "Background:" paragraph and add an "Abstract" Heading 1.
     body_after = list(body)
-    insert_before = None
+    insert_before          = None
+    abstract_heading_exists = False
+
     for elem in body_after:
-        if elem.tag == qn("w:p") and "Background" in get_text(elem):
+        if elem.tag != qn("w:p"):
+            continue
+        txt = get_text(elem).strip()
+        if txt == "Abstract":
+            insert_before = elem
+            abstract_heading_exists = True
+            break
+        if "Background" in txt:
             insert_before = elem
             break
 
     if insert_before is None:
-        # Fallback: insert after first element (YAML title heading)
         insert_before = body_after[1] if len(body_after) > 1 else body_after[0]
 
-    for elem in reversed(tp_elems):
+    for elem in tp_elems:
         insert_before.addprevious(elem)
 
-    # 6. Insert "Abstract" Heading 1 immediately before the abstract paragraph
-    #    (insert_before) so the abstract starts with a proper heading.
-    abstract_h = OxmlElement("w:p")
-    a_pPr     = OxmlElement("w:pPr")
-    a_pStyle  = OxmlElement("w:pStyle")
-    a_pStyle.set(qn("w:val"), "Heading1")
-    a_pPr.append(a_pStyle)
-    abstract_h.append(a_pPr)
-    a_r = OxmlElement("w:r")
-    a_t = OxmlElement("w:t")
-    a_t.text = "Abstract"
-    a_r.append(a_t)
-    abstract_h.append(a_r)
-    insert_before.addprevious(abstract_h)
+    # 6. Add "Abstract" Heading 1 only when Quarto did not already render one.
+    if not abstract_heading_exists:
+        abstract_h = OxmlElement("w:p")
+        a_pPr     = OxmlElement("w:pPr")
+        a_pStyle  = OxmlElement("w:pStyle")
+        a_pStyle.set(qn("w:val"), "Heading1")
+        a_pPr.append(a_pStyle)
+        abstract_h.append(a_pPr)
+        a_r = OxmlElement("w:r")
+        a_t = OxmlElement("w:t")
+        a_t.text = "Abstract"
+        a_r.append(a_t)
+        abstract_h.append(a_r)
+        insert_before.addprevious(abstract_h)
 
     # 7. Insert a page break after the last title page element so the abstract
     #    starts on page 2.
