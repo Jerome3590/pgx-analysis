@@ -1,6 +1,6 @@
 # Manuscript Next Steps
 
-_Last updated: 2026-04-07 — All CH_1–4 submission packages built to `output/submission/`; CH_5 already accepted (CPT #2026-0568); project structure reorganized; CH_4 Table S1 (115 DDI pairs) automated from S3._
+_Last updated: 2026-04-07 (session 2) — CRediT added CH_1–4; FP-Growth CPIC/VIP validated finding inserted in CH_3 + CH_5; all standalone chapter policy violations resolved; CH_3 + CH_5 rebuilt clean._
 
 ---
 
@@ -11,16 +11,16 @@ _Last updated: 2026-04-07 — All CH_1–4 submission packages built to `output/
 | Project structure reorganized: `cloudwatch/`, `lambda_local/`, `scripts/` → `infrastructure_setup/`; `edits/` → `output/edits/`; `bmc/` → `docs/bmc/`; JSON files → `data/` | Multiple |
 | `output/final_submission/` + `output/submission/` merged → single `output/submission/` | `build.ps1`, `export_figures_psp.py`, `make_supp_tables.py`, `.gitignore` |
 | Added `-Submit` flag to `build.ps1` (DOCX + TIFFs + supp in one command) | `build.ps1` |
-| Fixed `[switch]$Submit` vs `$SubmitDir` variable collision | `build.ps1` line 46 |
-| Added `templates/export_figures_psp.py` — PNG→TIFF (300 dpi CMYK, journal widths) | `templates/export_figures_psp.py` |
-| Added `templates/make_supp_tables.py` — CH_1 S1–S5, CH_3 supp PNGs, CH_4 Table S1/S2 | `templates/make_supp_tables.py` |
-| CH_4 Table S1 automated: `extract_ffa_table_s1.py` pulls 115 DDI pairs from S3 | `infrastructure_setup/scripts/extract_ffa_table_s1.py`, `data/ffa_synergy_pairs.json` |
-| CH_3 supplementary figures automated (copy PNG → `output/submission/cts/ch03/supp/`) | `templates/make_supp_tables.py` |
-| CH_1 standalone chapter policy enforced (`Chapter N` refs removed) | `CH_1/ch01_cts.qmd` |
+| Added `templates/export_figures_psp.py`, `make_supp_tables.py` | `templates/` |
+| CH_4 Table S1 automated: 115 DDI pairs from S3 via `extract_ffa_table_s1.py` | `data/ffa_synergy_pairs.json` |
 | All CH_1–4 submission packages built and verified | `output/submission/` |
 | CH_5 confirmed accepted — CPT #2026-0568, no revision needed | — |
-| Added `SUBMISSION_BUILD.md`, `docs/` per-journal guides, `manuscript_status.txt` | `docs/`, root |
-| Git commit + push (main → fb284dc → 481cd7f) | GitHub |
+| CRediT author contribution statements added (formal taxonomy) | `CH_1–4/*.qmd` |
+| FP-Growth target-class rule (omeprazole+naproxen→HCTZ, lift=49) validated via CPIC Tier A + PharmGKB VIP; inserted into CH_3 Results + Discussion and CH_5 FP-Growth section | `CH_3/ch03_cts.qmd`, `CH_5/ch05_cpt.qmd` |
+| `@Dunnenberger2015` added to `discipline.bib` (preemptive CPIC testing reference) | `refs/discipline.bib` |
+| Standalone chapter policy: all `Chapter N` intra-series refs removed from CH_1–5; CH_5 lines 415/419 fixed → `(Dixon and Price, manuscripts under review)` | `CH_5/ch05_cpt.qmd` |
+| CH_3 + CH_5 rebuilt with no warnings; packages updated in `output/submission/` | `output/submission/` |
+| All changes committed and pushed (main → 78241a3) | GitHub |
 
 ---
 
@@ -63,38 +63,20 @@ _Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submi
 
 ## 🔲 Still Pending
 
-### CH_3 FP-Growth — rules exist, need clinical review before citing
+### 1. Upload revision packages to journal portals ← BLOCKING
 
-`opioid_ed/25-44` data in `visual_manuscript_data.json`:
+All packages are built and ready. Upload before any other work.
 
-| Bin | Rules | Source |
-|:----|------:|:-------|
-| low | 0 | — |
-| medium | 8 | `drug_name_rules.json` — **all transactions** (not target-specific) |
-| high | 110 | `drug_name_rules_target_only.json` — **ED-positive class only** ✓ |
-| extreme | 110 | same |
+| Chapter | Journal | Package |
+|:--------|:--------|:--------|
+| CH_1 | CTS (Wiley) | `output/submission/cts/ch01/` |
+| CH_2 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch02/` |
+| CH_3 | CTS (Wiley) | `output/submission/cts/ch03/` — **rebuilt today with FP-Growth + CRediT** |
+| CH_4 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch04/` |
 
-**Medium bin** (all-transaction rules): benzonatate → azithromycin, amoxicillin → ibuprofen — respiratory/antibiotic patterns, population-level noise, not ED-outcome-specific.
+See portal links in `manuscript_status.txt`. Upload DOCX as Manuscript, `supp/` files as Supplementary Material, `figures/` TIFFs as Figure files.
 
-**High/extreme bin top rule (target-class only, lift=49):**
-- Baclofen → Prednisone + Lamotrigine (and reverse)
-- Omeprazole + Naproxen → Hydrochlorothiazide
-- Cephalexin + Lamotrigine → Oxcarbazepine
-
-**Clinical review — CPIC + PharmGKB VIP (dual validation):**
-
-| Drug | CPIC guideline | CPIC tier | PharmGKB VIP gene |
-|:-----|:--------------|:---------:|:------------------|
-| Omeprazole | [CYP2C19 + PPIs](https://cpicpgx.org/guidelines/cpic-guideline-for-proton-pump-inhibitors-and-cyp2c19/) | **A** | [CYP2C19 VIP](https://www.pharmgkb.org/vip/PA166170264) |
-| Naproxen | [CYP2C9 + NSAIDs](https://cpicpgx.org/guidelines/guideline-for-nonsteroidal-anti-inflammatory-drugs-and-cyp2c9/) | **A** | [CYP2C9 VIP](https://www.pharmgkb.org/vip/PA166170263) |
-| Oxcarbazepine | [HLA-B + carbamazepine/related](https://cpicpgx.org/guidelines/cpic-guideline-for-carbamazepine-and-hla-b/) | **A** | [HLA-B VIP](https://www.pharmgkb.org/vip/PA166170267) |
-| Lamotrigine | No CPIC guideline yet | — | [UGT1A4 VIP](https://www.pharmgkb.org/vip/PA166170273) — glucuronidation; clinical significance emerging |
-| Baclofen | No CPIC guideline | — | No VIP summary |
-| Prednisone | No CPIC guideline | — | [CYP3A4 VIP](https://www.pharmgkb.org/vip/PA166170265) — substrate |
-
-_Action_: **Omeprazole + Naproxen → Hydrochlorothiazide (lift=49)** has the strongest dual validation: both antecedents are CPIC Tier A with PharmGKB VIP gene summaries (CYP2C19 + CYP2C9). Their co-occurrence in the ED-positive class (25–44, high-density bin) supports a pharmacogenomically actionable polypharmacy narrative in CH_3. Cite alongside the FFA pair (gabapentin ⊕ alprazolam). Confirm VIP links are current before drafting.
-
-### CloudWatch — next refresh only (after Lambda redeploy)
+### 2. CloudWatch — next refresh only (after Lambda redeploy)
 When `prepare_models.py` + new Lambda image deployed: re-pull CloudWatch CLI, update `{#tbl-benchmarks-cw}`, refresh `infrastructure_setup/cloudwatch/benchmark_snapshot.json` + `LAST_RUN.txt`.
 _Last snapshot: 2026-03-31T16:46:25Z — post-deploy, CW means unchanged from prior pull._
 
