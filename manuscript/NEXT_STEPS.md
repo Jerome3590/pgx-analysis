@@ -1,6 +1,6 @@
 # Manuscript Next Steps
 
-_Last updated: 2026-04-07 (session 2) — CRediT, FP-Growth/CPIC/VIP narrative, standalone policy clean; `-Journal` flag added to build system; CTS figure export (separate TIFF uploads) implemented; all packages rebuilt._
+_Last updated: 2026-04-07 (session 3) — DOCX title page / abstract structure fixed for all journals (CTS, PSP, CPT); Study Highlights placement corrected; four post-processor bugs resolved; all CH_1–5 packages rebuilt._
 
 ---
 
@@ -25,24 +25,24 @@ _Last updated: 2026-04-07 (session 2) — CRediT, FP-Growth/CPIC/VIP narrative, 
 | `docs/README_CTS.md` updated with Figure Format section: dual-upload requirement documented (embedded DOCX + separate TIFF per figure in Manuscript Central) | `docs/README_CTS.md` |
 | All changes committed and pushed (main → 0b97281) | GitHub |
 
+## ✅ Completed 2026-04-07 (session 3) — DOCX front matter restructuring
+
+| Item | File(s) |
+|:-----|:--------|
+| **Bug: Introduction heading deleted** — removal range `(tp_end, ...)` included first H1; fixed to `(tp_end - 1, ...)` | `templates/move_titlepage.py` |
+| **Bug: "TITLE PAGE" label visible** in submitted DOCX — excluded from `tp_elems` so it is removed but never re-inserted | `templates/move_titlepage.py` |
+| **Bug: title page elements inserted in reverse order** — `reversed(tp_elems)` + `addprevious` stacks backwards; changed to forward iteration | `templates/move_titlepage.py` |
+| **Bug: Study Highlights paragraphs bled into title page section** — `reversed(sh_elems)` placed H1 last inside the TITLE PAGE boundary; `move_titlepage.py` swept up the paragraphs; changed to forward iteration | `templates/format_psp_manuscript.py` |
+| **CTS "Abstract" heading** — Quarto renders `AbstractTitle` from `abstract:` YAML; script detects it, inserts title page block before it, skips duplicate | `templates/move_titlepage.py` |
+| **PSP/CPT "Abstract" heading** — when no Quarto heading present (PSP template path), script creates `Heading1 "Abstract"` | `templates/move_titlepage.py` |
+| **Study Highlights relocated** for CH_2, CH_4, CH_5 — moved from near-end to just before Introduction per PSP/CPT requirement | `templates/format_psp_manuscript.py` |
+| All CH_1–5 rebuilt and verified; committed dcc60b1 | GitHub |
+
 ---
 
 ## 🚀 Immediate Action Required
 
-### Step 1 — Final rebuild (generates CTS `figures/` TIFFs for CH_1/CH_3)
-
-```powershell
-.\ build.ps1 -Submit -Journal cts   # CH_1 + CH_3: DOCX (embedded) + figures/*.tiff + supp/
-.\ build.ps1 -Submit -Journal psp   # CH_2 + CH_4: already built; skip if no changes
-```
-
-Or individually:
-```powershell
-.\build.ps1 -Submit -Chapter 1 -Journal cts
-.\build.ps1 -Submit -Chapter 3 -Journal cts
-```
-
-### Step 2 — Upload to journal portals
+### Upload to journal portals — all packages are ready
 
 | Chapter | Journal | Package | What to upload |
 |:--------|:--------|:--------|:---------------|
@@ -50,6 +50,7 @@ Or individually:
 | CH_2 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch02/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N; `supp/` → Supplementary |
 | CH_3 | CTS (Wiley) | `output/submission/cts/ch03/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N; `supp/Figure_S*.png` → Supplementary |
 | CH_4 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch04/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N; `supp/Table_S*`, `Figure_S*` → Supplementary |
+| CH_5 | CPT (Wiley) | `output/submission/cpt/ch05/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N |
 
 Portal links: `manuscript_status.txt`
 
@@ -81,15 +82,15 @@ cd C:\Projects\pgx-analysis\manuscript
 .\build.ps1
 ```
 
-_Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submission/`._
+_Last full build: 2026-04-07 (session 3) — all CH_1–5 packages rebuilt with corrected DOCX front matter; verified in `output/submission/`._
 
 ---
 
 ## 🔲 Still Pending
 
-### Portal upload — follow Steps 1 + 2 above ← BLOCKING
+### Portal upload ← BLOCKING
 
-Run `.\build.ps1 -Submit -Journal cts` first (generates missing CTS `figures/` TIFFs for CH_1/CH_3), then upload all four packages per the table in Step 2.
+All five packages are structurally correct and ready. Upload each per the table above.
 
 
 ---
@@ -110,7 +111,73 @@ Run `.\build.ps1 -Submit -Journal cts` first (generates missing CTS `figures/` T
 
 ---
 
-## 🚀 Future: FDA SaMD Commercial Deployment
+## � Journal Format Lessons Learned
+
+### How Quarto + python-docx post-processing interacts with each journal
+
+#### General — `move_titlepage.py` (all journals)
+
+The `{.content-visible when-format="docx"}` div in the QMD provides a custom **TITLE PAGE** block containing authors+markers, affiliations, corresponding author, running title, figures/tables count, and keywords.  The script moves this block to the correct position in the rendered DOCX.
+
+Key findings from debugging (session 3):
+
+- **`addprevious(ref)` + forward iteration = correct order.**  
+  Each call inserts the new element immediately before `ref`.  Forward iteration over `tp_elems` preserves QMD source order.  `reversed()` produces inverted output — the original code was always wrong but went unnoticed.
+
+- **The `tp_end` boundary is the first Heading 1 after the TITLE PAGE marker.**  
+  Do NOT include `tp_end` in the removal range: it is a boundary sentinel only, not part of the title page block.  The original off-by-one (`range(tp_end, ...)`) silently deleted the Introduction heading from every chapter.
+
+- **The "TITLE PAGE" label paragraph must be excluded from `tp_elems`.**  
+  It is removed from the document as part of the normal block removal but must never be re-inserted.
+
+- **`addprevious` inserts at the XML sibling level**, so when `move_study_highlights` places the Study Highlights H1 + paragraphs before Introduction using forward iteration, the H1 lands first — which is what `move_titlepage.py` then correctly treats as the `tp_end` boundary, leaving Study Highlights content outside the swept range.
+
+#### CTS (CH_1, CH_3) — uses `insert_docx_images.py` + `move_titlepage.py`
+
+- Quarto renders the `abstract:` YAML key as **`AbstractTitle` + `Abstract` style paragraphs** — an "Abstract" heading is already present before the post-processor runs.
+- `move_titlepage.py` detects the `AbstractTitle` paragraph by text == `"Abstract"`, sets `abstract_heading_exists = True`, inserts the title page block *before* that heading, and skips creating a second one.
+- Figures are **embedded** in the DOCX (via `insert_docx_images.py`) and also exported as separate RGB TIFF 300 dpi files for Manuscript Central upload.
+- No Study Highlights section required for CTS.
+
+#### PSP (CH_2, CH_4) — uses `suppress_images_psp.lua` + `format_psp_manuscript.py` + `move_titlepage.py`
+
+- Quarto **does not** render a visible "Abstract" heading with the PSP Wiley template; the abstract text starts directly with `**Background:**`.
+- `move_titlepage.py` falls through to the `"Background"` branch, inserts the title page block before that paragraph, then **creates a new `Heading1 "Abstract"`** paragraph.
+- `format_psp_manuscript.py` moves **Study Highlights** from its near-end QMD position to just before Introduction (PSP submission requirement).
+- Figures are suppressed in DOCX (callout placeholders only) and exported as CMYK TIFF 300 dpi.
+
+#### CPT (CH_5) — same post-processing pipeline as PSP
+
+- Quarto renders an `AbstractTitle` "Abstract" heading (same as CTS), so `move_titlepage.py` inserts before it and skips the duplicate heading.
+- Study Highlights relocated identically to PSP.
+- Figures suppressed + CMYK TIFF 300 dpi export.
+- CPT does not require Study Highlights to appear after the abstract per se, but placing them there (consistent with PSP) is acceptable and logical.
+
+#### Canonical DOCX structure produced (all journals)
+
+```
+[Title]              ← YAML-rendered, Title style
+[Author ×N]          ← YAML-rendered, Author style
+[Authors+markers]    ← title page block (BodyText)
+[Affiliations]
+[^1^, ^2^, ^3^]
+[Corresponding Author]
+[Running Title]
+[Figures · Tables]
+[Keywords]           ← end of title page block
+[page break]
+[Abstract]           ← AbstractTitle (CTS/CPT: Quarto's) or Heading1 (PSP: added by script)
+[abstract text]      ← Abstract style or BodyText
+[YAML keywords]      ← Quarto-rendered
+[Study Highlights H1]  ← PSP/CPT only; moved by format_psp_manuscript.py
+[Study Highlights paragraphs]
+[Introduction H1]    ← preserved; was incorrectly deleted before the tp_end fix
+[main text ...]
+```
+
+---
+
+## �🚀 Future: FDA SaMD Commercial Deployment
 
 > **Scope:** Transitioning the `pgx-analysis` dashboard from a **research prototype** to a
 > regulatory-ready **Software as a Medical Device (SaMD)** requires the following phases.
