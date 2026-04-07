@@ -7,12 +7,16 @@
 #   .\build.ps1 -Docx -Chapter 2  # single chapter to output/edits/
 #   .\build.ps1 -Submit         # full submission package: DOCX + TIFFs → output/submission/
 #   .\build.ps1 -Submit -Chapter 2  # single chapter submission package
+#   .\build.ps1 -Submit -Journal psp  # all PSP chapters submission package
+#   .\build.ps1 -Submit -Journal cts  # all CTS chapters submission package
+#   .\build.ps1 -ExportFigures -Journal cts  # TIFF export for CTS chapters only
+# Valid journal values: cts | psp | cpt | bmc
 #   .\build.ps1 -Draft       # plain article class, no journal template
 #   .\build.ps1 -Clean       # remove output/ artifacts
 #   .\build.ps1 -Full        # full dissertation → output/dissertation_dixon_<yyyyMMdd_HHmmss>.pdf
 #   .\build.ps1 -Full -Docx    # full dissertation → output/edits/dissertation_dixon_<yyyyMMdd_HHmmss>.docx
-#   .\build.ps1 -ExportFigures    # export PSP-ready TIFF figures only → output/submission/
-#   .\build.ps1 -ExportFigures -Chapter 4  # single PSP chapter TIFF export
+#   .\build.ps1 -ExportFigures    # export submission-ready TIFF figures (all journals) → output/submission/
+#   .\build.ps1 -ExportFigures -Chapter 3  # single chapter TIFF export
 #
 # Output folder structure:
 #   output/
@@ -33,7 +37,8 @@ param(
     [switch]$Submit        = $false,  # DOCX + TIFFs → output/submission/ (one-step submission)
     [switch]$Clean         = $false,
     [switch]$Full          = $false,  # build full dissertation PDF
-    [switch]$ExportFigures = $false   # export PSP-ready TIFFs only → output/submission/cpt_psp/
+    [switch]$ExportFigures = $false,  # export submission-ready TIFFs (all journals) → output/submission/
+    [string]$Journal       = ""        # filter by journal: cts | psp | cpt | bmc
 )
 
 # -Submit implies -Docx (builds DOCX first, then exports figures)
@@ -44,6 +49,19 @@ $Root    = $PSScriptRoot
 $Output  = Join-Path $Root "output"
 $Edits   = Join-Path $Output "edits"
 $SubmitDir  = Join-Path $Output "submission"
+
+# ── Journal → submission subdirectory map ────────────────────────────────────
+$JournalDirs = @{
+    "cts" = "cts"
+    "psp" = "cpt_psp"
+    "cpt" = "cpt"
+    "bmc" = "bmc"
+}
+if ($Journal -ne "" -and -not $JournalDirs.ContainsKey($Journal.ToLower())) {
+    Write-Error "Unknown journal: '$Journal'  (valid: cts | psp | cpt | bmc)"
+    exit 1
+}
+$JournalFilter = if ($Journal -ne "") { $JournalDirs[$Journal.ToLower()] } else { "" }
 
 # ── TEXINPUTS: lets xelatex find templates/Definitions/mdpi.cls ─────────────
 $env:TEXINPUTS = ".;$Root\templates\;;$env:TEXINPUTS"
@@ -223,12 +241,13 @@ if ($Clean) {
     exit 0
 }
 
-# ── ExportFigures: PSP-ready TIFF conversion ─────────────────────────────────
+# ── ExportFigures: submission-ready TIFF export (all journals) ────────────────────────────
 if ($ExportFigures) {
-    $chapArg = if ($Chapter -gt 0) { "--chapter $Chapter" } else { "" }
-    Write-Host "`n==> Exporting PSP-ready TIFF figures ..." -ForegroundColor Cyan
-    python "$Root\templates\export_figures_psp.py" $chapArg
-    Write-Host "`nDone. TIFFs in: $SubmitDir\cpt_psp\" -ForegroundColor Green
+    $chapArg    = if ($Chapter -gt 0)  { "--chapter", "$Chapter" }          else { @() }
+    $journalArg = if ($Journal -ne "") { "--journal", $Journal.ToLower() }  else { @() }
+    Write-Host "`n==> Exporting submission-ready TIFF figures (all journals) ..." -ForegroundColor Cyan
+    python "$Root\templates\export_figures_psp.py" @chapArg @journalArg
+    Write-Host "`nDone. TIFFs in: $SubmitDir" -ForegroundColor Green
     exit 0
 }
 
@@ -248,24 +267,33 @@ $Chapters = @(
     @{ Num=6; Qmd="CH_6\ch06_conclusion.qmd"; Format="pdf";           Pdf="ch06_conclusion.pdf"; Docx="ch06_conclusion_draft.docx"; SubDir=""        }
 )
 
+# ── Resolve chapter list (apply -Journal and/or -Chapter filters) ────────────
+$BuildChapters = $Chapters
+if ($JournalFilter -ne "") {
+    $BuildChapters = $BuildChapters | Where-Object { $_.SubDir -eq $JournalFilter }
+    if ($BuildChapters.Count -eq 0) {
+        Write-Warning "No chapters defined for journal '$Journal' (dir: $JournalFilter)"
+        exit 0
+    }
+}
+if ($Chapter -ne 0) {
+    $BuildChapters = $BuildChapters | Where-Object { $_.Num -eq $Chapter }
+    if ($null -eq $BuildChapters -or @($BuildChapters).Count -eq 0) {
+        $msg = if ($JournalFilter -ne "") { "Chapter $Chapter not found for journal '$Journal'" } else { "Unknown chapter: $Chapter  (valid: 1-6)" }
+        Write-Error $msg; exit 1
+    }
+}
+
 # ── Build ────────────────────────────────────────────────────────────────────
-if ($Chapter -eq 0) {
-    foreach ($ch in $Chapters) {
-        Build-Chapter -QmdPath $ch.Qmd -Format $ch.Format -PdfName $ch.Pdf -DocxName $ch.Docx -SubDir $ch.SubDir -ChapterNum $ch.Num
-    }
-} else {
-    $target = $Chapters | Where-Object { $_.Num -eq $Chapter }
-    if ($null -eq $target) {
-        Write-Error "Unknown chapter: $Chapter  (valid: 1-6)"
-        exit 1
-    }
-    Build-Chapter -QmdPath $target.Qmd -Format $target.Format -PdfName $target.Pdf -DocxName $target.Docx -SubDir $target.SubDir -ChapterNum $target.Num
+foreach ($ch in @($BuildChapters)) {
+    Build-Chapter -QmdPath $ch.Qmd -Format $ch.Format -PdfName $ch.Pdf -DocxName $ch.Docx -SubDir $ch.SubDir -ChapterNum $ch.Num
 }
 
 if ($IsSubmit) {
-    Write-Host "`n==> Exporting PSP/CPT TIFF figures for final submission ..." -ForegroundColor Cyan
-    $chapArg = if ($Chapter -gt 0) { "--chapter", "$Chapter" } else { @() }
-    python "$Root\templates\export_figures_psp.py" @chapArg
+    Write-Host "`n==> Exporting submission-ready TIFF figures for all journals ..." -ForegroundColor Cyan
+    $chapArg     = if ($Chapter -gt 0)  { "--chapter", "$Chapter" }          else { @() }
+    $journalArg  = if ($Journal -ne "") { "--journal", $Journal.ToLower() }  else { @() }
+    python "$Root\templates\export_figures_psp.py" @chapArg @journalArg
     Write-Host "`nSubmission package ready:" -ForegroundColor Green
     Write-Host "  Drafts  -> $Edits" -ForegroundColor Magenta
     Write-Host "  Package -> $SubmitDir" -ForegroundColor Cyan
