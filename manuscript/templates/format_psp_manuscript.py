@@ -31,6 +31,12 @@ LEGEND_RE = re.compile(r'^\[LEGEND:\]\s*')
 
 # ── Figure filename → number maps (must match export_figures_psp.py order) ─
 
+SUPP_FIGURE_MAP = {
+    2: {"pgx_architecture_analysis.png": 1},
+    4: {"fig_shap_pdp.png": 1, "fig_trajectories.png": 2},
+    5: {},
+}
+
 FIGURE_MAP = {
     2: {
         "pgx_architecture_clinical_ooda_loop.png": 1,
@@ -244,7 +250,12 @@ def format_psp(docx_path: Path, chapter: int) -> None:
             continue
 
         fig_num = resolve_figure_num(m.group(1), ch_map)
-        label = f"Figure {fig_num}" if fig_num else Path(m.group(1)).stem
+        if fig_num:
+            label = f"Figure {fig_num}"
+        else:
+            supp_map = SUPP_FIGURE_MAP.get(chapter, {})
+            supp_num = resolve_figure_num(m.group(1), supp_map)
+            label = f"Figure S{supp_num}" if supp_num else Path(m.group(1)).stem
         replace_runs_text(para_elem, f"[{label} near here]", italic=True)
         replaced += 1
         print(f"  [{label} near here]  ← {Path(m.group(1)).name}")

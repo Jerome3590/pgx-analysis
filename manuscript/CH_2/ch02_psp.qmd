@@ -567,7 +567,4 @@ Information (VHI). Requests for data access may be submitted to VHI at
 https://www.vhi.org. Analysis code is available at
 https://github.com/Jerome3590/pgx-analysis.
 
-<!-- Supplementary Figure S1 submitted as separate file -->
-
-<!-- ![**Figure S1.** Process Mining Analytics Platform — Interactive Insights. Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), sequence alignment (DTW), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team.](../figures/ch02/pgx_architecture_analysis.png){#fig-insights-s1
-width=100% fig-align="center"}
+<!-- Supplementary Figure S1 submitted as separate file (pgx_architecture_analysis.png → Figure_S1.tiff) -->
