@@ -76,9 +76,6 @@ All packages are built and ready. Upload before any other work.
 
 See portal links in `manuscript_status.txt`. Upload DOCX as Manuscript, `supp/` files as Supplementary Material, `figures/` TIFFs as Figure files.
 
-### 2. CloudWatch — next refresh only (after Lambda redeploy)
-When `prepare_models.py` + new Lambda image deployed: re-pull CloudWatch CLI, update `{#tbl-benchmarks-cw}`, refresh `infrastructure_setup/cloudwatch/benchmark_snapshot.json` + `LAST_RUN.txt`.
-_Last snapshot: 2026-03-31T16:46:25Z — post-deploy, CW means unchanged from prior pull._
 
 ---
 
@@ -92,7 +89,9 @@ _Last snapshot: 2026-03-31T16:46:25Z — post-deploy, CW means unchanged from pr
 | `data/shap_top_features.json` | SHAP top-10 per cohort/band/bin | CH_3 |
 | `data/visual_manuscript_data.json` | FP-Growth + DTW + SHAP per cohort/band/bin | reference |
 | `data/pgx_coverage.json` | PGx feature coverage % per cohort/band | CH_5 |
-| `infrastructure_setup/cloudwatch/LAST_RUN.txt` + optional `*.json` / `*.log.txt` | Dated CloudWatch CLI snapshot for CH_5 benchmark table; keep until next redeploy | CH_5 (`{#tbl-benchmarks}`) |
+| `infrastructure_setup/cloudwatch/LAST_RUN.txt` + optional `*.json` / `*.log.txt` | Dated CloudWatch CLI snapshot for CH_5 benchmark table | CH_5 (`{#tbl-benchmarks}`) |
+
+> **CloudWatch maintenance**: Only re-run after a new Lambda image is deployed (`prepare_models.py` + ECR push). Re-pull CLI metrics, update `{#tbl-benchmarks-cw}` if aggregates shift, refresh `benchmark_snapshot.json` + `LAST_RUN.txt`. _Last snapshot: 2026-03-31T16:46:25Z._
 
 ---
 
