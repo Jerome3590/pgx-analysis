@@ -200,7 +200,7 @@ Monolithic single-node processing saturated memory at ~450 GB (1.2 M records/min
 
 Data were decomposed into **Age Band × Year** partitions:
 
-- *Age bands*: 13–24, 25–44, 45–54, 55–64, 65–74, 75–84, 85–94 years
+- *Age bands*: 13–24, 25–44, 45–54, 55–64, 65–74, 75–84, 85–114 years (85–114 combined due to small sample size)
 - *Training years*: 2016, 2017, 2018
 - *Holdout year*: 2019 (strictly withheld during feature selection)
 - *Excluded year*: 2020 (COVID-19 confounding)
@@ -230,7 +230,7 @@ Speedup calculated relative to monolithic baseline. {#tbl-throughput}
 
 Near-linear scaling across worker counts reflects the partition independence
 property: because DuckDB processes each Age Band x Year partition in memory
-without cross-node shuffles, skewed age bands (e.g., geriatric 65-94 cohorts
+without cross-node shuffles, skewed age bands (e.g., geriatric 65–114 cohorts
 with higher diagnosis density) slow only their own worker and do not induce
 straggler delays across the pool.
 
