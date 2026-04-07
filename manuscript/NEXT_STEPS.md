@@ -1,76 +1,85 @@
 # Manuscript Next Steps
 
-_Last updated: 2026-03-31 — `generate_figures.py` + PDF builds for CH_3/4/5 completed; CH_5 build required fixing `\(\approx\)` + bold in `{#tbl-benchmarks-cw}` paragraph (now Unicode ≈)._
+_Last updated: 2026-04-07 — All CH_1–4 submission packages built to `output/submission/`; CH_5 already accepted (CPT #2026-0568); project structure reorganized; CH_4 Table S1 (115 DDI pairs) automated from S3._
 
 ---
 
-## ✅ Completed This Session
+## ✅ Completed 2026-04-07
 
 | Item | File(s) |
 |:-----|:--------|
-| CH_3 ICI range corrected (0.163 → 0.164) | `CH_3/ch03_cts.qmd` lines 427, 513 |
-| CH_3 abstract SHAP: `pgx_num_drugs` rank #1 / 1.22 | `CH_3/ch03_cts.qmd` line 66 |
-| CH_3 Consensus-Causal section SHAP values updated | `CH_3/ch03_cts.qmd` lines 556, 576–586 |
-| CH_3 oxycodone stale mean\|SHAP\| removed | `CH_3/ch03_cts.qmd` line 606 |
-| CH_5 PGx coverage table added (`{#tbl-pgx-coverage}`) | `CH_5/ch05_bmic.qmd` lines 703–728 |
-| METRICS.md model table: post-retrain + Brier/ICI columns | `METRICS.md` |
-| METRICS.md checklist: 7 of 11 items confirmed ✅ | `METRICS.md` |
-| **CH_5 Lambda benchmarks** — Synthetic targets `{#tbl-benchmarks}`; **operational CloudWatch snapshot** `{#tbl-benchmarks-cw}` + `benchmark_snapshot.json` — **verified post-deploy `2026-03-31T16:46:25Z`** (`lambda_timing*.py`; CW stats unchanged vs prior pull). | `CH_5/ch05_bmic.qmd`, `infrastructure_setup/cloudwatch/*` |
-| PROSPERO registration ID in CH_1 | `CH_1/ch01_bmic.qmd` — `CRD420261354089` |
-| Figures + PDFs (`generate_figures.py`; `build.ps1` CH 3/4/5) | `manuscript/output/ch03_cts.pdf`, `ch04_psp.pdf`, `ch05_bmic_jpm.pdf` |
+| Project structure reorganized: `cloudwatch/`, `lambda_local/`, `scripts/` → `infrastructure_setup/`; `edits/` → `output/edits/`; `bmc/` → `docs/bmc/`; JSON files → `data/` | Multiple |
+| `output/final_submission/` + `output/submission/` merged → single `output/submission/` | `build.ps1`, `export_figures_psp.py`, `make_supp_tables.py`, `.gitignore` |
+| Added `-Submit` flag to `build.ps1` (DOCX + TIFFs + supp in one command) | `build.ps1` |
+| Fixed `[switch]$Submit` vs `$SubmitDir` variable collision | `build.ps1` line 46 |
+| Added `templates/export_figures_psp.py` — PNG→TIFF (300 dpi CMYK, journal widths) | `templates/export_figures_psp.py` |
+| Added `templates/make_supp_tables.py` — CH_1 S1–S5, CH_3 supp PNGs, CH_4 Table S1/S2 | `templates/make_supp_tables.py` |
+| CH_4 Table S1 automated: `extract_ffa_table_s1.py` pulls 115 DDI pairs from S3 | `infrastructure_setup/scripts/extract_ffa_table_s1.py`, `data/ffa_synergy_pairs.json` |
+| CH_3 supplementary figures automated (copy PNG → `output/submission/cts/ch03/supp/`) | `templates/make_supp_tables.py` |
+| CH_1 standalone chapter policy enforced (`Chapter N` refs removed) | `CH_1/ch01_cts.qmd` |
+| All CH_1–4 submission packages built and verified | `output/submission/` |
+| CH_5 confirmed accepted — CPT #2026-0568, no revision needed | — |
+| Added `SUBMISSION_BUILD.md`, `docs/` per-journal guides, `manuscript_status.txt` | `docs/`, root |
+| Git commit + push (main → fb284dc → 481cd7f) | GitHub |
 
 ---
 
-## ⏳ Run Now (PowerShell)
+## 🚀 Immediate Action Required
 
-`.venv/` is **gitignored** (not in the repo clone). Create it locally at the project root if needed (see project `.cursorrules`), then activate—or call `.\.venv\Scripts\python.exe` directly so activation is optional.
+### Upload revision packages to journal portals (CH_1–4)
+
+| Chapter | Journal | Portal | Package location |
+|:--------|:--------|:-------|:----------------|
+| CH_1 | CTS (Wiley) | Link in `manuscript_status.txt` | `output/submission/cts/ch01/` |
+| CH_2 | CPT:PSP (Wiley) | Link in `manuscript_status.txt` | `output/submission/cpt_psp/ch02/` |
+| CH_3 | CTS (Wiley) | Link in `manuscript_status.txt` | `output/submission/cts/ch03/` |
+| CH_4 | CPT:PSP (Wiley) | Link in `manuscript_status.txt` | `output/submission/cpt_psp/ch04/` |
+
+Upload: DOCX as **Manuscript**, files in `supp/` as **Supplementary Material**, TIFFs in `figures/` as individual **Figure** files.
+
+---
+
+## ⏳ Build Commands (current)
 
 ```powershell
-# From project root
-cd C:\Projects\pgx-analysis
-& .\.venv\Scripts\Activate.ps1   # omit if you use system Python or .venv\Scripts\python.exe
+cd C:\Projects\pgx-analysis\manuscript
 
-# Step 1 — regenerate figures for CH_3, CH_4, CH_5
-# (UTF-8 avoids UnicodeEncodeError on Windows consoles when the script prints ✓)
-$env:PYTHONIOENCODING = "utf-8"
-python manuscript/infrastructure_setup/scripts/generate_figures/generate_figures.py
+# Full submission package (all chapters) — DOCX + TIFFs + supp → output/submission/
+.\build.ps1 -Submit
 
-# Step 2 — rebuild PDFs (changed chapters only)
-cd manuscript
-.\build.ps1 -Chapter 3
-.\build.ps1 -Chapter 4
-.\build.ps1 -Chapter 5
+# Single chapter
+.\build.ps1 -Submit -Chapter 4
+
+# Advisor review DOCX only → output/edits/
+.\build.ps1 -Docx -Chapter 1
+
+# Journal PDFs only → output/<journal>/
+.\build.ps1
 ```
 
-Output PDFs land in `manuscript/output/`.
-
-_Last run: 2026-03-31 — `ch03_cts.pdf`, `ch04_psp.pdf`, `ch05_bmic_jpm.pdf` rebuilt._
+_Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submission/`._
 
 ---
 
 ## 🔲 Still Pending
 
-### CloudWatch — next refresh only (after Lambda redeploy)
-
-When you run **`prepare_models.py`** and deploy a **new** Lambda image, repeat the CLI CloudWatch pull, update **`{#tbl-benchmarks-cw}`** text/table if aggregates move, update **`infrastructure_setup/cloudwatch/LAST_RUN.txt`** (new ISO time), and refresh **`benchmark_snapshot.json`** (see `infrastructure_setup/cloudwatch/README.md`). **2026-03-31:** Post-deploy pull recorded in `LAST_RUN.txt`; rolling CW/Logs *n* and means matched the prior snapshot—only ECR push time was new.
-
-### After next pipeline run (FP-Growth)
-- **CH_3 FP-Growth top rule** — `opioid_ed/25-44/low` returned 0 rules this run.
-  Medium bin rules are respiratory (benzonatate/azithromycin), not opioid-relevant.
-  High bin target-only rules show baclofen+prednisone+lamotrigine (lift=49) but need
-  clinical narrative review before inserting.
-  _Action_: re-run FP-Growth with lower support threshold OR accept that
-  this band's FP-Growth adds no manuscript-level rule, and rely on the
-  FFA pair (Feature 4: gabapentin ⊕ alprazolam) instead.
-
 ### Author metadata (manual, all chapters)
-- **CRediT author contributions** — MDPI JPM and Wiley both require this field.
-  Add to each chapter's YAML front-matter.
+- **CRediT author contributions** — Wiley requires this field for all journals.
+  Add to end-of-manuscript section in each QMD.
   Template:
   ```
   R.J.D.: Conceptualization, Methodology, Software, Formal Analysis,
   Writing – Original Draft. E.T.P.: Supervision, Writing – Review & Editing.
   ```
+
+### After next pipeline run (FP-Growth)
+- **CH_3 FP-Growth top rule** — `opioid_ed/25-44/low` returned 0 rules.
+  Medium bin rules are respiratory (benzonatate/azithromycin), not opioid-relevant.
+  _Action_: re-run with lower support OR rely on FFA pair (gabapentin ⊕ alprazolam) instead.
+
+### CloudWatch — next refresh only (after Lambda redeploy)
+When `prepare_models.py` + new Lambda image deployed: re-pull CloudWatch CLI, update `{#tbl-benchmarks-cw}`, refresh `infrastructure_setup/cloudwatch/benchmark_snapshot.json` + `LAST_RUN.txt`.
+_Last snapshot: 2026-03-31T16:46:25Z — post-deploy, CW means unchanged from prior pull._
 
 ---
 
