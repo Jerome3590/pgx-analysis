@@ -63,10 +63,25 @@ _Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submi
 
 ## 🔲 Still Pending
 
-### CH_3 FP-Growth — no rules to report
-- `opioid_ed/25-44` returns **0 rules across all 4 density bins** (low/medium/high/extreme).
-- The benzonatate → azithromycin rule noted previously belongs to `non_opioid_ed/13-24`, a different cohort entirely.
-- **Resolution**: FP-Growth contributes nothing for the CH_3 cohort. Rely solely on the FFA synergistic pair (gabapentin ⊕ alprazolam) for the drug co-occurrence narrative. No pipeline re-run needed.
+### CH_3 FP-Growth — rules exist, need clinical review before citing
+
+`opioid_ed/25-44` data in `visual_manuscript_data.json`:
+
+| Bin | Rules | Source |
+|:----|------:|:-------|
+| low | 0 | — |
+| medium | 8 | `drug_name_rules.json` — **all transactions** (not target-specific) |
+| high | 110 | `drug_name_rules_target_only.json` — **ED-positive class only** ✓ |
+| extreme | 110 | same |
+
+**Medium bin** (all-transaction rules): benzonatate → azithromycin, amoxicillin → ibuprofen — respiratory/antibiotic patterns, population-level noise, not ED-outcome-specific.
+
+**High/extreme bin top rule (target-class only, lift=49):**
+- Baclofen → Prednisone + Lamotrigine (and reverse)
+- Omeprazole + Naproxen → Hydrochlorothiazide
+- Cephalexin + Lamotrigine → Oxcarbazepine
+
+_Action_: Baclofen + Prednisone + Lamotrigine (muscle relaxant + steroid + anticonvulsant, lift=49) is clinically plausible for the 25–44 opioid-ED cohort. **Requires clinical narrative review** before inserting into CH_3. If supported, cite the high-bin target-class rule alongside the FFA pair (gabapentin ⊕ alprazolam).
 
 ### CloudWatch — next refresh only (after Lambda redeploy)
 When `prepare_models.py` + new Lambda image deployed: re-pull CloudWatch CLI, update `{#tbl-benchmarks-cw}`, refresh `infrastructure_setup/cloudwatch/benchmark_snapshot.json` + `LAST_RUN.txt`.
