@@ -12,8 +12,8 @@ PSP requirements (CPT: Pharmacometrics & Systems Pharmacology):
   - Supp figs: max 640 × 480 pixels (per journal spec)
 
 Output folders:
-  output/final_submission/cpt_psp/chNN/figures/   ← main manuscript TIFFs
-  output/final_submission/cpt_psp/chNN/supp/      ← supplementary (resized TIFF)
+  output/submission/cpt_psp/chNN/figures/   ← main manuscript TIFFs
+  output/submission/cpt_psp/chNN/supp/      ← supplementary (resized TIFF)
 
 Usage:
     python templates/export_figures_psp.py            # all PSP chapters
@@ -149,14 +149,14 @@ def find_figure(root: Path, ch: int, filename: str) -> Path | None:
     candidates = [
         root / "figures" / f"ch{ch:02d}" / filename,
         root / "figures" / "shared" / filename,
-        root / "output" / "final_submission" / journal / f"ch{ch:02d}" / "supp" / filename,
+        root / "output" / "submission" / journal / f"ch{ch:02d}" / "supp" / filename,
     ]
     return next((p for p in candidates if p.exists()), None)
 
 
 def export_chapter(ch: int, root: Path) -> None:
     journal  = CHAPTER_JOURNAL.get(ch, "cpt_psp")
-    ch_dir   = root / "output" / "final_submission" / journal / f"ch{ch:02d}"
+    ch_dir   = root / "output" / "submission" / journal / f"ch{ch:02d}"
     fig_out  = ch_dir / "figures"
     supp_out = ch_dir / "supp"
 
@@ -174,7 +174,7 @@ def export_chapter(ch: int, root: Path) -> None:
         # Supp PNGs already copied to output/supp folder; also check source
         candidates = [
             root / "figures" / f"ch{ch:02d}" / src_name,
-            root / "output" / "final_submission" / CHAPTER_JOURNAL.get(ch, "cpt_psp") / f"ch{ch:02d}" / "supp" / f"{label}.png",
+            root / "output" / "submission" / CHAPTER_JOURNAL.get(ch, "cpt_psp") / f"ch{ch:02d}" / "supp" / f"{label}.png",
         ]
         src = next((p for p in candidates if p.exists()), None)
         if src is None:
