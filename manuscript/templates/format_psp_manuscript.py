@@ -214,8 +214,10 @@ def move_study_highlights(doc: Document) -> None:
         print("  Introduction heading lost after Study Highlights removal — skipped")
         return
 
-    # 6. Insert Study Highlights block just before Introduction
-    for elem in reversed(sh_elems):
+    # 6. Insert Study Highlights block just before Introduction.
+    #    Forward iteration with addprevious(intro_elem) preserves source order:
+    #    H1 heading lands first, paragraphs follow in document order.
+    for elem in sh_elems:
         intro_elem.addprevious(elem)
     print(f"  Study Highlights ({sh_end - sh_start} paragraphs) moved before Introduction")
 
