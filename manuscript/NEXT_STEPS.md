@@ -63,10 +63,10 @@ _Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submi
 
 ## 🔲 Still Pending
 
-### After next pipeline run (FP-Growth)
-- **CH_3 FP-Growth top rule** — `opioid_ed/25-44/low` returned 0 rules.
-  Medium bin rules are respiratory (benzonatate/azithromycin), not opioid-relevant.
-  _Action_: re-run with lower support OR rely on FFA pair (gabapentin ⊕ alprazolam) instead.
+### CH_3 FP-Growth — no rules to report
+- `opioid_ed/25-44` returns **0 rules across all 4 density bins** (low/medium/high/extreme).
+- The benzonatate → azithromycin rule noted previously belongs to `non_opioid_ed/13-24`, a different cohort entirely.
+- **Resolution**: FP-Growth contributes nothing for the CH_3 cohort. Rely solely on the FFA synergistic pair (gabapentin ⊕ alprazolam) for the drug co-occurrence narrative. No pipeline re-run needed.
 
 ### CloudWatch — next refresh only (after Lambda redeploy)
 When `prepare_models.py` + new Lambda image deployed: re-pull CloudWatch CLI, update `{#tbl-benchmarks-cw}`, refresh `infrastructure_setup/cloudwatch/benchmark_snapshot.json` + `LAST_RUN.txt`.
