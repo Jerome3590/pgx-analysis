@@ -65,11 +65,18 @@ def move_titlepage_to_front(docx_path: Path) -> None:
         print(f"  {docx_path.name}: no Heading 1 end boundary found — skipped")
         return
 
-    # 3. Deep-copy title page elements (up to but not including the first heading)
-    tp_elems = [copy.deepcopy(children[i]) for i in range(tp_start, tp_end)]
+    # 3. Deep-copy title page elements (up to but not including the first heading).
+    #    Skip the "TITLE PAGE" label paragraph itself — it is an internal marker only.
+    tp_elems = [
+        copy.deepcopy(children[i])
+        for i in range(tp_start, tp_end)
+        if get_text(children[i]).strip() != "TITLE PAGE"
+    ]
 
-    # 4. Remove them from their current position (reverse order to keep indices valid)
-    for i in range(tp_end, tp_start - 1, -1):
+    # 4. Remove them from their current position (reverse order to keep indices valid).
+    #    Range is tp_start..tp_end-1 — do NOT remove tp_end, which is the first
+    #    Heading 1 (Introduction) that acts only as the end-boundary marker.
+    for i in range(tp_end - 1, tp_start - 1, -1):
         body.remove(children[i])
 
     # 5. Find insertion point: just before the abstract ("Background:" paragraph).
@@ -89,7 +96,22 @@ def move_titlepage_to_front(docx_path: Path) -> None:
     for elem in reversed(tp_elems):
         insert_before.addprevious(elem)
 
-    # 6. Insert a page break after the last title page element so the abstract
+    # 6. Insert "Abstract" Heading 1 immediately before the abstract paragraph
+    #    (insert_before) so the abstract starts with a proper heading.
+    abstract_h = OxmlElement("w:p")
+    a_pPr     = OxmlElement("w:pPr")
+    a_pStyle  = OxmlElement("w:pStyle")
+    a_pStyle.set(qn("w:val"), "Heading1")
+    a_pPr.append(a_pStyle)
+    abstract_h.append(a_pPr)
+    a_r = OxmlElement("w:r")
+    a_t = OxmlElement("w:t")
+    a_t.text = "Abstract"
+    a_r.append(a_t)
+    abstract_h.append(a_r)
+    insert_before.addprevious(abstract_h)
+
+    # 7. Insert a page break after the last title page element so the abstract
     #    starts on page 2.
     page_break_para = OxmlElement("w:p")
     page_break_run  = OxmlElement("w:r")
@@ -100,7 +122,8 @@ def move_titlepage_to_front(docx_path: Path) -> None:
     tp_elems[-1].addnext(page_break_para)
 
     doc.save(str(docx_path))
-    print(f"  {docx_path.name}: title page block inserted before abstract (page break added)")
+    print(f"  {docx_path.name}: TITLE PAGE label removed; 'Abstract' heading added; "
+          f"Introduction heading preserved; page break inserted")
 
 
 def main():
