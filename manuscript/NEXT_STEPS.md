@@ -63,15 +63,6 @@ _Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submi
 
 ## 🔲 Still Pending
 
-### Author metadata (manual, all chapters)
-- **CRediT author contributions** — Wiley requires this field for all journals.
-  Add to end-of-manuscript section in each QMD.
-  Template:
-  ```
-  R.J.D.: Conceptualization, Methodology, Software, Formal Analysis,
-  Writing – Original Draft. E.T.P.: Supervision, Writing – Review & Editing.
-  ```
-
 ### After next pipeline run (FP-Growth)
 - **CH_3 FP-Growth top rule** — `opioid_ed/25-44/low` returned 0 rules.
   Medium bin rules are respiratory (benzonatate/azithromycin), not opioid-relevant.

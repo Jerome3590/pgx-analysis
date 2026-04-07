@@ -126,7 +126,7 @@ bibliography:
 
 **Corresponding Author:** R. Jerome Dixon · dixonrj\@vcu.edu · ORCID: 0000-0001-8622-0597 · Department of Pharmacotherapy and Outcomes Science, School of Pharmacy, VCU, 410 North 12th Street, Richmond, VA 23298, USA
 
-**Author Contributions:** R.J.D. and E.T.P. wrote the manuscript; R.J.D. and E.T.P. designed the research; R.J.D. performed the research; R.J.D. analyzed the data; R.J.D. contributed new reagents/analytical tools.
+**Author Contributions:** R.J.D.: Conceptualization, Data curation, Formal analysis, Methodology, Software, Validation, Visualization, Writing – original draft. E.T.P.: Conceptualization, Supervision, Writing – review & editing.
 
 **Funding:** This research received no external funding.
 
