@@ -1,6 +1,6 @@
 # Manuscript Next Steps
 
-_Last updated: 2026-04-07 (session 2) — CRediT added CH_1–4; FP-Growth CPIC/VIP validated finding inserted in CH_3 + CH_5; all standalone chapter policy violations resolved; CH_3 + CH_5 rebuilt clean._
+_Last updated: 2026-04-07 (session 2) — CRediT, FP-Growth/CPIC/VIP narrative, standalone policy clean; `-Journal` flag added to build system; CTS figure export (separate TIFF uploads) implemented; all packages rebuilt._
 
 ---
 
@@ -20,22 +20,38 @@ _Last updated: 2026-04-07 (session 2) — CRediT added CH_1–4; FP-Growth CPIC/
 | `@Dunnenberger2015` added to `discipline.bib` (preemptive CPIC testing reference) | `refs/discipline.bib` |
 | Standalone chapter policy: all `Chapter N` intra-series refs removed from CH_1–5; CH_5 lines 415/419 fixed → `(Dixon and Price, manuscripts under review)` | `CH_5/ch05_cpt.qmd` |
 | CH_3 + CH_5 rebuilt with no warnings; packages updated in `output/submission/` | `output/submission/` |
-| All changes committed and pushed (main → 78241a3) | GitHub |
+| **CTS figure export added** — `export_figures_psp.py` extended to CH_1/CH_3; generates TIFF RGB 300 dpi to `output/submission/cts/chNN/figures/` alongside embedded DOCX | `templates/export_figures_psp.py` |
+| **`-Journal` flag** added to `build.ps1` + `export_figures_psp.py` — filter builds/exports by `cts \| psp \| cpt \| bmc`; journal→chapter mapping; validation | `build.ps1`, `templates/export_figures_psp.py` |
+| `docs/README_CTS.md` updated with Figure Format section: dual-upload requirement documented (embedded DOCX + separate TIFF per figure in Manuscript Central) | `docs/README_CTS.md` |
+| All changes committed and pushed (main → 0b97281) | GitHub |
 
 ---
 
 ## 🚀 Immediate Action Required
 
-### Upload revision packages to journal portals (CH_1–4)
+### Step 1 — Final rebuild (generates CTS `figures/` TIFFs for CH_1/CH_3)
 
-| Chapter | Journal | Portal | Package location |
-|:--------|:--------|:-------|:----------------|
-| CH_1 | CTS (Wiley) | Link in `manuscript_status.txt` | `output/submission/cts/ch01/` |
-| CH_2 | CPT:PSP (Wiley) | Link in `manuscript_status.txt` | `output/submission/cpt_psp/ch02/` |
-| CH_3 | CTS (Wiley) | Link in `manuscript_status.txt` | `output/submission/cts/ch03/` |
-| CH_4 | CPT:PSP (Wiley) | Link in `manuscript_status.txt` | `output/submission/cpt_psp/ch04/` |
+```powershell
+.\ build.ps1 -Submit -Journal cts   # CH_1 + CH_3: DOCX (embedded) + figures/*.tiff + supp/
+.\ build.ps1 -Submit -Journal psp   # CH_2 + CH_4: already built; skip if no changes
+```
 
-Upload: DOCX as **Manuscript**, files in `supp/` as **Supplementary Material**, TIFFs in `figures/` as individual **Figure** files.
+Or individually:
+```powershell
+.\build.ps1 -Submit -Chapter 1 -Journal cts
+.\build.ps1 -Submit -Chapter 3 -Journal cts
+```
+
+### Step 2 — Upload to journal portals
+
+| Chapter | Journal | Package | What to upload |
+|:--------|:--------|:--------|:---------------|
+| CH_1 | CTS (Wiley) | `output/submission/cts/ch01/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N; `supp/File_S*` → Supplementary |
+| CH_2 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch02/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N; `supp/` → Supplementary |
+| CH_3 | CTS (Wiley) | `output/submission/cts/ch03/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N; `supp/Figure_S*.png` → Supplementary |
+| CH_4 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch04/` | DOCX → Manuscript; `figures/*.tiff` → Figure 1–N; `supp/Table_S*`, `Figure_S*` → Supplementary |
+
+Portal links: `manuscript_status.txt`
 
 ---
 
@@ -44,16 +60,24 @@ Upload: DOCX as **Manuscript**, files in `supp/` as **Supplementary Material**, 
 ```powershell
 cd C:\Projects\pgx-analysis\manuscript
 
-# Full submission package (all chapters) — DOCX + TIFFs + supp → output/submission/
+# All chapters — DOCX + TIFFs + supp → output/submission/
 .\build.ps1 -Submit
 
+# By journal (cts | psp | cpt | bmc)
+.\build.ps1 -Submit -Journal cts     # CH_1 + CH_3
+.\build.ps1 -Submit -Journal psp     # CH_2 + CH_4
+
 # Single chapter
-.\build.ps1 -Submit -Chapter 4
+.\build.ps1 -Submit -Chapter 3 -Journal cts
+
+# TIFF export only (all journals)
+.\build.ps1 -ExportFigures
+.\build.ps1 -ExportFigures -Journal cts   # CTS only
 
 # Advisor review DOCX only → output/edits/
 .\build.ps1 -Docx -Chapter 1
 
-# Journal PDFs only → output/<journal>/
+# Journal PDFs only
 .\build.ps1
 ```
 
@@ -63,18 +87,9 @@ _Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submi
 
 ## 🔲 Still Pending
 
-### 1. Upload revision packages to journal portals ← BLOCKING
+### Portal upload — follow Steps 1 + 2 above ← BLOCKING
 
-All packages are built and ready. Upload before any other work.
-
-| Chapter | Journal | Package |
-|:--------|:--------|:--------|
-| CH_1 | CTS (Wiley) | `output/submission/cts/ch01/` |
-| CH_2 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch02/` |
-| CH_3 | CTS (Wiley) | `output/submission/cts/ch03/` — **rebuilt today with FP-Growth + CRediT** |
-| CH_4 | CPT:PSP (Wiley) | `output/submission/cpt_psp/ch04/` |
-
-See portal links in `manuscript_status.txt`. Upload DOCX as Manuscript, `supp/` files as Supplementary Material, `figures/` TIFFs as Figure files.
+Run `.\build.ps1 -Submit -Journal cts` first (generates missing CTS `figures/` TIFFs for CH_1/CH_3), then upload all four packages per the table in Step 2.
 
 
 ---
