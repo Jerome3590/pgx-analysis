@@ -81,18 +81,18 @@ _Last full build: 2026-04-07 — all CH_1–5 packages verified in `output/submi
 - Omeprazole + Naproxen → Hydrochlorothiazide
 - Cephalexin + Lamotrigine → Oxcarbazepine
 
-**Clinical review — use CPIC VIP reports (PharmGKB):**
+**Clinical review — CPIC + PharmGKB VIP (dual validation):**
 
-| Drug | PGx relevance | CPIC/VIP link |
-|:-----|:-------------|:--------------|
-| Baclofen | No current CPIC guideline; GABA-B agonist — limited PGx data | [PharmGKB: Baclofen](https://www.pharmgkb.org/chemical/PA448461) |
-| Prednisone | Metabolized by CYP3A4/3A5; corticosteroid response variation | [PharmGKB: Prednisone](https://www.pharmgkb.org/chemical/PA451102) |
-| Lamotrigine | UGT1A4 substrate (glucuronidation); no CPIC guideline yet | [PharmGKB: Lamotrigine](https://www.pharmgkb.org/chemical/PA450218) |
-| Omeprazole | **CPIC Tier A — CYP2C19** (poor/ultrarapid metabolizer impact) | [CPIC: CYP2C19/PPIs](https://cpicpgx.org/guidelines/cpic-guideline-for-proton-pump-inhibitors-and-cyp2c19/) |
-| Naproxen | CYP2C9 substrate; **CPIC Tier A — NSAIDs** | [CPIC: CYP2C9/NSAIDs](https://cpicpgx.org/guidelines/guideline-for-nonsteroidal-anti-inflammatory-drugs-and-cyp2c9/) |
-| Oxcarbazepine | HLA-B\*15:02 — **CPIC Tier A** (Stevens-Johnson risk in Asian populations) | [CPIC: HLA-B/Oxcarbazepine](https://cpicpgx.org/guidelines/cpic-guideline-for-carbamazepine-and-hla-b/) |
+| Drug | CPIC guideline | CPIC tier | PharmGKB VIP gene |
+|:-----|:--------------|:---------:|:------------------|
+| Omeprazole | [CYP2C19 + PPIs](https://cpicpgx.org/guidelines/cpic-guideline-for-proton-pump-inhibitors-and-cyp2c19/) | **A** | [CYP2C19 VIP](https://www.pharmgkb.org/vip/PA166170264) |
+| Naproxen | [CYP2C9 + NSAIDs](https://cpicpgx.org/guidelines/guideline-for-nonsteroidal-anti-inflammatory-drugs-and-cyp2c9/) | **A** | [CYP2C9 VIP](https://www.pharmgkb.org/vip/PA166170263) |
+| Oxcarbazepine | [HLA-B + carbamazepine/related](https://cpicpgx.org/guidelines/cpic-guideline-for-carbamazepine-and-hla-b/) | **A** | [HLA-B VIP](https://www.pharmgkb.org/vip/PA166170267) |
+| Lamotrigine | No CPIC guideline yet | — | [UGT1A4 VIP](https://www.pharmgkb.org/vip/PA166170273) — glucuronidation; clinical significance emerging |
+| Baclofen | No CPIC guideline | — | No VIP summary |
+| Prednisone | No CPIC guideline | — | [CYP3A4 VIP](https://www.pharmgkb.org/vip/PA166170265) — substrate |
 
-_Action_: Omeprazole + Naproxen → Hydrochlorothiazide (lift=49) has the strongest PGx narrative: both antecedents are CPIC Tier A (CYP2C19 + CYP2C9), and their co-occurrence in the ED-positive class suggests pharmacogenomically actionable polypharmacy. Baclofen + Prednisone + Lamotrigine is clinically plausible (CNS/steroid combo) but lacks direct CPIC support. **Review PharmGKB VIP summaries above**, then decide which rule(s) to cite alongside the FFA pair (gabapentin ⊕ alprazolam) in CH_3.
+_Action_: **Omeprazole + Naproxen → Hydrochlorothiazide (lift=49)** has the strongest dual validation: both antecedents are CPIC Tier A with PharmGKB VIP gene summaries (CYP2C19 + CYP2C9). Their co-occurrence in the ED-positive class (25–44, high-density bin) supports a pharmacogenomically actionable polypharmacy narrative in CH_3. Cite alongside the FFA pair (gabapentin ⊕ alprazolam). Confirm VIP links are current before drafting.
 
 ### CloudWatch — next refresh only (after Lambda redeploy)
 When `prepare_models.py` + new Lambda image deployed: re-pull CloudWatch CLI, update `{#tbl-benchmarks-cw}`, refresh `infrastructure_setup/cloudwatch/benchmark_snapshot.json` + `LAST_RUN.txt`.
