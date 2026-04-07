@@ -134,14 +134,14 @@ aws logs filter-log-events \
 | FFA IE scores table (top 5 pairs with 95% CI) | CH_4 | `data/ffa_ie_ci.json` |
 | IR scores (simvastatin/furosemide/alprazolam) | CH_4 | `data/ffa_manuscript_data.json` |
 | DTW archetypes (Rapid-Onset n=5,481/21%; Chronic-Escalation n=21,229/79%) | CH_3 | chapter text |
-| SHAP rank #1 `pgx_num_drugs` (mean\|SHAP\|=1.22); rank #2 `pgx_num_cpic_drugs` (0.63); gabapentin (0.23) | CH_3 | `shap_top_features.json` opioid_ed/25-44/low |
-| PGx coverage data generated (opioid_ed 13–24: 74.2%; 25–44: 81.9%; 45–54: 85.9%; 55–64: 85.8%) | CH_5 | `pgx_coverage.json` |
+| SHAP rank #1 `pgx_num_drugs` (mean\|SHAP\|=1.22); rank #2 `pgx_num_cpic_drugs` (0.63); gabapentin (0.23) | CH_3 | `data/shap_top_features.json` opioid_ed/25-44/low |
+| PGx coverage data generated (opioid_ed 13–24: 74.2%; 25–44: 81.9%; 45–54: 85.9%; 55–64: 85.8%) | CH_5 | `data/pgx_coverage.json` |
 
 ### ⏳ Still Needed
 
 | Placeholder | Chapter(s) | Source file | Notes |
 |:-----------|:-----------|:------------|:------|
-| FP-Growth top rule (support, confidence) | CH_3 | `visual_manuscript_data.json` → opioid_ed/25-44 medium/high bin | low bin has 0 rules |
+| FP-Growth top rule (support, confidence) | CH_3 | `data/visual_manuscript_data.json` → opioid_ed/25-44 medium/high bin | low bin has 0 rules |
 | CH_5 PGx coverage table | CH_5 | `pgx_coverage.json` | Add table to results section |
 | CRediT author contributions | CH_1–CH_5 | Manual — MDPI/Wiley required field | ✍️ |
 | Lambda benchmarks (post-redeploy) | CH_5 | CloudWatch post `prepare_models.py` redeploy | Manual |
@@ -159,10 +159,10 @@ After EC2 Notebooks 3 + 4 complete and local extraction scripts run:
 - [x] **CH_4 tbl-ddi IE scores table** — top 5 pairs with 95% CI from `ffa_ie_ci.json` confirmed
 - [x] **CH_4 IR scores** — simvastatin/furosemide/alprazolam IR values confirmed
 - [x] **CH_3 SHAP values** — `pgx_num_drugs` rank #1 (1.22), `pgx_num_cpic_drugs` rank #2 (0.63), gabapentin rank #3 (0.23); chapter updated
-- [ ] **CH_3 FP-Growth rule** — opioid_ed/25-44/low has 0 rules; check medium/high bins in `visual_manuscript_data.json`
-- [x] **CH_5 PGx coverage table** — `pgx_coverage.json` + table in CH_5 (`{#tbl-pgx-coverage}`)
-- [x] **CH_5 benchmark tables** — Synthetic `{#tbl-benchmarks}` + CloudWatch ops `{#tbl-benchmarks-cw}`; snapshot **`2026-03-31T16:46:25Z`** post-deploy (`manuscript/cloudwatch/benchmark_snapshot.json`, `lambda_timing*_20260331.txt`)
-- [ ] Regenerate all figures: `python manuscript/scripts/generate_figures/generate_figures.py`
+- [ ] **CH_3 FP-Growth rule** — opioid_ed/25-44/low has 0 rules; check medium/high bins in `data/visual_manuscript_data.json`
+- [x] **CH_5 PGx coverage table** — `data/pgx_coverage.json` + table in CH_5 (`{#tbl-pgx-coverage}`)
+- [x] **CH_5 benchmark tables** — Synthetic `{#tbl-benchmarks}` + CloudWatch ops `{#tbl-benchmarks-cw}`; snapshot **`2026-03-31T16:46:25Z`** post-deploy (`manuscript/infrastructure_setup/cloudwatch/benchmark_snapshot.json`, `lambda_timing*_20260331.txt`)
+- [ ] Regenerate all figures: `python manuscript/infrastructure_setup/scripts/generate_figures/generate_figures.py`
 - [ ] Rebuild all PDFs: `cd manuscript; .\build.ps1`
 
 ---

@@ -15,7 +15,7 @@ _Last updated: 2026-03-31 — `generate_figures.py` + PDF builds for CH_3/4/5 co
 | CH_5 PGx coverage table added (`{#tbl-pgx-coverage}`) | `CH_5/ch05_bmic.qmd` lines 703–728 |
 | METRICS.md model table: post-retrain + Brier/ICI columns | `METRICS.md` |
 | METRICS.md checklist: 7 of 11 items confirmed ✅ | `METRICS.md` |
-| **CH_5 Lambda benchmarks** — Synthetic targets `{#tbl-benchmarks}`; **operational CloudWatch snapshot** `{#tbl-benchmarks-cw}` + `benchmark_snapshot.json` — **verified post-deploy `2026-03-31T16:46:25Z`** (`lambda_timing*.py`; CW stats unchanged vs prior pull). | `CH_5/ch05_bmic.qmd`, `cloudwatch/*` |
+| **CH_5 Lambda benchmarks** — Synthetic targets `{#tbl-benchmarks}`; **operational CloudWatch snapshot** `{#tbl-benchmarks-cw}` + `benchmark_snapshot.json` — **verified post-deploy `2026-03-31T16:46:25Z`** (`lambda_timing*.py`; CW stats unchanged vs prior pull). | `CH_5/ch05_bmic.qmd`, `infrastructure_setup/cloudwatch/*` |
 | PROSPERO registration ID in CH_1 | `CH_1/ch01_bmic.qmd` — `CRD420261354089` |
 | Figures + PDFs (`generate_figures.py`; `build.ps1` CH 3/4/5) | `manuscript/output/ch03_cts.pdf`, `ch04_psp.pdf`, `ch05_bmic_jpm.pdf` |
 
@@ -33,7 +33,7 @@ cd C:\Projects\pgx-analysis
 # Step 1 — regenerate figures for CH_3, CH_4, CH_5
 # (UTF-8 avoids UnicodeEncodeError on Windows consoles when the script prints ✓)
 $env:PYTHONIOENCODING = "utf-8"
-python manuscript/scripts/generate_figures/generate_figures.py
+python manuscript/infrastructure_setup/scripts/generate_figures/generate_figures.py
 
 # Step 2 — rebuild PDFs (changed chapters only)
 cd manuscript
@@ -52,7 +52,7 @@ _Last run: 2026-03-31 — `ch03_cts.pdf`, `ch04_psp.pdf`, `ch05_bmic_jpm.pdf` re
 
 ### CloudWatch — next refresh only (after Lambda redeploy)
 
-When you run **`prepare_models.py`** and deploy a **new** Lambda image, repeat the CLI CloudWatch pull, update **`{#tbl-benchmarks-cw}`** text/table if aggregates move, update **`cloudwatch/LAST_RUN.txt`** (new ISO time), and refresh **`benchmark_snapshot.json`** (see `cloudwatch/README.md`). **2026-03-31:** Post-deploy pull recorded in `LAST_RUN.txt`; rolling CW/Logs *n* and means matched the prior snapshot—only ECR push time was new.
+When you run **`prepare_models.py`** and deploy a **new** Lambda image, repeat the CLI CloudWatch pull, update **`{#tbl-benchmarks-cw}`** text/table if aggregates move, update **`infrastructure_setup/cloudwatch/LAST_RUN.txt`** (new ISO time), and refresh **`benchmark_snapshot.json`** (see `infrastructure_setup/cloudwatch/README.md`). **2026-03-31:** Post-deploy pull recorded in `LAST_RUN.txt`; rolling CW/Logs *n* and means matched the prior snapshot—only ECR push time was new.
 
 ### After next pipeline run (FP-Growth)
 - **CH_3 FP-Growth top rule** — `opioid_ed/25-44/low` returned 0 rules this run.
@@ -81,10 +81,10 @@ When you run **`prepare_models.py`** and deploy a **new** Lambda image, repeat t
 | `data/brier_ici_results.json` | Brier + ICI per cohort/band | CH_3, CH_4 |
 | `data/ffa_ie_ci.json` | IE scores + 95% CI (top 5 DDI pairs) | CH_4 |
 | `data/ffa_manuscript_data.json` | FFA rules, IR scores, top drugs | CH_4 |
-| `shap_top_features.json` | SHAP top-10 per cohort/band/bin | CH_3 |
-| `visual_manuscript_data.json` | FP-Growth + DTW + SHAP per cohort/band/bin | reference |
-| `pgx_coverage.json` | PGx feature coverage % per cohort/band | CH_5 |
-| `cloudwatch/LAST_RUN.txt` + optional `*.json` / `*.log.txt` | Dated CloudWatch CLI snapshot for CH_5 benchmark table; keep until next redeploy | CH_5 (`{#tbl-benchmarks}`) |
+| `data/shap_top_features.json` | SHAP top-10 per cohort/band/bin | CH_3 |
+| `data/visual_manuscript_data.json` | FP-Growth + DTW + SHAP per cohort/band/bin | reference |
+| `data/pgx_coverage.json` | PGx feature coverage % per cohort/band | CH_5 |
+| `infrastructure_setup/cloudwatch/LAST_RUN.txt` + optional `*.json` / `*.log.txt` | Dated CloudWatch CLI snapshot for CH_5 benchmark table; keep until next redeploy | CH_5 (`{#tbl-benchmarks}`) |
 
 ---
 

@@ -358,7 +358,7 @@ FP-Growth flags oxycodone+gabapentin+alprazolam triple.
 CPIC lookup infers CYP2D6 Poor Metabolizer --- oxycodone not recommended.
 \textbf{(4) Act:} PGx Patient Card prescribes switch to hydromorphone,
 PT referral, and gabapentin taper; predicted post-intervention
-score~0.68.](../figures/ch06/fig_scenario.pdf){#fig-scenario
+score~0.68.](../figures/ch06/fig_scenario.png){#fig-scenario
 width=100% fig-align="center"}
 
 **SNP data transforms population-level CPIC guidance into patient-specific pathway reasoning.**
@@ -584,14 +584,14 @@ parallel DuckDB processing; Step~3b feature importance and Consensus
 Filter (SHAP $\cap$ FFA) produce causal feature sets; trained ensemble
 models are containerized in AWS Lambda; the PGx Risk Dashboard delivers
 risk scores, causal counterfactuals, and CPIC Patient Cards to
-clinicians via CloudFront CDN.](../figures/shared/pgx_architecture_risk_dashboard.pdf){#fig-pipeline
+clinicians via CloudFront CDN.](../figures/shared/pgx_architecture_risk_dashboard.png){#fig-pipeline
 width=100% fig-align="center"}
 
 ![Consensus Filter: SHAP $\cap$ FFA causal feature selection mechanism
 (Chapter 2). Features must achieve SHAP importance $\geq$ 75th percentile
 (distributional confirmation) AND FFA rule support $\geq$ 0.05
 (structural Boolean confirmation) to be designated
-Consensus-Causal.](../figures/ch02/pgx_architecture_consensus_filter.pdf){#fig-consensus
+Consensus-Causal.](../figures/ch02/pgx_architecture_consensus_filter.png){#fig-consensus
 width=80% fig-align="center"}
 
 Each step was evaluated for both technical performance and clinical validity

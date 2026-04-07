@@ -1,0 +1,1366 @@
+---
+title: >-
+  Building the Clinical OODA Loop: A Partition-First Data Architecture
+  for Model-Based Precision Analytics
+
+author:
+  - name: "R. Jerome Dixon"
+    email: dixonrj@vcu.edu
+    orcid: "0000-0001-8622-0597"
+    corresponding: true
+    affiliations:
+      - id: pts
+        department: >-
+          Department of Pharmacotherapy and Outcomes Science,
+          School of Pharmacy
+        name: Virginia Commonwealth University
+        city: Richmond
+        region: VA
+        country: USA
+      - id: ils
+        department: >-
+          Ph.D. Program in Integrative Life Sciences,
+          School of Life Sciences and Sustainability
+        name: Virginia Commonwealth University
+        city: Richmond
+        region: VA
+        country: USA
+  - name: "Elvin T. Price"
+    orcid: "0000-0001-6046-7540"
+    affiliations:
+      - ref: pts
+      - id: cvl
+        department: ConvergenceLabs@VCUΓÇöHealth Outcomes
+        name: Virginia Commonwealth University
+        city: Richmond
+        region: VA
+        country: USA
+
+abstract: >
+  **Background:** Analysis of terabyte-scale longitudinal all-payer claims
+  data (APCD) for pharmacoepidemiological modeling poses fundamental
+  challenges: computational bottlenecks, target leakage from process-mining
+  features, and the interpretability gap between black-box predictive models
+  and causal clinical insight.
+  **Methods:** We present a production-grade, partition-first data
+  architecture that decomposes APCD processing into independent Age Band ├ù
+  Year partitions processed by parallel DuckDB workers on distributed AWS
+  EC2 infrastructure. A five-stage pipeline (Bronze ΓåÆ Silver ΓåÆ Gold data
+  lake, Monte Carlo cross-validation feature selection, and an ensemble
+  of CatBoost, XGBoost, and XGBoost-RF models, trained within four
+  utilization-density strata defined by training-cohort percentiles of
+  total pre-index events, with ordinal stratum encoding in the feature
+  matrix and no raw continuous event-count predictor, feeds a novel Consensus
+  Filter: a feature is designated causal only when identified by *both*
+  distributional (SHAP) and structural (Formal Feature Attribution, FFA)
+  analysis. FP-Growth, BupaR, and DTW trajectory methods are strictly
+  restricted to exploratory visualization to prevent target leakage.
+  Temporal validation uses 2016ΓÇô2018 training and a 2019 prospective holdout;
+  the pandemic year 2020 is excluded.
+  **Results:** The partition-first architecture achieved a 15├ù throughput
+  improvement over a monolithic processing baseline and demonstrated linear
+  scalability across 32-core, 1 TB RAM workers. Monte Carlo cross-validation
+  (50+ random splits) produced stable feature rankings across cohorts.
+  Consensus-filter features, confirmed by both SHAP and FFA, showed superior
+  calibration and lower variance on the 2019 holdout relative to SHAP-only
+  or FFA-only subsets.
+  **Conclusions:** The partition-first architecture and Consensus Filter
+  constitute a replicable infrastructure for large-scale pharmacoepidemiological
+  modeling. Temporal separation and visualization-only process mining together
+  enforce causal validity without sacrificing predictive performance.
+
+keywords:
+  - "pharmacoepidemiology"
+  - "partition-first architecture"
+  - "explainable AI"
+  - "Consensus Filter"
+  - "SHAP"
+  - "Formal Feature Attribution"
+
+abbreviations-note: >-
+  APCD, All-Payer Claims Database; AUC-PR, area under the
+  precision-recall curve; AUROC, area under the receiver operating
+  characteristic curve; FFA, Formal Feature Attribution;
+  FP-Growth, Frequent Pattern Growth; MCCV, Monte Carlo cross-validation;
+  OUD, opioid use disorder; PGx, pharmacogenomics;
+  SHAP, SHapley Additive exPlanations; XAI, explainable artificial intelligence
+
+format:
+  wiley-njd-pdf:
+    pdf-engine: xelatex
+    cite-method: natbib
+    template: ../templates/cpt_psp_template.tex
+    classoption: [AMA, STIX2COL, oneside]
+    article-type: "Research Article"
+    journal: "CPT: Pharmacometrics & Systems Pharmacology"
+    year: 2026
+    copy-year: 2026
+    volume: "00"
+    issue: "00"
+    pages: "1--20"
+    author-mark: "DIXON"
+    title-mark: "PARTITION-FIRST ARCHITECTURE FOR PHARMACOEPIDEMIOLOGICAL MODELING"
+    number-sections: true
+    toc: false
+    keep-tex: true
+
+csl: ../templates/csl/ama.csl
+bibliography:
+  - ../refs/discipline.bib
+  - ../refs/cpt-psp.bib
+
+engine: knitr
+---
+
+<!-- ============================================================
+     WORD COUNT TARGET: 4,500ΓÇô5,500 words (CPT:PSP Research Article)
+     FIGURES TARGET: Γëñ 6
+     TABLES TARGET: Γëñ 4
+     REFERENCES TARGET: 40ΓÇô60
+     ============================================================ -->
+
+# Introduction {#ch02-intro}
+
+All-Payer Claims Databases (APCD) provide rich longitudinal data for
+pharmacoepidemiological research, capturing multi-year prescription histories,
+diagnosis trajectories, and procedure utilization across insured populations
+[@Ghosh2019; @Cantor2012].
+In the United States, 18 states operate mandatory APCDs covering commercial,
+Medicaid, and Medicare claims in a single integrated repository; Virginia's
+APCD captures approximately 6.9 million unique patients per calendar year
+across all payer types, providing the population-level prescription trajectory
+data required for opioid and polypharmacy risk modeling.
+For opioid risk modeling specifically, APCD data enables identification of
+drug-exposure sequences preceding emergency department (ED) visits, a
+temporal signal unavailable in cross-sectional survey data or single-payer
+registries, and one that is critical for detecting prescription escalation
+patterns in the 12ΓÇô22 months before OUD-related ED visits.
+
+However, the computational and methodological challenges of APCD-scale
+analysis are substantial and have limited the use of advanced ML methods
+on these data sources despite their obvious richness.
+First, raw APCD files routinely exceed 10 TB per state-year, precluding
+single-node processing with standard data science tooling; the Virginia APCD
+contains approximately 1.8 TB of structured claims data for the 2016ΓÇô2019
+analysis period (medical, pharmacy, dental, and eligibility files combined),
+requiring a distributed processing strategy that most published pharmacoepidemiology
+studies do not address.
+Second, the same longitudinal richness that provides signal also creates
+leakage hazards: trajectory-mining methods (FP-Growth, process mining, and
+Dynamic Time Warping) encode future outcome information into predictive features
+if not carefully constrained by strict temporal cutoffs [@Kapoor2023; @Mahmoudi2020].
+A model trained on FP-Growth association rules computed over a window that
+includes the outcome date will learn that the presence of OUD treatment codes
+(buprenorphine, naltrexone) predicts OUD outcomes---a logically inverted
+relationship that produces near-perfect training AUROC but fails completely
+at prospective deployment.
+Third, while ensemble machine learning models now achieve high discrimination
+on held-out test sets, the features driving predictions often lack causal
+interpretability, a critical barrier to clinical adoption [@Rudin2019;
+@Arrieta2020].
+Distributional explainability methods (SHAP) identify which features have
+large prediction effects but cannot distinguish causal drug exposures from
+documentation artifacts; a single confounded feature with high SHAP value
+can drive clinical recommendations toward harm.
+
+No prior work has addressed all three challenges (scalability, leakage
+prevention, and causal explainability) within a single, production-deployed
+pharmacoepidemiological framework applied to state-level APCD data.
+This paper presents the **Partition-First Architecture and Consensus Filter**:
+a replicable, temporally valid, and causally interpretable framework for
+APCD-scale pharmacoepidemiological modeling that directly addresses each
+barrier through architectural design rather than post-hoc correction.
+
+## Study Objectives
+
+1. Describe and benchmark the partition-first architecture against a
+   monolithic single-node baseline, quantifying throughput improvement
+   and fault-tolerance under simulated worker failure.
+2. Present the Consensus Filter (SHAP Γê⌐ FFA) as a principled causal
+   feature selection method and evaluate it against SHAP-only and FFA-only
+   subsets using Brier score on the 2019 prospective holdout as the
+   primary calibration criterion.
+3. Detail leakage-prevention mechanisms, including the visualization-only
+   restriction on FP-Growth, BupaR, and DTW, and demonstrate that these
+   restrictions preserve causal validity without sacrificing exploratory
+   clinical insight.
+4. Report per-partition temporal validation results (AUROC, PR-AUC, Brier
+   score, LogLoss) on the 2019 prospective holdout across all age-band
+   partitions of both cohorts.
+5. Demonstrate that the deployed PGx Risk Dashboard operationalizes the
+   full pipeline, from APCD partition to bedside risk score, within
+   standard AWS Lambda latency and cost constraints.
+
+# Methods {#ch02-methods}
+
+## Analytical Framework
+
+The analytical pipeline is structured as an OODA loop [@Boyd1986]
+(@fig-pgx-ooda-framework), providing an explicit causal map from raw claims
+data through to clinical intervention and back.
+The present chapter implements the **Orient** and **Decide** phases,
+with the **Observe** phase established by the Virginia APCD ingestion
+architecture:
+
+- **Observe (2016ΓÇô2019 APCD):** Raw claims, CPT/ICD codes, and FAERS
+  signals are ingested via the DuckDB Partition-First architecture,
+  partitioned by Age Band ├ù Year.
+- **Orient (this chapter):** FP-Growth, BupaR, and DTW extract
+  patterns from the 2016ΓÇô2018 training partitions. Target leakage
+  prevention (B1 balancing constraint) enforces strict temporal cutoffs
+  at the outcome date before any feature reaches the Decide phase.
+- **Decide (this chapter):** Gradient boosting trains per partition;
+  the Consensus Filter (SHAP Γê⌐ FFA agreement) selects the final
+  causal feature set.
+- **Act:** Clinical risk scores trigger intervention for opioid ED
+  (RQ2) and polypharmacy ED (RQ1) patients.
+- **Feedback: the 2019 holdout IS the OODA feedback loop.**
+  Evaluating on the strictly withheld 2019 partition tests whether
+  one complete OODA cycle (trained on 2016ΓÇô2018) generalises to the
+  next year's observations. Convergence of CV and holdout PR-AUC
+  confirms B1 was correctly enforced; divergence signals either
+  residual temporal leakage or a real shift in R1 loop dynamics
+  between years.
+
+Two structural loops are embedded in this framework:
+
+- **R1 (reinforcing, in Act):** Polypharmacy drug burden and opioid
+  comorbidity form a positive feedback loop, requiring joint modelling
+  of both cohorts with shared feature engineering.
+- **B1 (balancing, in Orient):** Target leakage prevention dampens
+  spurious predictive signal, enabling the OODA cycle to generalise
+  across temporal partitions.
+
+![Clinical OODA loop: operational data flow for the empirical pipeline. Observe phase ingests 2016--2018 APCD claims, Drug/ICD/CPT codes, RQ targets, and FAERS pharmacovigilance data. Orient extracts the target definition and feature importances (Step 3b), then applies parallel pattern mining (BupaR, DTW, FP-Growth) using those importances as allowed codes. Decide applies the final ensemble model (Step 6) with layered explainability (SHAP, FFA, Combined SHAP/FFA). Act delivers risk dashboards and interventions for RQ1/RQ2; feedback closes the OODA loop back to the 2019 test cohort. B1 = balancing constraint enforced by temporal leakage prevention.](../figures/ch02/pgx_architecture_clinical_ooda_loop.png){#fig-pgx-ooda-framework
+width=100% fig-align="center"}
+
+## Data Source
+
+The primary data source is Virginia's All-Payer Claims Database (APCD)
+spanning calendar years 2016ΓÇô2020, comprising approximately 4.2 million
+unique patients, 380 million claim records, and 2.1 billion individual
+service line items.
+The APCD was obtained under a data-use agreement (DUA) with the Virginia
+Center for Health Innovation (VCHI) and Virginia Health Information (VHI).
+Because this research involves de-identified administrative records with
+no direct patient contact, an IRB waiver of authorization was granted
+(VCU Protocol HM20022300).
+
+Raw data files are provided in fixed-width text format, organized by
+claim type (medical, pharmacy, dental, eligibility) and calendar year.
+Total raw file size across 2016ΓÇô2020 was approximately 1.8 TB.
+Data were staged into a Bronze ΓåÆ Silver ΓåÆ Gold data lake on AWS S3 using a
+three-zone architecture (@fig-architecture): the Bronze zone preserves raw
+files verbatim; the Silver zone contains DuckDB-transformed and validated
+records checkpointed per Age Band ├ù Year partition; and the Gold zone
+holds analysis-ready feature tables and trained model artifacts.
+FAERS pharmacovigilance signals (quarterly MedWatch extracts, 2016ΓÇô2019)
+augmented cohort outcome labeling as a secondary corroborating source.
+
+![Preprocessing pipeline: Process Mining Analytics Platform. Medical and pharmacy claims are ingested directly to the Bronze Zone (Amazon S3 Raw). AWS Glue Crawler catalogs the Bronze data; a persistent EC2 Spot Instance running DuckDB executes the 14-step cohort-creation pipeline (Steps 1--14), with intermediate outputs checkpointed to the Silver Zone (S3 Checkpoints) for fault-tolerant recovery. Curated Age Band $\times$ Year partitions are written to the Gold Zone (S3 Curated) and re-cataloged. Amazon CloudWatch, CloudTrail, and the EC2/DuckDB stack form the governance and observability layer.](../figures/ch02/pgx_architecture_pipeline.png){#fig-architecture
+width=100% fig-align="center"}
+
+## Partition-First Architecture {#ch02-partition}
+
+### Motivation
+
+Monolithic processing of full APCD data on a single worker node saturated
+memory at approximately 450 GB and produced throughput of
+${\sim}1.2$ M records/minute.
+A distributed cluster approach (e.g., AWS EMR) introduces a second failure
+mode: **data skew**.
+Claims data are heavily skewed by age band and diagnosis frequency; the
+geriatric bands (65ΓÇô94) generate disproportionately large shuffle volumes
+relative to younger cohorts.
+In an EMR cluster, skewed partitions stall the entire job at each shuffle
+barrier, forcing all workers to wait for the slowest task.
+A single large EC2 instance running DuckDB eliminates shuffle entirely:
+DuckDB operates as an in-process columnar engine that scans each partition
+sequentially in memory, so skewed age bands incur higher wall-clock time
+for that partition only, without blocking any other worker.
+A partition strategy therefore exploits both the natural independence of
+cohort subgroups and DuckDB's immunity to shuffle-induced straggler tasks.
+
+### Partition Scheme
+
+Data were decomposed into **Age Band ├ù Year** partitions:
+
+- *Age bands*: 13ΓÇô24, 25ΓÇô44, 45ΓÇô54, 55ΓÇô64, 65ΓÇô74, 75ΓÇô84, 85ΓÇô94 years
+- *Training years*: 2016, 2017, 2018
+- *Holdout year*: 2019 (strictly withheld during feature selection)
+- *Excluded year*: 2020 (COVID-19 confounding)
+
+Each partition was processed by an independent DuckDB worker [@DuckDB2022]
+allocated to a dedicated AWS EC2 instance (c5.18xlarge; 72 vCPUs, 144 GB RAM).
+S3-based state management enabled checkpoint recovery: if a worker failed,
+processing resumed from the last successfully committed partition.
+
+### Throughput Benchmarking
+
+Throughput was measured as records processed per minute, averaged over three
+complete pipeline runs.
+Baseline (monolithic, single node): 1.2 M records/min.
+Partition-first (32 workers): 18.1 M records/min, a **15.1├ù improvement**
+(@tbl-throughput).
+
+| Configuration | Workers | Records/min | Speedup |
+|:---|---:|---:|---:|
+| Monolithic (baseline) | 1 | 1.2 M | 1.0├ù |
+| Partition-first (8 workers) | 8 | 9.4 M | 7.8├ù |
+| Partition-first (16 workers) | 16 | 14.2 M | 11.8├ù |
+| Partition-first (32 workers) | 32 | 18.1 M | 15.1├ù |
+
+: Throughput benchmarking. Records per minute averaged over three runs.
+Speedup calculated relative to monolithic baseline. {#tbl-throughput}
+
+Near-linear scaling across worker counts reflects the partition independence
+property: because DuckDB processes each Age Band x Year partition in memory
+without cross-node shuffles, skewed age bands (e.g., geriatric 65-94 cohorts
+with higher diagnosis density) slow only their own worker and do not induce
+straggler delays across the pool.
+
+## Cohort Construction {#ch02-cohort}
+
+Cohort fact tables were produced by a modular **cohort-creation** pipeline that
+ingests Gold-tier medical and pharmacy partitions (Age Band $\times$ Event Year),
+builds a unified event fact table, assigns each row an event classification, and
+exports partitioned cohort tables for downstream feature engineering and modeling.
+The following summarizes **case definitions**, **who is excluded**, and **how the
+binary modeling target is assigned**; CONSORT-style counts through
+Bronze/Silver/Gold appear in @fig-attrition.
+
+### Target definitions and binary outcome
+
+Two **mutually exclusive** case definitions are used for **targets** (cases);
+each target is matched to up to **five controls** drawn at random **without
+replacement within** the same Age Band $\times$ Event Year partition (5:1
+structure; if fewer than five controls exist, all eligible controls are retained
+and a warning is logged). The modeling label is the usual binary indicator
+(`target` / `is_target_case` $=1$ for cases, $0$ for controls).
+
+**Opioid ED cohort.** A patient is a **case** if they have at least one
+medical claim with **ICD-10-CM F11.xx** (opioid-related diagnoses) in **any of
+the ten** diagnosis fields carried on the claim (primary through additional
+positions), consistent with the pipelineΓÇÖs SQL that expands F11 predicates
+across all ten columns. **Case status for this cohort is ICD-based;** it does
+not use HCG routing. **Controls** are patients who are not opioid-
+cohort cases in that partition, sampled at random up to five per case (without
+replacement within the cohort). The pipeline allows the **same** patient to
+appear as a control in **both** cohortsΓÇÖ outputs across partitions; within a
+given cohort, controls are not reused. Full longitudinal
+drug history is retained for feature construction subject to the temporal B1
+windowing rules in later steps.
+
+**Polypharmacy (non-opioid ED) cohort.** A patient is a **case** if they meet
+the **non-opioid ED** target definition based on **Milliman Healthcare Cost
+Group (HCG)** lines for ED and urgent-care utilization (production literals
+include **P51** (ED visits, with **P51b** distinguishing true ED from observation),
+**O11**, and **P33**), combined with a **windowed temporal rule** linking
+prescription drug activity to the first qualifying HCG-identified ED or urgent-care
+visit (e.g., **21 days** for most adult age bands; **age-bandΓÇôspecific windows**
+apply in pediatric and geriatric strata). **Opioid exclusion is strict:** any patient with
+an **opioid-related ICD code in any of the ten diagnosis columns** is **removed
+entirely** from this cohortΓÇÖs **target and control** pools, so that opioid-
+defined patients cannot appear as polypharmacy cases or as matched controls.
+This enforces **mutual exclusivity** of case definitions at the patient level
+for targets. Pharmacy-heavy **feature** windows for this cohort use a **balanced
+30-day** lookback relative to the index reference date for targets and controls,
+so that cases and controls are compared under the same temporal window structure.
+
+### Exclusion rules and QA
+
+Beyond the **opioid ICD cross-cohort exclusion** for the polypharmacy cohort,
+Phase~1 medical and pharmacy filters enforce **valid member keys**, **in-calendar
+year** service dates, **imputed age** within the allowed analytic range, and
+non-empty drug or diagnosis fields as required by the SQL views. **Cohort
+exclusivity** is checked in QA: no opioid-flagged patient should appear in the
+polypharmacy (non-opioid ED) cohort outputs; **5:1** ratios are verified per partition, with
+**control-only** partitions (zero targets in a stratum) filled using pre-
+computed average target counts so that every partition has a usable training
+file. These rules are reflected at a high level in the attrition figureΓÇÖs step
+labels; intermediate row counts are maintained from pipeline logs or
+cloud data-lake queries.
+
+### Statistical Controls
+
+*DTW Protocol Filtering*: Dynamic Time Warping [@Berndt1994] similarity
+matrices were computed on 12-month claim-event sequences for all patients.
+Records whose DTW distance to a synthetic "administrative noise" template
+(a uniform-interval scheduling pattern representing bulk data-entry sequences)
+fell below a threshold of 0.05 were flagged as administrative artifacts and
+excluded from analysis.
+The threshold was derived empirically from the 1st percentile of the
+pairwise DTW distance distribution in a random 10,000-patient pilot sample,
+where it cleanly separated clinical sequences (non-uniform event spacing)
+from scheduling artifacts (perfectly uniform monthly intervals).
+
+*Extreme-Density Split*: Patients in the top 5% of claim-transaction density
+(total claims per member per month) were isolated into a separate high-density
+analysis stratum to prevent model bias from extreme utilizers
+(e.g., nursing-home residents, dialysis patients, hospitalized patients with
+daily procedure claims).
+Retaining these patients in the main cohort would distort feature distributions
+for all other patients; the high-density stratum is analyzed separately in the
+per-density-bin model architecture described in Chapter 3.
+
+## Feature Engineering {#ch02-features}
+
+### Bronze-to-Gold Feature Flow
+
+Feature construction proceeded in three sub-steps:
+
+*Step 3a (MCCV screening)*: Monte Carlo cross-validation (MCCV) with 50+
+random train-test splits evaluated each candidate feature by recall and
+AUC-PR.
+Features with median rank in the bottom quartile across all splits were
+discarded.
+
+*Step 3b (PGx enrichment)*: CPIC gene-drug interaction scores [@Crews2021]
+were integrated for drugs with CPIC Level A or B evidence.
+For each patient, two aggregate PGx interaction scores were computed:
+
+- `pgx_num_drugs`: count of all unique drugs with any CPIC annotation,
+  regardless of evidence level, in the 12-month lookback window.
+  This captures the breadth of genetically-relevant medication exposure.
+- `pgx_num_cpic_drugs`: count of drugs with CPIC Level A or B evidence
+  specifically, weighted by interaction severity tier.
+  This captures the clinically actionable pharmacogenomic burden.
+
+These aggregate scores are genotype-agnostic: they measure the patient's
+cumulative exposure to pharmacogenomically sensitive medications without
+requiring knowledge of the patient's individual CYP metabolizer phenotype.
+The `pgx_num_cpic_drugs` score in particular proxies the compound risk
+from multiple co-prescribed drugs competing for the same CYP enzyme pathways,
+a risk pattern that worsens with polypharmacy and cannot be captured by
+any single drug-gene pair interaction.
+
+*Step 3c (Final feature set)*: Target-leakage validation confirmed that no
+feature encoded outcome information by applying the Consensus Filter to
+training-set data only, verifying temporal ordering (all feature windows
+closed strictly before the index ED visit date), and performing a
+sanity-check regression: a model trained on only the top-5 SHAP features
+on training data was evaluated on the 2019 holdout; higher
+holdout than training AUROC would indicate that the features carry
+prospective signal absent from training (consistent with leakage prevention),
+while holdout >> training AUROC would signal reverse-leakage from future data.
+
+### Visualization-Only Process Mining
+
+FP-Growth [@Han2000] (minimum support 0.01, minimum confidence 0.5) and
+BupaR process-mining tools were applied exclusively to training-cohort
+data for exploratory visualization.
+These methods were explicitly **excluded** from the predictive feature set.
+This restriction addresses a common source of target leakage: association
+rules and process maps encode co-occurrence statistics that implicitly
+include the target outcome when constructed without temporal constraints.
+
+The mechanism of FP-Growth leakage is worth clarifying because it is
+non-obvious: FP-Growth discovers high-lift itemsets from the full
+observation window. If the window includes post-outcome pharmacy claims
+(e.g., naltrexone or buprenorphine fills that follow an OUD-ED visit),
+then high-lift rules like
+\{Oxycodone, Buprenorphine\} ΓçÆ OUD will appear in training data.
+A model using these rules as features would learn that
+buprenorphine co-occurrence predicts OUD outcome---factually true
+but causally inverted, since buprenorphine is a *consequence* of the
+diagnosis, not a predictor.
+The visualization-only restriction prevents this inversion entirely:
+the dashboard shows FP-Growth drug co-occurrence networks to clinicians
+for pattern exploration, but the ensemble model is trained exclusively
+on pre-outcome drug and diagnosis counts where temporal ordering is
+strictly enforced.
+
+Within the OODA loop outlined above, FP-Growth is not held to uniform
+rule coverage across every cohort--age--density partition. Fixed support
+and confidence thresholds imply thin or empty rule sets in some strata;
+that reflects stratum sparsity rather than methodological failure. The
+aim is continuous learning: each successive mining and deployment cycle
+can add or refine association structure, rather than treating any single
+snapshot as a complete catalogue.
+
+## Ensemble Modeling {#ch02-models}
+
+### Model Architecture
+
+Three complementary gradient-boosting models were trained per density-bin
+partition (low, medium, high, extreme) within each Age Band ├ù Cohort stratum:
+
+1. **CatBoost** [@Prokhorenkova2018]: handles high-cardinality categorical
+   features (NDC drug codes, ICD-10 diagnosis codes) natively via ordered
+   target statistics, providing resistance to overfitting on the imbalanced
+   case-control design without requiring explicit one-hot encoding.
+2. **XGBoost** [@Chen2016]: gradient-boosted trees with L1 and L2
+   regularization (best ╬▒, ╬╗ from Optuna); serves as the primary source
+   of symbolic Boolean rules for FFA extraction, as its tree structure
+   maps directly to interpretable decision paths.
+3. **XGBoost RF**: random-forest operating mode of XGBoost (subsample and
+   colsample\_bytree < 1.0, no sequential boosting); provides ensemble
+   diversity through bootstrap bagging without the sequential boosting bias
+   that can amplify early-tree errors in noisy claim data.
+
+Hyperparameters for all three models were tuned per partition using Optuna
+[@Akiba2019] with Tree-structured Parzen Estimator (TPE) acquisition and
+50 trials per model-partition combination.
+Key search ranges: CatBoost (iterations 200ΓÇô1,000; depth 4ΓÇô8;
+learning rate 0.01ΓÇô0.3; l2\_leaf\_reg 1ΓÇô10); XGBoost/RF
+(n\_estimators 100ΓÇô800; max\_depth 3ΓÇô7; eta 0.01ΓÇô0.3;
+subsample 0.6ΓÇô1.0; colsample\_bytree 0.6ΓÇô1.0).
+Early stopping (20 rounds without improvement on validation PR-AUC)
+prevented overfitting within each Optuna trial.
+
+### Utilization density: raw event count versus ordinal stratum {#ch02-density-encoding}
+
+**Final implementation (training and deployment).** For each patient, the
+pipeline computes the total number of pre-index utilization events
+`n_events` (row count in the model-events table). Within each cohort
+$\times$ age band, the **training** distribution of `n_events` defines
+percentile cut-points (P25, P50, P95) that map every patient to one of
+four **density strata** (low, medium, high, extreme). The stratum label
+(`n_event_bin`) is used **only for routing**---which per-stratum model
+artifact to train or load---not as a high-cardinality categorical
+predictor.
+
+The **raw** count `n_events` is **not** included in the gradient-boosting
+feature matrix: it would otherwise dominate tree splits and swamp
+leave-one-out drug/diagnosis counterfactuals.
+Instead, density is encoded in a **single ordinal** feature
+`n_event_bin_ordinal` (0--3), aligned with the four strata.
+Thus utilization intensity enters the model as a **coarse ordered
+category** (four levels), not as a continuous event total.
+This matches the production Lambda and `final_model` code paths: submitted
+code counts at inference are mapped through the same thresholds to load
+the correct per-stratum ensemble.
+
+**Related prior work.** Administrative analyses often operationalize
+high utilization with discrete thresholds or count-based criteria
+[@Grafe2020]; multiclass machine learning over fixed visit or length-of-stay
+bands has been used to forecast utilization at ordered intensity levels
+[@Tan2026]. Mixture-of-experts approaches learn subpopulation-specific risk
+structure [@Shou2020], and high-need high-cost patients are not clinically
+homogeneous [@Nuti2019]. Quantile-oriented machine learning similarly shows
+that cost drivers can differ across the cost distribution [@Hu2020]. Here,
+cohort-specific density strata determine which per-stratum ensemble is
+trained or deployed, and an ordinal density signal is supplied without a
+continuous raw event-count predictor.
+
+**Clinical interpretation (comorbidity and high-burden patients).** Total
+pre-index event volume is a strong proxy for **overall utilization** and,
+in practice, for **multimorbidity and clinical complexity**: patients with
+more chronic conditions, complications, or care intensity accumulate more
+claims than otherwise similar patients with fewer active problems.
+The density-stratified design is how the system **handles** such patients:
+it **does not** treat ΓÇ£sickerΓÇ¥ versus ΓÇ£healthierΓÇ¥ individuals as a single
+pool distinguished only by a continuous claim tally (which would absorb
+most of the modelΓÇÖs capacity). Instead, patients are assigned to a
+utilization band, **separate** models are trained within each band, and the
+ordinal stratum feature lets the ensemble express that a patient is in a
+**high- or extreme-utilization** regime while still learning **which** drugs
+and diagnoses drive risk **within** that regime---rather than conflating
+opioid or polypharmacy signal with a generic marker of being ΓÇ£extremely
+sick.ΓÇ¥
+
+### Performance-Based Ensemble Weighting
+
+Ensemble weights were derived from MCCV validation metrics:
+
+$$w_i = \frac{0.5 \cdot \text{PR-AUC}_i + 0.5 \cdot (1 + \text{LogLoss}_i)^{-1}}
+             {\sum_j \left[ 0.5 \cdot \text{PR-AUC}_j + 0.5 \cdot (1 + \text{LogLoss}_j)^{-1} \right]}$$
+
+where $i \in \{\text{CatBoost}, \text{XGBoost}, \text{XGBoost-RF}\}$.
+Final ensemble risk:
+
+$$\hat{p}_{\text{ens}} = \sum_i w_i \cdot \hat{p}_i$$
+
+### Temporal Validation
+
+Models were trained on 2016ΓÇô2018 data and evaluated on the 2019 strict
+temporal holdout.
+No data from 2019 was used in feature selection, hyperparameter tuning, or
+ensemble weight derivation.
+The year 2020 was excluded from all analyses due to COVID-19 pandemic
+confounding of healthcare utilization patterns.
+
+## Analytics Platform and Interactive Insights {#ch02-analytics}
+
+Curated Gold partitions feed persistent EC2 analytics for model training,
+hyperparameter tuning (Optuna), and notebook-based exploration (BupaR, DTW,
+FP-Growth); a parallel CI/CD pipeline packages trained models for deployment.
+@fig-insights summarizes this dual-track architecture.
+
+![Process Mining Analytics Platform --- Interactive Insights. Gold Zone curated partitions feed two parallel tracks: (1) AI/ML Custom Analytics on a persistent EC2 Spot Instance running DuckDB, CatBoost, XGBoost, and Optuna hyperparameter tuning; and (2) a CI/CD pipeline via GitHub Actions that packages trained models into a Lambda container. Data sharing uses Amazon S3 static hosting with CloudFront CDN (replacing AWS QuickSight; cost-driven architecture decision) to serve the PGx Risk Dashboard. Collaboration is achieved through Jupyter Notebooks (Python and R kernels) embedded in the S3-hosted frontend, enabling reproducible process mining (BupaR), sequence alignment (DTW), pattern mining (FP-Growth), and causal analysis (SHAP/FFA) across the full team.](../figures/ch02/pgx_architecture_analysis.png){#fig-insights
+width=100% fig-align="center"}
+
+## The Consensus Filter {#ch02-consensus}
+
+### Rationale
+
+No single analytical method suffices for causal inference in observational
+claims data.
+SHAP quantifies distributional feature importance but conflates causal drug
+exposures with documentation artifacts correlated with healthcare utilization.
+FFA extracts structural Boolean logic from XGBoost trees but can overfit to
+rare drug combinations that lack broad population support.
+The **Consensus Filter** (SHAP $\cap$ FFA) requires independent confirmation
+by both methods, eliminating the characteristic failure modes of each.
+
+![Consensus Filter (**DECIDE**): **Model tournament** $\rightarrow$ **SHAP**
+(importance from the winning ensemble) $\cap$ **FFA** (rules from fixed
+XGBoost). The intersection (checkmark) designates **Causal Features**;
+diagonal hatching emphasizes the SHAP region and the overlap. The note
+below the figure summarizes **robustness** (best-of-three SHAP), **consistency** (FFA on
+fixed XGB), and the **consensus gate** (intersection filters spurious
+correlations).](../figures/ch02/pgx_architecture_consensus_filter.png){#fig-consensus
+width=88% fig-align="center"}
+
+The subsections that follow operationalize distributional SHAP and symbolic FFA;
+@fig-consensus summarizes how the model tournament feeds SHAP while FFA remains
+on a fixed XGBoost representation before the intersection is evaluated empirically.
+
+### SHAP Analysis (Distributional Importance)
+
+Global SHAP values were computed via `TreeExplainer` [@Lundberg2020; @SHAPdocs2023] applied
+to the native binaries of the XGBoost and CatBoost final models for each
+Age Band $\times$ Cohort partition.
+`TreeExplainer` exploits the tree structure directly, computing exact Shapley
+values without sampling approximation.
+Both XGBoost and CatBoost SHAP importances were retained: when CatBoost was
+the best-performing model in a partition, its SHAP values were used for
+distributional filtering; the best XGBoost variant's SHAP values were
+used to prioritize rule sets in the FFA stage (see ┬º\ref{ch02-ffa}).
+
+**Threshold.** A feature was designated **SHAP-positive** if its global
+importance (mean $|\text{SHAP}|$ across the training partition) exceeded the
+75th percentile of all features in that partition.
+
+**Strength.** SHAP measures the marginal contribution of each feature to the
+model's predicted probability, averaged across the distributional support of the
+training data.
+It excels at identifying which features have the largest overall effect on
+predictions and correctly surfaces features the model relies on, even when
+those features are correlated proxies rather than independent causes.
+
+**Limitation: the false-positive confounding problem.** In observational claims
+data, SHAP alone conflates correlation with causation.
+Across partitions, 252 features were SHAP-positive but ultimately non-causal
+under FFA evaluation.
+These false positives were dominated by high-frequency administrative and
+evaluation-and-management codes (CPT 99213ΓÇô99215, office visits, annual exams,
+Z00.00 preventive check).
+SHAP flagged these codes because high-risk patients engage the healthcare
+system more frequently; the codes are strongly correlated with the outcome but
+do not *cause* an opioid or polypharmacy ED event.
+Because SHAP measures model behavior rather than the true data-generating
+process, it has no mechanism for distinguishing a causal drug exposure from a
+utilization proxy that co-occurs with high-risk patients.
+
+### Formal Feature Attribution (FFA) {#ch02-ffa}
+
+FFA transforms the opaque decision trees of the best-performing XGBoost
+variant into explicit symbolic Boolean rules suitable for formal causal
+verification [@Ignatiev2023ffa; @Ignatiev2020].
+In *On Formal Feature Attribution and Its Approximation*, Ignatiev et al. formally define FFA and computable approximations and benchmark them against
+model-agnostic, sampling-based explainers (SHAP, LIME) [@Ignatiev2023ffa].
+Alignment with formal attributions was quantified using Manhattan distance
+between attribution vectors, Kendall's $\tau$ for concordance of feature
+rankings, and rank-biased overlap (RBO) for similarity of ranked lists (including
+depth-sensitive overlap).
+Across 11 standard tabular datasets, SHAP and LIME showed high error and weak
+rank agreement with FFA; on image benchmarks (e.g., MNIST, PneumoniaMNIST),
+even a short approximate FFA run (on the order of tens of seconds) outperformed
+SHAP and LIME on all three metrics [@Ignatiev2023ffa].
+A real-world just-in-time software-defect prediction task showed the same
+pattern---heuristic explainers misaligned with formal attribution.
+The authors argue that random sampling and local surrogate constructions can
+assign negligible weight to features the model structurally depends on, or
+non-zero weight to features that are logically immaterial to the prediction
+under the formal definition [@Ignatiev2023ffa]---motivating structural rule
+extraction in this pipeline rather than SHAP alone.
+
+CatBoost FFA was not performed: CatBoost's Counter-based Target Statistics
+(CTR) transformations for categorical variables make direct symbolic rule
+extraction intractable.
+This design choice functions as a deliberate quality-control gate: a signal
+found by CatBoost but not expressible as XGBoost Boolean logic is likely an
+artifact of CatBoost's specific categorical encoding rather than a robust
+pharmacological relationship.
+
+**Rule extraction.** FFA converts each root-to-leaf path in the XGBoost
+model to a conjunctive clause in propositional logic:
+
+$$\text{IF } (f_1 \geq \theta_1) \wedge (f_2 < \theta_2) \wedge \cdots
+  \text{ THEN } \hat{y} \in \{0, 1\}$$
+
+Rules are extracted via a DataFrame-centric path in the FFA implementation: each tree text dump is parsed
+into a structured representation, exploded to a path DataFrame, and converted
+to CNF clauses with feature names aligned to the training feature matrix.
+This guarantees name alignment across XGBoost versions and avoids dependency
+on the model's internal JSON schema.
+
+**Rule selection (five-set union).** For each patient instance, the set of
+matched rules used to compute an Abductive Explanation (AXP) is the union of
+five complementary rule sets, capped at approximately 300--500 unique rules per
+instance to maintain tractability while preserving coverage:
+
+| Set | Selection criterion | SHAP-dependent |
+|:----|:---|:---:|
+| 1 | First 100 matched rules (order-based coverage) | No |
+| 2 | Random sample of 100 matched rules (diversity, seed = 42) | No |
+| 3 | Top 300 rules by SHAP importance score, or all rules above 10th percentile (whichever is larger) | Yes |
+| 4 | Up to 100 rules with SHAP = 0 (completeness fallback) | No |
+| 5 | Top 100 most frequently matched rules across the dataset | No |
+
+SHAP scores (from Step 7) prioritize model-relevant rules in Set 3 but do not
+exclude rules from Sets 1, 2, 4, or 5.
+This multi-set strategy ensures that low-SHAP rules with high clinical
+frequency (Set 5) are not discarded, matching the implicit frequency weighting
+of the reference FFA implementation [@ffattr2023] while maintaining
+computational tractability at $\mathcal{O}(n \times 500)$ rather than
+$\mathcal{O}(n \times 10{,}000^+)$.
+
+**FFA-positive threshold.** A feature was designated **FFA-positive** if it
+appeared in at least one extracted rule with confidence $\geq 0.70$ and
+training-partition support $\geq 0.05$.
+Confidence measures the fraction of instances where the rule correctly predicts
+the outcome class; support measures the fraction of instances for which all
+conditions in the rule are satisfied.
+
+**Strength.** FFA provides structural decision boundaries that clinicians
+can interpret and verify: each rule is an explicit logical condition that, if
+satisfied, shifts the predicted outcome.
+This supports counterfactual "what-if" simulation---if Drug $A$ is removed
+from a patient's profile, the matched rules that include Drug $A$ are
+re-evaluated and the explanation change is measured.
+
+**Limitation: the rare-exposure problem.** FFA used alone identified 33
+features forming high-confidence Boolean rules ($\text{confidence} \geq 0.70$)
+but with population prevalence below 2%.
+These rules capture genuine but rare pharmacological interactions; they lack
+the broad distributional signal needed to serve as primary predictive drivers
+and are susceptible to overfitting in MCCV resampling.
+
+### Causal Designation and Intervention Rate
+
+A feature was designated **Consensus-Causal** if and only if it was
+simultaneously SHAP-positive and FFA-positive in the same Age Band $\times$
+Cohort partition.
+This dual-confirmation acts as a strict filter:
+
+- **SHAP eliminates FFA's rare-exposure overfitting:** high-confidence rules
+  for low-prevalence combinations ($<2\%$) are suppressed because the
+  corresponding features do not exceed the SHAP 75th-percentile threshold
+  across the full distribution.
+- **FFA eliminates SHAP's confounding artifacts:** high-frequency
+  administrative codes (CPT 99213--99215, annual exams) are filtered because
+  these codes fail to form the direct structural Boolean conditions required to
+  mathematically alter the predicted outcome probability---they appear in
+  explanations only as co-occurring context, not as causal conditions.
+
+The **Model Agreement** property is embedded in this design: features must be
+detectable by CatBoost (SHAP $> 0$) *and* expressible by XGBoost (symbolic
+rule existence).
+Features found by CatBoost but not replicable as XGBoost Boolean logic
+are excluded from causal analysis, as signals too complex or
+architecture-specific to translate into explicit logic are unlikely to support
+safe clinical intervention recommendations.
+
+**Intervention Rate (IR).** For each Consensus-Causal feature $j$,
+the **Intervention Rate** quantifies causal responsibility:
+
+$$\text{IR}(j) = \frac{\left|\left\{i \in S_j :
+  \text{AXP}\!\left(x_i^{(j \to \mathrm{med})}\right) \neq
+  \text{AXP}(x_i)\right\}\right|}{|S_j|}$$
+
+where $x_i^{(j \to \mathrm{med})}$ denotes the counterfactual instance with
+feature $j$ set to its training-partition median, and $S_j$ is the support
+set---the subset of instances for which the counterfactual intervention is
+applicable (i.e., instances where binary feature $j = 1$, or all instances for
+continuous features).
+IR $= 0$ indicates the feature has no effect on any patient's model explanation
+under intervention; IR $= 1$ indicates the feature alters the explanation in
+every applicable instance.
+Threshold IR $> 0.10$ was used as the minimum meaningful causal effect
+in the FFA analysis code path.
+
+IR scores are computed via grouped AXP comparison for computational
+tractability: instances sharing an identical set of matched rules and the same
+predicted class are grouped and evaluated once, reducing computation from
+$\mathcal{O}(n)$ to $\mathcal{O}(g)$ where $g \ll n$ (typically
+$10{,}000$ instances reduce to $100$--$500$ groups with no loss of accuracy,
+since instances in the same group have identical explanations by construction).
+
+**Calibration outcome.** Models trained on Consensus-Causal features
+demonstrated lower Brier score variance on the 2019 temporal holdout relative
+to SHAP-only or FFA-only feature subsets, confirming that the intersection
+criterion filters genuine distributional noise rather than discarding
+predictive signal.
+
+## Deployed Risk Dashboard {#ch02-dashboard}
+
+Ensemble model outputs and Consensus-Causal rules are translated to the
+point of care via a serverless PGx Risk Dashboard (@fig-dashboard).
+The system is stateless and ephemeral: no patient data are stored at any tier.
+
+The dashboard exposes four functional tabs: (1) **Patient Input**, where
+clinicians enter patient demographics and submitted drug/diagnosis codes;
+(2) **Risk Score**, displaying the weighted ensemble risk probability with
+contributions from each of the three models; (3) **Causal What-If**, where
+clinicians can simulate counterfactual drug removal or substitution and
+observe the predicted risk delta based on FFA Intervention Rate rules;
+and (4) **PGx Patient Card**, which accepts optional 23andMe-format
+genotype data and performs a stateless CPIC lookup for 573 gene-drug pairs
+without storing any PII.
+
+At inference time, the Lambda container determines the patient's
+density-bin classification from the count of submitted clinical codes,
+loads the corresponding per-bin models for the patient's age band and
+cohort, and returns a calibrated ensemble probability within the
+sub-100 ms warm-inference latency target.
+Ensemble weights are pre-serialized to a JSON schema alongside each
+per-bin model artifact and loaded at container start rather than at
+request time, ensuring that weight computation overhead does not
+contribute to per-request latency.
+Full deployment details are described in Chapter 5.
+
+![Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across 2 cohorts, 7 age bands, and 4 density bins) are stored in an AWS Lambda container. At inference time, the container selects the appropriate per-bin model, applies Imputation of Normality for sparse inputs, and computes the ensemble risk score. REST endpoints are exposed via API Gateway; CloudFront provides CDN delivery and HTTPS termination to the clinician browser. The CPIC PGx Patient Card path performs a stateless CPIC database lookup and returns a gene--drug interaction summary with zero PII storage. The dashed privacy boundary denotes the ephemeral compute zone: all patient data are processed in-memory and discarded after the response.](../figures/shared/pgx_architecture_risk_dashboard.png){#fig-dashboard
+width=100% fig-align="center"}
+
+## Analytical Methods and Statistical Analysis {#ch02-analytical}
+
+### Study Design
+
+This study uses a **retrospective matched case-control design** embedded
+within a temporal validation framework.
+Cases and controls are identified from the Virginia APCD (2016ΓÇô2019) and
+matched 5:1 on age band and sex using nearest-neighbor matching without
+replacement.
+The 2016ΓÇô2018 calendar years constitute the training window; the 2019
+calendar year constitutes the prospective holdout.
+No data from 2019 was used in cohort construction, feature screening,
+hyperparameter optimization, or ensemble weight derivation.
+
+This temporal separation serves dual purposes: (1) it enforces the
+leakage-prevention constraint that prevents future-year outcome codes from
+contaminating training features; and (2) it provides a prospective
+performance estimate that is directly analogous to real-world deployment,
+where a model trained on historical claims must generalize to a new
+calendar year of patient presentations.
+
+### Monte Carlo Cross-Validation (MCCV) Protocol
+
+MCCV [@Roberts2017] was used for feature screening rather than model
+evaluation, specifically to exploit its higher variance-estimation precision
+relative to k-fold CV on imbalanced cohorts:
+
+1. **Split generation**: 50 random 80/20 train-test splits per cohort
+   partition, stratified by case-control status to maintain outcome
+   prevalence within each split.
+2. **Feature ranking**: In each split, all candidate features were ranked
+   by their contribution to PR-AUC gain over a null (intercept-only)
+   model.
+   Feature importance was assessed via both gain-based ranking (CatBoost)
+   and permutation importance (XGBoost).
+3. **Stability threshold**: Features with median recall rank in the
+   bottom quartile across all 50 splits were dropped.
+   This threshold retains features that are consistently informative
+   across the full range of bootstrap realizations, removing features
+   whose importance is sensitive to a single data split.
+4. **SHAP integration**: After MCCV screening, global SHAP values
+   (TreeExplainer, TreeSHAP) were computed on the training partition to
+   identify distributional importance.
+   SHAP values were **not** computed on the holdout to prevent
+   post-hoc feature selection from the 2019 data.
+
+### Performance Metrics
+
+Model performance on the 2019 holdout was evaluated using four complementary
+metrics:
+
+- **AUROC** (Area Under the Receiver Operating Characteristic Curve):
+  measures discrimination across all classification thresholds,
+  appropriate for both balanced and imbalanced outcomes.
+- **PR-AUC** (Area Under the Precision-Recall Curve): the primary
+  discrimination metric for this study, because it is more sensitive to
+  model performance on the minority class (cases, prevalence 14.8ΓÇô17.4%
+  opioid; 3.5ΓÇô6.8% polypharmacy) than AUROC.
+- **Recall** (Sensitivity at optimal threshold): sensitivity at the
+  threshold that maximizes $F_1$ on the training partition, providing
+  a single-point operating characteristic directly relevant to
+  clinical screening applications.
+- **LogLoss**: supplementary metric reflecting calibrated probability
+  output quality; used in ensemble weight derivation (Section 4.5).
+
+### Calibration Assessment
+
+Two calibration metrics were computed for each partition:
+
+- **Brier Score**: $\frac{1}{N}\sum_{i=1}^{N}(\hat{p}_i - y_i)^2$,
+  where $\hat{p}_i$ is the ensemble-calibrated probability and $y_i$ is
+  the binary outcome; computed via `sklearn.metrics.brier_score_loss`.
+  A score of 0 indicates perfect calibration.
+  Observed range across opioid ED bands: **0.007ΓÇô0.051**;
+  non-opioid ED geriatric bands: **0.007ΓÇô0.008**.
+- **Integrated Calibration Index (ICI)**: mean absolute deviation between
+  observed event rates and mean predicted probabilities across 10 equal-width
+  probability bins. Implementation follows scikit-learn's
+  `calibration_curve` with `n_bins=10` and `strategy="uniform"`: ICI is the
+  mean, over bins, of the absolute difference between each bin's observed
+  positive fraction and its mean predicted probability (same binning as the
+  primary holdout evaluation).
+  ICI $= 0$ indicates perfect calibration.
+  Observed range: opioid ED **0.108ΓÇô0.163**; non-opioid ED geriatric bands
+  **0.071ΓÇô0.290**.
+
+Prior to ensemble weighting, individual model probabilities were
+Platt-scaled (logistic regression on out-of-fold predictions) to
+remove systematic probability inflation from gradient-boosting's
+training-set optimization.
+
+### Statistical Analysis
+
+For the **Z-code protective effect analysis** (Section 4.6, Chapter 4):
+a logistic regression model adjusted for `n_events` (total 30-day claim
+count), age band (as fixed strata), and sex was used to estimate the
+association between Z-code proportion quartile and ADE-related ED visit.
+Odds ratios are reported with 95% Wald confidence intervals; $P$-values
+use two-sided Wald tests.
+Mann-Whitney U tests were used for non-parametric comparisons of Z-code
+proportions between cases and controls.
+
+For **cross-cohort performance comparisons**, Spearman rank correlation
+($\rho$) was used to assess IR score consistency across age bands.
+Bootstrap confidence intervals (1,000 resamples) were computed for all
+performance metrics to quantify uncertainty in holdout estimates.
+All statistical analyses were performed in Python 3.11 (SciPy 1.11;
+statsmodels 0.14).
+
+# Results {#ch02-results}
+
+## Cohort Characteristics
+
+The analytic cohorts were drawn from 6,929,576 unique patients with any
+APCD medical claim in Virginia (2016ΓÇô2019), representing the full
+insured population of the Commonwealth across all payer types
+(commercial, Medicaid, Medicare, self-insured employer plans).
+Operational definitions of **cases** versus **controls** (ICD-10-CM **F11.xx**
+for the opioid ED cohort; **HCG**-based ED/urgent-care targets with **windowed**
+drugΓÇôED linkage for the polypharmacy cohort), and strict cross-cohort opioid ICD
+exclusion, are documented in [Cohort Construction](#ch02-cohort).
+
+The opioid ED cohort comprised N = 26,710 cases and N = 180,640
+matched controls across the four primary age bands (13ΓÇô24, 25ΓÇô44, 45ΓÇô54,
+55ΓÇô64 years).
+Cases were predominantly male (58%) and concentrated in the 25ΓÇô44 working-age
+band (45% of all cases), consistent with established opioid epidemic demographics
+[@Kertesz2017].
+The most common comorbidities among opioid ED cases were chronic pain diagnoses
+(ICD-10 M54.x, G89.x; 73% of cases), anxiety disorders (F41.x; 61%), and
+depressive disorders (F32.xΓÇôF33.x; 54%), all significantly elevated relative to
+matched controls ($P$ < 0.001 by Chi-square).
+Mean pharmacy claim count in the 12-month lookback window was 18.4 per case
+vs. 6.2 per control, reflecting the high prescription burden preceding opioid-related
+ED visits.
+The 3.0:1 case-to-control ratio of mean pharmacy counts demonstrates that
+opioid ED cases are not high-utilization patients in general
+but specifically high-prescription-utilization patients, supporting the
+clinical hypothesis that drug-exposure accumulation is the primary
+mechanism driving the outcome rather than general healthcare-seeking behavior.
+
+A leakage audit confirmed that no OUD treatment medications
+(buprenorphine NDC codes, naltrexone NDC codes, methadone
+substance-use disorder formulations) appeared in the 12-month
+lookback window for any case patient, confirming that the B1 temporal
+constraint successfully excluded post-outcome pharmacy fills
+from the feature engineering window.
+
+The polypharmacy (non-opioid) ED cohort spanned all 8 age bands
+(0ΓÇô114 years; N = 55,248 total cases, 5:1 matched controls),
+with primary causal analysis focused on the three geriatric bands
+(65ΓÇô74, 75ΓÇô84, 85ΓÇô114; N = 1,182 cases, N = 16,105 controls)
+where polypharmacy ADE burden is highest.
+This cohort was female-predominant (64%), reflecting the greater longevity and
+higher healthcare utilization rates of older women in the APCD.
+Mean 30-day drug count in cases was 11.8 (SD 4.2), more than double
+the conventional polypharmacy threshold of 5 concurrent medications and
+consistent with the extreme polypharmacy profile expected in geriatric ED
+populations [@Maher2014].
+Full cohort attrition is depicted in @fig-attrition.
+
+![CONSORT-style cohort attrition diagram. Left column: opioid ED cohort
+construction from raw APCD through Bronze/Silver/Gold layers.
+Right column: Polypharmacy (non-opioid ED). Case definitions, cross-cohort
+opioid exclusions, and binary target labeling are given in [Cohort Construction](#ch02-cohort);
+step counts are sourced from pipeline logs or cloud data-lake queries.
+Exclusion counts are shown between stages.](../figures/ch02/fig_attrition.png){#fig-attrition
+width=90% fig-align="center"}
+
+## Architecture Performance
+
+As shown in @tbl-throughput, the 32-worker partition-first configuration
+achieved 15.1├ù throughput improvement over the monolithic single-node baseline
+(18.1 M vs. 1.2 M records per minute).
+Scaling efficiency was 97% from 1 to 8 workers, declining modestly to 74% from
+16 to 32 workers; the efficiency loss at higher worker counts is attributable to
+S3 checkpoint I/O latency (~45ΓÇô60 ms per committed partition), which becomes
+proportionally larger relative to per-partition processing time at small partition
+sizes.
+Critically, the architecture exhibited no straggler amplification: the three
+geriatric age bands (65ΓÇô74, 75ΓÇô84, 85ΓÇô114), which contain 2.3├ù more diagnosis
+codes per patient than the youngest band, incurred proportionally longer processing
+only within their own worker threads, without imposing synchronization delays on
+other partitions.
+
+Zero partition failures occurred across three complete end-to-end pipeline runs
+(total: 63 partition-worker invocations per run).
+Checkpoint recovery was validated by simulating mid-run worker termination at
+three representative failure points (Bronze ingestion, Silver transformation, and
+Gold feature aggregation); in all cases, processing resumed from the last
+committed checkpoint within 60 seconds, with no downstream data corruption.
+This fault-tolerance property is essential for long-running APCD pipelines where
+EC2 Spot Instance interruptions are an operational reality at sustained low cost.
+
+## Feature Selection
+
+MCCV screening (50 random 80/20 train-test splits, stratified by outcome)
+retained 498 features for the opioid cohort and 89 features for the
+polypharmacy cohort after removing features whose median recall rank fell in
+the bottom quartile across all splits.
+The 5.6-fold difference in retained feature counts between cohorts reflects
+both the broader drug-exposure range of younger opioid patients
+and the focused pharmacological profile of the geriatric cohort.
+
+The 498 retained opioid cohort features spanned:
+
+- **Drug count features** (12 classes): opioids (oxycodone, hydrocodone,
+  tramadol, codeine, morphine, fentanyl); gabapentinoids (gabapentin,
+  pregabalin); benzodiazepines (alprazolam, lorazepam, diazepam, clonazepam);
+  stimulants; antidepressants (SSRIs, SNRIs, TCAs); antipsychotics;
+  muscle relaxants; NSAIDs; proton pump inhibitors; and sleep aids (zolpidem)
+- **ICD-10 chapter features** (8 chapters): Chapter V Mental and behavioral
+  disorders (F-codes; F11 opioid disorders, F41 anxiety, F32-33 depression);
+  Chapter XIII Musculoskeletal (M-codes; M54.5 low back pain, M79.3 panniculitis);
+  Chapter XI Digestive; Chapter VI Nervous system (G89 chronic pain, G40 epilepsy);
+  Chapter Z Status/history codes (Z79.891 long-term opioid, Z87.891 hx opioid
+  dependence); Chapter XVIII Symptoms; Chapter XIX Injury/poisoning;
+  Chapter XXI Factors influencing health (Z-encounter codes)
+- **CPT procedure features** (6 categories): physical therapy and rehabilitation
+  (97110, 97530, 97035); pain management procedures (64483 nerve block,
+  62323 epidural injection); mental health services (90837, 90834);
+  primary care E/M visits (99213-99215); specialist consultations
+  (99243-99245); substance use disorder treatment (H0020, H2035)
+
+The 89 retained polypharmacy cohort features were concentrated in:
+cardiovascular agents (simvastatin, atorvastatin, metoprolol, carvedilol,
+lisinopril, furosemide, amlodipine, diltiazem, amiodarone, digoxin);
+diuretics and electrolyte agents (furosemide, hydrochlorothiazide,
+spironolactone); psychotropic and CNS agents (alprazolam, lorazepam,
+gabapentin, quetiapine); and antibiotics (levofloxacin, azithromycin).
+ICD-10 features included I50.9 (heart failure), E78.5 (hyperlipidemia),
+N18.3-N18.5 (CKD stage 3-5), E11.xx (type 2 diabetes), E87.6 (hypokalemia),
+and N17.9 (acute kidney injury).
+
+Dropped features were dominated by rare administrative procedure codes
+(CPT 99xxx facility management codes; n = 142) and single-digit prevalence
+binary drug indicators (< 0.5% of patients with the code; n = 87) that
+provided insufficient signal for stable MCCV ranking.
+
+PGx enrichment added 2 aggregate gene-drug interaction scores
+(`pgx_num_drugs` and `pgx_num_cpic_drugs`) derived from CPIC Level A and B
+evidence across CYP2D6 (opioids, antidepressants, antipsychotics, beta-blockers),
+CYP2C9 (NSAIDs, warfarin), CYP2C19 (SSRIs, PPIs, clopidogrel),
+CYP3A4 (statins, benzodiazepines, opioids), and OPRM1 (opioid sensitivity)
+pharmacomic pathways [@Crews2021].
+Of the 498 opioid cohort features, 61 individual drug features had at least
+one CPIC-annotated interaction (12% of the final feature set);
+for the polypharmacy cohort, 34 of 89 features (38%) overlapped with
+CPIC-annotated drugs, reflecting the higher CYP interaction density
+of geriatric cardiovascular and CNS polypharmacy.
+
+## Consensus Filter Results {#ch02-consensus-results}
+
+Across all age-band partitions, the Consensus Filter designated
+49% of MCCV-screened features as Consensus-Causal (confirmed by both SHAP
+importance ranking and FFA symbolic rule extraction).
+
+SHAP-only features not confirmed by FFA (n = 252, 42% of screened features)
+were dominated by high-frequency administrative codes whose population-level
+correlation with opioid ED outcomes reflects documentation practices rather
+than causal drug exposure: for example, facility evaluation-and-management
+codes (CPT 99213ΓÇô99215) appeared in the top SHAP quartile for the 25ΓÇô44 band
+but were absent from any FFA rule with confidence ΓëÑ 0.70.
+Retaining these features inflated apparent SHAP importance without providing
+clinically actionable signal.
+
+FFA-only features not confirmed by SHAP (n = 33, 6% of screened features)
+consisted primarily of low-prevalence drug combinations (< 2% of patients)
+whose Boolean interaction rules achieved high confidence in training subsets
+but lacked sufficient distributional representation to register in global
+SHAP rankings; these represent potentially important rare-exposure interactions
+and are flagged for targeted investigation in future work.
+
+**Consensus-Causal** features are those in the **intersection** of
+distributional importance (SHAP) and symbolic rule support (FFA)ΓÇöi.e.,
+SHAP $\cap$ FFAΓÇöas formalized in **@fig-consensus**.
+The **model tournament** (CatBoost, XGBoost, XGBoost RF) selects the
+**best** ensemble for computing SHAP-based importance, mitigating
+architecture-specific bias; **FFA** remains tied to a **fixed** XGBoost
+representation so Boolean rule frequencies stay comparable across temporal
+holdouts.
+
+Consensus-Causal features showed lower Brier score variance
+across 2019 holdout partitions than SHAP-only or FFA-only subsets.
+Median Brier score for Consensus models (0.008ΓÇô0.051 across partitions) was
+consistently below SHAP-only models (0.014ΓÇô0.068) and FFA-only models
+(0.011ΓÇô0.074), confirming that dual confirmation reduces false-positive causal
+assignments and improves calibration stability under temporal distribution shift.
+
+## Temporal Validation Summary
+
+Across all 15 age-bandΓÇôcohort partitions, the 2019 temporal holdout
+yielded PR-AUC ranging from 0.840 (opioid ED, 13ΓÇô24) to 0.997
+(non-opioid ED, 75ΓÇô84), with a weighted mean of 0.954 (@tbl-validation).
+Two distinct performance trajectories emerge, driven by
+different pharmacoepidemiological mechanisms:
+
+**Opioid ED cohort: inverted-U with age.**
+PR-AUC increases from 0.840 (13ΓÇô24) through 0.935 (25ΓÇô44), 0.955
+(45ΓÇô54), 0.974 (55ΓÇô64), and peaks at 0.979 (65ΓÇô74), then declines to
+0.968 (75ΓÇô84) and 0.901 (85ΓÇô114).
+The ascending phase (13ΓÇô64) reflects accumulating chronic prescription
+signal: older opioid ED cases carry richer 12-month lookback histories with
+clear escalation patterns.
+The descending phase (65ΓÇô114) reflects both smaller case counts in older
+bands (N = 153,082 at 75ΓÇô84 vs. 569,096 at 25ΓÇô44) and the increasing
+atypicality of opioid trajectories in the oldest-old, where post-surgical
+or palliative opioid use creates heterogeneous lookback patterns.
+Recall peaks at 0.874 (55ΓÇô64) and drops sharply to 0.552 (85ΓÇô114),
+confirming that standard chronic-escalation trajectory models cannot
+fully capture the atypical short-duration opioid use patterns of
+extremely elderly patients.
+
+**Non-opioid ED cohort: monotonically increasing with age.**
+PR-AUC rises from 0.908 (13ΓÇô24) through 0.911 (25ΓÇô44), 0.933 (45ΓÇô54),
+0.950 (55ΓÇô64), 0.984 (65ΓÇô74), 0.997 (75ΓÇô84), and 0.992 (85ΓÇô114).
+The 0ΓÇô12 band shows unexpectedly strong performance (0.927) driven by
+the highly discriminable drug-combination signatures of pediatric
+complex chronic conditions.
+The monotonic improvement with age across adult bands (13ΓÇô114) reflects
+the mechanistic basis of polypharmacy ADE events: they accumulate
+predictably with multimorbidity burden and insured prescription coverage,
+both of which increase with age and produce increasingly distinctive
+claims signatures relative to age-matched controls.
+
+**Cross-cohort comparison:**
+For overlapping age ranges (13ΓÇô64), opioid ED models produce *lower*
+PR-AUC (0.840ΓÇô0.974) than non-opioid ED models at the same ages
+(0.908ΓÇô0.950).
+This is not a model quality difference but a pharmacoepidemiological one:
+opioid ED events are confounded by illicit drug use, cash-pay fills,
+and treatment-seeking patterns that are invisible in claims data,
+while non-opioid ADE events arise exclusively from documented,
+insured polypharmacy fills that leave complete claims trails.
+Brier scores were uniformly low (0.007ΓÇô0.051 across all 15 partitions),
+confirming well-calibrated probability outputs across both cohorts and
+all age bands.
+
+No significant divergence was observed between cross-validation PR-AUC
+(estimated on 2016ΓÇô2018 training partitions) and 2019 holdout PR-AUC
+(mean absolute gap: 0.013 ┬▒ 0.009), confirming that the B1 temporal leakage
+prevention constraint was correctly enforced and that no 2019 information
+entered the feature selection or training pipeline.
+This near-zero CVΓÇôholdout gap is a critical diagnostic: studies in which
+leakage was present would typically show 5ΓÇô20 point PR-AUC inflation
+between CV estimates and prospective holdout evaluation, as documented
+by Kapoor and Narayanan [@Kapoor2023] across 294 reviewed ML studies.
+The convergence of CV and holdout metrics here provides direct evidence
+that temporal leakage prevention was achieved.
+Full per-partition results (AUROC, PR-AUC, Brier score, LogLoss) are
+reported in @tbl-validation.
+
+| Cohort | Age Band | Model | AUROC | PR-AUC | Recall |
+|:---|:---|:---|---:|---:|---:|
+| Opioid ED | 13ΓÇô24 | XGBoost | 0.957 | 0.840 | 0.648 |
+| Opioid ED | 25ΓÇô44 | XGBoost | 0.979 | 0.935 | 0.799 |
+| Opioid ED | 45ΓÇô54 | Ensemble | 0.987 | 0.955 | 0.816 |
+| Opioid ED | 55ΓÇô64 | Ensemble | 0.991 | 0.974 | 0.874 |
+| Opioid ED | 65ΓÇô74 | Ensemble | 0.992 | 0.979 | 0.867 |
+| Opioid ED | 75ΓÇô84 | Ensemble | 0.990 | 0.968 | 0.810 |
+| Opioid ED | 85ΓÇô114 | Ensemble | 0.967 | 0.901 | 0.552 |
+| Non-Opioid ED | 0ΓÇô12 | Ensemble | 0.973 | 0.927 | 0.983 |
+| Non-Opioid ED | 13ΓÇô24 | Ensemble | 0.977 | 0.908 | 0.935 |
+| Non-Opioid ED | 25ΓÇô44 | CatBoost | 0.979 | 0.911 | 0.933 |
+| Non-Opioid ED | 45ΓÇô54 | CatBoost | 0.984 | 0.933 | 0.919 |
+| Non-Opioid ED | 55ΓÇô64 | CatBoost | 0.988 | 0.950 | 0.937 |
+| Non-Opioid ED | 65ΓÇô74 | CatBoost | 0.996 | 0.984 | 0.977 |
+| Non-Opioid ED | 75ΓÇô84 | Ensemble | 0.999 | 0.997 | 0.973 |
+| Non-Opioid ED | 85ΓÇô114 | Ensemble | 0.997 | 0.992 | 0.971 |
+
+: 2019 temporal holdout performance across all cohorts and age bands
+(25-run MCCV + Optuna per density bin).
+Opioid ED 0ΓÇô12 excluded (NΓÇë=ΓÇë893; insufficient for stable Optuna training).
+Brier score and ICI available for primary study bands: opioid ED 13ΓÇô64
+(Brier 0.007ΓÇô0.051; ICI 0.108ΓÇô0.163) and non-opioid ED 65ΓÇô114
+(Brier 0.007ΓÇô0.008; ICI 0.071ΓÇô0.290).
+AUROC, area under the receiver operating characteristic curve;
+PR-AUC, area under the precision-recall curve;
+Recall, sensitivity at optimal classification threshold.
+Source: 2019 holdout evaluation exports. {#tbl-validation}
+
+# Discussion {#ch02-discussion}
+
+The partition-first architecture resolves the scalability barrier in
+APCD-based pharmacoepidemiology by distributing independent cohort strata
+across parallel workers.
+The 15├ù throughput improvement confirms near-linear scaling and makes
+terabyte-scale claims modeling feasible on standard cloud infrastructure
+without requiring the specialized distributed systems engineering expertise
+that Apache Spark [@Zaharia2016] or AWS EMR deployments demand.
+Unlike Spark, which distributes computation across nodes via shuffle
+operations and is vulnerable to straggler tasks when data are skewed,
+the DuckDB partition-first approach eliminates cross-node communication
+entirely: each partition is self-contained, and skewed age bands affect
+only their local worker's wall-clock time.
+This architectural simplicity also reduces total cost of ownership:
+a persistent EC2 c5.18xlarge instance running DuckDB eliminates the
+cluster provisioning overhead, idle capacity charges, and shuffle
+bandwidth costs associated with managed distributed systems.
+
+The choice of DuckDB as the computational engine deserves methodological
+justification beyond cost considerations.
+DuckDB's columnar vectorized query execution is specifically optimized
+for analytical (OLAP) workloads---sequential column scans, aggregations,
+and joins across large fact tables---which precisely describes the APCD
+feature engineering task: scanning 1.8 TB of claims to compute 12-month
+drug counts, diagnosis proportions, and procedure sequences for each patient.
+Pandas-based alternatives, despite their ubiquity in health data science,
+are row-oriented and cannot fully utilize SIMD CPU instructions for
+claims aggregation; a benchmark comparison found DuckDB SQL aggregations
+7ΓÇô17├ù faster than equivalent Pandas groupby operations on the Bronze-layer
+APCD files.
+For teams without access to AWS EMR or Databricks, this makes DuckDB the
+highest-performance available option for single-machine claims processing.
+
+The Consensus Filter operationalizes a dual-confirmation principle from
+causal inference: a feature provides stronger evidence for causal
+designation when independently confirmed by two analytically distinct
+methods than when identified by either alone [@Pearl2009].
+SHAP provides distributional (model-agnostic) importance across the
+population; FFA provides structural (rule-based) importance within
+specific decision paths.
+Their intersection removes two distinct categories of false-positive causal
+assignments: documentation artifacts (high-frequency but non-causal
+administrative codes) from the SHAP side, and rare-exposure overfitting
+(low-prevalence drug interactions with insufficient global signal) from
+the FFA side.
+
+The 252 SHAP-positive features that failed FFA confirmation deserve
+specific analysis: these were dominated by evaluation-and-management
+CPT codes (99213ΓÇô99215) that are highly correlated with the opioid ED
+outcome because high-risk opioid patients have more outpatient visits
+before their ED event, but the outpatient visits themselves are not causal
+in the pharmacological sense.
+A model trained on these codes would learn that "this patient has had many
+office visits in the past year" predicts opioid ED risk, which is true
+associationally but provides no actionable intervention target.
+The FFA filter removes these associations by requiring that the feature
+appear in a Boolean rule condition that directly modifies the predicted
+outcome probability: a structural requirement that CPT visit codes, which
+are frequency markers rather than drug-exposure markers, cannot satisfy.
+
+The resulting Brier score reduction (median improvement: 0.008ΓÇô0.013 vs.
+SHAP-only) is practically meaningful: in clinical risk models, calibration
+stability across temporal cohorts determines whether risk bands translate
+consistently from training year to deployment year.
+
+Restricting FP-Growth, BupaR, and DTW to visualization prevents a documented
+leakage hazard: association rules built without temporal constraints encode
+target-outcome co-occurrence into predictor features, inflating AUC-PR by
+up to 15ΓÇô20 percentage points [@Kapoor2023].
+In this cohort, applying FP-Growth rules directly as features would have
+implicitly encoded the opioid ED outcome through high-lift rules
+(e.g., oxycodone + chronic pain diagnosis co-occurrence), which are
+themselves defined by proximity to the outcome event.
+Exploratory dashboards preserve the clinical interpretive value of these
+association patterns while maintaining the causal validity of the
+predictive model.
+
+## Limitations
+
+Several limitations warrant consideration.
+First, this analysis relies on a single-state APCD (Virginia, 2016ΓÇô2019),
+which may limit generalizability to states with different formulary
+policies, prescribing regulations, Medicaid expansion status, or
+demographic composition.
+External validation on a second-state APCD or a national claims dataset
+(e.g., IBM MarketScan, Medicare 100% sample) is required before
+national policy inference is warranted.
+
+Second, cash-pay opioid prescriptions and illicit drug use are entirely
+absent from insurance claims records.
+This underdetection is most pronounced in the 13ΓÇô24 age band, where
+cash-pay prescriptions and non-prescribed opioid use are disproportionately
+common, and may partially explain the lower PR-AUC in that band.
+
+Third, the partition-first architecture requires upfront infrastructure
+investment (EC2 provisioning, S3 data lake organization, DuckDB-compatible
+data formats) that is not available to all research groups.
+However, all pipeline components are open-source, and the S3 + EC2
+infrastructure costs are lower than equivalent distributed
+cluster solutions at this data scale.
+
+Fourth, Optuna hyperparameter optimization was run with fixed random seeds
+per partition but is not globally reproducible across hardware environments
+due to floating-point non-determinism in XGBoost's GPU-accelerated
+operations.
+Ensemble weights may therefore vary slightly across re-runs; the
+observed PR-AUC variability (┬▒ 0.009 across three complete pipeline runs)
+confirms this is negligible in practice.
+
+# Conclusions {#ch02-conclusions}
+
+The partition-first architecture and Consensus Filter together deliver a
+replicable, causally valid framework for large-scale pharmacoepidemiological
+modeling on state APCD data.
+The 15├ù throughput improvement makes iterative APCD analysis feasible on
+standard cloud infrastructure, lowering the technical barrier for research
+groups without access to specialized distributed computing platforms.
+Dual-confirmation feature selection (SHAP Γê⌐ FFA) produces superior holdout
+calibration relative to single-method alternatives, removes documented
+leakage hazards from trajectory-mining features, and yields a feature set
+that is interpretable by pharmacists and clinicians without requiring
+machine learning expertise.
+
+Three properties of this framework have direct translational implications.
+First, its computational reproducibility---enforced by deterministic
+DuckDB partitioning and fixed checkpoint logic---enables exact replication
+by independent research groups, a property absent from most published
+pharmacoepidemiology pipelines.
+Second, its modular cohort structure means that any population-level APCD
+analysis (new outcome definition, new geographic scope, new temporal window)
+can be accommodated by updating the cohort construction step without
+modifying the feature engineering or model training infrastructure.
+Third, the temporal leakage prevention is architectural rather than
+procedural: the B1 constraint is built into the partition definition
+rather than relying on researcher discipline to avoid post-outcome codes,
+making it robust to the inadvertent errors documented in the reproducibility
+literature [@Kapoor2023].
+
+This architecture underpins the opioid and polypharmacy prediction studies
+in Chapters 3 and 4, and the deployed PGx Risk Dashboard in Chapter 5,
+demonstrating that the same computational foundation can scale from
+population-level modeling to sub-100 ms point-of-care inference within
+a unified open-source pipeline.
+
+**Author Contributions:** Conceptualization, R.J.D.; methodology, R.J.D.;
+software, R.J.D.; formal analysis, R.J.D.; writing, R.J.D.
+
+**Funding:** This research received no external funding.
+
+**Conflicts of Interest:** The author declares no conflict of interest.
+
+**Data Availability:** The data supporting the findings of this study are
+derived from Virginia's All-Payer Claims Database (APCD). Restrictions apply
+to the availability of these data, which were used under a data use agreement
+with the Virginia Center for Health Innovation (VCHI) and Virginia Health
+Information (VHI). Requests for data access may be submitted to VHI at
+https://www.vhi.org. Analysis code is available at
+https://github.com/Jerome3590/pgx-analysis.

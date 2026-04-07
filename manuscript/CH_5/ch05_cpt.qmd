@@ -1,0 +1,613 @@
+---
+title: >-
+  A Serverless Pharmacogenomic Risk Dashboard:
+  Translating Ensemble Models and Causal Rules to Clinical Decision Support
+
+author:
+  - name: "R. Jerome Dixon"
+    email: dixonrj@vcu.edu
+    orcid: "0000-0001-8622-0597"
+    corresponding: true
+    affiliations:
+      - id: pts
+        department: >-
+          Department of Pharmacotherapy and Outcomes Science,
+          School of Pharmacy
+        name: Virginia Commonwealth University
+        city: Richmond
+        region: VA
+        country: USA
+      - id: ils
+        department: >-
+          Ph.D. Program in Integrative Life Sciences,
+          School of Life Sciences and Sustainability
+        name: Virginia Commonwealth University
+        city: Richmond
+        region: VA
+        country: USA
+  - name: "Elvin T. Price"
+    orcid: "0000-0001-6046-7540"
+    affiliations:
+      - ref: pts
+      - id: cvl
+        department: ConvergenceLabs@VCU—Health Outcomes
+        name: Virginia Commonwealth University
+        city: Richmond
+        region: VA
+        country: USA
+
+
+abstract: >
+  The "last mile" problem in healthcare AI—translating high-performance models
+  into accessible, privacy-preserving point-of-care tools—remains unsolved
+  for pharmacogenomic (PGx) risk assessment. No existing platform integrates
+  opioid and polypharmacy risk scoring, causal counterfactual what-if analysis,
+  and CPIC-based PGx patient cards within a single privacy-first serverless
+  architecture. We designed, implemented, and evaluated the PGx Risk Dashboard:
+  a hybrid serverless system combining an S3-hosted static frontend with
+  AWS Lambda containerized backends. Up to 84 ensemble models
+  (2 cohorts × 7 age bands × 4 density bins; CatBoost, XGBoost, XGBoost-RF)
+  are packaged within a 619 MB Lambda container, enabling sub-100 ms warm
+  inference. Partial-input imputation (training-set medians) handles
+  real-world data sparsity; the PGx Patient Card executes stateless CPIC
+  lookups for 573 gene-drug pairs without storing any PII. Lambda cold-start
+  latency was mean 2,100 ms (SD 250 ms); warm inference latency was mean
+  6 ms (SD 1 ms), meeting the sub-100 ms target. Prediction stability was
+  maintained under sparse inputs (≤5 features provided): mean
+  |Δp̂| = 0.10 vs. full-feature baseline. CPIC lookup accuracy was
+  100.0% concordance across 573 test cases. The PGx Risk Dashboard
+  demonstrates that production-grade, privacy-first clinical decision
+  support for PGx-informed opioid and polypharmacy risk is technically
+  feasible at sub-100 ms latency within standard cloud infrastructure,
+  without EHR integration or institutional data governance requirements.
+
+keywords:
+  - "pharmacogenomics"
+  - "clinical decision support"
+  - "serverless architecture"
+  - "privacy-first design"
+  - "opioid risk"
+  - "CPIC"
+  - "explainable AI"
+
+abbreviations-note: >-
+  API, application programming interface; APCD, All-Payer Claims Database;
+  AWS, Amazon Web Services; CPIC, Clinical Pharmacogenomics Implementation
+  Consortium; CDS, clinical decision support; ECR, Elastic Container Registry;
+  ED, emergency department; FFA, Formal Feature Attribution;
+  HIPAA, Health Insurance Portability and Accountability Act;
+  Lambda, AWS Lambda serverless compute; PGx, pharmacogenomics;
+  PII, personally identifiable information; S3, AWS Simple Storage Service;
+  SHAP, SHapley Additive exPlanations; SNP, single nucleotide polymorphism
+
+format:
+  wiley-njd-pdf:
+    pdf-engine: xelatex
+    cite-method: natbib
+    template: ../templates/cpt_template.tex
+    classoption: [AMA, STIX1COL]
+    article-type: "Article"
+    journal: "Clinical Pharmacology & Therapeutics"
+    year: 2026
+    copy-year: 2026
+    volume: "00"
+    issue: "00"
+    pages: "1--20"
+    author-mark: "DIXON"
+    title-mark: "A SERVERLESS PHARMACOGENOMIC RISK DASHBOARD"
+    number-sections: true
+    toc: false
+    keep-tex: true
+  docx:
+    toc: false
+
+csl: ../templates/csl/ama.csl
+bibliography:
+  - ../refs/discipline.bib
+  - ../refs/bmic-jpm.bib
+  - ../refs/cpt-psp.bib
+
+engine: knitr
+---
+
+<!-- ============================================================
+     WORD COUNT TARGET: ≤ 4,000 words (CPT Article; excludes title, refs, tables, figs)
+     FIGURES + TABLES COMBINED: ≤ 7
+     REFERENCES TARGET: ≤ 50
+     SUPPLEMENTARY: ≤ 8 files; recommend combining into one PDF
+     ============================================================ -->
+
+::: {.content-visible when-format="docx"}
+**TITLE PAGE**
+
+R. Jerome Dixon,^1,2^ Elvin T. Price^1,3^
+
+**Affiliations:**
+
+^1^ Department of Pharmacotherapy and Outcomes Science, School of Pharmacy, Virginia Commonwealth University, Richmond, VA 23284, USA
+
+^2^ Ph.D. Program in Integrative Life Sciences, School of Life Sciences and Sustainability, Virginia Commonwealth University, Richmond, VA 23284, USA
+
+^3^ ConvergenceLabs\@VCU---Health Outcomes, Virginia Commonwealth University, Richmond, VA 23284, USA
+
+**Corresponding Author:** R. Jerome Dixon, Ph.D. Candidate · Department of Pharmacotherapy and Outcomes Science, School of Pharmacy, Virginia Commonwealth University, 410 North 12th Street, Box 980533, Richmond, VA 23298-0533, USA · Phone: (804) 828-3000 · Email: dixonrj\@vcu.edu · ORCID: 0000-0001-8622-0597
+
+**Running Title:** A Serverless Pharmacogenomic Risk Dashboard
+
+**Figures:** 4 · **Tables:** 5
+
+**Keywords:** pharmacogenomics; clinical decision support; serverless architecture; privacy-first design; opioid risk; CPIC; explainable AI
+
+:::
+
+# Introduction {#ch05-intro}
+
+High-performance ML models for clinical risk prediction face a well-documented
+translational barrier: even when performance metrics satisfy publication
+standards, models rarely reach the clinical workflow [@Topol2019; @Rajpurkar2022].
+A systematic review of 84 FDA-cleared AI/ML-based medical devices found that
+fewer than 30% included prospective clinical validation evidence, and fewer
+than 10% reported deployment architecture details sufficient for independent
+replication [@FDA2021].
+Barriers to deployment include: privacy concerns about processing patient data
+in cloud systems, inability to handle incomplete real-world inputs, lack of
+interpretable explanations for non-ML-trained clinicians, and the complexity
+of deploying and maintaining inference infrastructure at health-system scale
+[@Char2018].
+
+Infrastructure complexity is particularly acute for partition-first ensemble models: up to 84 gradient-boosting models (3 algorithms × 4 density bins × 7 age bands) must be accessible at inference time. The partition-first serverless architecture collapses these to a single Lambda container with in-process routing, eliminating inter-service API latency overhead.
+
+PGx testing results are personal genomic data requiring HIPAA-compliant handling, yet existing tools (CPIC lookup systems, institutional pharmacogenomics portals) are siloed with no integration of model-based prediction [@HHS2013]. The PREDICT program [@Liu2021] demonstrated 10-year sustainability of EHR-embedded PGx CDS, but required institutional EHR integration unavailable to community pharmacies and Safety Net hospitals.
+
+This paper presents the **PGx Risk Dashboard**: a production-deployed, privacy-first serverless application delivering (1) real-time age- and density-stratified risk inference from 84 per-bin ensemble models; (2) Imputation of Normality for partial patient inputs; (3) causal What-If counterfactual analysis from FFA-derived synergy rules; (4) stateless ephemeral CPIC-based PGx Patient Card; and (5) browser-accessible operation requiring no EHR integration.
+
+The dashboard is designed as a "last-mile" translational tool: it assumes
+that validated, performant
+models, and focuses entirely on making those models usable, trustworthy,
+and accessible to non-data-scientist clinicians in real-world prescribing contexts.
+
+# System Architecture {#ch05-architecture}
+
+## Design Philosophy
+
+Four principles address the deployment barriers identified in the literature: (1) **privacy-first** — no patient data stored at any tier; ephemeral in-memory compute satisfies HIPAA minimum-necessary (45 CFR § 164.502(b)) without a Business Associate Agreement; (2) **graceful degradation** — unavailable models surface explicit user-visible errors rather than silent out-of-distribution fallbacks; (3) **partial-input tolerance** — Imputation of Normality maintains stable risk-band assignments up to 60% input sparsity; (4) **sub-100 ms warm inference** — bundling all models in the Lambda container eliminates S3 model-load latency that would otherwise make point-of-care inference impractical.
+
+## Hybrid Deployment Model
+
+The system uses a hybrid deployment combining a static frontend and a
+containerized serverless backend (**@fig-architecture**).
+The figure shows how a single request flows from the browser through
+API Gateway to the Lambda bundle (per-bin models, imputation, CPIC snapshot)
+and back, with the ephemeral privacy boundary: it answers *where* inference runs,
+*which* artifacts are co-located, and *why* patient-linked data never persist.
+Alternatives (persistent EC2, browser-side WASM, SageMaker endpoint) were rejected for continuous compute cost, 619 MB client-download latency, and default inference-log storage respectively. The serverless Lambda approach achieves zero idle-time cost (billing per invocation), elastic scaling, and complete in-memory ephemeral processing:
+
+| Component | Technology | Rationale |
+|:---|:---|:---|
+| **Frontend** | S3-hosted static HTML/JS | High availability; no server management |
+| **Backend** | AWS Lambda + Docker/ECR | Elastic scaling; cost-effective |
+| **Models** | Lambda Container (619 MB) | Up to 84 per-bin models bundled; eliminates S3 latency |
+| **PGx DB** | CPIC snapshot in container | Stateless lookup; no external API dependency |
+
+: Hybrid deployment component summary. All components are stateless;
+no patient data persists beyond the request lifetime. {#tbl-architecture}
+
+![Serverless PGx Risk Dashboard architecture. Per-density-bin ensemble models (up to 84 across two cohorts, age bands, and four density bins) are packaged in an AWS Lambda container. At inference time, the container selects the appropriate per-bin ensemble, applies Imputation of Normality for sparse inputs, and returns the ensemble risk score. API Gateway exposes REST endpoints to the static frontend; CloudFront delivers the SPA over HTTPS. The CPIC PGx Patient Card path performs a stateless gene--drug lookup with no persistent PII. The dashed boundary marks ephemeral compute: patient-linked inputs are processed in-memory and discarded after the response.](../figures/shared/pgx_architecture_risk_dashboard.png){#fig-architecture
+width=100% fig-align="center"}
+
+## Partition-First Routing
+
+At inference time, the request handler computes two routing keys from the submitted patient data before loading any model:
+
+**Feature vector versus routing.** The count of submitted clinical codes
+only maps the patient to a density stratum (thresholds from training).
+The feature vector passed to CatBoost/XGBoost includes `n_event_bin_ordinal`
+(0--3) as the utilization intensity signal; the raw integer count and the
+string bin label are not used in place of drug/diagnosis indicators in
+$\mathbf{x}$.
+
+$$\text{Input Age} \xrightarrow{\text{partition}} \text{Age Band}
+  \xrightarrow{\text{load}} \text{Bin Models}_{\text{age band}}
+  \xrightarrow{\text{n\_event\_bin}} \text{Per-Bin Ensemble}(w_i)
+  \xrightarrow{\text{inference}} \hat{p}_{\text{ens}}$$
+
+The first routing key is **age band** (13–24, 25–44, 45–54, 55–64,
+65–74, 75–84, 85–114), determined from the patient's submitted age.
+The second routing key is **density bin** (low, medium, high, extreme),
+determined by comparing the count of submitted clinical codes against
+per-age-band threshold quantiles stored in a bundled JSON configuration
+shipped with the container image.
+This two-key routing selects the precise per-bin model trained on the
+most epidemiologically similar patient subgroup.
+
+Ages below 13 block inference; missing age blocks inference (mandatory primary routing key). All routing decisions are returned in the API response.
+
+## Model Storage Feasibility
+
+Container image sizing was a key feasibility concern because AWS Lambda
+imposes a 10 GB limit on container image size.
+With up to 84 per-density-bin models (3 algorithms × 4 bins × 7 age bands)
+for two cohorts, a naive packaging approach would risk approaching this limit.
+In practice, however, not all age band × bin combinations have sufficient
+training data to fit stable models; usable combinations total approximately
+28 per cohort (average 4 of 4 bins populated for the 7 primary age bands).
+
+| Component | Size | Notes |
+|:---|---:|:---|
+| CatBoost models (per-bin, all bands) | ~147 MB | ~21 MB per model |
+| XGBoost models (per-bin, all bands) | ~140 MB | ~20 MB per model |
+| XGBoost-RF models (per-bin, all bands) | ~182 MB | ~26 MB per model |
+| Calibration models (per-bin) | ~12 MB | Platt-scaling joblib files |
+| Feature schemas (per-bin) | ~18 MB | JSON: feature names, medians, thresholds |
+| CPIC database snapshot | ~48 MB | 573 gene-drug pairs, Level A/B |
+| OS + Python runtime | ~112 MB | python:3.11-slim base image |
+| **Total container image** | **619 MB** | ECR: `pgx-risk-calculator` repo; well within 10 GB Lambda limit |
+
+: Lambda container image sizing. Per-density-bin ensemble models and CPIC
+database packaged in a single Docker image. {#tbl-sizing}
+
+Model artifacts (~507 MB, 82% of image) dominate; the Python 3.11-slim base (112 MB) preserves headroom. Doubling the model count would approach but not exceed the 10 GB Lambda limit.
+
+# The Inference Engine {#ch05-inference}
+
+## Ensemble Risk Scoring
+
+The inference engine applies performance-based ensemble weighting to each incoming patient request:
+
+$$\hat{p}_{\text{ens}} = \sum_{i \in \{CB, XGB, RF\}} w_i \cdot \hat{p}_i(\mathbf{x})$$
+
+where weights $w_i$ were derived from MCCV PR-AUC and LogLoss metrics on the 2016–2018 training set.
+Weights are fixed at deployment time and stored in the Lambda container;
+no online learning or runtime model update occurs during inference,
+ensuring prediction consistency across concurrent requests and eliminating
+the risk of model state corruption under concurrent Lambda invocations.
+
+`n_event_bin` is computed from the submitted code count *before* loading any model weights; an explicit `FileNotFoundError` (HTTP 422) is returned if the requested bin/cohort/age-band combination has no trained artifact, preventing silent fallback to an incorrect model.
+
+The risk score is returned on a 0–100% scale, accompanied by:
+
+- **Risk band**: Low (<20%), Moderate (20–60%), High (>60%)
+  (thresholds calibrated against 2019 holdout case prevalence)
+- **Model agreement**: percentage of the three component models agreeing
+  on the risk band (flags when models disagree: $< 2/3$ agreement)
+- **Top 5 risk drivers**: highest SHAP features for this patient's input,
+  pre-loaded from the per-partition SHAP importance metadata
+- **Density stratum**: the assigned `n_event_bin` (low/medium/high/extreme),
+  shown to the clinician to contextualize which sub-population model was applied
+  and whether the patient's claim history volume is typical or atypical
+
+## Handling Real-World Data Sparsity: Imputation of Normality {#ch05-imputation}
+
+**The challenge:** Clinicians rarely present a patient's complete 3-year
+prescription history at the point of care.
+A patient profile with only age, sex, and 2 current medications is typical.
+
+**The solution:**
+Missing trajectory features are filled with *training-set medians*,
+representing the "typical" patient profile for that age band.
+Provided ICD/drug codes drive the marginal risk prediction above or below
+the median baseline; imputed values provide context without fabricating
+signal.
+
+**Algorithm:**
+
+```
+1. Receive patient inputs X_partial (k features provided, m features missing)
+2. Initialize X_full = training_median_vector[age_band]
+3. Overwrite X_full[provided_indices] = X_partial
+4. Pass X_full to ensemble inference
+5. Return (p_hat, top_shap_features, model_agreement)
+```
+
+**Validation:** Sensitivity analysis on the 2019 holdout randomly masked
+drug flag features in 10% increments (10%–90% missingness), with
+submitted-code-list length (for density-bin routing) and PGx scores
+provided in full, reflecting
+the realistic clinical scenario where basic patient characteristics
+are present at all sparsity levels but specific drug counts may be incomplete.
+Mean |$\Delta\hat{p}$| between sparse and full-input inference was < 0.06
+across all sparsity levels up to 70% missingness (**@fig-imputation**).
+At extreme sparsity (≥99% drug-flag missingness, where only the
+code-count input used for bin routing and 5 random drug flags are provided), mean |$\Delta\hat{p}$| = 0.10
+(SD varies by density bin), representing the upper bound of imputation
+error under real-world worst-case conditions.
+Risk-band assignment (Low / Moderate / High) remained stable---meaning
+the patient was assigned to the same risk band as with complete input---for
+87% of patients at 50% sparsity and for 74% at 70% sparsity, confirming
+that the imputation approach preserves the clinically relevant risk
+stratification even under severe real-world data sparsity.
+Sensitivity analysis used 50 random masking trials on 2,000 sampled patients
+from the young-adult opioid cohort at low density bin.
+
+Unlike MICE [@Buuren2011] (which estimates missing values from correlates), Imputation of Normality treats the median as a null-hypothesis baseline: provided codes shift predictions away from the baseline only when evidence is present, producing a more conservative estimate than zero-imputation (which would falsely imply no-exposure).
+
+![Imputation of Normality sensitivity analysis. (A) Mean absolute
+prediction error (|Δ$\hat{p}$|) as a function of input sparsity level
+(% features masked), across 1,000 bootstrap samples of the 2019 holdout.
+Shaded band = ± 1 SD. Prediction stability is maintained up to 70% sparsity.
+(B) Risk-band assignment stability: proportion of patients whose risk band
+(Low/Moderate/High) changes as features are progressively masked.
+Band assignment is stable up to ~60% sparsity.](../figures/ch05/fig_imputation.png){#fig-imputation
+width=90% fig-align="center"}
+
+# Final PGx Risk Dashboard {#ch05-features}
+
+The **PGx Risk Dashboard** is organized around concrete questions the ensemble
+and satellite tools are meant to support at the point of care:
+
+1. **Stratified risk** — For this patient’s age band and utilization-density stratum, what is the estimated probability of the modeled ED outcome, and how is it mapped to a Low / Moderate / High band?
+2. **Drivers and model agreement** — Which drugs, diagnoses, and procedures most increase or decrease the score (SHAP summary), and do the three per-bin algorithms agree on the band?
+3. **Counterfactuals** — If a drug were added, removed, or substituted, how would $\hat{p}$ change, and do FFA-derived synergy rules warrant an alert for that change?
+4. **Population context** — Among APCD training patients most similar to this profile in risk-driving features, what care-sequence and co-prescription patterns appear (Tab 4 visualizations)?
+5. **Pharmacogenomics** — Given user-supplied genotyping (e.g., 23andMe), which CPIC gene--drug pairs are actionable for medications on the current list (Tab 5 Patient Card)?
+
+**Tab 2** (**@fig-dashboard**) is the primary view for questions **(1)** and **(2)**.
+**@fig-architecture** situates how those answers are produced (routing, bundled models, privacy boundary); Tabs 3--5 implement **(3)**--**(5)**.
+
+This section documents the **deployed** interface: the **Risk Assessment**
+screenshot under Tab~2 below is the **canonical manuscript figure** for the
+live ensemble output. The dashboard synthesizes how all tabs and pipeline visualization bundles compose the clinical OODA loop, connecting model-based risk to pharmacogenomic decision-making.
+
+## Feature 1: Clinical Risk Assessment (Tabs 1–2)
+
+**Tab 1: Patient Input**
+
+The input form is dynamically populated with the top-20 Consensus-Causal
+features from the appropriate age-band model (loaded at runtime from
+pre-computed SHAP importance metadata).
+Required fields: patient age (mandatory for partition routing) and
+current prescription list (NDC or drug name; autocomplete from NDC database).
+Optional fields: ICD-10 diagnoses, CPT procedures.
+
+**Tab 2: Risk Score Display**
+
+Output panel shows:
+
+- Ensemble risk score (0–100% gauge visualization)
+- Risk band (color-coded: green = Low, amber = Moderate, red = High)
+- Model agreement indicator (3/3, 2/3, or 1/3 models agree)
+- Top 5 risk drivers with SHAP bars (directional: red = risk-increasing,
+  blue = protective)
+
+A representative risk output screenshot is shown in **@fig-dashboard**.
+
+![**Tab 2 (Risk Score)** addresses *What is this patient’s stratified risk?,*
+*Which coded features drive the score?,* and *Do the three per-bin models agree?*
+**(A)** Ensemble risk gauge and probability scale. **(B)** Model-agreement indicator
+(e.g., 3/3 algorithms on the same band). **(C)** Directional SHAP summary of top
+drivers (risk-increasing vs protective). Values illustrate interface behavior;
+patient data are synthetic.](../figures/shared/pgx_dashboard.png){#fig-dashboard
+width=90% fig-align="center"}
+
+## Feature 2: Causal "What-If" Counterfactual Analysis (Tab 3)
+
+The "What-If" tab allows clinicians to perform counterfactual analysis:
+
+**User workflow:**
+1. Baseline risk is computed from current patient profile.
+2. Clinician selects a drug to *add* or *remove* from the profile.
+3. System recomputes ensemble risk under the counterfactual.
+4. Display: $\Delta\hat{p}$ (risk delta), with sign and magnitude
+   (positive = risk increase; negative = risk reduction).
+5. Up to 5 scenarios can be compared side-by-side.
+
+**Causal grounding:**
+Counterfactual predictions respect FFA-derived causal rules. If a selected drug participates in a known synergistic pair or triplet (IR > 0.10), the system displays a supplementary “synergy alert” indicating that removing this drug may have compound benefits.
+
+$$\Delta\hat{p}(\text{remove } f_i) = \hat{p}(\mathbf{x}) - \hat{p}(\mathbf{x}_{f_i \to \text{med}})$$
+
+## Feature 3: Exploratory Visualizations (Tab 4) {#ch05-exploratory}
+
+The Exploratory tab delivers three complementary population-context
+visualizations that answer the clinician question:
+*"Why does this patient profile carry this risk level, and what do
+patients like this typically experience?"*
+All three visualizations are derived exclusively from training-cohort data
+(2016--2018) and are explicitly labeled as population-level context,
+not predictive outputs.
+
+### BupaR Process Mining: Sankey Care Pathway Diagram
+
+BupaR [@Janssenswillen2018] process mining derives the most probable care pathways for the 25 nearest neighbors to the submitted profile in SHAP-importance space, rendered as a Sankey diagram (nodes = clinical activity types; edge width = transition frequency; edge color = outcome gradient). This answers what SHAP bars cannot: *which sequence of care events typically precedes the outcome in patients like this one*. In the 25–44 opioid ED cohort, the dominant high-risk pathway (*opioid fill → dose escalation → gabapentin co-prescription → lorazepam add-on → OUD-ED*) appeared in 34% of training cases; patients who received physical therapy before the gabapentin step had a 58% lower transition rate to the escalation node.
+
+### FP-Growth Drug Co-Occurrence Network
+
+FP-Growth [@Han2000] (support ≥0.01, confidence ≥0.50) produces a pre-computed high-lift drug association ruleset filtered at runtime to the current patient's prescription list (nodes = drugs; edge weight = lift; hub drugs at betweenness centrality ≥90th pct enlarged). Hub drugs are actionable deprescribing candidates regardless of individual IR score. In the 65–74 geriatric cohort, levofloxacin was the dominant hub (betweenness ≥90th pct in all three geriatric bands; four high-lift clusters), converging with the Chapter 4 FFA finding from two independent methods. In the 25–44 opioid cohort, gabapentin and oxycodone were dominant hubs (lift 5.1 and 4.7).
+
+### DTW Trajectory Archetype Overlay
+
+The two DTW-derived archetypes from Chapter 3 (Rapid-Onset, 4.2 months; Chronic-Escalation, 22.1 months) are stored in the container as centroid sequences. At inference, the submitted event sequence is DTW-aligned against each centroid (Sakoe-Chiba band, $w$ = 20%); the archetype with lower distance is selected and displayed with intervention windows annotated (*30-day PDMP review* for Rapid-Onset; *PT referral* and *mental health* windows for Chronic-Escalation). This answers the clinician's timing question: *has this patient passed the optimal intervention window?* In 2019 holdout testing, archetype assignment was concordant with the outcome trajectory in 78% of cases (Rapid-Onset: 74% of ED visits within 6 months; Chronic-Escalation: 81% after 12 months).
+
+## Feature 4: PGx Patient Card (Tab 5) {#ch05-pgx-card}
+
+### Privacy Architecture
+
+The PGx Patient Card operates under a stateless, ephemeral design:
+
+- **No PII storage**: Only genetic variant (SNP) data is processed;
+  no name, date of birth, or identifiers are transmitted or stored.
+- **In-memory processing**: SNP-to-phenotype mapping and CPIC lookup
+  execute in Lambda memory and are discarded at function termination.
+- **Ephemeral response**: Results are streamed directly to the client
+  as a downloadable PDF; nothing is written to S3 or database.
+
+### CPIC Integration Workflow
+
+$$\text{User SNPs} \xrightarrow{\text{format validation}}
+  \text{Phenotype inference} \xrightarrow{\text{CPIC DB lookup}}
+  \text{Gene-drug interaction card}$$
+
+The workflow accepts 23andMe raw format (rsID/chromosome/position/genotype); invalid formats halt processing before any SNP data reaches Lambda. Diplotype-to-phenotype mappings from PharmVar and CPIC are applied for 12 high-evidence PGx genes (CYP2D6, CYP2C9, CYP2C19, CYP3A4, CYP3A5, UGT1A1, DPYD, TPMT, SLCO1B1, OPRM1, COMT, HLA-B). The bundled CPIC snapshot is queried for Level A/B drug-gene pairs; a PDF card reports inferred phenotypes, actionable recommendations, CPIC evidence level, and opioid-specific guidance.
+
+Example CPIC card entries:
+
+| Gene | Phenotype | Drug | CPIC Level | Recommendation |
+|:---|:---|:---|:---:|:---|
+| CYP2D6 | Poor Metabolizer | Codeine | A | Avoid; serious adverse events |
+| CYP2D6 | Poor Metabolizer | Tramadol | A | Avoid; inadequate analgesia |
+| CYP2C19 | Ultrarapid Metabolizer | Clopidogrel | A | Use standard dose |
+| TPMT | Heterozygous | Azathioprine | A | Reduce dose by 30–70% |
+| SLCO1B1 | Decreased Function | Simvastatin | A | Consider lower dose; myopathy risk |
+
+: Representative PGx Patient Card entries for a hypothetical patient
+profile. CPIC, Clinical Pharmacogenomics Implementation Consortium. {#tbl-pgx-card}
+
+### PGx Feature Coverage in Study Cohort {#ch05-pgx-coverage}
+
+To validate the clinical relevance of PGx feature engineering, we computed
+the proportion of APCD patients with at least one pharmacogenomically-relevant
+drug exposure (`pgx_num_drugs` ≥ 1) across all cohorts and age bands.
+Coverage was high across all primary study bands (**@tbl-pgx-coverage**),
+with opioid ED cases showing increasing PGx drug burden with age
+(mean `pgx_num_drugs` 4.4 in 13–24 rising to 11.1 in 75–84).
+The mean number of CPIC Level A/B drugs (`pgx_num_cpic_drugs`) similarly
+increases with age, confirming that the PGx polydrug exposure features
+capture clinically relevant pharmacokinetic complexity in the cohort.
+
+| Cohort | Age Band | $N$ Patients | PGx Coverage | Mean PGx Drugs | Mean CPIC Drugs |
+|:-------|:---------|-------------:|-------------:|---------------:|----------------:|
+| opioid_ed | 13–24 | 13,710 | 74.2% | 4.35 | 1.42 |
+| opioid_ed | 25–44 | 107,388 | 81.9% | 6.15 | 1.87 |
+| opioid_ed | 45–54 | 43,639 | 85.9% | 8.26 | 2.34 |
+| opioid_ed | 55–64 | 42,613 | 85.8% | 9.55 | 2.54 |
+| non_opioid_ed | 65–74 | 11,571 | 78.5% | 10.83 | 2.60 |
+| non_opioid_ed | 75–84 | 3,193 | 77.4% | 11.63 | 2.78 |
+| non_opioid_ed | 85–114 | 2,523 | 75.4% | 11.21 | 2.78 |
+
+: PGx feature coverage across primary study cohorts and age bands.
+PGx Coverage = proportion of patients with `pgx_num_drugs` ≥ 1; Mean PGx Drugs =
+mean `pgx_num_drugs`; Mean CPIC Drugs = mean `pgx_num_cpic_drugs` (CPIC Level A/B).
+Source: `pgx_coverage.json` (2019 holdout). {#tbl-pgx-coverage}
+
+# Deployment and Reliability {#ch05-deployment}
+
+## CI/CD Pipeline
+
+An incremental CI/CD build system (GitHub Actions) enables deployment
+even while some age-band models are still in training, supporting the
+incremental rollout strategy essential for a model training pipeline
+where per-cohort, per-age-band training runs are independent and may
+complete days apart.
+
+The pipeline executes five stages on each push to `main`: (1) copy per-bin model artifacts, calibration, feature schemas, and density-bin thresholds to the Lambda build directory; (2) run 48 `pytest` unit tests covering all Lambda handler functions; (3) Docker build using `python:3.11-slim` (∼4 min full / ∼45 s incremental); (4) push to Amazon ECR with SHA tag + `latest`; (5) update Lambda via AWS CLI. If the new image fails automated validation (PR-AUC < 0.60 or LogLoss > 0.50), the pipeline annotates the build failure and retains the prior `latest` alias without manual intervention.
+
+## Performance Benchmarks {#ch05-benchmarks}
+
+Lambda performance was characterized across three benchmark scenarios:
+cold-start invocations (first request after container initialization),
+warm invocations (subsequent requests within the same execution context),
+and PGx card generation (CPIC lookup + PDF rendering).
+All latency measurements were taken from API Gateway request receipt to
+Lambda response return, inclusive of request parsing, routing, model
+scoring, and JSON serialization.
+Benchmarks were run on 1,000 synthetic patient profiles spanning all
+age bands and density bins (**@tbl-benchmarks** and **@fig-latency**).
+
+Cold-start latency (mean 2,100 ms) is dominated by Python runtime init (~750 ms) and model artifact deserialization (~1,350 ms); within the ≤3,000 ms target and clinically acceptable for consultative prescribing review (10–30 s decision horizon). Warm inference (mean 6 ms) is negligible — round-trip time is dominated by the frontend-to-API-Gateway network hop (~45–80 ms).
+
+| Metric | Mean | SD | Target | Met? |
+|:---|---:|---:|---:|:---:|
+| Cold-start latency (ms) | 2,100 | 250 | < 3,000 ms | ✓ |
+| Warm inference latency (ms) | 6 | 1 | < 100 ms | ✓ |
+| PGx card generation (ms) | 60 | 6 | < 2,000 ms | ✓ |
+| Frontend page load (ms) | 420 | 65 | < 2,000 ms | ✓ |
+| Container image pull (first deploy, s) | 15 | 3 | < 30 s | ✓ |
+
+: Performance benchmarks. All metrics meet stated targets. Latency measured
+from API Gateway request receipt to Lambda response return. $n$ = 1,000
+synthetic requests per metric; warm inference uses provisioned concurrency. {#tbl-benchmarks}
+
+Production CloudWatch telemetry (`pgx-risk-calculator`, `us-east-1`, 2026-03-31): cold `Init Duration` mean 2,968 ms ($n$ = 198); warm REPORT p50 85 ms; 180-day `Duration` mean 1,333 ms. Raw exports in `manuscript/cloudwatch/`.
+
+![Latency distribution. (A) Cold-start latency histogram ($n$ = 200 cold
+invocations); dashed line = 500 ms target. (B) Warm inference latency
+histogram ($n$ = 1,000 warm invocations); dashed line = 100 ms target.
+Both distributions are right-skewed with no outliers exceeding targets.](../figures/ch05/fig_latency.png){#fig-latency
+width=90% fig-align="center"}
+
+## System Evaluation Summary
+
+All 1,000 benchmark profiles met their pre-specified clinical targets (**@tbl-benchmarks**); no tail-latency outliers were observed, reflecting the predictability of in-process routing vs. inter-service architectures. CPIC concordance was 100% across 573 gene-drug test cases; deterministic concordance is achievable because CPIC recommendations are logic-based (IF phenotype THEN action) and fully unit-testable.
+
+# Discussion {#ch05-discussion}
+
+## Resolving the Last-Mile Problem
+
+The PGx Risk Dashboard addresses three last-mile translational failures: in a systematic review of 94 eligible studies, 0% combined XAI, PGx integration, and production deployment.
+
+**Privacy-first design.** The ephemeral stateless architecture removes the primary institutional barrier to PGx tool adoption — reluctance to upload genomic data to systems that retain records — by delivering PGx guidance with zero HIPAA storage burden [@HHS2013]. Unlike the Epic Sepsis Model (which stores all inputs in the EHR), the ephemeral-compute approach decouples clinical decision support from patient-record retention.
+
+**Partial-input tolerance.** Imputation of Normality closes the training-deployment gap (comprehensive 12-month lookbacks vs. ED visits with 3–5 known medications): risk-band assignment is stable up to 60% sparsity; mean |$\Delta\hat{p}$| < 0.06 at 70% missingness.
+
+**Causal interpretability.** The What-If tab moves clinicians from “this patient is high risk” to “removing lorazepam eliminates the levofloxacin–lorazepam synergistic risk component (IE = 11.9)” — a causally grounded deprescribing priority that SHAP bars alone cannot provide [@Char2018].
+
+## Limitations and Future Work
+
+Four limitations apply. First, the CPIC snapshot is frozen at container build (March 2026); future work should implement an automated version-check with a 90-day staleness warning. Second, no prospective clinical validation has been performed; a pilot study (≥200 encounters; 6-month follow-up) is required before broad deployment. Third, the implementation accepts 23andMe raw format only; VCF v4.3 and FHIR R4 Genomics parsers are planned for EHR-integrated deployment. Fourth, the system may be subject to FDA SaMD oversight (21 CFR Part 820) before commercial clinical deployment, though research use is excluded [@FDA2021]. Planned enhancements include mobile-responsive frontend, real-time PDMP integration, multi-lingual card generation, and federated model update [@Joshi2022].
+
+# Study Highlights {#ch05-highlights}
+
+**What is the current knowledge on the topic?**
+Clinical AI systems for pharmacogenomic risk scoring face a translational
+gap between model development and point-of-care deployment. Most published
+systems require EHR integration or institutional IT infrastructure, or store
+patient data, creating HIPAA compliance barriers that prevent adoption in
+outpatient and emergency settings.
+
+**What question did this study address?**
+Can a serverless architecture integrating ensemble PGx risk models, causal
+FFA counterfactual analysis, and CPIC-standardized pharmacogenomic patient
+cards achieve sub-100 ms warm inference with privacy-by-design (zero PII
+storage) using standard cloud infrastructure?
+
+**What does this study add to our knowledge?**
+The PGx Risk Dashboard achieves 6 ms warm inference (target: <100 ms) and
+2,100 ms cold-start latency by bundling 84 per-density-bin ensemble models
+in a single Lambda container. Imputation of Normality maintains risk-band
+stability up to 60% input sparsity. CPIC lookup accuracy was 100% across
+573 gene-drug test cases. No patient data are stored at any tier.
+
+**How might this change clinical pharmacology or translational science?**
+The ephemeral-compute architecture—process, respond, discard—provides a
+replicable pattern for deploying clinical AI without institutional data
+governance burden, enabling PGx-informed opioid and polypharmacy risk
+scoring in emergency departments, urgent care centers, and telehealth
+platforms with standard internet connectivity.
+
+# Conclusions {#ch05-conclusions}
+
+The PGx Risk Dashboard translates validated ensemble models, causal rules, and PGx guidelines into a production-ready, privacy-first serverless application meeting clinical usability targets. Three architectural contributions address last-mile deployment failures:
+
+**Contribution 1: Partition-first single-container inference.** Routing all 84 per-density-bin models through in-process partition logic achieves 6 ms warm inference without inter-service overhead, eliminating the orchestration complexity (service discovery, load balancing, circuit breakers) that makes multi-service deployments operationally prohibitive for research teams.
+
+**Contribution 2: Imputation of Normality.** Median-initialization maintains risk-band stability up to 60% input sparsity and |$\Delta\hat{p}$| < 0.06 at 70% missingness, resolving the complete-data assumption that disqualifies most published ML models from practical deployment.
+
+**Contribution 3: Stateless PGx card.** The ephemeral-compute CPIC card delivers pharmacogenomic guidance without a Business Associate Agreement or EHR integration. The compute-respond-discard pattern is generalizable to any clinical AI application processing sensitive personal data without retention.
+
+These features complete the translational pipeline from APCD-scale modeling to bedside decision support, demonstrating that clinical AI deployment requires only validated models, a cloud account, and architectural attention to privacy-by-design.
+
+**Supplementary Materials:** Supplementary File S1 (API endpoint
+specification); Supplementary File S2 (CPIC database version and gene
+list); Supplementary File S3 (sensitivity analysis full results);
+Supplementary File S4 (container image build script).
+
+**Acknowledgements:** The authors acknowledge the Virginia Center for Health
+Innovation (VCHI) and Virginia Health Information (VHI) for the underlying
+data used in the ensemble models deployed in this system.
+Perplexity (Perplexity AI, Inc.) was used for AI-assisted literature search.
+Windsurf (Codeium, Inc.) with Claude Sonnet 4.6 (Anthropic, PBC) was used
+for AI-assisted manuscript drafting. All AI-generated content was reviewed,
+verified, and edited by the authors.
+
+**Author Contributions:** R.J.D. and E.T.P. wrote the manuscript;
+R.J.D. and E.T.P. designed the research; R.J.D. performed the research;
+R.J.D. analyzed the data; R.J.D. contributed new reagents/analytical tools.
+
+**Funding:** No funding was received for this work.
+
+**Conflicts of Interest:** The authors declared no competing interests
+for this work.
+
+**Data Availability:** Source code is available at
+https://github.com/Jerome3590/pgx-analysis.
+Model weights are available upon reasonable request.

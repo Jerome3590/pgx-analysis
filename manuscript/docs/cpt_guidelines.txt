@@ -1,0 +1,1080 @@
+This website utilizes technologies such as cookies to enable essential site functionality, as well as for analytics, personalization, and targeted advertising. You may change your settings at any time or accept the default settings. You may close this banner to continue with only essential cookies. Privacy Policy
+Manage Preferences
+Accept All
+Reject Non-Essential
+Skip to Main Content
+Nova
+Journals
+ASCPT.org
+Journal Articles Submit an article
+Actions
+Clinical Pharmacology & Therapeutics
+
+Editor-in-Chief: Karen Rowland Yeo, PhD
+
+Clinical Pharmacology & Therapeutics 
+Guide to Authors
+
+For a printable version of the full guidelines, click here.
+
+SCOPE
+
+Clinical Pharmacology & Therapeutics (CPT) is the authoritative cross-disciplinary journal in experimental and clinical medicine devoted to publishing advances in the nature, action, efficacy, and evaluation of therapeutics. CPT welcomes original articles in the emerging areas of translational, predictive and personalized medicine; new therapeutic modalities including gene and cell therapies; pharmacogenomics, proteomics and metabolomics; bioinformation and applied systems biology complementing areas of pharmacokinetics and pharmacodynamics, human investigation and clinical trials, real world data/real world evidence (RWD/RWE), pharmacovigilence, pharmacoepidemiology, pharmacometrics, population pharmacology; AI, real world data, and computational methodologies for clinical pharmacology research.
+
+Read full aims & scope here. 
+
+
+CRITERIA FOR PUBLICATION
+
+The principal criteria for publication of papers in CPT are that they:
+
+Report original scientific research (the main results and conclusions must not have been previously published)
+Are of outstanding scientific importance
+Reach a conclusion of interest to an interdisciplinary readership
+
+Submit at https://cpt.msubmit.net/cgi-bin/main.plex
+
+Contact Information
+
+Clinical Pharmacology & Therapeutics
+528 North Washington Street
+Alexandria, VA 22314
+Tel: +1.703.836.6981
+Email: cpt@ascpt.org
+
+TABLE OF CONTENTS
+
+ARTICLE TYPES
+MANUSCRIPT PREPARATION
+Organization and Basic Formatting
+File Formats Accepted
+Title Page
+Abstract
+Text
+Notes on Style
+Study Highlights
+Author Contributions
+Editorial Assistance for Non-English-Speaking Authors
+Citations/References
+Tables
+Artwork/Figures
+Image Integrity and Standards
+Supplemental Information (CONSORT Checklist)
+Graphical and Video Abstracts
+MANUSCRIPT SUBMISSION AND REVIEW
+Peer Review Process
+Submitting a Revision
+Rebuttals
+MANUSCRIPT PUBLICATION (AFTER ACCEPTANCE)
+Open Access and License to Publish
+Repository Submission
+Online Publication and Proofreading
+ETHICAL POLICIES
+Data
+Informed Consent and Ethics
+Clinical Trials Registry
+Conflicts of Interest
+Authorship
+Wiley’s Name Change Policy
+Use of Artificial Intelligence
+Confidentiality
+Embargo
+Communication with the Media
+Originality and Plagiarism
+Retraction and Corrections Policy
+Permissions to Reuse Materials
+MANUSCRIPT SUBMISSION CHECKLIST (Useful, but not required, for submission)
+TIPS FOR SUCCESSFUL PUBLICATION
+
+ARTICLE TYPES ACCEPTED
+
+Article Type
+
+	
+
+Word Count+
+
+	
+
+Abstract/Introduction Word Limit
+
+	
+
+Reference Limit
+
+	
+
+Figures/
+Tables
+
+
+
+
+Article: substantial novel original research. See below for more information on clinical trial registration and CONSORT guidance
+
+	
+
+4,000*
+
+	
+
+250-word unstructured abstract
+
+	
+
+50
+
+	
+
+7
+
+
+
+
+Brief Report: Short and complete reports of novel research findings of high importance to the field. Reports of preliminary experiments are unacceptable. Brief reports should be especially significant and timely and reach a clear conclusion
+
+	
+
+2,000
+
+	
+
+250-word unstructured abstract
+
+	
+
+25
+
+	
+
+2
+
+
+
+
+Systematic Review/Meta-Analysis: Literature summary using explicit and reproducible methods to systematically search, critically appraise, and synthesize a specific question. Authors should use best reporting practices as outlined by PRISMA guidelines. (prisma-statement.org)
+
+	
+
+8,000*
+
+	
+
+250-word unstructured abstract
+
+	
+
+100
+
+	
+
+8
+
+
+
+
+Review: High-quality, timely reviews and perspectives covering important topics in the entire field of clinical pharmacology and therapeutics
+
+	
+
+8,000*
+
+	
+
+250-word unstructured abstract
+
+	
+
+100
+
+	
+
+8
+
+
+
+
+Mini-Review: A concise overview of recent advances in the specified subject area.
+
+	
+
+2,000-3,000
+
+	
+
+250-word unstructured abstract
+
+	
+
+25
+
+	
+
+4
+
+
+
+
+Perspective: Shorter pieces designed to give the author's perspective on current and emerging topics of importance to the development of clinical pharmacology and therapeutics.
+
+	
+
+1,600
+
+	
+
+75-word introduction
+
+	
+
+10
+
+	
+
+2
+
+
+
+
+State of the Art Review**: Typically topical, comprehensive reviews, award lectures, keynote addresses, and State of the Art lectures.
+
+	
+
+8,000*
+
+	
+
+250-word unstructured abstract
+
+	
+
+100
+
+	
+
+8
+
+
+
+
+Letter to the Editor: Letters must be submitted within 6 months of the publication of the subject article. A letter to the editor must reference the original source, and a response to the letter must reference the letter to the editor in the first few paragraphs. Letters to the editor can use an arbitrary title, but a response must cite the title of the Letter: e.g., Response to [title of letter]
+
+	
+
+400
+
+	
+
+n/a
+
+	
+
+5
+
+	
+
+1
+
+
+
+
+Commentary**: Typically highlights findings of a paper in the same issue, presented in a wider scientific and clinical context
+
+	
+
+1,600
+
+	
+
+75-word introduction
+
+	
+
+10
+
+	
+
+2
+
+
+
+
+White Paper**: An authoritative report to present best practices for addressing complex clinical pharmacology issues. Interested authors should e-mail proposals to cpteditor@ascpt.org for presubmission review.
+
+	
+
+Word, reference, and figure counts are flexible but not unlimited. Contact the editor at cpteditor@ascpt.org for questions. CPT encourages the use of the following section headers, as appropriate:
+
+Unstructured Abstract | Background | Basic Principles | Impact | Challenges and Controversies | Education and Training | Anticipated Outcomes | Recommendations
+
+
+
+
+Tutorial: Educational article providing practical tutorial on tools, methodologies and approaches in clinical pharmacology.
+
+	
+
+8,000*
+
+	
+
+250-word unstructured abstract
+
+	
+
+100
+
+	
+
+8
+
+*If the word count exceeds the posted limit, please provide overage justification upon submission.
+
+**By invitation only
+
++Text only (page count does not include title, references, tables, or figures)
+
+MANUSCRIPT PREPARATION
+
+Organization and Basic Formatting
+The following are preferred, but not required for submission to CPT:
+
+Font
+
+	
+
+12-point, Times New Roman or 10-point, Arial
+
+
+
+
+Line Spacing
+
+	
+
+Double-spaced throughout
+
+
+
+
+Margins
+
+	
+
+One inch (2.5 cm)
+
+
+
+
+Page Size
+
+	
+
+Letter (8 ½ x 11) inches
+
+
+
+
+Page Numbers
+
+	
+
+Yes
+
+
+
+
+Line Numbers
+
+	
+
+Preferred
+
+File Formats Accepted
+
+Cover letter
+
+	
+
+.doc, .docx, .pdf
+
+
+
+
+Manuscript body
+
+	
+
+.doc, .docx
+
+
+
+
+Tables
+
+	
+
+.doc, .docx
+
+
+
+
+Figures
+
+	
+
+.pdf, .tiff, .eps,
+
+
+
+
+Videos
+
+	
+
+.mp4, .mov
+
+Title Page
+
+The title page should contain the following information in the order given:
+
+1) Full title of manuscript
+
+2) Authors' full names
+
+3) Authors' institutional affiliations including city, state, and country (US authors) or city and country (non-US authors)
+
+4) The name, address, and email address of the corresponding author
+
+5) If the work has previously been presented, the name, place, and date of meeting(s)
+
+6) If any financial support was received, the grant/contract number, sponsor name, and city, state, and country location must be supplied. The information will be disclosed in the published article. If no financial support was received, a declaration that “No funding was received for this work.”
+
+7) If any author has a conflict of interest, it should be reported. These include, for example, patent, ownership, employment, stock ownership, consultancies, or speaker's fee. Refer to ICMJE guidelines (icmje.org) for what constitutes a conflict of interest. If no conflict of interest, please state “The authors declared no competing interests for this work.”
+
+8) Keywords
+
+Abstract
+
+See above for article types that require a 250-word introduction and those that require a 75-word introduction.
+Abbreviations and references should not appear in the abstract.
+Do not include headers in the abstract
+
+
+
+Text – Original Research Article
+
+Research manuscripts (including brief reports and systematic reviews) should include the following sections:
+
+Introduction
+Materials and Methods (must contain IRB or IACUC approval)
+Results
+Discussion
+Study Highlights
+Acknowledgements
+Author Contributions statement (see below)
+References
+Tables
+Figure Legends
+Supplementary Material titles (if included)
+
+Text – Other article types
+
+Reviews, commentaries, tutorials, and perspectives may use the following:
+
+Text with appropriate headings as chosen by the authors (see Note on Style: Drug Names; see Note on Style: race and ethnicity)
+Acknowledgements
+References
+Tables
+Figure Legends
+Supplementary Material titles (if included)
+
+The Introduction will include the following: a description of the problem that inspired the study and what distinguishes it from previous research that investigated the same problem; a brief discussion of relevant published material that addressed the same problem or that documents methodology used in the study; and the goal of the study, the purpose statement and null hypothesis.
+
+The Materials and Methods section describes materials or subjects used and the methods selected to evaluate them, including information about the overall design, the nature of the sample studied, sample size, the type of interventions (or treatments) applied to the individual elements in the sample, and the principal outcome measure. Please note: All human subject research must include a statement of ethical or institutional review board approval (see Informed Consent and Ethics) Clinical trials should be registered prior to submission. The registration number and date of registration should be included in the Materials and Methods section. See Clinical Trials Registry for further details.
+
+The Results section will be a clear statement of the findings and an evaluation of their validity based on the outcome of statistical tests.
+
+The Discussion section presents the research in its broader context, describes its clinical implications, identifies limitations or problems that emerged during the study, characterizes the larger significance of the findings, and articulates any further questions remaining to be answered on the subject.
+
+An Acknowledgment section to thank anyone who contributed to the manuscript, but is not a listed author (i.e., statistician, copyeditor, artist, patients, assistants, etc.) See Authorship for details on who qualifies for authorship.
+
+Note on Style: Drug Names
+
+Refer to drugs and therapeutic agents by their accepted generic or chemical name, and do not abbreviate them (a proprietary name may be given only with the first use of the generic name). Code names should be used only when a generic name is not yet available (the chemical name and a figure giving the chemical structure of the drug is required). Copyright or trade names of drugs should be capitalized and placed in parentheses after the name of the drug. Names and locations (city and state in United States; city and country outside United States) of manufacturers of drugs, supplies, or equipment cited in a manuscript are required to comply with trademark law and should be provided in parentheses. The official HUGO gene should be indicated in parentheses with the first reference in the paper.
+
+Note on Style: Race and Ethnicity
+
+CPT affirms the AMA’s guidance that: “Race and ethnicity are social constructs, without scientific or biological meaning. The indistinct construct of racial and ethnic categories has been increasingly acknowledged, and concerns about use of these terms in medical and health research, education, and practice have been progressively recognized. Accordingly, for content published in medical and science journals, language and terminology must be accurate, clear, and precise and must reflect fairness, equity, and consistency in use and reporting of race and ethnicity. (Note: historically, although inappropriately, race may have been considered a biological construct; thus, older content may characterize race as having biological significance.)”
+
+CPT’s style for reporting race and ethnicity follows that set forth in Section 11.12.3. (Race and Ethnicity) in the current AMA style guide. JAMA has made these guidelines freely accessible here.
+
+Note on Style: Sex and Gender
+
+Use the term sex when reporting biological factors and gender when reporting gender identity or psychosocial or cultural factors.
+
+Study Highlights
+
+Original Research Articles (including brief reports and systematic reviews) should include a Study Highlights section after the Discussion in the manuscript text. The highlights section should include and answer each of the questions below. The entire section, not including the questions, should be under 250 words.
+
+What is the current knowledge on the topic?
+
+What question did this study address?
+
+What does this study add to our knowledge?
+
+How might this change clinical pharmacology or translational science?
+
+Author Contributions
+
+Original Research Articles (including brief reports and systematic reviews) require an Author Contributions section before the References. Note that the following 4 roles must be included:
+
+Wrote the manuscript
+Designed the research
+Performed the research
+Analyzed the data.
+
+You may also include the role "contributed new reagents/analytical tools" where applicable. No other roles are allowed. Please see the below example:
+
+A.B.C., D.E., and X.Y.Z. wrote the manuscript; A.B.C. designed the research; A.B.C. and D.E. performed the research; A.B.C. analyzed the data; A.B.C. and X.Y.Z. contributed new reagents/analytical tools.
+
+Editorial Assistance to Non-Native English Speakers
+
+If English is not your first language, we suggest you have a native English speaker read and review the manuscript prior to submission. An English-speaking colleague can be an excellent resource. If you do not know someone who can help you, we recommend that you have your paper professionally edited for English language by a service such as Wiley Publishing’s at http://wileyeditingservices.com.
+
+Please note that while this service will greatly improve the readability of your paper, it does not guarantee acceptance of your paper by the journal.
+
+Citations and References
+
+The reference list should contain the references in the order in which they are cited in the text. Citations included in tables/figures count toward the maximum references allowed for the article type and must be included in the reference list. Tables created solely of references are not permitted.
+
+Only published works, as well as manuscripts in press, should be included in the reference list; articles that are submitted or in preparation should be referred to as “unpublished data” in the text (for which all authors up to 6 total should be listed, then et al.). References to preprint servers are allowed but must be designated as such and updated to the version of record when available.
+
+For publications in the reference list, all authors should be included unless there are more than 6, in which case only the first author should be given, followed by ‘et al.’ Titles of cited articles are required for all article types. Journal names are italicized and abbreviated (with periods after each abbreviated word) according to common usage; refer to Index Medicus (PubMed) for details. For book citations, the publisher and city of publication are required; include the country (and state for US) for lesser-known cities or where any ambiguity is possible (e.g., John Wiley & Sons, Hoboken, New Jersey, USA, 2003; MIT Press, Cambridge, Massachusetts, USA).
+
+Examples
+
+Journal articles
+
+	
+
+Kashuba, A.D. et al. Effect of fluvoxamine therapy on the activities of CYP1A2, CYP2D6, and CYP3A as determined by phenotyping. Clin. Pharmacol. Ther. 64, 257–268 (1998).
+
+
+
+
+Website
+
+	
+
+Fleischbein, J. Northeast Pacific long-term observation program. US GLOBEC <http://globec.oce.orst.edu/groups/nep/index.html> (2003). Accessed 13 April 2006.
+
+
+
+
+Books
+
+	
+
+Eisen, H.N. Immunology: An Introduction to Molecular and Cellular Principles of the Immune Response 5th edn. (Harper & Row, New York, 1974).
+
+
+
+
+Articles/Chapters in books
+
+	
+
+Weinstein, L. & Schwartz, M.N. Pathogenic properties of invading microorganisms. In Pathologic Physiology: Mechanisms of Disease (eds. Sodeman, W.A., Jr. & Sodeman, W.A.) 457–473 (W.B. Saunders, Philadelphia, 1974).
+
+ENDNOTE style: There is not currently an Endnote template that matches CPT’s style exactly. Using the AMA standard will be acceptable. If the manuscript is accepted for publication, Wiley’s copyeditor will adjust accordingly.
+
+Tables
+
+Tables should be positioned following the references, not in the body of the manuscript. Tables should be numbered consecutively in the order of first citation in the text, and multipart tables (Table 1a and 1b) are not allowed. Tables should be submitted in an editable MS Word DOC or DOCX file. Minimize empty space and restrict the number of characters per row to 130. Supply a brief title for each, but place explanatory matter in the footnotes (not in the heading).
+
+Artwork/Figures
+
+Figures should be numbered consecutively in the order of first citation in the text. Figures must be uploaded separately from the manuscript text. Each figure must be provided as an individual file. Figures with multiple panels (A, B, C, etc.) should be combined into a single file. Figure legends should be brief and specific and should appear after the Reference section in the manuscript text.
+
+Accepted figure files include PDF, TIFF, or EPS. Figures supplied in color will appear as such in print and on the web for free. 
+
+Figure specifications
+
+Halftone images
+
+	
+
+300 dpi (dots per inch
+
+
+
+
+Color images
+
+	
+
+300 dpi saved as CMYK
+
+
+
+
+Images containing text
+
+	
+
+400 dpi
+
+
+
+
+Line art
+
+	
+
+1,000 dpi
+
+
+
+
+Width, single image
+
+	
+
+86 mm (should be able to fit into a single column of the printed journal
+
+
+
+
+Width, multi-part image
+
+	
+
+178 mm (should be able to fit into a double column of the printed journal)
+
+
+
+
+Text size
+
+	
+
+8 point (should be readable after reduction)
+
+
+
+
+Line width
+
+	
+
+0.5 to 1 point
+
+Image Integrity and Standards
+
+Images submitted with a manuscript for review should be minimally processed (for instance, to add arrows to a micrograph). Authors should retain their unprocessed data and metadata files, as editors may request them to aid in manuscript evaluation. If unprocessed data are unavailable, manuscript evaluation may be stalled until the issue is resolved. A certain degree of image processing is acceptable for publication (and for some experiments, fields and techniques is unavoidable), but the final image must correctly represent the original data and conform to community standards. The guidelines above will aid in accurate data presentation at the image processing level; authors must also take care to exercise prudence during data acquisition, where misrepresentation must equally be avoided. Authors should list all image acquisition tools and image processing software packages used.
+
+Authors should document key image gathering settings and processing manipulations in the Methods section of the paper. Images gathered at different times or from different locations should not be combined into a single image, unless it is stated that the resultant image is a product of time-averaged data or a time-lapse sequence. If juxtaposing images is essential, the borders should be clearly demarcated in the figure and described in the legend. The use of touch-up tools, such as cloning and healing tools in Photoshop, or any feature that deliberately obscures manipulations, is to be avoided. Processing (such as changing brightness and contrast) is appropriate only when it is applied equally across the entire image and is applied equally to controls. Contrast should not be adjusted so that data disappear. Excessive manipulations, such as processing to emphasize one region in the image at the expense of others (for example, through the use of a biased choice of threshold settings), is inappropriate, as is emphasizing experimental data relative to the control. When submitting revised final figures, authors may be asked to submit original, unprocessed images.
+
+Copyright permissions: If a table, figure or any other previously published material is included, the authors must obtain written permission to reproduce the material in both print and electronic formats from the copyright owner and submit it with the manuscript. The original source should be cited in full per the terms and conditions as stated in the permission agreement.
+
+Illustrations or tables that have been adapted or modified must also be accompanied by letters of permission.
+
+Supplemental Information
+
+Supplementary information is peer-reviewed material directly relevant to the conclusion of an article that cannot be included in the printed version owing to space or format constraints. It is posted on the journal’s website and linked to the article online; it may include data files, graphics, videos, or extensive tables. The printed article must be complete and self-explanatory without the supplementary information.
+
+Use the following naming structure for your supplementary figures and tables: Figure S1 and Table S1, etc. The captions should be placed within the corresponding supplementary figure/table file. Files of supplementary references without accompanying text are not allowed.
+
+Authors should ensure that supplementary files are supplied in their final format at submission, as they are not copyedited and will appear online exactly as submitted. We recommend no more than 8 supplementary files. You may combine figures and tables into one file. For instance, if you have four (4) supplementary tables and five (5) supplementary figures, all 9 may be uploaded in one (1) Word or PDF document.
+
+Individual files should not exceed 10 MB. Questions about the submission or preparation of supplementary information should be directed to the editorial office.
+
+Supplementary figures and tables must be provided as PDF, DOC, DOCX, Excel, TIFF, or EPS files. Images should be high resolution and not exceed 640 x 480 pixels.
+Supplementary text must be provided in DOC, DOCX, or PDF files.
+Video files can be in Quick Time (.mov), or MPEG (.mpg) format. For videos, we recommend 480 x 360 pixels as the maximum frame size and a frame rate of 15 frames per second. If applicable to the presentation of the information, use a 256-color palette. Our recommended maximum data rate is 150 KB/s. Seek advice from the editorial office before sending files larger than our maximum size to avoid delays in publication.
+
+CONSORT Checklist: Authors reporting the results of a randomized controlled trial must provide the completed CONSORT checklist available at http://www.consort-statement.org. Manuscripts that fail to comply with CONSORT guidelines will not be reviewed for publication. For Early Phase Dose-Finding Trials, please follow CONSORT-DEFINE guidelines. CPT has developed a checklist to guide authors reporting Early Phase Dose-Finding Trials. Please see here for a downloadable version.
+
+Graphical and Video Abstracts
+
+CPT welcomes, but does not require, submission of graphical and video abstracts. Graphical and video abstracts may be submitted along with the original manuscript or with a revision.
+
+Graphical Abstracts
+
+The graphical abstract should be uploaded and designated as such in the eJP submission system. The abstract should represent the scope of the paper and fit the following specifications:
+
+.pdf, .tiff, or .eps file
+Aspect ratio of 1.6 (width should be 1.6 times the height)
+300 dpi minimum resolution
+
+Avoid graphs and other figures with fine detail due to the relatively small size of this image.
+
+The editors will review the abstract to determine its suitability for inclusion in the final published article (online only)
+
+Video Abstracts
+
+Authors may create a live-action video of the author(s) discussing the research or a narrated video with clips of data or schematic/clinical slides interspersed throughout the discussion. Authors may create an animated video using graphics and voiceovers to illustrate concisely the concepts and mechanisms in the study. If appropriate and pertinent, the author may (with permissions) include live-action video of patients demonstrating clinical conditions, and/or health care professionals demonstrating clinical/laboratory techniques.
+
+Authors may use a videography company at the authors’ expense to produce their video abstract. One such company used by Wiley is Research Square; however, authors may use a company of their choice. Professionally produced videos use animation, graphics, and voiceovers to present and highlight the findings of the article.
+
+Before you start, please be aware of the following:
+
+Video abstracts are created, whether by the author(s) or by a videography company, at the author’s expense. For studies with commercial support, the supporting company might assist with video production/expense. Academic institutions might have staff and production resources that are available to the author(s).
+Video abstracts will not be copyedited by the journal staff and therefore should be carefully reviewed and edited by the author(s) before final submission. Video abstracts will, however, be reviewed by the journal editors prior to publication.
+Authors will need to attest to the following: 1) that the findings described in the video do not extend beyond the findings presented in the accepted article, and 2) that all coauthors of the accepted article agree with the final content of the video abstract. This attestation should be provided in a cover letter, signed by the corresponding author.
+For institutional postings of the video abstract, authors should post only the journal-approved version of the video.
+It is the author’s responsibility to obtain and include the appropriate permissions for previously published material, as well as permissions for videos involving human subjects.
+Due to copyright policy, videos must not include music soundtracks (this also applies to open-source music).
+
+
+
+Content guidelines
+
+Authors must provide a script of the video along with the video.
+Video abstracts must include authors’ financial disclosures and sources of funding for the study as reported in the title page of the accepted article.
+Video abstracts must include a full citation of the accepted article (authors, title, and publication information).
+Permissions are required for previously published materials and involvement of human subjects.
+Company logos/marketing graphics and brand names are not permitted on the videos.
+Institutional copyright insignias are not permitted on the videos.
+Video abstracts should illustrate the key findings in a concise and informative manner, and the findings described in the video should not extend beyond the findings presented in the accepted article.
+Editors reserve the right to request additional video editing by the authors (which may delay publication).
+Provided that the content does not include study findings beyond those reported in the article, authors are encouraged to include additional relevant and illustrative material, such as laboratory footage, histologic images, clinical examination features, and figures/schematics.
+Video abstract content should be understandable to medical/clinical professionals who are not necessarily basic science researchers and whose patients might benefit from the findings of the study.
+If the narrator is not a medical professional (i.e., possibly unfamiliar with the pronunciation of medical/pharmaceutical terms), authors must ensure that all terms are pronounced correctly in the video before submission.
+
+Technical specifications
+
+All submitted videos will be reviewed initially for audio/visual clarity and quality.
+Video length should be 3–5 minutes.
+In schematics and figures, keep in mind readability and font size. Presentations should not include small text or images that will be difficult to see.
+Create videos with commonly used codecs. Recommended file formats for video files are Quicktime, MPEG, and Avi. (These are the standard codecs/file formats of videos created on smartphones and tablets.)
+Restrict individual file sizes to 10MB or less (zipped or unzipped) as larger files can lead to download issues for users.
+Test video files before submission, preferably on computers not used for the video file’s creation, to check for compatibility issues.
+
+MANUSCRIPT SUBMISSION AND REVIEW
+
+When you are ready to submit your manuscript, the files can be uploaded through our submission and review website: https://cpt.msubmit.net/cgi-bin/main.plex
+
+A checklist of manuscript requirements in provided in the Appendix B of the Full Author Guidelines. This is a helpful guide to review prior to submitting your manuscript but does NOT need to be submitted.
+
+Peer Review Process
+
+All manuscripts will be assessed by an Associate Editor. Manuscripts that are not chosen for peer review will be returned to the authors. If the Associate Editor chooses to send the manuscript for external peer review, reviewers will be assigned as noted below:
+
+Article Type
+
+	
+
+Number of External Reviewers
+
+
+
+
+Original Research
+
+	
+
+At least 2
+
+
+
+
+Reviews (includes Mini-Reviews and State of the Art reviews)
+
+	
+
+At least 2
+
+
+
+
+Tutorials
+
+	
+
+At least 2
+
+
+
+
+White Papers
+
+	
+
+At least 2
+
+
+
+
+Perspectives
+
+	
+
+At least 1
+
+
+
+
+Commentaries
+
+	
+
+At least 1
+
+
+
+
+Letters/Response Letters
+
+	
+
+May or may not be externally reviewed
+
+Manuscripts will be reviewed for content, originality, importance to the field, appropriateness of statistical analysis, and derivation of conclusions. If sent for review, the outcome may be acceptance, non-acceptance with an opportunity to make revisions for resubmission, or rejection.
+
+Submitting a Revision
+
+Depending on the number of revisions requested, revisions will be returned to the original reviewers, or the editors will conduct the review. New reviewers will be enlisted at the discretion of the editor and will only be added in rare circumstances (for example: new statistical analyses require someone with different expertise). Not all revised manuscripts will be accepted.
+
+All changes made in a revised manuscript must be annotated via Track Changes, or highlight, or different font color. This will help reviewers locate the changes that correspond with your point-by-point response.
+
+Responses to reviewers and editors should be included as a text (.doc or .docx) file with the manuscript files and named response to reviewers.
+
+Rebuttals
+
+On rare occasions, editorial decisions may be re-considered. Authors with serious concerns about potential scientific errors in the review process may send a rebuttal letter to the editor. Only written appeals will be considered. Rejected manuscripts may be resubmitted for consideration only with explicit permission of the Editor-in-Chief. In such cases, the submission will be given a new manuscript number and date of receipt, and will be treated as a new manuscript.
+
+MANUSCRIPT PUBLICATION (AFTER ACCEPTANCE)
+
+Open Access and License to Publish
+
+Open Access is available to authors who wish to make their article available to non-subscribers on publication, or whose funding agency requires grantees to archive the final version of their article. With Open Access, the author, the author’s funding agency, or the author’s institution pays a fee to ensure the article is made available to non-subscribers upon publication via Wiley Online Library, as well as deposited in the funding agency’s preferred archive. See the full list of terms and conditions
+
+All Open Access articles are treated in the same way as any other article. They go through the journal’s standard peer-review process and will be accepted or rejected based on their own merit.
+
+Article Processing Charge (APC)/OA Fees
+
+ASCPT members
+
+	
+
+$3,840
+
+
+
+
+Non-ASCPT members
+
+	
+
+$4,630
+
+License to publish
+
+ASCPT does not require authors of original research papers to assign copyright of their published contributions. Authors grant ASCPT an exclusive License to Publish, in return for which they can re-use their papers in their future printed work.
+
+If a paper is accepted for publication, the author identified as the formal corresponding author will receive an email prompting them to log in to Author Services, where via the Wiley Author Licensing Service (WALS) they will be required to complete a license agreement on behalf of all authors of the paper.
+
+Direct deposition of published manuscript to repositories
+
+Authors are encouraged to submit their version of the accepted, peer-reviewed manuscript to their funding body’s archive, for public release 12 months after publication. In addition, authors are encouraged to archive their version of the manuscript in their institution’s repositories (as well as on their personal websites), also 12 months after the original publication. Authors should cite the publication reference and Digital Object Identifier (DOI) on any deposited version and provide a link from it to the published article on the CPT website.
+
+This policy complements the policies of the US National Institutes of Health, the Wellcome Trust and other research funding bodies around the world. ASCPT recognizes the efforts of funding bodies to increase access of the research they fund, and strongly encourages authors to participate in such efforts.
+
+Online publication and proofreading
+
+All accepted manuscripts are subject to copyediting to adhere to journal style and eliminate spelling and grammatical errors. After copyediting, manuscripts are typeset, and proofs are created. The corresponding author will receive an e-mail notification (usually about 4 weeks after the files have been sent to the publisher) with a link and instructions for accessing page proofs online. Online guidelines are provided within the system. Page proofs should be carefully proofread for any copyediting or typesetting errors. Please answer any copyediting queries listed in the proof.
+
+Important changes in the data are allowed, but authors may be charged for excessive alterations in proof. Authors should not make substantial edits during proofing—the proofing stage is limited to formatting changes only. Proofs must be returned within 48 hours of receipt of the email to avoid publication delays. Along with the article proof, authors will receive a charge form to pay for color, page, and supporting information fees (see above). Authors should return this form to cpt@wiley.com. Color figures will be published online free of charge.
+
+After the typesetting and proofreading process is complete, the article will be placed online as the “Early View” article. This is the version of record and includes a functional html version of the article and a typeset PDF. Early View articles have been fully reviewed, revised, and edited for publication, and the authors’ final corrections have been incorporated. Once the article is published on Early View, no further changes to the article are possible without issuing a correction notice. Early View articles do not yet have volume, issue, or page numbers, so cannot be cited in the traditional way. The Digital Object Identifier (DOI) allows the article to be cited and tracked before it is allocated to a print issue. After print publication, the DOI remains valid and can continue to be used to cite and access the article.
+
+Online production tracking is available for your article through Wiley Author Services.
+
+Author Services lets authors track their article – once it has been accepted – through the production process to publication online and in print. Authors can check the status of their articles online and choose to receive automated e-mails at key stages of production. The author will receive an e-mail with a unique link that enables them to register and have their article automatically added to the system.
+
+Visit http://authorservices.wiley.com/ for more details on online production tracking and for a wealth of resources including FAQs and tips on article preparation, submission, and more.
+
+ETHICAL POLICIES
+
+Data
+Upon submission, the corresponding author must confirm full access to all data in the study and final responsibility. CPT expects that data supporting the results in the paper will be archived in an appropriate public repository. Whenever possible the scripts and other artefacts used to generate the analyses presented in the paper should also be publicly archived. Exceptions may be granted at the discretion of the editor for sensitive information such as human subject data or the location of endangered species. Authors are expected to provide a data accessibility statement, including a link to the repository they have used, to accompany their paper.
+
+Informed Consent and Ethics
+
+Research projects involving human subjects require review and approval by an Institutional Review Board (IRB). When reporting experiments on human subjects, indicate whether the procedures were in accordance with the ethical standards of the responsible committee on human experimentation or with the Helsinki Declaration of 1975 (as revised in 1983). IRB or Institutional Animal Care and Use Committee approval must be cited in the Methods section of the text. If there has been no IRB review of the study, please so indicate in the cover letter. In such situations, the manuscript will be reviewed to determine if IRB review should have been conducted. The result of this review may determine whether the manuscript will be considered for publication.
+
+Clinical trials registry
+
+See December 2023 editorial for detailed information about CPT requirements for clinical trials reporting. For further details, please also see the ICMJE’s Clinical Trials FAQ section.
+
+Authors should pre-specify the population, intervention, comparator and outcome (PICO) in both designing and analyzing the reports of clinical trials. Registration in a public trials registry is required for publication in CPT. A clinical trial is defined as any research project that prospectively assigns human subjects to intervention or comparison groups to study the cause-and-effect relationship between a medical intervention and a health outcome. Clinical trial registration must occur at or before the onset of patient enrollment. Registration must be with a registry that meets the following criteria:
+
+accessible to the public at no charge;
+searchable by electronic methods;
+open to all prospective registrants free of charge or at minimal cost;
+validates registered information;
+identifies trials with a unique number; and
+includes information on the: a. investigator(s), b. research question or hypothesis, c. methodology, d. intervention and comparisons, e. eligibility criteria, f. primary and secondary outcomes measured, g. date of registration, h. anticipated or actual start date, i. anticipated or actual date of last follow-up, j. target number of subjects, status (anticipated, ongoing or closed), k. and funding source(s).
+
+Examples of registries that meet these criteria include
+
+United States National Library of Medicine;
+The International Standard Randomised Controlled Trial Number Registry;
+The Cochrane Renal Group Registry;
+European Clinical Trials Register (EU-CTR);
+Japan Primary Registries Network (JPRN);
+Brazilian Clinical Trials Registry (ReBec)
+Australian New Zealand Clinical Trials Registry (ANZCTR)
+
+Any registry meets CPT requirements if is listed as a primary registry in the World Health Organization registry network.
+
+Authors reporting the results of a randomized controlled trial must provide the completed CONSORT checklist available at www.consort-statement.org. Manuscripts that fail to comply with CONSORT guidelines will not be reviewed for publication.
+
+For Early Phase Dose-Finding Trials: Follow CONsolidated Standards Of Reporting Trials - DoSe FINding Extension (CONSORT-DEFINE) reporting guideline. CPT has developed a checklist to guide authors reporting Early Phase Dose-Finding Trials. Please see here for a downloadable version.
+
+For Trial Protocols: Follow SPIRIT-DEFINE guidelines.
+
+Conflicts of interest
+
+CPT subscribes to the Uniform Requirements for Manuscripts Submitted to Biomedical Journals established by the International Committee of Medical Journal Editors. These principles require that participants in the peer review and publication process disclose all relationships that could be viewed as presenting a potential conflict of interest. Disclosures must include employment, consultancies, honoraria, stock ownership, stock options, expert testimony, grants received and pending, patents received and pending, royalties, and in-kind contributions. Editors may publish disclosed information if they believe readers will find it important in judging the manuscript. Institutional and personal conflicts of interest must also be declared.
+
+Authorship
+
+Requirements for all categories of articles largely conform to the Uniform Requirements for Manuscripts Submitted to Biomedical Journals, developed by the ICMJE. A manuscript will be considered for publication with the understanding that:
+
+all named authors have agreed to its submission
+it is not currently being considered for publication by another journal
+if the paper is accepted, it will not subsequently be published in the same or similar form in any language without the consent of publisher
+
+Each author must have contributed sufficiently to the intellectual content of the submission. Any changes to the author list after submission, such as a change in the order of the authors, or the deletion or addition of authors, will follow the guidelines as set out by the Committee on Publication Ethics, COPE. The corresponding author must confirm that they had full access to the data in the study and final responsibility for the decision to submit for publication. The ICMJE recommends that authorship be based on the following 4 criteria:
+
+Substantial contributions to the conception or design or the work; or the acquisition, analysis, or interpretation of data for the work; AND
+Drafting the work or revising it critically for important intellectual content; AND
+Final approval of the version to be published; AND
+Agreement to be accountable for all aspects of the work in ensuring that questions related to the accuracy or integrity of any part of the work are appropriately investigated and resolved.
+
+In addition to being accountable for the parts of the work he or she has done, an author should be able to identify which co-authors are responsible for specific other parts of the work. In addition, authors should have confidence in the integrity of the contributions of their co- authors.
+
+An artificial intelligence may not be listed as an author.
+
+When a large multi-author group has conducted the work, the group ideally should decide who will be an author before the work is started and confirm who is an author before submitting the manuscript for publication. All members of the group named as authors should meet all four criteria for authorship, including approval of the final manuscript, and they should be able to take public responsibility for the work and should have full confidence in the accuracy and integrity of the work of other group authors.
+
+Acquisition of funding, collection of data, or general supervision of the research group alone does not constitute authorship. All persons designated as authors should qualify for authorship, and all those who qualify should be listed. Each author should have participated sufficiently in the work to take public responsibility for appropriate portions of the content.
+
+Contributions by individuals who made direct contributions to the work but do not meet all of the above criteria should be noted in the Acknowledgments section of the manuscript. Examples include: a statistician who has consulted on the included statistical tests; a colleague who has edited the document for English clarity, but did not contribute to the content; a photographer or artist who prepared the figures.
+
+Medical writers and industry employees can be contributors and listed as authors if they meet the requirements listed above. Their roles, affiliations, and potential conflicts of interest should be included in the author list or noted in the Acknowledgments with their contribution to the work submitted. Failure to acknowledge these contributors can be considered inappropriate.
+
+Wiley’s Author Name Change Policy
+
+In cases where authors wish to change their name following publication, Wiley will update and republish the paper and redeliver the updated metadata to indexing services. Our editorial and production teams will use discretion in recognizing that name changes may be of a sensitive and private nature for various reasons including (but not limited to) alignment with gender identity, or as a result of marriage, divorce, or religious conversion. Accordingly, to protect the author’s privacy, we will not publish a correction notice to the paper, and we will not notify co-authors of the change. Authors should contact the journal’s Editorial Office with their name change request. 
+
+Use of Artificial Intelligence (AI)
+
+AI tools cannot be listed as authors, as they cannot be accountable for the work. AI tools may be used in drafting assistance or to help in developing figures and tables. These tools should only be used to improve readability and language. All AI use must be credited, either in the acknowledgements or methods section. Authors remain responsible for all work submitted under their name.
+
+Confidentiality
+
+CPT editors and editorial staff keep confidential all details about a submitted manuscript and do not comment to any outside organization about manuscripts submitted to the journal. After a manuscript is submitted, correspondence with the journal, referees’ reports, and other confidential material, whether or not the submission is eventually published, must not be posted on any website or otherwise publicized without prior permission from CPT. Referees agree to maintain confidentiality of all manuscripts under consideration.
+
+Embargo
+
+CPT does not wish to hinder communication between scientists. For that reason, different embargo guidelines apply to work that has been discussed at a conference or displayed on a preprint server and picked up by the media as a result. (Neither conference presentations nor posting on recognized preprint servers constitute prior publication.) Authors are requested to update any pre-publication versions with a link to the final published article.
+
+Communication with the Media
+
+Authors must not discuss contributions with the media (including other scientific journals) until the publication date. The only exception is in the week before publication, during which contributions may be discussed with the media if authors and their representatives (institutions, funders) clearly indicate to journalists that their contents must not be publicized until the journal’s press embargo has elapsed. Authors will be informed of embargo dates and timings after acceptance for publication of their articles. We reserve the right to halt the consideration or publication of a paper if this condition is broken. From time to time CPT will distribute to a registered list a press release summarizing selected content of the next issue’s publication. Journalists are encouraged to read the full version of any papers they wish to cover, and are given the names of corresponding authors, together with phone numbers and email addresses. They receive access to the full text of papers about a week before publication on a password-protected website, together with other relevant material (for example, an accompanying News and Views article, and any extra illustrations provided by the authors). The content of the press release and papers is embargoed until the time and date clearly stated on the press release. Authors may therefore receive calls or emails from the media during this time; we encourage them to cooperate with journalists so that media coverage of their work is accurate and balanced. Authors whose papers are scheduled for publication may also arrange their own publicity (for instance through their institutional press offices), but they must strictly adhere to our press embargo.
+
+Originality and Plagiarism
+
+A submitted manuscript must be an original contribution not previously published (conference presentations nor posting on recognized preprint servers constitute prior publication), must not be under consideration for publication elsewhere, and, if accepted, must not be reproduced elsewhere without the consent of ASCPT. Although the editors, editorial board, and referees make every effort to ensure the validity of published manuscripts, the final responsibility rests with the authors, not with Clinical Pharmacology & Therapeutics, its editors, ASCPT, or Wiley. The journal retains the right to utilize plagiarism detection methods on all submitted manuscripts.
+
+CPT defines major plagiarism as any case involving:
+
+unattributed copying of another person's data/findings, or resubmission of an entire publication under another author's name (either in the original language or in translation), or
+verbatim copying of >100 words of original material without indicating that these are a direct quotation from an original work (whether or not the source is cited), unless the text is accepted as widely used or standardized (e.g., the description of a standard technique or statistical analysis)
+unattributed use of original, published, academic work, such as the structure, argument or hypothesis/idea of another person or group where this is a major part of the new publication and there is evidence that it was not developed independently.
+
+Minor plagiarism is defined as:
+
+verbatim copying of <100 words without indicating that these are a direct quotation from an original work (whether or not the source is cited), unless the text is accepted as widely used or standardized (e.g., the description of a standard technique or statistical analysis)
+close copying (not quite verbatim, but changed only slightly from the original) of significant sections (e.g., >100 words) from another work (whether or not that work is cited).
+
+If CPT suspects a case of plagiarism, we will first contact the authors for clarification. If the authors are unable to sufficiently explain the potential plagiarism, we reserve the right to inform the authors' institutions and funding agencies. If a published article is suspected of plagiarism, we will take the further step of informing our readers, potentially via retraction of the article.
+
+Retraction and Corrections policy
+
+CPT has a responsibility to correct errors that have been previously published. Corrections are published for significant errors at the discretion of the editors. Readers who have identified such an error should send an email cpt@ascpt.org, clearly stating the publication reference, title, author and section of the article, and briefly explaining the error.
+Publishable amendments requested by the authors of the publication are represented by a formal printed and online notice in the journal because they affect the publication record and/or the scientific accuracy of published information. Where these amendments concern peer-reviewed material, they fall into one of four categories:
+
+Erratum: Notification of an important error made by the journal that affects the publication record or the scientific integrity of the paper, or the reputation of the authors or the journal (example: a typesetting error in a table or equation).
+Corrigendum: Notification of an important error made by the author(s) that affects the publication record or the scientific integrity of the paper, or the reputation of the authors or the journal. All authors must sign corrigenda submitted for publication. In cases where coauthors disagree, the editors will take advice from independent peer-reviewers and impose the appropriate amendment, noting the dissenting author(s) in the text of the published version.
+Retraction:* Notification of invalid results. All coauthors must sign a retraction specifying the error and stating briefly how the conclusions are affected, and submit it for publication. In cases where coauthors disagree, the editors will seek advice from independent peer reviewers and impose the type of amendment that seems most appropriate, noting the dissenting author(s) in the text of the published version.
+Addendum: Notification of a peer-reviewed addition of information to a paper, usually in response to readers’ request for clarification. Addenda are published only rarely and only when the editors decide that the addendum is crucial to the reader’s understanding of a significant part of the published contribution.
+
+*CPT follows the guidelines of the Committee on Publication Ethics (COPE)
+
+Permission to reuse materials
+
+If a table, figure or any other previously published material is included, the authors must obtain written permission to reproduce the material in both print and electronic formats from the copyright owner and submit it with the manuscript. The original source should be cited in full per the terms and conditions as stated in the permission agreement.
+
+MANUSCRIPT SUBMISSION CHECKLIST
+
+This submission checklist is provided to help authors in the final stage of submission. Following this checklist should ensure the editorial office does not return your manuscript to you prior to evaluation. This checklist is NOT required for submission. A more complete description of each item is provided under the appropriate heading in the Guide to Authors document. Please click here for a PDF of the checklist.
+
+TIPS FOR SUCCESSFUL PUBLICATION
+
+A 2024 webinar outlined common reasons for rejection, with tips to avoid, along with other helpful tips for authors. Powerpoint slides are available here. To watch the full webinar and Q&A session (1 hour), click here.
+
+Sign up for email alerts
+
+Enter your email to receive alerts when new articles and issues are published.
+
+Email address
+Continue
+Submit an article
+Subscribe to this Journal
+Journal Metrics
+Stay Connected
+Follow on X
+Like on Facebook
+Connect on LinkedIn
+Journal Resources
+CPIC Guidelines
+Clinical Trials
+ClinPharmPod Podcast
+Open Access
+Author Guidelines
+Library Subscriptions
+Video Gallery
+Posts by ASCPT_ClinPharm
+ Back
+About ASCPT
+Membership & Events
+Contact ASCPT
+
+© 2026 American Society for Clinical Pharmacology and Therapeutics
+
+Additional links
+ABOUT WILEY ONLINE LIBRARY
+Privacy Policy
+Terms of Use
+About Cookies
+Manage Cookies
+Accessibility
+Wiley Research DE&I Statement and Publishing Policies
+HELP & SUPPORT
+Contact Us
+Training and Support
+DMCA & Reporting Piracy
+Sitemap
+OPPORTUNITIES
+Subscription Agents
+Advertisers & Corporate Partners
+CONNECT WITH WILEY
+The Wiley Network
+Wiley Press Room
+
+Copyright © 1999-2026 John Wiley & Sons, Inc or related companies. All rights reserved, including rights for text and data mining and training of artificial intelligence technologies or similar technologies.

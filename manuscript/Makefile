@@ -4,10 +4,10 @@
 # Usage:
 #   make all          - build every chapter (journal PDFs → output/)
 #   make ch01         - build Chapter 1 only
-#   make docx         - build all chapters as Word .docx → edits/ (for advisor)
-#   make docx-full    - full dissertation .docx → edits/ (timestamped filename)
-#   make docx-ch01    - single chapter to edits/
-#   make clean        - remove compiled PDFs from output/ and .docx from edits/
+#   make docx         - build all chapters as Word .docx → output/edits/ (for advisor)
+#   make docx-full    - full dissertation .docx → output/edits/ (timestamped filename)
+#   make docx-ch01    - single chapter to output/edits/
+#   make clean        - remove compiled PDFs and .docx from output/
 #   make draft        - build all chapters in draft mode (plain article class)
 #
 # Prerequisites:
@@ -17,7 +17,8 @@
 #                  WileyNJD-v2.cls: see templates/INSTALL.md
 
 OUTPUT := output
-EDITS  := edits
+EDITS  := output/edits
+SUBMIT := output/final_submission
 
 # TEXINPUTS: lets xelatex find Definitions/mdpi.cls from any chapter dir.
 export TEXINPUTS := .:$(CURDIR)/templates//:$(TEXINPUTS)
@@ -75,7 +76,7 @@ draft:
 	    --output-dir $(OUTPUT); \
 	done
 
-# ── Word .docx for advisor review (Google Docs compatible) ───────────────────
+# ── Word .docx for advisor review ───────────────────────────────────────────
 docx: docx-ch01 docx-ch02 docx-ch03 docx-ch04 docx-ch05 docx-ch06
 
 # Full dissertation (matches build.ps1 -Full -Docx)
@@ -85,29 +86,29 @@ docx-full:
 	  --output-dir $(EDITS) --output dissertation_dixon_$$(date +%Y%m%d_%H%M%S).docx
 
 docx-ch01:
-	mkdir -p $(EDITS)
-	quarto render CH_1/ch01_bmic.qmd --to docx \
-	  --output-dir $(EDITS) --output ch01_bmic_draft.docx
+	mkdir -p $(EDITS)/cts
+	quarto render CH_1/ch01_cts.qmd --to docx \
+	  --output-dir $(EDITS)/cts --output ch01_cts_draft.docx
 
 docx-ch02:
-	mkdir -p $(EDITS)
+	mkdir -p $(EDITS)/cpt_psp
 	quarto render CH_2/ch02_psp.qmd --to docx \
-	  --output-dir $(EDITS) --output ch02_psp_draft.docx
+	  --output-dir $(EDITS)/cpt_psp --output ch02_psp_draft.docx
 
 docx-ch03:
-	mkdir -p $(EDITS)
+	mkdir -p $(EDITS)/cts
 	quarto render CH_3/ch03_cts.qmd --to docx \
-	  --output-dir $(EDITS) --output ch03_cts_draft.docx
+	  --output-dir $(EDITS)/cts --output ch03_cts_draft.docx
 
 docx-ch04:
-	mkdir -p $(EDITS)
+	mkdir -p $(EDITS)/cpt_psp
 	quarto render CH_4/ch04_psp.qmd --to docx \
-	  --output-dir $(EDITS) --output ch04_psp_draft.docx
+	  --output-dir $(EDITS)/cpt_psp --output ch04_psp_draft.docx
 
 docx-ch05:
-	mkdir -p $(EDITS)
-	quarto render CH_5/ch05_bmic.qmd --to docx \
-	  --output-dir $(EDITS) --output ch05_bmic_draft.docx
+	mkdir -p $(EDITS)/cpt
+	quarto render CH_5/ch05_cpt.qmd --to docx \
+	  --output-dir $(EDITS)/cpt --output ch05_cpt_draft.docx
 
 docx-ch06:
 	mkdir -p $(EDITS)
@@ -116,5 +117,6 @@ docx-ch06:
 
 # ── Clean compiled output ──────────────────────────────────────────────────────
 clean:
-	rm -f $(OUTPUT)/*.pdf $(OUTPUT)/*.tex $(OUTPUT)/*.log
-	rm -f $(EDITS)/*.docx
+	find $(OUTPUT) -name '*.pdf' -o -name '*.tex' -o -name '*.log' | xargs rm -f
+	find $(EDITS) -name '*.docx' | xargs rm -f
+	rm -rf $(SUBMIT)

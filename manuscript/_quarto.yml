@@ -11,14 +11,20 @@ format:
     keep-tex: false
     geometry: margin=1in
     fontsize: 11pt
+    fig-pos: 'H'
     include-in-header:
       text: |
         \PassOptionsToPackage{hidelinks}{hyperref}
+        \usepackage{float}
   docx:
+    reference-doc: templates/reference.docx
     number-sections: true
     toc: true
     toc-depth: 3
     highlight-style: github
+    fig-dpi: 300
+    fig-width: 6.5
+    fig-height: 5.0
 
 # Default bibliography – individual chapters add their own journal-specific .bib
 bibliography: refs/discipline.bib

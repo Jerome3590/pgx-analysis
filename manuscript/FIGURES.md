@@ -53,10 +53,10 @@ python manuscript/generate_figures_ch4.py   # FP-Growth network, IR rankings, Z-
 python manuscript/generate_figures_ch5.py   # Tab 2 schematic → `shared/pgx_dashboard.pdf`; imputation; latency
 ```
 
-Data inputs read from `manuscript/scripts/` extraction JSON outputs:
-- `shap_top_features.json` → `fig_shap.pdf`, `fig_shap_pdp.pdf`
+Data inputs read from `manuscript/infrastructure_setup/scripts/` extraction JSON outputs:
+- `data/shap_top_features.json` → `fig_shap.pdf`, `fig_shap_pdp.pdf`
 - `dtw_manuscript_summary.json` → `fig_trajectories.pdf`, `fig_trajectories_heatmap.pdf`, `fig_dtw_pathways.pdf`
-- `visual_manuscript_data.json` → `fig_network.pdf`, `fig_ir.pdf`, `fig_zcode.pdf`, `fig_curves.pdf`
+- `data/visual_manuscript_data.json` → `fig_network.pdf`, `fig_ir.pdf`, `fig_zcode.pdf`, `fig_curves.pdf`
 - CloudWatch results → `fig_latency.pdf`
 
 ### TikZ-compiled figures (CH_6)
