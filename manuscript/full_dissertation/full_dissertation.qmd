@@ -202,7 +202,7 @@ Chapter 1 establishes the knowledge gap through a Systematic Quantitative Litera
 
 ```{r ch01}
 #| results: asis
-include_chapter("../CH_1/ch01_bmic.qmd")
+include_chapter("../CH_1/ch01_cts.qmd")
 ```
 
 \cleardoublepage
@@ -270,7 +270,7 @@ The previous chapters successfully developed and applied a robust predictive pip
 
 ```{r ch05}
 #| results: asis
-include_chapter("../CH_5/ch05_bmic.qmd")
+include_chapter("../CH_5/ch05_cpt.qmd")
 ```
 
 \cleardoublepage
