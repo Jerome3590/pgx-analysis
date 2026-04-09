@@ -127,7 +127,7 @@ R. Jerome Dixon,^1,2^ Elvin T. Price^1,3^
 
 ^3^ ConvergenceLabs\@VCU---Health Outcomes, Virginia Commonwealth University, Richmond, VA 23284, USA
 
-**Corresponding Author:** R. Jerome Dixon, Ph.D. Candidate · Ph.D. Program in Integrative Life Sciences, School of Life Sciences and Sustainability, Virginia Commonwealth University, 1000 West Cary Street, Box 842030, Richmond, VA 23284-2030, USA · Phone: (804) 828-3000 · Email: dixonrj\@vcu.edu · ORCID: 0000-0001-8622-0597
+**Corresponding Author:** R. Jerome Dixon, Ph.D. Student · Ph.D. Program in Integrative Life Sciences, School of Life Sciences and Sustainability, Virginia Commonwealth University, 1000 West Cary Street, Box 842030, Richmond, VA 23284-2030, USA · Phone: (804) 828-3000 · Email: dixonrj\@vcu.edu · ORCID: 0000-0001-8622-0597
 
 **Running Title:** Partition-First Architecture for APCD Modeling
 
