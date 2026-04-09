@@ -134,7 +134,7 @@ R. Jerome Dixon,^1,2^ Elvin T. Price^1,3^
 
 **Running Title:** A Serverless Pharmacogenomic Risk Dashboard
 
-**Figures:** 4 · **Tables:** 5
+**Figures:** 4 · **Tables:** 3 · **Supplementary Tables:** 2
 
 **Keywords:** pharmacogenomics; clinical decision support; serverless architecture; privacy-first design; opioid risk; CPIC; explainable AI
 
@@ -166,7 +166,9 @@ that validated, performant
 models, and focuses entirely on making those models usable, trustworthy,
 and accessible to non-data-scientist clinicians in real-world prescribing contexts.
 
-# System Architecture {#ch05-architecture}
+# Methods {#ch05-methods}
+
+## System Architecture {#ch05-architecture}
 
 ## Design Philosophy
 
@@ -232,23 +234,9 @@ In practice, however, not all age band × bin combinations have sufficient
 training data to fit stable models; usable combinations total approximately
 28 per cohort (average 4 of 4 bins populated for the 7 primary age bands).
 
-| Component | Size | Notes |
-|:---|---:|:---|
-| CatBoost models (per-bin, all bands) | ~147 MB | ~21 MB per model |
-| XGBoost models (per-bin, all bands) | ~140 MB | ~20 MB per model |
-| XGBoost-RF models (per-bin, all bands) | ~182 MB | ~26 MB per model |
-| Calibration models (per-bin) | ~12 MB | Platt-scaling joblib files |
-| Feature schemas (per-bin) | ~18 MB | JSON: feature names, medians, thresholds |
-| CPIC database snapshot | ~48 MB | 573 gene-drug pairs, Level A/B |
-| OS + Python runtime | ~112 MB | python:3.11-slim base image |
-| **Total container image** | **619 MB** | ECR: `pgx-risk-calculator` repo; well within 10 GB Lambda limit |
+Container image sizing is detailed in **Table S1** (Supplementary). Total image size is 619 MB (ECR: `pgx-risk-calculator`), well within the 10 GB Lambda limit. Model artifacts dominate (~507 MB, 82% of image); the Python 3.11-slim base (112 MB) preserves headroom. Doubling the model count would approach but not exceed the limit.
 
-: Lambda container image sizing. Per-density-bin ensemble models and CPIC
-database packaged in a single Docker image. {#tbl-sizing}
-
-Model artifacts (~507 MB, 82% of image) dominate; the Python 3.11-slim base (112 MB) preserves headroom. Doubling the model count would approach but not exceed the 10 GB Lambda limit.
-
-# The Inference Engine {#ch05-inference}
+## The Inference Engine {#ch05-inference}
 
 ## Ensemble Risk Scoring
 
@@ -330,7 +318,9 @@ Shaded band = ± 1 SD. Prediction stability is maintained up to 70% sparsity.
 Band assignment is stable up to ~60% sparsity.](../figures/ch05/fig_imputation.png){#fig-imputation
 width=90% fig-align="center"}
 
-# Final PGx Risk Dashboard {#ch05-features}
+# Results {#ch05-results}
+
+## PGx Risk Dashboard {#ch05-features}
 
 The **PGx Risk Dashboard** is organized around concrete questions the ensemble
 and satellite tools are meant to support at the point of care:
@@ -441,16 +431,7 @@ The workflow accepts 23andMe raw format (rsID/chromosome/position/genotype); inv
 
 Example CPIC card entries:
 
-| Gene | Phenotype | Drug | CPIC Level | Recommendation |
-|:---|:---|:---|:---:|:---|
-| CYP2D6 | Poor Metabolizer | Codeine | A | Avoid; serious adverse events |
-| CYP2D6 | Poor Metabolizer | Tramadol | A | Avoid; inadequate analgesia |
-| CYP2C19 | Ultrarapid Metabolizer | Clopidogrel | A | Use standard dose |
-| TPMT | Heterozygous | Azathioprine | A | Reduce dose by 30–70% |
-| SLCO1B1 | Decreased Function | Simvastatin | A | Consider lower dose; myopathy risk |
-
-: Representative PGx Patient Card entries for a hypothetical patient
-profile. CPIC, Clinical Pharmacogenomics Implementation Consortium. {#tbl-pgx-card}
+Representative PGx Patient Card entries for a hypothetical patient profile are provided in **Table S2** (Supplementary). Examples include: CYP2D6 Poor Metabolizer on codeine (Avoid; serious adverse events), CYP2C19 Ultrarapid Metabolizer on clopidogrel (standard dose), and SLCO1B1 Decreased Function on simvastatin (consider lower dose; myopathy risk).
 
 ### PGx Feature Coverage in Study Cohort {#ch05-pgx-coverage}
 
@@ -479,7 +460,7 @@ PGx Coverage = proportion of patients with `pgx_num_drugs` ≥ 1; Mean PGx Drugs
 mean `pgx_num_drugs`; Mean CPIC Drugs = mean `pgx_num_cpic_drugs` (CPIC Level A/B).
 Source: `pgx_coverage.json` (2019 holdout). {#tbl-pgx-coverage}
 
-# Deployment and Reliability {#ch05-deployment}
+## Deployment and Reliability {#ch05-deployment}
 
 ## CI/CD Pipeline
 
@@ -586,10 +567,7 @@ The PGx Risk Dashboard translates validated ensemble models, causal rules, and P
 
 These features complete the translational pipeline from APCD-scale modeling to bedside decision support, demonstrating that clinical AI deployment requires only validated models, a cloud account, and architectural attention to privacy-by-design.
 
-**Supplementary Materials:** Supplementary File S1 (API endpoint
-specification); Supplementary File S2 (CPIC database version and gene
-list); Supplementary File S3 (sensitivity analysis full results);
-Supplementary File S4 (container image build script).
+**Supplementary Materials:** Supplementary Table S1 (Lambda container image component sizing); Supplementary Table S2 (representative PGx Patient Card entries; CPIC Level A/B gene-drug pairs); Supplementary File S3 (API endpoint specification); Supplementary File S4 (CPIC database version and gene list); Supplementary File S5 (sensitivity analysis full results); Supplementary File S6 (container image build script).
 
 **Acknowledgements:** The authors acknowledge the Virginia Center for Health
 Innovation (VCHI) and Virginia Health Information (VHI) for the underlying

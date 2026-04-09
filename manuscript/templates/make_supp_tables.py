@@ -461,12 +461,59 @@ def make_ch04_tables(supp_dir: Path):
         print(f"  Table S1: {len(pairs)} pairs -> Table_S1.docx + Table_S1.csv")
 
 
+def make_ch05_tables(supp_dir: Path):
+    """CH_5 / CPT-2026 supplementary tables."""
+
+    # Table S1 — Lambda container image sizing
+    save_table_docx(
+        path=supp_dir / "Table_S1.docx",
+        caption=(
+            "Table S1. Lambda container image component sizing. "
+            "Per-density-bin ensemble models (CatBoost, XGBoost, XGBoost-RF) and "
+            "CPIC database snapshot packaged in a single Docker image "
+            "(ECR: pgx-risk-calculator). Total image size 619 MB, well within the "
+            "10 GB AWS Lambda container limit."
+        ),
+        headers=["Component", "Size", "Notes"],
+        rows=[
+            ["CatBoost models (per-bin, all bands)",   "~147 MB", "~21 MB per model"],
+            ["XGBoost models (per-bin, all bands)",    "~140 MB", "~20 MB per model"],
+            ["XGBoost-RF models (per-bin, all bands)", "~182 MB", "~26 MB per model"],
+            ["Calibration models (per-bin)",           "~12 MB",  "Platt-scaling joblib files"],
+            ["Feature schemas (per-bin)",              "~18 MB",  "JSON: feature names, medians, thresholds"],
+            ["CPIC database snapshot",                 "~48 MB",  "573 gene-drug pairs, Level A/B"],
+            ["OS + Python runtime",                    "~112 MB", "python:3.11-slim base image"],
+            ["Total container image",                  "619 MB",  "ECR: pgx-risk-calculator; within 10 GB Lambda limit"],
+        ],
+    )
+
+    # Table S2 — Representative PGx Patient Card entries
+    save_table_docx(
+        path=supp_dir / "Table_S2.docx",
+        caption=(
+            "Table S2. Representative PGx Patient Card entries for a hypothetical "
+            "patient profile. Output generated from the stateless CPIC lookup workflow "
+            "using 23andMe raw-format input. CPIC, Clinical Pharmacogenomics "
+            "Implementation Consortium."
+        ),
+        headers=["Gene", "Phenotype", "Drug", "CPIC Level", "Recommendation"],
+        rows=[
+            ["CYP2D6",   "Poor Metabolizer",          "Codeine",      "A", "Avoid; serious adverse events"],
+            ["CYP2D6",   "Poor Metabolizer",          "Tramadol",     "A", "Avoid; inadequate analgesia"],
+            ["CYP2C19",  "Ultrarapid Metabolizer",    "Clopidogrel",  "A", "Use standard dose"],
+            ["TPMT",     "Heterozygous",              "Azathioprine", "A", "Reduce dose by 30\u201370%"],
+            ["SLCO1B1",  "Decreased Function",        "Simvastatin",  "A", "Consider lower dose; myopathy risk"],
+        ],
+    )
+
+
 # ── entry point ─────────────────────────────────────────────────────────────
 
 CHAPTER_MAP = {
     1: ("cts",     "ch01", make_ch01_supp_files),
     3: ("cts",     "ch03", make_ch03_supp_figures),
     4: ("cpt_psp", "ch04", make_ch04_tables),
+    5: ("cpt",     "ch05", make_ch05_tables),
 }
 
 
