@@ -126,7 +126,7 @@ R. Jerome Dixon,^1,2^ Elvin T. Price^1,3^
 
 ^3^ ConvergenceLabs\@VCU---Health Outcomes, Virginia Commonwealth University, Richmond, VA 23284, USA
 
-**Corresponding Author:** R. Jerome Dixon · dixonrj\@vcu.edu · ORCID: 0000-0001-8622-0597 · Department of Pharmacotherapy and Outcomes Science, School of Pharmacy, VCU, 410 North 12th Street, Richmond, VA 23298, USA
+**Corresponding Author:** R. Jerome Dixon, Ph.D. Candidate · Department of Pharmacotherapy and Outcomes Science, School of Pharmacy, Virginia Commonwealth University, 410 North 12th Street, Box 980533, Richmond, VA 23298-0533, USA · Phone: (804) 828-3000 · Email: dixonrj\@vcu.edu · ORCID: 0000-0001-8622-0597
 
 **Author Contributions:** R.J.D.: Conceptualization, Data curation, Formal analysis, Methodology, Software, Validation, Visualization, Writing – original draft. E.T.P.: Conceptualization, Supervision, Writing – review & editing.
 
