@@ -134,7 +134,7 @@ R. Jerome Dixon,^1,2^ Elvin T. Price^1,3^
 
 **Running Title:** XAI and Pharmacogenomics: A Systematic Review
 
-**Figures:** 5 · **Tables:** 3
+**Figures:** 4 · **Tables:** 3
 
 **Keywords:** opioid use disorder; pharmacogenomics; explainable artificial intelligence; systematic review; SHAP; clinical decision support; machine learning
 
