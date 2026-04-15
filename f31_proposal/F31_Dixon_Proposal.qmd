@@ -293,9 +293,11 @@ IR scoring.
   2017, A): Applied predictive modeling for longitudinal clinical trajectories,
   informing DTW trajectory archetyping within a tree-based ensemble framework.
 
-**Applied Certification:** AWS Certified Machine Learning – Specialty validates
-expertise in designing, deploying, and monitoring large-scale inference pipelines
-and stratified ensemble models across age bands and risk strata.
+**Applied Certification:** AWS Certified Machine Learning – Specialty
+[@AWS_ML_Specialty] validates expertise in designing, deploying, and monitoring
+large-scale inference pipelines and stratified ensemble models across age bands
+and risk strata. Directly maps to Aims 1 & 2 (per-bin ensemble training and
+Optuna-tuned model selection) and Aim 3 (Lambda inference pipeline).
 
 ## Area 3: Translational Informatics and Big Data Architecture (Decide & Act)
 
@@ -304,10 +306,14 @@ decision support software.
 
 **Applied Certifications:**
 
-- **AWS Certified Big Data Analytics**: Expertise in scaling analytical workloads
-  (DuckDB and S3 data lakes) to achieve the 15.1× throughput improvement.
-- **AWS Certified Solutions Architect**: Technical basis for deploying the serverless
-  PGx Risk Dashboard using the ephemeral AWS Lambda architecture.
+- **AWS Certified Solutions Architect – Associate** [@AWS_Solutions_Architect]:
+  Provides the architectural foundation for deploying the serverless PGx Risk
+  Dashboard on AWS Lambda with ephemeral, stateless compute, ECR container
+  management, and CI/CD integration via GitHub Actions. Directly maps to Aim 3.
+- **AWS Certified Big Data – Specialty** [@AWS_Big_Data]: Validates expertise in
+  orchestrating large-scale analytical workloads across S3 data lakes and
+  partitioned DuckDB workers, enabling the 15.1× throughput improvement in the
+  Bronze-to-Gold APCD pipeline. Directly maps to Aims 1 & 2 data architecture.
 
 **Genomic Foundations:**
 
