@@ -104,8 +104,8 @@ stateless CPIC PGx card satisfies HIPAA minimum-necessary
 *Preliminary Results:* Warm inference ≤ 100 ms; cold-start ≤ 3,000 ms;
 100% CPIC concordance across 573 test cases; risk-band stability ≥ 87% at
 50% input sparsity confirmed in load testing. *Deliverable:* Ongoing
-reliability monitoring, EHR input extension, and peer-reviewed publication
-of the deployment architecture.
+reliability monitoring and peer-reviewed publication of the deployment
+architecture.
 
 {{< pagebreak >}}
 
@@ -256,8 +256,18 @@ of longitudinal records.
 
 **Formal Doctoral Coursework:**
 
-- **HGEN 611 – Data Science I** (Fall 2018, B): Computational foundation for
-  high-throughput genomic and claims-based data engineering.
+- **HGEN 611 – Data Science I** (Fall 2018, B): R-based reproducible scientific
+  computing covering data acquisition, cleaning, reshaping, manipulation, analysis,
+  and visualization. Establishes the reproducible workflow discipline—verifiable,
+  repeatable, and consistent with best practices—directly applied to the
+  Bronze-to-Gold APCD preprocessing pipeline and Monte Carlo Cross-Validation
+  harness.
+- **HGEN 612 – Data Science II** (Spring 2021, *grade pending transcript*): Advanced techniques
+  for reproducible data products, tidymodel-based ML workflow automation,
+  production-ready application development, and Git-based project management.
+  The ML automation and open/reproducible data product principles directly inform
+  the Optuna-tuned GBDT pipeline (Aim 1 & 2) and the GitHub-based CI/CD
+  deployment architecture (Aim 3).
 - **HGEN 691 – Methods in Data Science** (Spring 2020, A): Advanced feature
   engineering and pipeline design for large-scale biomedical datasets.
 - **BIOS 572 – Biomedical Data I** (Fall 2019, B): Statistical methods for
@@ -319,8 +329,12 @@ decision support software.
 
 - **PHAR 691 – Advanced Pharmacogenomics** (Spring 2020, H): Biological context
   for recovering PGx signals from administrative claims.
-- **HGEN 619 – Quantitative Genetics** (Fall 2019, C): Population-level genomic
-  variation informing CPIC Level A/B feature engineering.
+- **HGEN 619 – Quantitative Genetics** (Fall 2019, C): Genetic architecture,
+  genotype-environment interaction, statistical methods, and computer algorithms
+  for genetic data analysis. The emphasis on *resolving cause from effect* in
+  genetic studies directly informs the Consensus-Causal Filter design; the
+  genotype-environment interaction framework supports CPIC Level A/B feature
+  engineering from administrative ICD/NDC codes.
 
 **Applied Analytics:** DAPT 612 (Text Mining), DAPT 613 (Business Intelligence),
 DAPT 615 (Emerging Technologies), DAPT 642 (Risk Analysis) provide the applied
