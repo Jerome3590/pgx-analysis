@@ -1,0 +1,31 @@
+project:
+  type: default
+  output-dir: output
+
+execute:
+  echo: false
+  warning: false
+  message: false
+
+format:
+  pdf:
+    documentclass: article
+    geometry: "margin=0.5in"
+    mainfont: "Arial"
+    fontsize: 11pt
+    number-sections: false
+    toc: false
+    colorlinks: false
+    linkcolor: black
+    urlcolor: black
+    keep-tex: false
+    header-includes: |
+      \usepackage{setspace}
+      \setstretch{1.05}
+      \pagestyle{plain}
+      \usepackage{titlesec}
+      \titlespacing*{\section}{0pt}{6pt}{3pt}
+      \titlespacing*{\subsection}{0pt}{4pt}{2pt}
+      \titlespacing*{\subsubsection}{0pt}{3pt}{1pt}
+      \setlength{\parskip}{4pt}
+      \setlength{\parindent}{0pt}
