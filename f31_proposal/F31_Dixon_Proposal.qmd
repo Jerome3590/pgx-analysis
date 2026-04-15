@@ -316,7 +316,7 @@ decision support software.
 
 **Applied Certifications:**
 
-- **AWS Certified Solutions Architect – Associate** [@AWS_Solutions_Architect]:
+- **AWS Certified Solutions Architect – Professional** [@AWS_Solutions_Architect]:
   Provides the architectural foundation for deploying the serverless PGx Risk
   Dashboard on AWS Lambda with ephemeral, stateless compute, ECR container
   management, and CI/CD integration via GitHub Actions. Directly maps to Aim 3.
