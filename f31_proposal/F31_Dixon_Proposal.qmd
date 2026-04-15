@@ -11,7 +11,7 @@ author: |
   *Sponsor:* Elvin T. Price, Pharm.D., Ph.D., FAHA \
   Victor A. Yanchick Associate Professor; Director, Geriatric Pharmacotherapy Program \
   Department of Pharmacotherapy and Outcomes Science, VCU School of Pharmacy
-date: "April 2026"
+date: "April 15, 2026"
 format:
   pdf:
     output-file: "F31_Dixon_Proposal.pdf"
