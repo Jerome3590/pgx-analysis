@@ -1,7 +1,7 @@
 ---
 title: |
   **Explainable Artificial Intelligence and Pharmacogenomics for Opioid and
-  Polypharmacy Risk Prediction: A Causal Modeling Approach Using All-Payer
+  Polypharmacy Risk Prediction: A Causal Modeling Approach using All-Payer
   Claims Data**
 author: |
   R. Jerome Dixon, B.S., M.S. \
@@ -15,11 +15,13 @@ date: "April 2026"
 format:
   pdf:
     output-file: "F31_Dixon_Proposal.pdf"
+  docx:
+    output-file: "F31_Dixon_Proposal.docx"
 bibliography: refs.bib
 csl: https://raw.githubusercontent.com/citation-style-language/styles/master/american-medical-association.csl
 ---
 
-\newpage
+{{< pagebreak >}}
 
 # Project Summary / Abstract
 
@@ -38,7 +40,7 @@ pharmacogenomic (PGx) signals from administrative claims, we provide a scalable
 framework to reduce preventable mortality associated with polypharmacy and the
 opioid epidemic.
 
-\newpage
+{{< pagebreak >}}
 
 # Specific Aims
 
@@ -93,7 +95,7 @@ minimum-necessary (45 CFR § 164.502(b)).
 cold-start ≤ 3,000 ms, 100% CPIC concordance across 573 test cases, and risk-band
 stability at ≥ 87% of patients at 50% input sparsity.
 
-\newpage
+{{< pagebreak >}}
 
 # Research Strategy
 
@@ -224,7 +226,7 @@ PGx card generation falls back to diplotype-only output if PharmVar lookup fails
 | **Y1** | Complete Aims 1 & 2 model training; qualify; submit CH_1–CH_2 to journals |
 | **Y2** | Dashboard deployment (Aim 3); submit CH_3–CH_5; dissertation defense (June 2026) |
 
-\newpage
+{{< pagebreak >}}
 
 # Research Training Plan
 
@@ -336,7 +338,7 @@ and deploy the dashboard for the planned **June 2026 defense**.
 | Dashboard production deployment | Q1 2026 (complete) |
 | Dissertation defense | June 2026 |
 
-\newpage
+{{< pagebreak >}}
 
 # Candidate's Background and Goals
 
@@ -374,7 +376,7 @@ translational clinical AI. This framework is designed to be replicable by any
 research team with access to an all-payer claims database and standard cloud
 infrastructure, with no proprietary EHR integration required.
 
-\newpage
+{{< pagebreak >}}
 
 # Compliance and Data Management
 
@@ -413,6 +415,6 @@ applications; (2) ethics of algorithmic decision support for vulnerable populati
 code release; and (4) dual-use considerations for prescribing-behavior prediction
 systems.
 
-\newpage
+{{< pagebreak >}}
 
 # References
