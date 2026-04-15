@@ -1,0 +1,263 @@
+Technologies Course
+
+HGEN 611
+
+DATA SCIENCE I
+
+B
+
+3
+
+Fall 2018
+
+Exception by:
+
+Smith, Ashley R
+
+On: 09/09/2020
+
+Also Allow:
+
+HGEN 611 for Technologies Course
+
+Advanced Statistics, Advanced Mathematics or Experimental Design Requirement is complete
+Advanced Statistics, Advanced Mathematics or Experimental Design
+
+BIOS 572
+
+BIOMEDICAL DATA I
+
+B
+
+3
+
+Fall 2019
+
+Electives Requirement is complete
+Electives
+
+BIOS 691
+
+ST: DEEP LEARNING WITH R
+
+A
+
+1
+
+Summer 2020
+
+HGEN 619
+
+QUANTITATIVE GENETICS
+
+C
+
+3
+
+Fall 2019
+
+PHAR 691
+
+TOP: ADV PHARMACOGENOMICS
+
+H
+
+2
+
+Spring 2020
+
+STAT 591
+
+TOP:APPLD BAYESIAN STAT ANALYS
+
+A
+
+3
+
+Spring 2021
+
+
+Course	Title	Grade	Credits	Term	Repeated
+HGEN 691
+
+TOP:METHODS IN DATA SCIENCE
+
+A
+
+1
+
+Spring 2020
+
+
+PHAR 691
+
+TOP: GERIATRICS RESEARCH GROUP
+
+P
+
+1
+
+Fall 2023
+
+
+already completed:
+DAPT 611
+
+ANAYSIS & DESIGN OF DATABASE
+
+Max of zero classes/credits exceeded
+
+A
+
+3
+
+Fall 2016
+
+DAPT 612
+
+TEXT MINING & UNSTRUCT DATA
+
+Max of zero classes/credits exceeded
+
+A
+
+2
+
+Fall 2017
+
+DAPT 613
+
+TOOLS FOR BUS INTELLIGENCE
+
+Max of zero classes/credits exceeded
+
+A
+
+1
+
+Spring 2017
+
+DAPT 614
+
+ADVANCED SQL
+
+Max of zero classes/credits exceeded
+
+A
+
+1
+
+Fall 2016
+
+DAPT 615
+
+EMERGING TECHNOLOGIES
+
+Max of zero classes/credits exceeded
+
+A
+
+1
+
+Spring 2018
+
+DAPT 621
+
+STATS FOR WORLD OF BIG DATA
+
+Max of zero classes/credits exceeded
+
+A
+
+3
+
+Fall 2016
+
+DAPT 622
+
+STATS FOR WORLD BIG DATA CONT
+
+Max of zero classes/credits exceeded
+
+A
+
+3
+
+Spring 2017
+
+DAPT 631
+
+DATA MINING
+
+Max of zero classes/credits exceeded
+
+A
+
+2
+
+Spring 2017
+
+DAPT 632
+
+FORECASTING METHODS
+
+Max of zero classes/credits exceeded
+
+A
+
+2
+
+Fall 2017
+
+DAPT 642
+
+INTRO TO RISK ANALYSIS
+
+Max of zero classes/credits exceeded
+
+A
+
+1
+
+Spring 2017
+
+
+FMBA 614
+
+HEALTH CARE MANAGEMENT I
+
+Max of zero classes/credits exceeded
+
+A
+
+3
+
+Summer 2017
+
+FMBA 615
+
+HEALTH CARE MANAGEMENT II
+
+Max of zero classes/credits exceeded
+
+A
+
+3
+
+Summer 2017
+
+FMBA 616
+
+HEALTH CARE MANAGEMENT III
+
+Max of zero classes/credits exceeded
+
+A
+
+3
+
+Summer 2017
+
+
+AWS certified Solution Architect, Machine Learning, Big Data Analytics
+
