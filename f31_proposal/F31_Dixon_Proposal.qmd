@@ -37,8 +37,8 @@ providing real-time risk scores and counterfactual "What-If" analysis.
 **Project Narrative:** This research moves beyond technically accurate models to
 provide user-centric explainability for vulnerable populations. By recovering
 pharmacogenomic (PGx) signals from administrative claims, we provide a scalable
-framework to reduce preventable mortality associated with polypharmacy and the
-opioid epidemic.
+framework to reduce preventable emergency room visits associated with polypharmacy
+and the opioid epidemic.
 
 {{< pagebreak >}}
 
@@ -51,49 +51,61 @@ Claims Data.
 
 **Long-Term Goal:** Produce a replicable, causally grounded, and clinically
 actionable pipeline from raw claims data to bedside pharmacogenomic decision
-support, suitable for adoption by community pharmacies and Safety Net hospitals
-without EHR integration.
+support, suitable for adoption by community pharmacies and Safety Net hospitals.
+The serverless architecture is designed to accept EHR-derived inputs as an optional
+future extension, though claims data alone are sufficient for full functionality.
 
 ---
 
 **Aim 1 (RQ1) — Identify Causal Drivers of Opioid-Related Emergency Department
-Visits.** Develop an ensemble model (CatBoost/XGBoost) to predict opioid-related
-ED visits across seven age bands (13–114) using a strict 2019 prospective holdout.
-The Consensus-Causal Filter (SHAP ∩ FFA) will isolate modifiable causal features
-from correlated documentation artifacts. Dynamic Time Warping (DTW) clustering
-will identify *Rapid-Onset* (4.2-month) and *Chronic-Escalation* (22.1-month)
-trajectory archetypes to guide the timing of clinical interventions.
+Visits.** Pilot ensemble models (CatBoost/XGBoost/XGBoost-RF) have been trained
+across seven age bands (13–114), achieving AUROC ≥ 0.95 and PR-AUC ≥ 0.84 on
+2016–2018 cross-validation sets. The Consensus-Causal Filter (SHAP ∩ FFA) has
+isolated modifiable causal features from correlated documentation artifacts.
+Pilot DTW clustering has already identified two trajectory archetypes —
+*Rapid-Onset* (4.2-month escalation window) and *Chronic-Escalation*
+(22.1-month window). The deliverable is prospective validation of all models
+and archetypes against the strict 2019 holdout to confirm generalizability
+and guide the timing of clinical interventions.
 
-*Expected Outcome:* Ensemble models with AUROC ≥ 0.95 and PR-AUC ≥ 0.84 across
-all seven age bands, with DTW archetypes providing intervention windows validated
-against 2019 holdout trajectory concordance.
+*Preliminary Results:* AUROC ≥ 0.95 and PR-AUC ≥ 0.84 across all seven age
+bands on internal cross-validation; DTW archetypes reproduced across three
+independent cohort splits. *Deliverable:* Prospective 2019 holdout validation
+and archetype concordance confirmation.
 
 ---
 
 **Aim 2 (RQ2) — Develop a "Causal Calculator" for Polypharmacy Interaction
-Risk.** Extend FFA to identify synergistic drug-drug interactions (e.g.,
-Acetaminophen + Levofloxacin, IE = 16.3) in geriatric populations using FP-Growth
-co-occurrence networks and Interaction Effect (IE) scoring. Quantify Intervention
-Rate (IR) scores to rank deprescribing priorities based on expected risk reduction
-per patient exposure.
+Risk.** FFA multi-feature interaction testing has already identified 115
+synergistic drug-drug interactions in geriatric populations, including
+Acetaminophen + Levofloxacin (IE = 16.3) and Levofloxacin + Lorazepam
+(IE = 11.9), invisible to standard pairwise DDI databases. Intervention Rate
+(IR) scores have ranked deprescribing priorities (simvastatin IR 7.0×10⁻⁴,
+furosemide IR 2.0×10⁻⁴, alprazolam IR 1.0×10⁻⁴). Z-code monitoring analysis
+has identified a U-shaped effect distinguishing protectively monitored (Q2;
+OR = 0.25) from fragmented-care (Q4; OR ≈ 0.94) polypharmacy phenotypes.
+The deliverable is prospective holdout validation of IR rankings and
+peer-reviewed publication of the causal calculator framework.
 
-*Expected Outcome:* Identification of ≥100 synergistic drug pairs, IR-ranked
-deprescribing targets actionable from standard claims data, and a validated Z-code
-monitoring analysis distinguishing managed from fragmented-care polypharmacy
-phenotypes.
+*Preliminary Results:* 115 synergistic pairs and 5,021 high-risk triplets
+identified; IR-ranked deprescribing targets confirmed across three age bands.
+*Deliverable:* Prospective validation and dissemination.
 
 ---
 
 **Aim 3 — Translate Causal Rules to Privacy-First Clinical Decision Support.**
-Deploy a serverless PGx Risk Dashboard on AWS Lambda bundling up to 84 per-bin
-ensemble models. Implement *Imputation of Normality* to maintain risk-band
-stability up to 60% input sparsity. Integrate CPIC Level A/B pharmacogenomic
-guidance via a stateless, ephemeral gene-drug lookup card satisfying HIPAA
-minimum-necessary (45 CFR § 164.502(b)).
+The serverless PGx Risk Dashboard has been deployed on AWS Lambda, bundling
+up to 84 per-bin ensemble models, a CPIC snapshot (573 Level A/B gene-drug
+pairs), and per-band density thresholds. *Imputation of Normality* maintains
+risk-band stability at ≥ 87% of patients at 50% input sparsity. The
+stateless CPIC PGx card satisfies HIPAA minimum-necessary
+(45 CFR § 164.502(b)) architecturally.
 
-*Expected Outcome:* Production-deployed dashboard achieving warm inference ≤ 100 ms,
-cold-start ≤ 3,000 ms, 100% CPIC concordance across 573 test cases, and risk-band
-stability at ≥ 87% of patients at 50% input sparsity.
+*Preliminary Results:* Warm inference ≤ 100 ms; cold-start ≤ 3,000 ms;
+100% CPIC concordance across 573 test cases; risk-band stability ≥ 87% at
+50% input sparsity confirmed in load testing. *Deliverable:* Ongoing
+reliability monitoring, EHR input extension, and peer-reviewed publication
+of the deployment architecture.
 
 {{< pagebreak >}}
 
@@ -223,8 +235,8 @@ PGx card generation falls back to diplotype-only output if PharmVar lookup fails
 
 | Year | Milestones |
 |:---|:---|
-| **Y1** | Complete Aims 1 & 2 model training; qualify; submit CH_1–CH_2 to journals |
-| **Y2** | Dashboard deployment (Aim 3); submit CH_3–CH_5; dissertation defense (June 2026) |
+| **Y1** | Aims 1 & 2 model training *(complete)*; CH_1–CH_2 submitted *(complete)*; Qualifying Exam *(in progress)* |
+| **Y2** | Dashboard deployed *(complete)*; CH_3–CH_5 submitted *(in progress)*; dissertation defense (June 2026) |
 
 {{< pagebreak >}}
 
@@ -374,7 +386,9 @@ The Clinical OODA Loop framework I developed integrates OODA decision theory wit
 CRISP-DM methodology to create a reproducible, generalizable pipeline for
 translational clinical AI. This framework is designed to be replicable by any
 research team with access to an all-payer claims database and standard cloud
-infrastructure, with no proprietary EHR integration required.
+infrastructure. The architecture is extensible to EHR-derived inputs as
+additional data sources become available, without requiring proprietary
+integration as a prerequisite.
 
 {{< pagebreak >}}
 
