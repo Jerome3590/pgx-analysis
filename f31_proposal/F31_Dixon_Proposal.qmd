@@ -166,8 +166,8 @@ a "B1" balancing constraint architecturally prevents any post-outcome features
 from appearing in training windows. The 2019 calendar year is held out prospectively
 for all model evaluation.
 
-Fifteen Age Band × Cohort partitions (opioid-related ED: 13–64; non-opioid ED:
-65–114) are processed in parallel, achieving 15.1× throughput improvement over
+Fourteen Age Band × Cohort partitions (opioid-related ED: 13–114; non-opioid ED:
+13–114) are processed in parallel, achieving 15.1× throughput improvement over
 single-node processing. The PROBAST checklist was applied to ensure low risk of
 bias in predictor selection and analysis.
 
@@ -262,14 +262,12 @@ of longitudinal records.
   repeatable, and consistent with best practices—directly applied to the
   Bronze-to-Gold APCD preprocessing pipeline and Monte Carlo Cross-Validation
   harness.
-- **HGEN 612 – Data Science II** (Spring 2021, *grade pending transcript*): Advanced techniques
-  for reproducible data products, tidymodel-based ML workflow automation,
-  production-ready application development, and Git-based project management.
-  The ML automation and open/reproducible data product principles directly inform
-  the Optuna-tuned GBDT pipeline (Aim 1 & 2) and the GitHub-based CI/CD
+- **HGEN 691 – Methods in Data Science** (Spring 2020, A; precursor to HGEN 612):
+  Advanced techniques for reproducible data products, tidymodel-based ML workflow
+  automation, production-ready application development, and Git-based project
+  management. ML automation and open/reproducible data product principles directly
+  inform the Optuna-tuned GBDT pipeline (Aims 1 & 2) and the GitHub-based CI/CD
   deployment architecture (Aim 3).
-- **HGEN 691 – Methods in Data Science** (Spring 2020, A): Advanced feature
-  engineering and pipeline design for large-scale biomedical datasets.
 - **BIOS 572 – Biomedical Data I** (Fall 2019, B): Statistical methods for
   large-scale biomedical datasets applied to ADE risk assessment.
 - **FMBA 614/615/616 – Health Care Management I–III** (Summer 2017, A):
