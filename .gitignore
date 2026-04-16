@@ -1,3 +1,7 @@
+# ── Dissertation content (private until after defense) ───────────────────────
+manuscript/
+f31_proposal/
+
 .vscode
 .trunk
 .Rproj.user
