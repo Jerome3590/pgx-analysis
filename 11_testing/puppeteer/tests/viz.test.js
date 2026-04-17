@@ -14,10 +14,15 @@
  */
 
 const puppeteer = require("puppeteer");
-const { launchBrowser, openDashboard, selectCohort, setAge } = require("../helpers/browser");
+const { launchBrowser, openDashboard, selectCohort, setAge, sleep } = require("../helpers/browser");
 const { AGE_BAND_MIDPOINTS, COHORTS, AGE_BANDS } = require("../helpers/scenarios");
 
 // Visualization tab definitions: tab data-tab value, load button id, API path fragment
+// API_BASE is used to scope waitForResponse to Lambda only (not S3 sub-resources
+// whose URLs may also contain the same path fragment, e.g. network_topology.html
+// served from jerome-dixon.io/vcu/pgx-risk-calculator/visualizations/cohort_pgx/...).
+const API_BASE = (process.env.API_BASE_URL || "").replace(/\/$/, "");
+
 const VIZ_TABS = [
   { tab: "causal-analysis",                   btnId: "btnLoadCausal",     pathFrag: "/causal"           },
   { tab: "feature-importance-visualizations", btnId: "btnLoadFI",         pathFrag: "/feature_importance" },
@@ -49,7 +54,7 @@ async function loadVizTab(tabName, btnId) {
     const btn = document.querySelector(`.tab-button[data-tab="${t}"]`);
     if (btn) btn.click();
   }, tabName);
-  await page.waitForTimeout(300);
+  await sleep(300);
 
   // Click the Load button if present
   const btn = await page.$(`#${btnId}`);
@@ -81,7 +86,9 @@ describe("Visualization tabs — combinatorial matrix", () => {
             test(`${cohort}/${ageBand} — ${tab}`, async () => {
               const [response] = await Promise.all([
                 page.waitForResponse(
-                  resp => resp.url().includes(pathFrag) && resp.request().method() === "GET",
+                  resp => resp.url().includes(pathFrag) &&
+                          resp.request().method() === "GET" &&
+                          (!API_BASE || resp.url().startsWith(API_BASE)),
                   { timeout: 15_000 }
                 ).catch(() => null),
                 loadVizTab(tab, btnId),
@@ -116,7 +123,7 @@ describe("Visualization tabs — no age set shows error or empty state", () => {
   test("causal tab without valid age does not crash the page", async () => {
     await setAge(page, 0); // invalid
     await loadVizTab("causal-analysis", "btnLoadCausal");
-    await page.waitForTimeout(500);
+    await sleep(500);
 
     // Page should still be alive
     const title = await page.title();

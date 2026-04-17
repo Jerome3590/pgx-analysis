@@ -275,7 +275,7 @@ def handle_available(_event: Dict[str, Any]) -> Dict[str, Any]:
         return _response(200, data)
     except ClientError as e:
         code = e.response.get("Error", {}).get("Code")
-        if code in ("NoSuchKey", "404", "NotFound"):
+        if code in ("NoSuchKey", "404", "NotFound", "AccessDenied", "403"):
             return _response(404, {"error": "available.json not found — run notebook 5 to generate it"})
         raise
 

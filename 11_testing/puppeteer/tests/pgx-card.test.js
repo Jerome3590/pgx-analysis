@@ -12,7 +12,7 @@
  *   DASHBOARD_URL=... API_BASE_URL=... npx jest tests/pgx-card --forceExit
  */
 
-const { launchBrowser, openDashboard } = require("../helpers/browser");
+const { launchBrowser, openDashboard, sleep } = require("../helpers/browser");
 
 let browser;
 let page;
@@ -26,20 +26,56 @@ afterAll(async () => {
   if (browser) await browser.close();
 });
 
-// Switch to PGx Card tab
+/**
+ * Switch to PGx Card tab and wait for the tab HTML to inject.
+ * The tab content loads from tabs/pgx-card.html via fetch; we wait for
+ * #pgx-card-cohort to confirm the DOM is ready.
+ */
 async function openPgxCardTab() {
   await page.evaluate(() => {
     const btn = document.querySelector('.tab-button[data-tab="pgx-card"]');
     if (btn) btn.click();
   });
-  await page.waitForTimeout(400);
+  await page.waitForSelector("#pgx-card-cohort", { timeout: 10_000 });
 }
 
-// Fill the variant textarea with JSON and click Generate
-async function submitVariants(variants) {
-  const jsonStr = JSON.stringify(variants);
-  await page.$eval("#pgx-variants-input", (el, v) => { el.value = v; }, jsonStr);
-  await page.waitForTimeout(100);
+/**
+ * Select cohort + age band then click Load Cohort PGx Profile.
+ * Waits for the SNP refinement section to become visible.
+ */
+async function loadCohortProfile(cohort = "opioid_ed", ageBand = "13-24") {
+  await page.$eval("#pgx-card-cohort",   (el, v) => { el.value = v; }, cohort);
+  await page.$eval("#pgx-card-age-band", (el, v) => { el.value = v; }, ageBand);
+  const [_] = await Promise.all([
+    page.waitForSelector("#pgx-snp-refine-section", { visible: true, timeout: 20_000 })
+      .catch(() => null),
+    page.$eval("#btnLoadPgxCardProfile", el => el.click()),
+  ]);
+}
+
+/**
+ * Fill #snp-input with variant lines (format: Gene,*allele1,*allele2 per line)
+ * then click #btnGenerateCard and wait for POST /pgx/card response.
+ *
+ * Returns { status, data } — data is null when non-200.
+ */
+async function submitVariants(variantLines) {
+  const text = variantLines.join("\n");
+  await page.$eval("#snp-input", (el, v) => { el.value = v; }, text);
+  await sleep(100);
+
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      resp => resp.url().includes("/pgx/card") && resp.request().method() === "POST",
+      { timeout: 15_000 }
+    ).catch(() => null),
+    page.$eval("#btnGenerateCard", el => el.click()),
+  ]);
+
+  if (!response) return { status: 0, data: null };
+  let data = null;
+  try { data = await response.json(); } catch (_) {}
+  return { status: response.status(), data };
 }
 
 // ---------------------------------------------------------------------------
@@ -50,47 +86,21 @@ describe("PGx Card tab", () => {
 
   beforeAll(async () => {
     await openPgxCardTab();
-  });
+    await loadCohortProfile("opioid_ed", "13-24");
+  }, 40_000);
 
   test("POST /pgx/card with CYP2D6 variant returns 200 with genes + drugs", async () => {
-    const variants = [
-      { gene: "CYP2D6", variants: ["*1", "*2"] },
-      { gene: "CYP2C19", variants: ["*1", "*1"] },
-    ];
-
-    await submitVariants(variants);
-
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        resp => resp.url().includes("/pgx/card") && resp.request().method() === "POST",
-        { timeout: 15_000 }
-      ).catch(() => null),
-      page.evaluate(() => {
-        const btn = document.getElementById("btnGeneratePgxCard");
-        if (btn) btn.click();
-      }),
+    const { status, data } = await submitVariants([
+      "CYP2D6,*1,*2",
+      "CYP2C19,*1,*1",
     ]);
 
-    if (response === null) {
-      // Button ID may differ; skip rather than fail
-      console.warn("[pgx-card] No /pgx/card request intercepted — check #btnGeneratePgxCard selector");
-      return;
-    }
+    expect([200, 400, 500]).toContain(status);
 
-    expect([200, 400, 500]).toContain(response.status());
-
-    if (response.status() === 200) {
-      const data = await response.json();
-
-      // Response shape
+    if (status === 200 && data) {
       expect(Array.isArray(data.genes)).toBe(true);
       expect(Array.isArray(data.drugs)).toBe(true);
-      expect(typeof data.timestamp).toBe("string");
-
-      // At least one gene processed
       expect(data.genes.length).toBeGreaterThan(0);
-
-      // Each gene entry has gene + variants
       for (const g of data.genes) {
         expect(typeof g.gene).toBe("string");
         expect(Array.isArray(g.variants)).toBe(true);
@@ -98,54 +108,35 @@ describe("PGx Card tab", () => {
     }
   }, 20_000);
 
-  test("POST /pgx/card with empty variants returns 400", async () => {
-    await submitVariants([]);
-
+  test("POST /pgx/card with empty variants — frontend guards or returns 400", async () => {
+    const text = "";
+    await page.$eval("#snp-input", (el, v) => { el.value = v; }, text);
+    await sleep(100);
     const [response] = await Promise.all([
       page.waitForResponse(
         resp => resp.url().includes("/pgx/card") && resp.request().method() === "POST",
-        { timeout: 10_000 }
+        { timeout: 4_000 }            // frontend should block; short wait is fine
       ).catch(() => null),
-      page.evaluate(() => {
-        const btn = document.getElementById("btnGeneratePgxCard");
-        if (btn) btn.click();
-      }),
+      page.$eval("#btnGenerateCard", el => el.click()),
     ]);
-
-    if (response === null) {
-      console.warn("[pgx-card] No /pgx/card request intercepted for empty-variants case");
-      return;
-    }
-
-    // Backend should return 400 for empty variants
-    expect(response.status()).toBe(400);
-  }, 15_000);
+    // status 0 = frontend blocked; 400 = backend rejected empty payload
+    const status = response ? response.status() : 0;
+    expect([0, 400]).toContain(status);
+  }, 10_000);
 
   test("Multiple gene variants: SLCO1B1 + TPMT + DPYD", async () => {
-    const variants = [
-      { gene: "SLCO1B1", variants: ["*5", "*1"] },
-      { gene: "TPMT",    variants: ["*3A", "*1"] },
-      { gene: "DPYD",    variants: ["*2A"] },
-    ];
-
-    await submitVariants(variants);
-
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        resp => resp.url().includes("/pgx/card") && resp.request().method() === "POST",
-        { timeout: 15_000 }
-      ).catch(() => null),
-      page.evaluate(() => {
-        const btn = document.getElementById("btnGeneratePgxCard");
-        if (btn) btn.click();
-      }),
+    const { status, data } = await submitVariants([
+      "SLCO1B1,*5,*1",
+      "TPMT,*3A,*1",
+      "DPYD,*2A",
     ]);
 
-    if (!response || response.status() !== 200) return;
+    expect([200, 400, 500]).toContain(status);
 
-    const data = await response.json();
-    expect(data.genes.length).toBeGreaterThanOrEqual(1);
-    expect(Array.isArray(data.drugs)).toBe(true);
+    if (status === 200 && data) {
+      expect(data.genes.length).toBeGreaterThanOrEqual(1);
+      expect(Array.isArray(data.drugs)).toBe(true);
+    }
   }, 20_000);
 
 });

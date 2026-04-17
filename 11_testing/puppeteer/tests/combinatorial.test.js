@@ -36,7 +36,7 @@
 
 const {
   launchBrowser, openDashboard,
-  selectCohort, setAge, injectCodes, clickCalculate, readRiskDisplay,
+  selectCohort, setAge, injectCodes, clickCalculate, readRiskDisplay, sleep,
 } = require("../helpers/browser");
 const {
   makeScenarios, AGE_BAND_MIDPOINTS,
@@ -173,7 +173,7 @@ describe("Error handling", () => {
     // Listen for status element update instead of intercepting response
     // (UI guards against age < 13 before firing the request)
     await page.click("#btnRisk");
-    await page.waitForTimeout(500);
+    await sleep(500);
 
     const statusClass = await page.$eval("#status", el => el.className);
     expect(statusClass).toContain("error");
@@ -183,7 +183,7 @@ describe("Error handling", () => {
     await setAge(page, 120);
     await injectCodes(page, [], [], []);
     await page.click("#btnRisk");
-    await page.waitForTimeout(500);
+    await sleep(500);
 
     const statusClass = await page.$eval("#status", el => el.className);
     expect(statusClass).toContain("error");
