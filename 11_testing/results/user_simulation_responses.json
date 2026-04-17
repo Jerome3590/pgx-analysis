@@ -1,0 +1,208 @@
+[
+  {
+    "scenario": "opioid_ed / 55-64",
+    "cohort": "opioid_ed",
+    "age": 60,
+    "age_band": "55-64",
+    "timestamp": "2026-04-17T21:08:49.773Z",
+    "ui_selected": {
+      "drugs": [
+        "drug_OXYCODONE_HYDROCHLORIDE",
+        "drug_BUPRENORPHINE_HCL_NALOXON"
+      ],
+      "icds": [
+        "icd_M546"
+      ],
+      "cpts": [
+        "cpt_99214"
+      ]
+    },
+    "request_body": {
+      "age": 60,
+      "cohort": "opioid_ed",
+      "age_band": "55-64",
+      "drugs": [],
+      "icds": [],
+      "cpts": []
+    },
+    "response_status": 200,
+    "response_body": {
+      "risk_score": 0.08261247308578552,
+      "risk_band": "low",
+      "is_baseline": true,
+      "patient_bucket": null,
+      "patient_bucket_detail": {},
+      "n_pgx_drugs": null,
+      "pgx_num_cpic_drugs": null,
+      "model_breakdown": {},
+      "ensemble_info": {
+        "method": "baseline",
+        "models_used": 0,
+        "models_failed": [],
+        "weights": {},
+        "weights_source": "2019_outcome_rate"
+      },
+      "age_band_used": "55-64",
+      "cohort_used": "opioid_ed",
+      "age": 60,
+      "age_mapped": false,
+      "age_mapping_note": null,
+      "codes_used": {
+        "drugs": [],
+        "icds": [],
+        "cpts": []
+      },
+      "codes_unknown": {
+        "drugs": [],
+        "icds": [],
+        "cpts": []
+      },
+      "interpretation": "Estimated probability of target outcome (2019 holdout population) in this cohort and age band.",
+      "dist": {
+        "bins": [
+          5,
+          15,
+          25,
+          35,
+          45,
+          55,
+          65,
+          75,
+          85,
+          95
+        ],
+        "counts": [
+          20569,
+          518,
+          267,
+          217,
+          166,
+          159,
+          181,
+          242,
+          377,
+          3777
+        ],
+        "baseline_risk": 0.08261247308578552,
+        "risk_band_thresholds": {
+          "low_medium": 0.01389515791311854,
+          "medium_high": 0.02102189293033164
+        }
+      },
+      "risk_band_thresholds": {
+        "low_medium": 0.2,
+        "medium_high": 0.5
+      }
+    },
+    "ui_state": {
+      "visible": true,
+      "scoreText": "8.3%",
+      "bandText": "LOW",
+      "binBadge": "",
+      "modelInfo": "opioid_ed / 55-64",
+      "codesSelected": "",
+      "pgxActionLink": false
+    }
+  },
+  {
+    "scenario": "non_opioid_ed / 65-74",
+    "cohort": "non_opioid_ed",
+    "age": 70,
+    "age_band": "65-74",
+    "timestamp": "2026-04-17T21:08:52.896Z",
+    "ui_selected": {
+      "drugs": [
+        "drug_METFORMIN_HYDROCHLORIDE",
+        "drug_GABAPENTIN"
+      ],
+      "icds": [],
+      "cpts": []
+    },
+    "request_body": {
+      "age": 70,
+      "cohort": "non_opioid_ed",
+      "age_band": "65-74",
+      "drugs": [],
+      "icds": [],
+      "cpts": []
+    },
+    "response_status": 200,
+    "response_body": {
+      "risk_score": 0.028390398440355794,
+      "risk_band": "low",
+      "is_baseline": true,
+      "patient_bucket": null,
+      "patient_bucket_detail": {},
+      "n_pgx_drugs": null,
+      "pgx_num_cpic_drugs": null,
+      "model_breakdown": {},
+      "ensemble_info": {
+        "method": "baseline",
+        "models_used": 0,
+        "models_failed": [],
+        "weights": {},
+        "weights_source": "2019_outcome_rate"
+      },
+      "age_band_used": "65-74",
+      "cohort_used": "non_opioid_ed",
+      "age": 70,
+      "age_mapped": false,
+      "age_mapping_note": null,
+      "codes_used": {
+        "drugs": [],
+        "icds": [],
+        "cpts": []
+      },
+      "codes_unknown": {
+        "drugs": [],
+        "icds": [],
+        "cpts": []
+      },
+      "interpretation": "Estimated probability of target outcome (2019 holdout population) in this cohort and age band.",
+      "dist": {
+        "bins": [
+          5,
+          15,
+          25,
+          35,
+          45,
+          55,
+          65,
+          75,
+          85,
+          95
+        ],
+        "counts": [
+          7811,
+          6,
+          0,
+          133,
+          2,
+          2,
+          0,
+          0,
+          14,
+          239
+        ],
+        "baseline_risk": 0.028390398440355794,
+        "risk_band_thresholds": {
+          "low_medium": 0.011782145532713164,
+          "medium_high": 0.01183087611100138
+        }
+      },
+      "risk_band_thresholds": {
+        "low_medium": 0.2,
+        "medium_high": 0.5
+      }
+    },
+    "ui_state": {
+      "visible": true,
+      "scoreText": "2.8%",
+      "bandText": "LOW",
+      "binBadge": "",
+      "modelInfo": "non_opioid_ed / 65-74",
+      "codesSelected": "",
+      "pgxActionLink": false
+    }
+  }
+]
