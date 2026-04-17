@@ -19,6 +19,10 @@ aws configure
 # See 0_config_and_pipeline.ipynb for full instructions
 ```
 
+## Local Agent Rules
+
+See [.cursorrules](.cursorrules) for workspace-specific agent guidance used by the local project environment.
+
 ## 🚀 Running the Workflow
 
 **Configuration and Execution:**
