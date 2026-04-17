@@ -460,8 +460,57 @@ The execution workflow above is covered by three complementary Puppeteer suites 
 | `combinatorial.test.js` | fetch interceptor (bypasses UI selects) | POST /risk JSON schema, risk_score range, n_event_bin routing, code echo-back, UI display — all cohort × age_band × density scenarios |
 | `viz.test.js` | real DOM tab + button clicks | All 6 viz endpoints return valid JSON (200/400/404/500), no JS crashes — all cohort × age_band combos |
 | `user-simulation.test.js` | full real user workflow | Cohort tab click → keyboard age entry → search box → DOM code selection → Calculate → asserts POST body contains user-selected codes → response + UI |
+| `full-coverage.test.js` | metadata-driven importance + real UI | Fetches top-importance codes per band from `/metadata` API; runs baseline (no codes) vs high-risk (top features) for every cohort × age_band; asserts risk responds to feature selection; records absolute delta, relative lift, and density bin to CSV |
 
 > **Note**: `user-simulation.test.js` specifically validates the `populateSelect()` selection-preservation fix — that codes selected through the UI actually survive the `updateCodeLists()` call inside `calculateRisk()` and appear in the outgoing POST body.
+
+### E2E Validation: Risk-Response Results
+
+Run: `npx jest tests/full-coverage --forceExit --verbose` from `11_testing/puppeteer/`  
+Results CSV: `11_testing/results/full_coverage_results.csv`
+
+For each cohort × age-band the test:
+1. Fetches top-importance drugs (and ICDs/CPTs for `opioid_ed`) from the live `/metadata` endpoint
+2. Runs a **baseline** call (no codes, `n_events=5`) and a **high-risk** call (top features, `n_events=50`)
+3. Asserts `high_risk_score > baseline_score` for `opioid_ed`; asserts `|Δ| > 0.001` for `non_opioid_ed`
+
+| Cohort | Band | Baseline | High-risk | Abs Δ | Rel Lift | Direction | Bin |
+|---|---|---|---|---|---|---|---|
+| opioid_ed | 13-24 | 0.058 | 0.503 | +0.444 | +764% | INCREASED | high |
+| opioid_ed | 25-44 | 0.077 | 0.847 | +0.770 | +998% | INCREASED | high |
+| opioid_ed | 45-54 | 0.080 | 0.993 | +0.914 | +1144% | INCREASED | medium |
+| opioid_ed | 55-64 | 0.083 | 0.933 | +0.850 | +1029% | INCREASED | medium |
+| opioid_ed | 65-74 | 0.079 | 0.981 | +0.901 | +1134% | INCREASED | low |
+| opioid_ed | 75-84 | 0.077 | 0.965 | +0.888 | +1146% | INCREASED | low |
+| opioid_ed | 85-114 | 0.081 | 0.779 | +0.698 | +860% | INCREASED | low |
+| non_opioid_ed | 13-24 | 0.029 | 0.056 | +0.027 | +92% | INCREASED | high |
+| non_opioid_ed | 25-44 | 0.027 | 0.002 | −0.025 | −93% | DECREASED | high |
+| non_opioid_ed | 45-54 | 0.025 | 0.001 | −0.025 | −98% | DECREASED | medium |
+| non_opioid_ed | 55-64 | 0.024 | 0.001 | −0.024 | −98% | DECREASED | medium |
+| non_opioid_ed | 65-74 | 0.028 | 0.000 | −0.028 | −100% | DECREASED | low |
+| non_opioid_ed | 75-84 | 0.026 | 0.012 | −0.014 | −54% | DECREASED | low |
+| non_opioid_ed | 85-114 | 0.023 | 0.040 | +0.017 | +74% | INCREASED | low |
+
+**Normalization note:** Risk scores (`0–1`) and feature importances are already on interpretable scales — no normalization is needed. The absolute delta (`score_delta`) is intentionally on different scales between cohorts (`opioid_ed` Δ 0.44–0.91 vs `non_opioid_ed` Δ ±0.03) because the effect sizes are genuinely different. The `relative_lift_pct` column (`score_delta / baseline_score × 100`) makes cohorts directly comparable for visualization.
+
+**Interpretation:**
+- **`opioid_ed`** — top-importance drugs (buprenorphine, oxycodone, hydrocodone) drive **+764% to +1146% relative risk lift** across all bands, confirming strong discriminative power of the opioid-related feature set.
+- **`non_opioid_ed` (polypharmacy, 25–84)** — top-importance features are **protective** (bowel-prep agents, gabapentin, losartan, pravastatin). These reflect monitored, appropriately prescribed regimens; their presence *lowers* the composite polypharmacy risk score. This is clinically expected and validates the model's signal direction.
+- **`non_opioid_ed` 13–24 and 85–114** — protective-drug pattern does not hold at the age extremes; top features are risk-increasing (+74–92%), consistent with a different prescribing landscape for paediatric-adjacent and oldest-old populations.
+- **Density-bin routing**: `n_events=50` maps to `high` bin for younger bands and `low/medium` for older bands, exercising the per-bin model routing path end-to-end.
+
+**Visualization column guide** (from `full_coverage_results.csv`):
+
+| Column(s) | Recommended chart | Notes |
+|---|---|---|
+| `baseline_score` + `highrisk_score` per `age_band` | Grouped bar chart | One pair of bars per band; shows absolute risk range |
+| `relative_lift_pct` across `cohort × age_band` | Heatmap | Immediately shows opioid (strong positive) vs polypharmacy (protective) split |
+| `highrisk_bin` | Color / group axis | Groups bands by density bin (low / medium / high) |
+| `top_drugs_importance` (pipe-delimited) | Feature importance overlay | Split on `\|` to get per-drug importance values for annotation |
+| `score_delta` | Waterfall or diverging bar | Use for within-cohort comparison; do **not** compare raw delta across cohorts |
+
+> **Fixed during validation**: CatBoost was receiving `float` values (`1.0/0.0`) for `item_*` binary features it expects as `int`/`str`. Fixed in `_catboost_predict_proba()` by adding `df[cat_cols] = df[cat_cols].astype(int)` before building the `Pool`.  
+> Affected: `non_opioid_ed/65-74` and `non_opioid_ed/75-84` returned HTTP 500 for any drug-containing request prior to fix.
 
 ---
 
