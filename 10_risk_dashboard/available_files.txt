@@ -1,0 +1,399 @@
+Dashboard artifact path check (README_dashboard_visual_artifact_paths.md)
+========================================================================
+Project root: /home/pgx3874/pgx-analysis
+Cohort/age_band combinations: 16
+
+--- Metadata & Frontend (required for deploy) ---
+  [OK] Frontend index.html
+  [OK] Metadata model_performance_metrics.json
+  [OK] Metadata opioid_ed.json
+  [OK] Metadata non_opioid_ed.json
+  (4/4 present)
+
+--- Feature Importance ---
+  [OK] FI opioid_ed (PNG)
+  [OK] FI opioid_ed (JSON)
+  [OK] FI non_opioid_ed (PNG)
+  [OK] FI non_opioid_ed (JSON)
+  [OK] FI combined (PNG)
+  [OK] FI combined (JSON)
+  (6/6 present)
+
+--- Causal Analysis ---
+  [--] Causal opioid_ed/0-12
+  [--] Causal opioid_ed/13-24
+  [--] Causal opioid_ed/25-44
+  [--] Causal opioid_ed/45-54
+  [--] Causal opioid_ed/55-64
+  [--] Causal opioid_ed/65-74
+  [--] Causal opioid_ed/75-84
+  [--] Causal opioid_ed/85-114
+  [--] Causal non_opioid_ed/0-12
+  [--] Causal non_opioid_ed/13-24
+  [--] Causal non_opioid_ed/25-44
+  [--] Causal non_opioid_ed/45-54
+  [--] Causal non_opioid_ed/55-64
+  [--] Causal non_opioid_ed/65-74
+  [--] Causal non_opioid_ed/75-84
+  [--] Causal non_opioid_ed/85-114
+  (0/16 present)
+
+--- BupaR Process Mining ---
+  [--] BupaR opioid_ed/0-12
+  [OK] BupaR opioid_ed/13-24
+  [OK] BupaR opioid_ed/25-44
+  [OK] BupaR opioid_ed/45-54
+  [OK] BupaR opioid_ed/55-64
+  [OK] BupaR opioid_ed/65-74
+  [OK] BupaR opioid_ed/75-84
+  [OK] BupaR opioid_ed/85-114
+  [--] BupaR non_opioid_ed/0-12
+  [OK] BupaR non_opioid_ed/13-24
+  [OK] BupaR non_opioid_ed/25-44
+  [OK] BupaR non_opioid_ed/45-54
+  [OK] BupaR non_opioid_ed/55-64
+  [OK] BupaR non_opioid_ed/65-74
+  [OK] BupaR non_opioid_ed/75-84
+  [OK] BupaR non_opioid_ed/85-114
+  (14/16 present)
+
+--- DTW Trajectories ---
+  [--] DTW chart_data opioid_ed/0-12
+  [--] DTW sequence_heatmap opioid_ed/0-12
+  [OK] DTW chart_data opioid_ed/13-24
+  [OK] DTW sequence_heatmap opioid_ed/13-24
+  [OK] DTW chart_data opioid_ed/25-44
+  [OK] DTW sequence_heatmap opioid_ed/25-44
+  [OK] DTW chart_data opioid_ed/45-54
+  [OK] DTW sequence_heatmap opioid_ed/45-54
+  [OK] DTW chart_data opioid_ed/55-64
+  [OK] DTW sequence_heatmap opioid_ed/55-64
+  [OK] DTW chart_data opioid_ed/65-74
+  [OK] DTW sequence_heatmap opioid_ed/65-74
+  [OK] DTW chart_data opioid_ed/75-84
+  [OK] DTW sequence_heatmap opioid_ed/75-84
+  [OK] DTW chart_data opioid_ed/85-114
+  [OK] DTW sequence_heatmap opioid_ed/85-114
+  [--] DTW chart_data non_opioid_ed/0-12
+  [--] DTW sequence_heatmap non_opioid_ed/0-12
+  [OK] DTW chart_data non_opioid_ed/13-24
+  [OK] DTW sequence_heatmap non_opioid_ed/13-24
+  [OK] DTW chart_data non_opioid_ed/25-44
+  [OK] DTW sequence_heatmap non_opioid_ed/25-44
+  [OK] DTW chart_data non_opioid_ed/45-54
+  [OK] DTW sequence_heatmap non_opioid_ed/45-54
+  [OK] DTW chart_data non_opioid_ed/55-64
+  [OK] DTW sequence_heatmap non_opioid_ed/55-64
+  [OK] DTW chart_data non_opioid_ed/65-74
+  [OK] DTW sequence_heatmap non_opioid_ed/65-74
+  [OK] DTW chart_data non_opioid_ed/75-84
+  [OK] DTW sequence_heatmap non_opioid_ed/75-84
+  [OK] DTW chart_data non_opioid_ed/85-114
+  [OK] DTW sequence_heatmap non_opioid_ed/85-114
+  (28/32 present)
+
+--- FP-Growth Patterns ---
+  [--] FP-Growth opioid_ed/0-12
+  [OK] FP-Growth opioid_ed/13-24
+  [OK] FP-Growth opioid_ed/25-44
+  [OK] FP-Growth opioid_ed/45-54
+  [OK] FP-Growth opioid_ed/55-64
+  [OK] FP-Growth opioid_ed/65-74
+  [OK] FP-Growth opioid_ed/75-84
+  [OK] FP-Growth opioid_ed/85-114
+  [--] FP-Growth non_opioid_ed/0-12
+  [OK] FP-Growth non_opioid_ed/13-24
+  [OK] FP-Growth non_opioid_ed/25-44
+  [OK] FP-Growth non_opioid_ed/45-54
+  [OK] FP-Growth non_opioid_ed/55-64
+  [OK] FP-Growth non_opioid_ed/65-74
+  [OK] FP-Growth non_opioid_ed/75-84
+  [OK] FP-Growth non_opioid_ed/85-114
+  (14/16 present)
+
+--- PGx Cohort ---
+  [--] PGx Cohort opioid_ed/0-12
+  [OK] PGx Cohort opioid_ed/13-24
+  [OK] PGx Cohort opioid_ed/25-44
+  [OK] PGx Cohort opioid_ed/45-54
+  [OK] PGx Cohort opioid_ed/55-64
+  [OK] PGx Cohort opioid_ed/65-74
+  [OK] PGx Cohort opioid_ed/75-84
+  [OK] PGx Cohort opioid_ed/85-114
+  [--] PGx Cohort non_opioid_ed/0-12
+  [OK] PGx Cohort non_opioid_ed/13-24
+  [OK] PGx Cohort non_opioid_ed/25-44
+  [OK] PGx Cohort non_opioid_ed/45-54
+  [OK] PGx Cohort non_opioid_ed/55-64
+  [OK] PGx Cohort non_opioid_ed/65-74
+  [OK] PGx Cohort non_opioid_ed/75-84
+  [OK] PGx Cohort non_opioid_ed/85-114
+  (14/16 present)
+
+--- Causal Analysis (per-bin) ---
+  [OK] Causal (bin) opioid_ed/13-24/low
+  [OK] Causal (bin) opioid_ed/13-24/medium
+  [OK] Causal (bin) opioid_ed/13-24/high
+  [OK] Causal (bin) opioid_ed/13-24/extreme
+  [OK] Causal (bin) opioid_ed/25-44/low
+  [OK] Causal (bin) opioid_ed/25-44/medium
+  [OK] Causal (bin) opioid_ed/25-44/high
+  [OK] Causal (bin) opioid_ed/25-44/extreme
+  [OK] Causal (bin) opioid_ed/45-54/low
+  [OK] Causal (bin) opioid_ed/45-54/medium
+  [OK] Causal (bin) opioid_ed/45-54/high
+  [OK] Causal (bin) opioid_ed/45-54/extreme
+  [OK] Causal (bin) opioid_ed/55-64/low
+  [OK] Causal (bin) opioid_ed/55-64/medium
+  [OK] Causal (bin) opioid_ed/55-64/high
+  [OK] Causal (bin) opioid_ed/55-64/extreme
+  [OK] Causal (bin) opioid_ed/65-74/low
+  [OK] Causal (bin) opioid_ed/65-74/medium
+  [OK] Causal (bin) opioid_ed/65-74/high
+  [OK] Causal (bin) opioid_ed/65-74/extreme
+  [OK] Causal (bin) opioid_ed/75-84/low
+  [OK] Causal (bin) opioid_ed/75-84/medium
+  [OK] Causal (bin) opioid_ed/75-84/high
+  [OK] Causal (bin) opioid_ed/75-84/extreme
+  [OK] Causal (bin) opioid_ed/85-114/low
+  [OK] Causal (bin) opioid_ed/85-114/medium
+  [OK] Causal (bin) opioid_ed/85-114/high
+  [OK] Causal (bin) opioid_ed/85-114/extreme
+  [OK] Causal (bin) non_opioid_ed/0-12/low
+  [OK] Causal (bin) non_opioid_ed/0-12/medium
+  [OK] Causal (bin) non_opioid_ed/0-12/high
+  [OK] Causal (bin) non_opioid_ed/0-12/extreme
+  [OK] Causal (bin) non_opioid_ed/13-24/low
+  [OK] Causal (bin) non_opioid_ed/13-24/medium
+  [OK] Causal (bin) non_opioid_ed/13-24/high
+  [OK] Causal (bin) non_opioid_ed/13-24/extreme
+  [OK] Causal (bin) non_opioid_ed/25-44/low
+  [OK] Causal (bin) non_opioid_ed/25-44/medium
+  [OK] Causal (bin) non_opioid_ed/25-44/high
+  [OK] Causal (bin) non_opioid_ed/25-44/extreme
+  [OK] Causal (bin) non_opioid_ed/45-54/low
+  [OK] Causal (bin) non_opioid_ed/45-54/medium
+  [OK] Causal (bin) non_opioid_ed/45-54/high
+  [OK] Causal (bin) non_opioid_ed/45-54/extreme
+  [OK] Causal (bin) non_opioid_ed/55-64/low
+  [OK] Causal (bin) non_opioid_ed/55-64/medium
+  [OK] Causal (bin) non_opioid_ed/55-64/high
+  [OK] Causal (bin) non_opioid_ed/55-64/extreme
+  [OK] Causal (bin) non_opioid_ed/65-74/low
+  [OK] Causal (bin) non_opioid_ed/65-74/medium
+  [OK] Causal (bin) non_opioid_ed/65-74/high
+  [OK] Causal (bin) non_opioid_ed/65-74/extreme
+  [OK] Causal (bin) non_opioid_ed/75-84/low
+  [OK] Causal (bin) non_opioid_ed/75-84/medium
+  [OK] Causal (bin) non_opioid_ed/75-84/high
+  [OK] Causal (bin) non_opioid_ed/75-84/extreme
+  [OK] Causal (bin) non_opioid_ed/85-114/low
+  [OK] Causal (bin) non_opioid_ed/85-114/medium
+  [OK] Causal (bin) non_opioid_ed/85-114/high
+  [OK] Causal (bin) non_opioid_ed/85-114/extreme
+  (60/60 present)
+
+--- BupaR (per-bin) ---
+  [--] BupaR (bin) opioid_ed/0-12/low
+  [--] BupaR (bin) opioid_ed/0-12/medium
+  [--] BupaR (bin) opioid_ed/0-12/high
+  [--] BupaR (bin) opioid_ed/0-12/extreme
+  [OK] BupaR (bin) opioid_ed/13-24/low
+  [OK] BupaR (bin) opioid_ed/13-24/medium
+  [OK] BupaR (bin) opioid_ed/13-24/high
+  [OK] BupaR (bin) opioid_ed/13-24/extreme
+  [OK] BupaR (bin) opioid_ed/25-44/low
+  [OK] BupaR (bin) opioid_ed/25-44/medium
+  [OK] BupaR (bin) opioid_ed/25-44/high
+  [OK] BupaR (bin) opioid_ed/25-44/extreme
+  [OK] BupaR (bin) opioid_ed/45-54/low
+  [OK] BupaR (bin) opioid_ed/45-54/medium
+  [OK] BupaR (bin) opioid_ed/45-54/high
+  [OK] BupaR (bin) opioid_ed/45-54/extreme
+  [OK] BupaR (bin) opioid_ed/55-64/low
+  [OK] BupaR (bin) opioid_ed/55-64/medium
+  [OK] BupaR (bin) opioid_ed/55-64/high
+  [OK] BupaR (bin) opioid_ed/55-64/extreme
+  [OK] BupaR (bin) opioid_ed/65-74/low
+  [OK] BupaR (bin) opioid_ed/65-74/medium
+  [OK] BupaR (bin) opioid_ed/65-74/high
+  [OK] BupaR (bin) opioid_ed/65-74/extreme
+  [OK] BupaR (bin) opioid_ed/75-84/low
+  [OK] BupaR (bin) opioid_ed/75-84/medium
+  [OK] BupaR (bin) opioid_ed/75-84/high
+  [OK] BupaR (bin) opioid_ed/75-84/extreme
+  [OK] BupaR (bin) opioid_ed/85-114/low
+  [OK] BupaR (bin) opioid_ed/85-114/medium
+  [OK] BupaR (bin) opioid_ed/85-114/high
+  [OK] BupaR (bin) opioid_ed/85-114/extreme
+  [--] BupaR (bin) non_opioid_ed/0-12/low
+  [--] BupaR (bin) non_opioid_ed/0-12/medium
+  [--] BupaR (bin) non_opioid_ed/0-12/high
+  [--] BupaR (bin) non_opioid_ed/0-12/extreme
+  [OK] BupaR (bin) non_opioid_ed/13-24/low
+  [OK] BupaR (bin) non_opioid_ed/13-24/medium
+  [OK] BupaR (bin) non_opioid_ed/13-24/high
+  [OK] BupaR (bin) non_opioid_ed/13-24/extreme
+  [OK] BupaR (bin) non_opioid_ed/25-44/low
+  [OK] BupaR (bin) non_opioid_ed/25-44/medium
+  [OK] BupaR (bin) non_opioid_ed/25-44/high
+  [OK] BupaR (bin) non_opioid_ed/25-44/extreme
+  [OK] BupaR (bin) non_opioid_ed/45-54/low
+  [OK] BupaR (bin) non_opioid_ed/45-54/medium
+  [OK] BupaR (bin) non_opioid_ed/45-54/high
+  [OK] BupaR (bin) non_opioid_ed/45-54/extreme
+  [OK] BupaR (bin) non_opioid_ed/55-64/low
+  [OK] BupaR (bin) non_opioid_ed/55-64/medium
+  [OK] BupaR (bin) non_opioid_ed/55-64/high
+  [OK] BupaR (bin) non_opioid_ed/55-64/extreme
+  [OK] BupaR (bin) non_opioid_ed/65-74/low
+  [OK] BupaR (bin) non_opioid_ed/65-74/medium
+  [OK] BupaR (bin) non_opioid_ed/65-74/high
+  [OK] BupaR (bin) non_opioid_ed/65-74/extreme
+  [OK] BupaR (bin) non_opioid_ed/75-84/low
+  [OK] BupaR (bin) non_opioid_ed/75-84/medium
+  [OK] BupaR (bin) non_opioid_ed/75-84/high
+  [OK] BupaR (bin) non_opioid_ed/75-84/extreme
+  [OK] BupaR (bin) non_opioid_ed/85-114/low
+  [OK] BupaR (bin) non_opioid_ed/85-114/medium
+  [OK] BupaR (bin) non_opioid_ed/85-114/high
+  [OK] BupaR (bin) non_opioid_ed/85-114/extreme
+  (56/64 present)
+
+--- FP-Growth (per-bin) ---
+  [--] FP-Growth (bin) opioid_ed/0-12/low
+  [--] FP-Growth (bin) opioid_ed/0-12/medium
+  [--] FP-Growth (bin) opioid_ed/0-12/high
+  [--] FP-Growth (bin) opioid_ed/0-12/extreme
+  [OK] FP-Growth (bin) opioid_ed/13-24/low
+  [OK] FP-Growth (bin) opioid_ed/13-24/medium
+  [--] FP-Growth (bin) opioid_ed/13-24/high
+  [--] FP-Growth (bin) opioid_ed/13-24/extreme
+  [OK] FP-Growth (bin) opioid_ed/25-44/low
+  [OK] FP-Growth (bin) opioid_ed/25-44/medium
+  [--] FP-Growth (bin) opioid_ed/25-44/high
+  [--] FP-Growth (bin) opioid_ed/25-44/extreme
+  [OK] FP-Growth (bin) opioid_ed/45-54/low
+  [OK] FP-Growth (bin) opioid_ed/45-54/medium
+  [--] FP-Growth (bin) opioid_ed/45-54/high
+  [--] FP-Growth (bin) opioid_ed/45-54/extreme
+  [OK] FP-Growth (bin) opioid_ed/55-64/low
+  [OK] FP-Growth (bin) opioid_ed/55-64/medium
+  [--] FP-Growth (bin) opioid_ed/55-64/high
+  [--] FP-Growth (bin) opioid_ed/55-64/extreme
+  [OK] FP-Growth (bin) opioid_ed/65-74/low
+  [OK] FP-Growth (bin) opioid_ed/65-74/medium
+  [--] FP-Growth (bin) opioid_ed/65-74/high
+  [--] FP-Growth (bin) opioid_ed/65-74/extreme
+  [OK] FP-Growth (bin) opioid_ed/75-84/low
+  [OK] FP-Growth (bin) opioid_ed/75-84/medium
+  [--] FP-Growth (bin) opioid_ed/75-84/high
+  [--] FP-Growth (bin) opioid_ed/75-84/extreme
+  [OK] FP-Growth (bin) opioid_ed/85-114/low
+  [OK] FP-Growth (bin) opioid_ed/85-114/medium
+  [--] FP-Growth (bin) opioid_ed/85-114/high
+  [--] FP-Growth (bin) opioid_ed/85-114/extreme
+  [--] FP-Growth (bin) non_opioid_ed/0-12/low
+  [--] FP-Growth (bin) non_opioid_ed/0-12/medium
+  [--] FP-Growth (bin) non_opioid_ed/0-12/high
+  [--] FP-Growth (bin) non_opioid_ed/0-12/extreme
+  [OK] FP-Growth (bin) non_opioid_ed/13-24/low
+  [--] FP-Growth (bin) non_opioid_ed/13-24/medium
+  [--] FP-Growth (bin) non_opioid_ed/13-24/high
+  [OK] FP-Growth (bin) non_opioid_ed/13-24/extreme
+  [OK] FP-Growth (bin) non_opioid_ed/25-44/low
+  [--] FP-Growth (bin) non_opioid_ed/25-44/medium
+  [--] FP-Growth (bin) non_opioid_ed/25-44/high
+  [OK] FP-Growth (bin) non_opioid_ed/25-44/extreme
+  [OK] FP-Growth (bin) non_opioid_ed/45-54/low
+  [--] FP-Growth (bin) non_opioid_ed/45-54/medium
+  [--] FP-Growth (bin) non_opioid_ed/45-54/high
+  [OK] FP-Growth (bin) non_opioid_ed/45-54/extreme
+  [OK] FP-Growth (bin) non_opioid_ed/55-64/low
+  [--] FP-Growth (bin) non_opioid_ed/55-64/medium
+  [--] FP-Growth (bin) non_opioid_ed/55-64/high
+  [OK] FP-Growth (bin) non_opioid_ed/55-64/extreme
+  [OK] FP-Growth (bin) non_opioid_ed/65-74/low
+  [--] FP-Growth (bin) non_opioid_ed/65-74/medium
+  [--] FP-Growth (bin) non_opioid_ed/65-74/high
+  [OK] FP-Growth (bin) non_opioid_ed/65-74/extreme
+  [OK] FP-Growth (bin) non_opioid_ed/75-84/low
+  [--] FP-Growth (bin) non_opioid_ed/75-84/medium
+  [--] FP-Growth (bin) non_opioid_ed/75-84/high
+  [OK] FP-Growth (bin) non_opioid_ed/75-84/extreme
+  [OK] FP-Growth (bin) non_opioid_ed/85-114/low
+  [--] FP-Growth (bin) non_opioid_ed/85-114/medium
+  [OK] FP-Growth (bin) non_opioid_ed/85-114/high
+  [OK] FP-Growth (bin) non_opioid_ed/85-114/extreme
+  (29/64 present)
+
+--- PGx Cohort (per-bin) ---
+  [--] PGx (bin) opioid_ed/0-12/low
+  [--] PGx (bin) opioid_ed/0-12/medium
+  [--] PGx (bin) opioid_ed/0-12/high
+  [--] PGx (bin) opioid_ed/0-12/extreme
+  [OK] PGx (bin) opioid_ed/13-24/low
+  [OK] PGx (bin) opioid_ed/13-24/medium
+  [OK] PGx (bin) opioid_ed/13-24/high
+  [OK] PGx (bin) opioid_ed/13-24/extreme
+  [OK] PGx (bin) opioid_ed/25-44/low
+  [OK] PGx (bin) opioid_ed/25-44/medium
+  [OK] PGx (bin) opioid_ed/25-44/high
+  [OK] PGx (bin) opioid_ed/25-44/extreme
+  [OK] PGx (bin) opioid_ed/45-54/low
+  [OK] PGx (bin) opioid_ed/45-54/medium
+  [OK] PGx (bin) opioid_ed/45-54/high
+  [OK] PGx (bin) opioid_ed/45-54/extreme
+  [OK] PGx (bin) opioid_ed/55-64/low
+  [OK] PGx (bin) opioid_ed/55-64/medium
+  [OK] PGx (bin) opioid_ed/55-64/high
+  [OK] PGx (bin) opioid_ed/55-64/extreme
+  [OK] PGx (bin) opioid_ed/65-74/low
+  [OK] PGx (bin) opioid_ed/65-74/medium
+  [OK] PGx (bin) opioid_ed/65-74/high
+  [OK] PGx (bin) opioid_ed/65-74/extreme
+  [OK] PGx (bin) opioid_ed/75-84/low
+  [OK] PGx (bin) opioid_ed/75-84/medium
+  [OK] PGx (bin) opioid_ed/75-84/high
+  [OK] PGx (bin) opioid_ed/75-84/extreme
+  [OK] PGx (bin) opioid_ed/85-114/low
+  [OK] PGx (bin) opioid_ed/85-114/medium
+  [OK] PGx (bin) opioid_ed/85-114/high
+  [OK] PGx (bin) opioid_ed/85-114/extreme
+  [--] PGx (bin) non_opioid_ed/0-12/low
+  [--] PGx (bin) non_opioid_ed/0-12/medium
+  [--] PGx (bin) non_opioid_ed/0-12/high
+  [--] PGx (bin) non_opioid_ed/0-12/extreme
+  [OK] PGx (bin) non_opioid_ed/13-24/low
+  [OK] PGx (bin) non_opioid_ed/13-24/medium
+  [OK] PGx (bin) non_opioid_ed/13-24/high
+  [OK] PGx (bin) non_opioid_ed/13-24/extreme
+  [OK] PGx (bin) non_opioid_ed/25-44/low
+  [OK] PGx (bin) non_opioid_ed/25-44/medium
+  [OK] PGx (bin) non_opioid_ed/25-44/high
+  [OK] PGx (bin) non_opioid_ed/25-44/extreme
+  [OK] PGx (bin) non_opioid_ed/45-54/low
+  [OK] PGx (bin) non_opioid_ed/45-54/medium
+  [OK] PGx (bin) non_opioid_ed/45-54/high
+  [OK] PGx (bin) non_opioid_ed/45-54/extreme
+  [OK] PGx (bin) non_opioid_ed/55-64/low
+  [OK] PGx (bin) non_opioid_ed/55-64/medium
+  [OK] PGx (bin) non_opioid_ed/55-64/high
+  [OK] PGx (bin) non_opioid_ed/55-64/extreme
+  [OK] PGx (bin) non_opioid_ed/65-74/low
+  [OK] PGx (bin) non_opioid_ed/65-74/medium
+  [OK] PGx (bin) non_opioid_ed/65-74/high
+  [OK] PGx (bin) non_opioid_ed/65-74/extreme
+  [OK] PGx (bin) non_opioid_ed/75-84/low
+  [OK] PGx (bin) non_opioid_ed/75-84/medium
+  [OK] PGx (bin) non_opioid_ed/75-84/high
+  [OK] PGx (bin) non_opioid_ed/75-84/extreme
+  [OK] PGx (bin) non_opioid_ed/85-114/low
+  [OK] PGx (bin) non_opioid_ed/85-114/medium
+  [OK] PGx (bin) non_opioid_ed/85-114/high
+  [OK] PGx (bin) non_opioid_ed/85-114/extreme
+  (56/64 present)
+
+========================================================================
+Total: 80/106 paths present
+All required dashboard artifact paths present.
