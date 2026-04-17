@@ -960,6 +960,8 @@ def _catboost_predict_proba(model: Any, feature_vector: np.ndarray, feature_name
             )
         df = df[mnames].copy()
     cat_cols = [c for c in df.columns if str(c).startswith("item_")]
+    if cat_cols:
+        df[cat_cols] = df[cat_cols].astype(int)
     cat_indices = [df.columns.get_loc(c) for c in cat_cols] if cat_cols else None
     pool = Pool(data=df, cat_features=cat_indices)
     proba = model.predict_proba(pool)
