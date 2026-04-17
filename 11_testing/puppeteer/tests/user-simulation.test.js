@@ -268,6 +268,12 @@ describe("Full UI simulation — real user workflow", () => {
         expect(data.age_band_used).toBe("55-64");
       }
 
+      // Wait for displayRiskResults() to update the DOM
+      await page.waitForFunction(
+        () => { const el = document.getElementById("risk-display"); return el && el.style.display !== "none"; },
+        { timeout: 8_000 }
+      ).catch(() => {});
+
       const ui = await page.evaluate(() => {
         const els = (id) => document.getElementById(id);
         return {
@@ -372,6 +378,12 @@ describe("Full UI simulation — real user workflow", () => {
         expect(data.cohort_used).toBe("non_opioid_ed");
         expect(data.age_band_used).toBe("65-74");
       }
+
+      // Wait for displayRiskResults() to update the DOM
+      await page.waitForFunction(
+        () => { const el = document.getElementById("risk-display"); return el && el.style.display !== "none"; },
+        { timeout: 8_000 }
+      ).catch(() => {});
 
       const ui = await page.evaluate(() => {
         const els = (id) => document.getElementById(id);
