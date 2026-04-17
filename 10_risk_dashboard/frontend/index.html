@@ -1191,6 +1191,7 @@
   }
 
   function populateSelect(selectEl, options) {
+    const prevSelected = new Set(getMultiSelectValues(selectEl));
     clearOptions(selectEl);
     options.forEach(opt => {
       const option = document.createElement("option");
@@ -1203,6 +1204,7 @@
         option.value = opt.code != null ? String(opt.code) : (opt.value != null ? String(opt.value) : "");
         option.textContent = opt.display != null ? String(opt.display) : (opt.text != null ? String(opt.text) : option.value);
       }
+      if (prevSelected.has(option.value)) option.selected = true;
       selectEl.appendChild(option);
     });
   }

@@ -146,4 +146,35 @@ foreach ($cohort in $cohortList) {
     Write-Host "`nResults: $mdFile" -ForegroundColor Yellow
 }
 
+# ── Full UI simulation suite (real user workflow, run once after cohort suites) ──
+Write-Host "`n==> user-simulation (real user workflow)" -ForegroundColor Cyan
+$simFile      = Join-Path $resultsDir "results_user_simulation.md"
+$simTimestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+"# Test Results: Full UI Simulation (Real User Workflow)" | Set-Content  $simFile
+""                                                         | Add-Content $simFile
+"**Run:** $simTimestamp"                                   | Add-Content $simFile
+"**Dashboard:** $env:DASHBOARD_URL"                        | Add-Content $simFile
+"**API:** $env:API_BASE_URL"                               | Add-Content $simFile
+""                                                         | Add-Content $simFile
+
+$simResult = Invoke-Jest "tests/user-simulation" ""
+$simSummary = ($simResult.Lines | Where-Object { $_ -match "^Tests:" } | Select-Object -Last 1) -replace '\x1B\[[0-9;]*m',''
+$simTime    = ($simResult.Lines | Where-Object { $_ -match "^Time:" }  | Select-Object -Last 1) -replace '\x1B\[[0-9;]*m',''
+$simIcon    = if ($simResult.Exit -eq 0) { "PASS" } else { "FAIL" }
+
+"**$simIcon** $simSummary  $simTime" | Add-Content $simFile
+""                                   | Add-Content $simFile
+
+if ($simResult.Exit -ne 0) {
+    $simLogFile = Join-Path $resultsDir "user_simulation.log"
+    ($simResult.Lines -replace '\x1B\[[0-9;]*[A-Za-z]','') | Set-Content $simLogFile -Encoding UTF8
+    "  [raw log: results/user_simulation.log]" | Add-Content $simFile
+    "" | Add-Content $simFile
+    Write-Failures $simResult.Lines $simFile
+}
+
+Write-Host "  $simIcon  $simSummary" -ForegroundColor $(if ($simResult.Exit -eq 0) {"Green"} else {"Red"})
+Write-Host "`nResults: $simFile" -ForegroundColor Yellow
+
 Write-Host "`nDone. Results in: $resultsDir" -ForegroundColor Cyan

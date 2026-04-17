@@ -30,11 +30,6 @@
 
 ---
 
-### viz
-**PASS** Tests:       79 skipped, 6 passed, 85 total  Time:        93.446 s, estimated 94 s
-
----
-
 ## Age Band: 25-44
 
 ### combinatorial
@@ -89,4 +84,9 @@
 
 ### combinatorial
 **PASS** Tests:       67 skipped, 5 passed, 72 total  Time:        5.144 s, estimated 8 s
+
+### viz
+**PASS** Tests:       79 skipped, 6 passed, 85 total  Time:        93.472 s, estimated 95 s
+
+---
 

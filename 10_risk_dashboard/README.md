@@ -358,6 +358,340 @@ User Browser → S3 Static Site → API Gateway → Lambda (ECR) → Models/Data
 - **Model Storage**: Models packaged in Lambda container (`/var/task/models/`)
 - **Data Storage**: S3 for visualization images and large datasets
 
+## Execution Workflow
+
+### Request Lifecycle
+
+End-to-end sequence from user interaction through Lambda inference to rendered result.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant JS as Dashboard JS<br/>(index.html)
+    participant APIGW as API Gateway
+    participant Lambda as Lambda (ECR)
+    participant S3 as S3 Bucket
+
+    Note over User,S3: ── Page Load ──────────────────────────────────────────────
+    User->>JS: Select cohort tab<br/>(opioid_ed / non_opioid_ed)
+    JS->>APIGW: GET /metadata?cohort=…
+    APIGW->>Lambda: forward
+    Lambda-->>JS: code lists per age band<br/>{ drugs[], icds[], cpts[] } per age_band
+    JS->>JS: updateCodeLists()<br/>populate #drugs / #icds / #cpts selects
+
+    Note over User,S3: ── Code Selection ─────────────────────────────────────────
+    User->>JS: Type age (e.g. 60)
+    JS->>JS: determineAgeBand(60) → "55-64"<br/>updateCodeLists() → refresh selects for band
+
+    User->>JS: Drugs tab → search box → select codes
+    JS->>JS: filterOptions() on input event<br/>change event → updateDrugDisplay() chips
+
+    User->>JS: ICD Codes tab → search → select<br/>(opioid_ed only; hidden for non_opioid_ed)
+    User->>JS: CPT Codes tab → search → select<br/>(opioid_ed only; hidden for non_opioid_ed)
+
+    Note over User,S3: ── Risk Calculation ───────────────────────────────────────
+    User->>JS: Click "Calculate Risk Score"
+    JS->>JS: calculateRisk()<br/>① validate age (13–114) + cohort<br/>② updateCodeLists() — preserves selections<br/>③ getMultiSelectValues() → drugs/icds/cpts arrays
+    JS->>APIGW: POST /risk<br/>{ cohort, age_band, drugs[], icds[], cpts[] }
+    APIGW->>Lambda: forward
+    Lambda->>Lambda: compute n_event_bin from len(drugs+icds+cpts)<br/>load bin_models/{bin}/{model}.joblib<br/>load calibration_{model}.joblib (if present)<br/>build feature vector from feature_schema.json<br/>ensemble inference → weighted average<br/>calibrate probability → risk_score
+    Lambda-->>JS: { risk_score, risk_band, n_event_bin,<br/>  causal_factors, model_breakdown,<br/>  codes_used, codes_unknown, … }
+    JS->>User: Render score + band chip + density-bin badge<br/>what-if comparison enabled
+
+    Note over User,S3: ── Visualization Tabs (on demand) ─────────────────────────
+    opt User clicks a visualization tab + Load button
+        JS->>APIGW: GET /visualizations/{causal|feature_importance|bupar|dtw|fpgrowth|cohort_pgx}<br/>?cohort=…&age_band=…[&n_event_bin=…]
+        APIGW->>Lambda: forward
+        Lambda->>S3: resolve pre-computed asset paths<br/>s3://pgxdatalake/gold/{analysis}/{cohort}/{age_band}/
+        S3-->>Lambda: presigned / public asset URLs
+        Lambda-->>JS: { chart_urls[], data_urls[], … }
+        JS->>S3: fetch PNG / interactive HTML assets
+        S3-->>JS: static visualization content
+        JS->>User: render charts (Plotly / iframe / img)
+    end
+
+    Note over User,S3: ── PGx Card (optional) ────────────────────────────────────
+    opt User submits gene variants on PGx Card tab
+        JS->>APIGW: POST /pgx/card<br/>{ cohort, age_band, variants[] }
+        APIGW->>Lambda: forward
+        Lambda->>Lambda: CPIC lookup → gene actionability<br/>drug interactions → card JSON
+        Lambda-->>JS: { genes[], drugs[], actionability[] }
+        JS->>User: render pharmacogenomic card
+    end
+```
+
+### `calculateRisk()` Client-Side Logic
+
+State machine for the risk calculation path inside the browser, including the `updateCodeLists()` selection-preservation step.
+
+```mermaid
+flowchart TD
+    A([User clicks Calculate Risk Score]) --> B{age input\n13 – 114?}
+    B -->|No| C[setStatus error\nNo API call]
+    B -->|Yes| D{cohort\nselected?}
+    D -->|No| C
+    D -->|Yes| E{metadata\nloaded for cohort?}
+    E -->|No| F[GET /metadata\nloadMetadata]
+    F --> G[updateCodeLists\nrefresh selects]
+    E -->|Yes| G
+    G --> H{age_band in\navailable bands?}
+    H -->|Not available| I[setStatus warning\nNo API call]
+    H -->|Available| J[updateCodeLists\npreserves existing\nselections]
+    J --> K[getMultiSelectValues\ndrugs · icds · cpts]
+    K --> L[POST /risk\nAPI Gateway → Lambda]
+    L --> M{HTTP 200?}
+    M -->|400 / 500| N[setStatus error\nshow raw error]
+    M -->|200| O[displayRiskResults\nrisk_score · risk_band\nn_event_bin badge\nmodel breakdown]
+    O --> P[updateCodesSummary\nwhat-if comparison unlocked]
+    P --> Q([Result displayed])
+
+    style C fill:#fee2e2
+    style I fill:#fef3c7
+    style N fill:#fee2e2
+    style Q fill:#dcfce7
+```
+
+### Test Coverage
+
+The execution workflow above is covered by three complementary Puppeteer suites in `11_testing/puppeteer/tests/`:
+
+| Suite | Approach | What it validates |
+|---|---|---|
+| `combinatorial.test.js` | fetch interceptor (bypasses UI selects) | POST /risk JSON schema, risk_score range, n_event_bin routing, code echo-back, UI display — all cohort × age_band × density scenarios |
+| `viz.test.js` | real DOM tab + button clicks | All 6 viz endpoints return valid JSON (200/400/404/500), no JS crashes — all cohort × age_band combos |
+| `user-simulation.test.js` | full real user workflow | Cohort tab click → keyboard age entry → search box → DOM code selection → Calculate → asserts POST body contains user-selected codes → response + UI |
+
+> **Note**: `user-simulation.test.js` specifically validates the `populateSelect()` selection-preservation fix — that codes selected through the UI actually survive the `updateCodeLists()` call inside `calculateRisk()` and appear in the outgoing POST body.
+
+---
+
+### Per-Tab Execution Workflows
+
+#### Tab: Risk Assessment
+
+```mermaid
+flowchart TD
+    A([Risk Assessment tab]) --> B[Enter age 13–114\nOptional overrides:\nn_drugs · n_cpic_drugs · n_events]
+    B --> C[codes-summary-group\nshows selected code count\nfrom Drugs / ICD / CPT tabs]
+    C --> D{Action}
+    D -->|Calculate Risk Score| E[calculateRisk\nsee flowchart above]
+    D -->|Compare Scenarios| F[compareScenarios\nPOST /risk/comparison\nadd to comparison panel]
+    D -->|Reset| G[resetForm\nclear all inputs and results]
+    E --> H{HTTP 200?}
+    H -->|Error| I[setStatus error\nshow API message]
+    H -->|200| J[risk-score · risk-band\nn-event-bin-badge\nmodel-info · calibration note\ncodes-used / unknown count]
+    J --> K[Plotly charts:\nmodel-breakdown · risk-dist-chart]
+    K --> L[density-table-wrap\nshows p25/p50/p95 thresholds]
+    L --> M{n_event_bin known?}
+    M -->|Yes| N[pgx-action-link shown\nView PGx Card →\nauto-loads cohort PGx profile]
+    M -->|No| O([Done])
+    N --> O
+
+    style I fill:#fee2e2
+    style O fill:#dcfce7
+```
+
+---
+
+#### Tab: Drugs / ICD Codes / CPT Codes
+
+Same workflow for all three code-selection tabs. ICD and CPT tabs are **hidden for `non_opioid_ed`** (Polypharmacy — drugs only).
+
+```mermaid
+flowchart TD
+    A([Navigate to Drugs / ICD / CPT tab]) --> B{metadata\nloaded?}
+    B -->|No| C[loadMetadata\nGET /metadata?cohort=]
+    B -->|Yes| D
+    C --> D[updateCodeLists\npopulateSelect from\nmetadata.codes.age_band]
+    D --> E[User types in\n#drug-search / #icd-search / #cpt-search]
+    E --> F[input event\nfilterOptions\nhide non-matching options]
+    F --> G[User Ctrl+clicks\noptions in select]
+    G --> H[change event\nupdateDrugDisplay /\nupdateIcdDisplay /\nupdateCptDisplay\nrender code chips]
+    H --> I{More codes\nto add?}
+    I -->|Yes| E
+    I -->|Done| J([Selections stored in\n#drugs / #icds / #cpts\nselectedOptions])
+    J --> K[populateSelect preserves\nselections on next\nupdateCodeLists call]
+
+    note1[Non-opioid-ed: ICD + CPT\ntabs hidden — drugs only]:::note
+    classDef note fill:#fef9c3,stroke:#fbbf24,font-size:0.8em
+```
+
+---
+
+#### Tab: PGx Card
+
+Two-phase: load cohort-level profile first, then optionally refine with patient genetic variants.
+
+```mermaid
+flowchart TD
+    A([PGx Card tab]) --> B[Select cohort · age band\nOptional: event density bin\nauto-set from Risk Assessment]
+    B --> C[Click Load Cohort PGx Profile\nbtnLoadPgxCardProfile]
+    C --> D[POST /pgx/card\nor GET /visualizations/cohort_pgx\ncohort + age_band + bin]
+    D --> E{HTTP 200?}
+    E -->|Error| F[pgx-card-status error]
+    E -->|200| G[pgx-cohort-profile-section shown\nGene Actionability Radar\nIdentified PGx Genes list]
+    G --> H[pgx-snp-refine-section shown\nOptional SNP refinement]
+    H --> I{Personalize?}
+    I -->|No| J([Cohort-level card done])
+    I -->|Yes| K[Enter gene variants\nin #snp-input textarea\nFormat: Gene Variant1 Variant2\nor upload .csv / .xlsx / .txt]
+    K --> L[Optional: enter\nPatient ID]
+    L --> M[Click Generate Personalized Card\nbtnGenerateCard]
+    M --> N[POST /pgx/card\ncohort · age_band · variants]
+    N --> O{HTTP 200?}
+    O -->|Error| P[pgx-status error]
+    O -->|200| Q[pgx-card-display shown\nGenes Tested list\nDrugs Requiring Dosing Modifications\nGene Details with CPIC guidance]
+    Q --> R([Personalized PGx Card])
+
+    style F fill:#fee2e2
+    style P fill:#fee2e2
+    style J fill:#dcfce7
+    style R fill:#dcfce7
+```
+
+---
+
+#### Tab: Feature Importance
+
+Standalone — does not depend on Risk Assessment cohort/age context. Loads a full cross-age-band heatmap from Step 3a.
+
+```mermaid
+flowchart TD
+    A([Feature Importance tab]) --> B[Select view:\nopioid_ed · non_opioid_ed · combined]
+    B --> C[Select top-N features:\n10 · 20 · All]
+    C --> D[Click Load Feature Importance Heatmap\nbtnLoadFeatureImportance]
+    D --> E[GET /visualizations/feature_importance\n?cohort=fi-cohort&top_n=fi-top-n]
+    E --> F{HTTP 200?}
+    F -->|Error| G[fi-status error]
+    F -->|200| H{Response type?}
+    H -->|Plotly JSON| I[fi-heatmap-chart\nPlotly.newPlot heatmap\nrows=features · cols=age bands]
+    H -->|Image URL| J[fi-heatmap-image\n src=S3 URL\nmax-width 100%]
+    I --> K([Heatmap displayed])
+    J --> K
+
+    style G fill:#fee2e2
+    style K fill:#dcfce7
+```
+
+---
+
+#### Tab: Causal Analysis
+
+Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional what-if comparison and density-bin filter.
+
+```mermaid
+flowchart TD
+    A([Causal Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs]
+    B --> C[Optional: enter what-if codes\ncausal-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE]
+    C --> D[Optional: filter top-N features\n10 · 20 · All]
+    D --> E[Optional: filter by\nevent density bin\nAll · low · medium · high · extreme]
+    E --> F[Click Load Causal Analysis\nbtnLoadCausal]
+    F --> G[GET /visualizations/causal\n?cohort=&age_band=&codes=&n_event_bin=]
+    G --> H{HTTP 200?}
+    H -->|Error| I[causal-status error]
+    H -->|200| J[causal-factors-chart\nPlotly bar: Top Causal Factors FFA]
+    J --> K[shap-importance-chart\nPlotly bar: SHAP Feature Importance]
+    K --> L[causal-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect]
+    L --> M{What-if codes\nentered?}
+    M -->|Yes| N[second trace overlaid\non each chart]
+    M -->|No| O([Three charts displayed])
+    N --> O
+
+    style I fill:#fee2e2
+    style O fill:#dcfce7
+```
+
+---
+
+#### Tab: BupaR Process Mining
+
+Drug-specific visuals (cohort + age band controlled) and event-to-target visuals (all activity types, not filtered).
+
+```mermaid
+flowchart TD
+    A([BupaR tab]) --> B[Select cohort · age band\nOptional: event density bin\nAll · low · medium · high · extreme]
+    B --> C[Select panels to show:\nSequences · Activity Frequency\nTrace Explorer · Drug×Drug Matrix]
+    C --> D[Click Load BupaR Visualizations\nbtnLoadBupaR]
+    D --> E[GET /visualizations/bupar\n?cohort=&age_band=&n_event_bin=]
+    E --> F{HTTP 200?}
+    F -->|Error| G[bupar-status error]
+    F -->|200| H[Drug-specific panels\nper checkbox selection:\nSequences to Target PNG\nActivity Frequency PNG·HTML\nTrace Explorer PNG·HTML\nDrug×Drug Process Matrix PNG]
+    H --> I[Event-to-target panels\nalways shown\nall activity types Drug+ICD+CPT:\nFrequency Map PNG\nActivity Frequency map HTML]
+    I --> J([BupaR visuals displayed])
+
+    style G fill:#fee2e2
+    style J fill:#dcfce7
+```
+
+---
+
+#### Tab: DTW Trajectories
+
+Drug / ICD / CPT trajectory clusters. Two sub-tabs: Overview & Trajectories and Routine vs Utilization.
+
+```mermaid
+flowchart TD
+    A([DTW tab]) --> B[Select cohort · age band\nOptional: event density bin]
+    B --> C[Select panels to show\nvia checkboxes]
+    C --> D[Click Load DTW Visualizations\nbtnLoadDTW]
+    D --> E[GET /visualizations/dtw\n?cohort=&age_band=&n_event_bin=]
+    E --> F{HTTP 200?}
+    F -->|Error| G[dtw-status error]
+    F -->|200| H{Sub-tab}
+    H -->|Overview and Trajectories| I[Trajectory Analysis PNG\ndtw_trajectory_analysis_{cohort}_{age_band}.png\nfrom S3 gold/feature_importance/]
+    H -->|Routine vs Utilization| J[Outcome rate + event counts\nby routine vs utilization activity]
+    I --> K([DTW visuals displayed])
+    J --> K
+
+    style G fill:#fee2e2
+    style K fill:#dcfce7
+```
+
+---
+
+#### Tab: FP-Growth Patterns
+
+Drug names only — itemset support distribution and interactive drug association network.
+
+```mermaid
+flowchart TD
+    A([FP-Growth tab]) --> B[Select cohort · age band\nOptional: event density bin]
+    B --> C[Click Load FP-Growth Visualizations\nbtnLoadFPGrowth]
+    C --> D[GET /visualizations/fpgrowth\n?cohort=&age_band=&n_event_bin=]
+    D --> E{HTTP 200?}
+    E -->|Error| F[fpgrowth-status error]
+    E -->|200| G[fpgrowth-support-image\nItemset Support Distribution PNG\n*_drug_name_combined_top_itemsets.png]
+    G --> H[fpgrowth-network-iframe\nInteractive Drug Association Network\n*_drug_name_*_network*.html\nvia iframe from S3]
+    H --> I[fpgrowth-rules-iframe\nAssociation Rules Network\n*_combined_rules_network.html]
+    I --> J([FP-Growth visuals displayed])
+
+    style F fill:#fee2e2
+    style J fill:#dcfce7
+```
+
+---
+
+#### Tab: PGx Cohort Network
+
+Gene–drug–phenotype topology network from SHAP/FFA top genes + PharmGKB VIP reports. Includes radar chart and PubMed citations.
+
+```mermaid
+flowchart TD
+    A([PGx Cohort tab]) --> B[Select cohort · age band\nOptional: event density bin]
+    B --> C[Click Load PGx Cohort Network\nbtnLoadCohortPgx]
+    C --> D[GET /visualizations/cohort_pgx\n?cohort=&age_band=&n_event_bin=]
+    D --> E{HTTP 200?}
+    E -->|Error| F[cohort-pgx-status error]
+    E -->|200| G[cohort-pgx-iframe\nGene–Drug–Phenotype Network HTML\ninteractive Cytoscape network\nvia iframe from S3]
+    G --> H{pgx_radar_data.json\nreturned?}
+    H -->|Yes| I[cohort-pgx-radar-section shown\nGene Actionability Profile\nPlotly radar: CPIC · dosing ·\nPharmGKB VIP · literature · causal rank]
+    H -->|No| J
+    I --> J[cohort-pgx-citations-section shown\nPubMed citations per PGx gene\nNCBI E-utilities · last 5 years\ncollapsible per gene]
+    J --> K([Network + radar + citations displayed])
+
+    style F fill:#fee2e2
+    style K fill:#dcfce7
+```
+
 ## Key Features
 
 - **Ensemble Models**: CatBoost + XGBoost + XGBoost RF — Lambda loads `model_weights` from `feature_schema.json`:
