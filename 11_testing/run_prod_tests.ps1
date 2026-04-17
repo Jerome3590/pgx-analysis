@@ -112,11 +112,16 @@ if ($Suite -in @("all","puppet")) {
     $puppeteerDir = Join-Path $RepoRoot "11_testing\puppeteer"
     if (-not (Test-Path (Join-Path $puppeteerDir "node_modules"))) {
         Write-Host "  Installing npm deps..." -ForegroundColor Yellow
-        & npm install --prefix $puppeteerDir
+        Push-Location $puppeteerDir
+        & npm install
+        Pop-Location
     }
 
-    & npx --prefix $puppeteerDir jest --testPathPattern=tests/ --forceExit
-    if ($LASTEXITCODE -ne 0) {
+    Push-Location $puppeteerDir
+    & npx jest --testPathPattern=tests/ --forceExit
+    $puppeteerExit = $LASTEXITCODE
+    Pop-Location
+    if ($puppeteerExit -ne 0) {
         Write-Host "  [FAIL] Puppeteer tests had failures." -ForegroundColor Red
         $overallPass = $false
     } else {
@@ -130,7 +135,7 @@ Write-Host "======================================================" -ForegroundC
 if ($overallPass) {
     Write-Host "  ALL SUITES PASSED" -ForegroundColor Green
 } else {
-    Write-Host "  ONE OR MORE SUITES FAILED — review output above" -ForegroundColor Red
+    Write-Host "  ONE OR MORE SUITES FAILED - review output above" -ForegroundColor Red
 }
 Write-Host "======================================================" -ForegroundColor Cyan
 Write-Host ""

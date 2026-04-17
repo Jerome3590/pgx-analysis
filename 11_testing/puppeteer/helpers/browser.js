@@ -51,7 +51,7 @@ async function openDashboard(browser) {
 async function selectCohort(page, cohort) {
   await page.click(`button.cohort-tab-button[data-cohort="${cohort}"]`);
   // Brief settle: cohort click fires metadata load + indicator update
-  await page.waitForTimeout(300);
+  await sleep(300);
 }
 
 /**
@@ -64,26 +64,39 @@ async function setAge(page, age) {
 }
 
 /**
- * Inject code values directly into the multi-select DOM elements,
- * bypassing the search-and-click UI (which requires metadata to be loaded first).
+ * Inject code values for the next POST /risk request by wrapping window.fetch.
  *
- * Creates options and marks them selected so getMultiSelectValues() returns them.
+ * calculateRisk() calls updateCodeLists() (local scope closure) which repopulates
+ * the selects and discards any DOM-injected selections before reading them.
+ * To work around this we intercept the outgoing fetch and rewrite the body so the
+ * correct drugs/icds/cpts reach the Lambda regardless of DOM state.
+ *
+ * The interceptor is one-shot: it fires on the first matching POST, then restores
+ * the original fetch.  Subsequent requests are unaffected.
  */
 async function injectCodes(page, drugs, icds, cpts) {
   await page.evaluate((d, i, c) => {
-    function fill(id, values) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      while (el.options.length) el.remove(0);
-      values.forEach(v => {
-        const opt = new Option(v, v, true, true);
-        el.add(opt);
-      });
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-    fill("drugs", d);
-    fill("icds",  i);
-    fill("cpts",  c);
+    const _orig = window.fetch;
+    window.fetch = async function (url, opts, ...rest) {
+      if (
+        window.fetch !== _orig &&           // still our stub
+        url && String(url).includes("/risk") &&
+        opts && opts.method === "POST" &&
+        !String(url).includes("/comparison") &&
+        !String(url).includes("/drug_contributions")
+      ) {
+        // Restore immediately (one-shot)
+        window.fetch = _orig;
+        try {
+          const body = JSON.parse(opts.body || "{}");
+          body.drugs = d;
+          body.icds  = i;
+          body.cpts  = c;
+          opts = { ...opts, body: JSON.stringify(body) };
+        } catch (_) {}
+      }
+      return _orig.call(this, url, opts, ...rest);
+    };
   }, drugs, icds, cpts);
 }
 
@@ -139,6 +152,9 @@ async function readRiskDisplay(page) {
   });
 }
 
+/** page.waitForTimeout was removed in Puppeteer v22; use this instead. */
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 module.exports = {
   DASHBOARD_URL,
   API_BASE_URL,
@@ -150,4 +166,5 @@ module.exports = {
   injectCodes,
   clickCalculate,
   readRiskDisplay,
+  sleep,
 };
