@@ -1246,9 +1246,11 @@
     try {
       const nDrugsEl = document.getElementById("inputNdrugs");
       const cpicDrugsEl = document.getElementById("inputCpicDrugs");
+      const neventsEl = document.getElementById("inputNevents");
       const payload = { age: age, cohort: cohort, age_band: ageBand, drugs: drugs, icds: icds, cpts: cpts };
       if (nDrugsEl && nDrugsEl.value !== "" && !isNaN(Number(nDrugsEl.value))) payload.n_drugs = Number(nDrugsEl.value);
       if (cpicDrugsEl && cpicDrugsEl.value !== "" && !isNaN(Number(cpicDrugsEl.value))) payload.pgx_num_cpic_drugs = Number(cpicDrugsEl.value);
+      if (neventsEl && neventsEl.value !== "" && !isNaN(Number(neventsEl.value))) payload.n_events = Number(neventsEl.value);
       const resp = await fetch(`${API_BASE}/risk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1281,6 +1283,32 @@
     }
   }
 
+  function updateDensityTable(thresholds, cohort, ageBand) {
+    const el = document.getElementById("density-table-body");
+    const caption = document.getElementById("density-table-caption");
+    if (!el) return;
+    const p25 = thresholds.p25 ?? 5;
+    const p50 = thresholds.p50 ?? 15;
+    const p95 = thresholds.p95 ?? 50;
+    const rows = [
+      { bin: "low",     label: "Low",     color: "#15803d", bg: "#f0fdf4", range: `0 – ${p25}`,        pct: "0–25th percentile"  },
+      { bin: "medium",  label: "Medium",  color: "#a16207", bg: "#fefce8", range: `${p25+1} – ${p50}`,  pct: "25–50th percentile" },
+      { bin: "high",    label: "High",    color: "#c2410c", bg: "#fff7ed", range: `${p50+1} – ${p95}`,  pct: "50–95th percentile" },
+      { bin: "extreme", label: "Extreme", color: "#9d174d", bg: "#fdf2f8", range: `> ${p95}`,           pct: "> 95th percentile"  },
+    ];
+    el.innerHTML = rows.map(r => `
+      <tr>
+        <td style="padding:0.3rem 0.6rem;">
+          <span style="display:inline-block;padding:0.15rem 0.55rem;border-radius:99px;font-size:0.72rem;font-weight:700;text-transform:uppercase;background:${r.bg};color:${r.color};">${r.label}</span>
+        </td>
+        <td style="padding:0.3rem 0.6rem;font-variant-numeric:tabular-nums;">${r.range}</td>
+        <td style="padding:0.3rem 0.6rem;color:#64748b;font-size:0.8rem;">${r.pct}</td>
+      </tr>`).join("");
+    if (caption) caption.textContent = `Density bins — ${cohort} / ${ageBand}`;
+    const wrap = document.getElementById("density-table-wrap");
+    if (wrap) wrap.style.display = "";
+  }
+
   function displayRiskResults(data, cohort, ageBand) {
     const riskScore = (data.risk_score * 100).toFixed(1);
     const riskBand = data.risk_band;
@@ -1295,9 +1323,11 @@
     if (nEventBinBadge) {
       const bin = data.n_event_bin || null;
       if (bin && ["low", "medium", "high", "extreme"].includes(bin)) {
-        nEventBinBadge.textContent = `Event density: ${bin}`;
+        const nForBin = data.n_events_for_bin != null ? data.n_events_for_bin : data.n_events;
+        nEventBinBadge.textContent = `Event density: ${bin}  (n=${nForBin})`;
         nEventBinBadge.className = `n-event-bin-badge ${bin}`;
         nEventBinBadge.style.display = "";
+        if (data.nevent_thresholds) updateDensityTable(data.nevent_thresholds, cohort, ageBand);
         // Store patient bin globally — auto-populates PGx Card + other tabs
         window._patientNEventBin = bin;
         const pgxCardBin = document.getElementById("pgx-card-bin");

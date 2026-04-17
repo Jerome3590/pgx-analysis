@@ -83,6 +83,10 @@ MODEL_PREFIX = "gold/dashboard/models"
 # Model storage paths (ECR container has models in /var/task/models/)
 MODEL_BASE_PATH = os.environ.get("MODEL_BASE_PATH", "/var/task/models")
 USE_CONTAINER_MODELS = os.path.exists(MODEL_BASE_PATH)
+# When PREFER_S3=true (default): S3 is checked first; container is fallback.
+# This lets model and code updates on S3 take effect on next cold start without
+# rebuilding the container.  Set PREFER_S3=false to restore container-first order.
+PREFER_S3 = os.environ.get("PREFER_S3", "true").lower() not in ("0", "false", "no")
 
 # In-memory model cache
 _model_cache: Dict[str, Dict[str, Any]] = {}
@@ -228,28 +232,37 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"Warning: Failed to load metadata from OFFLINE_METADATA_PATH: {e}")
     
-    # Try container filesystem first
+    key = f"{METADATA_PREFIX}/{metadata_file}"
+
+    # S3 first (PREFER_S3 default) so updated metadata is picked up on cold start
+    # without a container rebuild.  Fall through to container on any S3 error.
+    if PREFER_S3:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            return json.loads(obj["Body"].read().decode("utf-8"))
+        except ClientError:
+            pass  # fall through to container
+
+    # Container filesystem
     if container_path.exists():
         try:
             with open(container_path, 'r') as f:
                 return json.load(f)
         except Exception as e:
-            print(f"Warning: Failed to load metadata from container: {e}. Trying S3...")
-    
-    # Fallback to S3
-    key = f"{METADATA_PREFIX}/{metadata_file}"
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        data = json.loads(obj["Body"].read().decode("utf-8"))
-        return data
-    except ClientError as e:
-        code = e.response.get("Error", {}).get("Code")
-        if code in ("NoSuchKey", "404", "NotFound"):
-            paths_checked = [str(container_path), f"s3://{S3_BUCKET}/{key}"]
-            raise FileNotFoundError(
-                f"Metadata not found. Checked: {'; '.join(paths_checked)}"
-            )
-        raise
+            print(f"Warning: Failed to load metadata from container: {e}")
+
+    # S3 fallback (when PREFER_S3=false and container missed)
+    if not PREFER_S3:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            return json.loads(obj["Body"].read().decode("utf-8"))
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code in ("NoSuchKey", "404", "NotFound"):
+                raise FileNotFoundError(f"Metadata not found. Checked: {container_path}; s3://{S3_BUCKET}/{key}")
+            raise
+
+    raise FileNotFoundError(f"Metadata not found. Checked: s3://{S3_BUCKET}/{key}; {container_path}")
 
 
 def handle_metrics(_event: Dict[str, Any]) -> Dict[str, Any]:
@@ -340,65 +353,79 @@ def load_model(cohort: str, age_band: str, model_type: str, bin_name: Optional[s
     if model_type not in ('catboost', 'xgboost', 'xgboost_rf'):
         raise ValueError(f"Unknown model type: {model_type}")
 
+    def _load_from_s3_bytes(s3_key: str) -> Optional[Any]:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            model_bytes = obj["Body"].read()
+            if model_type == 'catboost':
+                m = CatBoostClassifier()
+                m.load_model(BytesIO(model_bytes))
+            else:
+                m = joblib.load(BytesIO(model_bytes))
+            print(f"Loaded {model_type} from S3: s3://{S3_BUCKET}/{s3_key}")
+            return m
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "NotFound"):
+                return None
+            raise
+
     if bin_name:
         # ── Per-bin path ONLY — no full-cohort fallback ──────────────────────
-        if USE_CONTAINER_MODELS:
-            bin_dir = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "bin_models", bin_name)
-            for fname in (f"{model_type}.joblib", f"{model_type}.json"):
-                model = _try_load_from_path(os.path.join(bin_dir, fname))
-                if model is not None:
-                    _model_cache[cache_key] = {'model': model}
-                    _cache_timestamps[cache_key] = time.time()
-                    return model
         s3_key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/bin_models/{bin_name}/{model_type}.joblib"
-        try:
-            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-            model_bytes = obj["Body"].read()
-            if model_type == 'catboost':
-                model = CatBoostClassifier()
-                model.load_model(BytesIO(model_bytes))
-            else:
-                model = joblib.load(BytesIO(model_bytes))
-            _model_cache[cache_key] = {'model': model}
-            _cache_timestamps[cache_key] = time.time()
-            print(f"Loaded per-bin {model_type} ({bin_name}) from S3: s3://{S3_BUCKET}/{s3_key}")
-            return model
-        except ClientError as e:
-            code = e.response.get("Error", {}).get("Code")
-            if code in ("NoSuchKey", "404", "NotFound"):
-                raise FileNotFoundError(
-                    f"Per-bin model not found for bin='{bin_name}', model='{model_type}'. "
-                    f"Run train_per_bin() (notebook 3) then prepare_models.py to generate it."
-                )
-            raise
+        bin_dir = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "bin_models", bin_name) if USE_CONTAINER_MODELS else None
+
+        if PREFER_S3:
+            model = _load_from_s3_bytes(s3_key)
+            if model is None and bin_dir:
+                for fname in (f"{model_type}.joblib", f"{model_type}.json"):
+                    model = _try_load_from_path(os.path.join(bin_dir, fname))
+                    if model is not None:
+                        break
+        else:
+            model = None
+            if bin_dir:
+                for fname in (f"{model_type}.joblib", f"{model_type}.json"):
+                    model = _try_load_from_path(os.path.join(bin_dir, fname))
+                    if model is not None:
+                        break
+            if model is None:
+                model = _load_from_s3_bytes(s3_key)
+
+        if model is None:
+            raise FileNotFoundError(
+                f"Per-bin model not found for bin='{bin_name}', model='{model_type}'. "
+                f"Run train_per_bin() (notebook 3) then prepare_models.py to generate it."
+            )
+        _model_cache[cache_key] = {'model': model}
+        _cache_timestamps[cache_key] = time.time()
+        return model
     else:
         # ── Full-cohort path (no bin) ─────────────────────────────────────────
-        if USE_CONTAINER_MODELS:
-            full_dir = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname)
-            for fname in (f"{model_type}.joblib", f"{model_type}.json"):
-                model = _try_load_from_path(os.path.join(full_dir, fname))
-                if model is not None:
-                    _model_cache[cache_key] = {'model': model}
-                    _cache_timestamps[cache_key] = time.time()
-                    return model
         s3_key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/{model_type}.joblib"
-        try:
-            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-            model_bytes = obj["Body"].read()
-            if model_type == 'catboost':
-                model = CatBoostClassifier()
-                model.load_model(BytesIO(model_bytes))
-            else:
-                model = joblib.load(BytesIO(model_bytes))
-            _model_cache[cache_key] = {'model': model}
-            _cache_timestamps[cache_key] = time.time()
-            print(f"Loaded {model_type} from S3: s3://{S3_BUCKET}/{s3_key}")
-            return model
-        except ClientError as e:
-            code = e.response.get("Error", {}).get("Code")
-            if code in ("NoSuchKey", "404", "NotFound"):
-                raise FileNotFoundError(f"Full-cohort model not found: s3://{S3_BUCKET}/{s3_key}")
-            raise
+        full_dir = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname) if USE_CONTAINER_MODELS else None
+
+        if PREFER_S3:
+            model = _load_from_s3_bytes(s3_key)
+            if model is None and full_dir:
+                for fname in (f"{model_type}.joblib", f"{model_type}.json"):
+                    model = _try_load_from_path(os.path.join(full_dir, fname))
+                    if model is not None:
+                        break
+        else:
+            model = None
+            if full_dir:
+                for fname in (f"{model_type}.joblib", f"{model_type}.json"):
+                    model = _try_load_from_path(os.path.join(full_dir, fname))
+                    if model is not None:
+                        break
+            if model is None:
+                model = _load_from_s3_bytes(s3_key)
+
+        if model is None:
+            raise FileNotFoundError(f"Full-cohort model not found: s3://{S3_BUCKET}/{s3_key}")
+        _model_cache[cache_key] = {'model': model}
+        _cache_timestamps[cache_key] = time.time()
+        return model
     raise FileNotFoundError(f"Model not found for {cohort}/{age_band}/{model_type}" + (f" (bin={bin_name})" if bin_name else ""))
 
 
@@ -418,25 +445,29 @@ def load_risk_distribution_2019(cohort: str, age_band: str) -> Optional[Dict[str
             out["risk_band_thresholds"] = {k: float(v) for k, v in data["risk_band_thresholds"].items()}
         return out
 
-    if USE_CONTAINER_MODELS:
-        p = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "risk_distribution_2019.json")
-        if os.path.exists(p):
-            try:
-                with open(p, "r") as f:
-                    data = json.load(f)
-                return _from_data(data)
-            except Exception:
-                pass
     key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/risk_distribution_2019.json"
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        data = json.loads(obj["Body"].read().decode("utf-8"))
-        return _from_data(data)
-    except ClientError as e:
-        # Treat missing or forbidden (no IAM) as not found; return None instead of 500
-        code = e.response.get("Error", {}).get("Code")
-        if code not in ("NoSuchKey", "404", "NotFound", "AccessDenied", "403"):
-            raise
+    container_p = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "risk_distribution_2019.json") if USE_CONTAINER_MODELS else None
+
+    if PREFER_S3:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            return _from_data(json.loads(obj["Body"].read().decode("utf-8")))
+        except ClientError:
+            pass
+    if container_p and os.path.exists(container_p):
+        try:
+            with open(container_p, "r") as f:
+                return _from_data(json.load(f))
+        except Exception:
+            pass
+    if not PREFER_S3:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            return _from_data(json.loads(obj["Body"].read().decode("utf-8")))
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code")
+            if code not in ("NoSuchKey", "404", "NotFound", "AccessDenied", "403"):
+                raise
     return None
 
 
@@ -475,24 +506,24 @@ def load_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
     age_band_fname = age_band.replace("-", "_")
     data: Optional[Dict[str, Any]] = None
 
-    # Try container filesystem first
-    if USE_CONTAINER_MODELS:
-        container_schema_path = os.path.join(
-            MODEL_BASE_PATH,
-            cohort,
-            age_band_fname,
-            "feature_schema.json"
-        )
-        if os.path.exists(container_schema_path):
-            try:
-                with open(container_schema_path, 'r') as f:
-                    data = json.load(f)
-            except Exception as e:
-                print(f"Warning: Failed to load schema from container: {e}")
+    key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/feature_schema.json"
+    container_schema_path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "feature_schema.json") if USE_CONTAINER_MODELS else None
 
-    # Fallback to S3
-    if data is None:
-        key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/feature_schema.json"
+    if PREFER_S3:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            data = json.loads(obj["Body"].read().decode("utf-8"))
+        except ClientError:
+            pass  # fall through to container
+
+    if data is None and container_schema_path and os.path.exists(container_schema_path):
+        try:
+            with open(container_schema_path, 'r') as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"Warning: Failed to load schema from container: {e}")
+
+    if data is None and not PREFER_S3:
         try:
             obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
             data = json.loads(obj["Body"].read().decode("utf-8"))
@@ -517,28 +548,44 @@ def load_n_event_bin_thresholds(cohort: str, age_band: str) -> Dict[str, float]:
     if cache_key in _nevent_threshold_cache:
         return _nevent_threshold_cache[cache_key]
     age_band_fname = age_band.replace("-", "_")
-    # 1) Container filesystem
-    if USE_CONTAINER_MODELS:
-        container_path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "n_event_bin_thresholds.json")
-        if os.path.exists(container_path):
-            try:
-                with open(container_path, "r") as fh:
-                    data = json.load(fh)
-                if "p25" in data and "p50" in data and "p95" in data:
-                    _nevent_threshold_cache[cache_key] = data
-                    return data
-            except Exception as e:
-                print(f"Warning: could not load n_event_bin thresholds from container: {e}")
-    # 2) S3
     key = f"{MODEL_PREFIX}/{cohort}/{age_band_fname}/n_event_bin_thresholds.json"
-    try:
-        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
-        data = json.loads(obj["Body"].read().decode("utf-8"))
-        if "p25" in data and "p50" in data and "p95" in data:
-            _nevent_threshold_cache[cache_key] = data
-            return data
-    except Exception:
-        pass
+    container_path = os.path.join(MODEL_BASE_PATH, cohort, age_band_fname, "n_event_bin_thresholds.json") if USE_CONTAINER_MODELS else None
+
+    def _valid(d): return isinstance(d, dict) and "p25" in d and "p50" in d and "p95" in d
+
+    # 1) S3 first (PREFER_S3 default) — retrained thresholds picked up without container rebuild
+    if PREFER_S3:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            data = json.loads(obj["Body"].read().decode("utf-8"))
+            if _valid(data):
+                _nevent_threshold_cache[cache_key] = data
+                return data
+        except Exception:
+            pass
+
+    # 2) Container filesystem fallback
+    if container_path and os.path.exists(container_path):
+        try:
+            with open(container_path, "r") as fh:
+                data = json.load(fh)
+            if _valid(data):
+                _nevent_threshold_cache[cache_key] = data
+                return data
+        except Exception as e:
+            print(f"Warning: could not load n_event_bin thresholds from container: {e}")
+
+    # 3) S3 fallback when PREFER_S3=false
+    if not PREFER_S3:
+        try:
+            obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+            data = json.loads(obj["Body"].read().decode("utf-8"))
+            if _valid(data):
+                _nevent_threshold_cache[cache_key] = data
+                return data
+        except Exception:
+            pass
+
     return dict(_DEFAULT_NEVENT_THRESHOLDS)
 
 
@@ -1228,6 +1275,16 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
     n_drugs = body.get("n_drugs")
     pgx_num_drugs = body.get("pgx_num_drugs")  # separate input, not used for risk bucket
     pgx_num_cpic_drugs = body.get("pgx_num_cpic_drugs")
+    # Optional: caller may supply n_events (total claim rows per patient, matching the
+    # training definition COUNT(*) per mi_person_key) for accurate bin routing.
+    # When absent, falls back to len(drugs)+len(icds)+len(cpts) which typically
+    # routes to "low" (submitted unique-code count << training event-row count).
+    n_events_override = body.get("n_events")
+    if n_events_override is not None:
+        try:
+            n_events_override = int(n_events_override)
+        except (ValueError, TypeError):
+            n_events_override = None
     if n_drugs is not None:
         try:
             n_drugs = float(n_drugs)
@@ -1326,7 +1383,8 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         # (n_event_bin_ordinal) as well as used for per-bin model routing.
         n_events_submitted = len(drugs or []) + len(icds or []) + len(cpts or [])
         nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
-        n_event_bin_value = n_event_bin_from_n_events(n_events_submitted, nevent_thresholds)
+        n_events_for_bin = n_events_override if n_events_override is not None else n_events_submitted
+        n_event_bin_value = n_event_bin_from_n_events(n_events_for_bin, nevent_thresholds)
 
         # When pgx_num_drugs is not explicitly provided by the caller, auto-derive
         # it from the submitted drug count so that the model's dominant aggregate
@@ -1380,6 +1438,8 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             "risk_band": risk_band,
             "n_event_bin": n_event_bin_value,
             "n_events": n_events_submitted,
+            "n_events_for_bin": n_events_for_bin,
+            "nevent_thresholds": nevent_thresholds,
             "is_baseline": False,
             "calibrated": is_calibrated,
             "raw_risk_score": raw_risk_score if is_calibrated else None,

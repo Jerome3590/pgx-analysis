@@ -1,0 +1,27 @@
+{
+  "name": "pgx-dashboard-e2e",
+  "version": "1.0.0",
+  "description": "Puppeteer / Jest end-to-end tests for the PGx Risk Dashboard",
+  "private": true,
+  "scripts": {
+    "test":        "jest --testPathPattern=tests/ --forceExit",
+    "test:combo":  "jest --testPathPattern=combinatorial --forceExit",
+    "test:viz":    "jest --testPathPattern=viz --forceExit",
+    "test:card":   "jest --testPathPattern=pgx-card --forceExit"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 60000,
+    "maxWorkers": 1,
+    "verbose": true
+  },
+  "dependencies": {
+    "puppeteer": "^22.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

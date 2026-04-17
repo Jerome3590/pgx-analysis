@@ -29,7 +29,12 @@ except Exception:
     LAMBDA_AVAILABLE = False
     lambda_handler = None
 
-BASE_URL = os.environ.get("BASE_URL", "").rstrip("/")
+_PROD_API = "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod"
+# BASE_URL: always resolves to production endpoint when env var is not explicitly set.
+# LIVE_TESTING: opt-in flag — live API tests only run when BASE_URL is explicitly exported
+#   OR when LIVE_TESTING=1.  This prevents accidental live calls during local-only dev runs.
+BASE_URL = os.environ.get("BASE_URL", _PROD_API).rstrip("/")
+LIVE_TESTING = bool(os.environ.get("BASE_URL") or os.environ.get("LIVE_TESTING"))
 
 def get_live_session():
     if not BASE_URL:
