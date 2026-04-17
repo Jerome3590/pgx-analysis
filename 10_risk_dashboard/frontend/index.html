@@ -1044,6 +1044,15 @@
     updateCodesSummary();
   }
 
+  window._available = null;
+  async function loadAvailable() {
+    try {
+      const resp = await fetch(`${API_BASE}/available`);
+      if (resp.ok) window._available = await resp.json();
+    } catch (_) {}
+  }
+  loadAvailable();
+
   async function loadMetadata(cohort) {
     const c = cohort || currentCohort || "opioid_ed";
     currentCohort = c;
@@ -1233,7 +1242,21 @@
     if (!currentMetadata || currentCohort !== cohort) {
       await loadMetadata(cohort);
     }
-    
+
+    // Availability check: warn early if this cohort/age_band has no risk models
+    if (window._available && window._available.risk) {
+      const availBands = window._available.risk[cohort] || [];
+      if (availBands.length > 0 && !availBands.includes(ageBand)) {
+        const label = cohort === "opioid_ed" ? "Opioid ED" : "Polypharmacy";
+        setStatus(
+          `Age band ${ageBand} is not available for ${label}. ` +
+          `Available age bands: ${availBands.join(", ")}.`,
+          "error"
+        );
+        return;
+      }
+    }
+
     currentAgeBand = ageBand;
     updateCodeLists();
 

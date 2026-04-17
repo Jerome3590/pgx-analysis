@@ -236,12 +236,72 @@ def _print_section(title: str, results: list[tuple[str, bool, str]]) -> int:
     return ok_count
 
 
+def _build_available_json(
+    combos: list[tuple[str, str]],
+    meta: list, fi: list,
+    causal: list, bupar: list, dtw: list, fpg: list, pgx: list,
+    causal_bin: list, bupar_bin: list, fpg_bin: list, pgx_bin: list,
+) -> dict:
+    """Build structured availability dict from check results for available.json."""
+    import datetime
+
+    def _cohort_bands(results: list[tuple[str, bool, str]], prefix: str) -> dict:
+        """Return {cohort: [age_band, ...]} for OK results matching 'prefix cohort/age_band'."""
+        from collections import defaultdict
+        out: dict = defaultdict(list)
+        for name, ok, _ in results:
+            if not ok:
+                continue
+            label = name[len(prefix):].strip()  # "opioid_ed/13-24"
+            parts = label.split("/")
+            if len(parts) == 2:
+                out[parts[0]].append(parts[1])
+        return dict(out)
+
+    def _cohort_band_bins(results: list[tuple[str, bool, str]], prefix: str) -> dict:
+        """Return {cohort: {age_band: [bin, ...]}} for OK per-bin results."""
+        from collections import defaultdict
+        out: dict = defaultdict(lambda: defaultdict(list))
+        for name, ok, _ in results:
+            if not ok:
+                continue
+            label = name[len(prefix):].strip()  # "opioid_ed/13-24/low"
+            parts = label.split("/")
+            if len(parts) == 3:
+                out[parts[0]][parts[1]].append(parts[2])
+        return {c: dict(v) for c, v in out.items()}
+
+    # Risk availability: infer from causal_per_bin (same training pipeline).
+    # Any cohort/age_band with at least one trained bin has risk models.
+    risk_map: dict = {}
+    cbb = _cohort_band_bins(causal_bin, "Causal (bin) ")
+    for cohort, band_bins in cbb.items():
+        risk_map[cohort] = sorted(band_bins.keys())
+
+    return {
+        "generated": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "risk":          risk_map,
+        "causal":        _cohort_bands(causal,    "Causal "),
+        "bupar":         _cohort_bands(bupar,      "BupaR "),
+        "dtw":           _cohort_bands(
+                             [r for r in dtw if "chart_data" in r[0]], "DTW chart_data "),
+        "fpgrowth":      _cohort_bands(fpg,        "FP-Growth "),
+        "pgx_cohort":    _cohort_bands(pgx,        "PGx Cohort "),
+        "causal_per_bin":  _cohort_band_bins(causal_bin, "Causal (bin) "),
+        "bupar_per_bin":   _cohort_band_bins(bupar_bin,  "BupaR (bin) "),
+        "fpgrowth_per_bin": _cohort_band_bins(fpg_bin,   "FP-Growth (bin) "),
+        "pgx_per_bin":     _cohort_band_bins(pgx_bin,    "PGx (bin) "),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Check dashboard artifact paths (EC2) before Lambda/S3 sync. See README_dashboard_visual_artifact_paths.md."
     )
     ap.add_argument("--project-root", type=Path, default=None, help="Repo root (default: auto-detect)")
     ap.add_argument("--strict", action="store_true", help="Exit 1 if any required path is missing")
+    ap.add_argument("--json-out", type=Path, default=None,
+                    help="Write structured available.json to this path (for S3 upload and Lambda /available endpoint)")
     args = ap.parse_args()
 
     root = _repo_root(args.project_root)
@@ -317,6 +377,17 @@ def main() -> int:
             return 1
     else:
         print("All required dashboard artifact paths present.")
+
+    if args.json_out:
+        import json
+        avail = _build_available_json(
+            combos, meta, fi, causal, bupar, dtw, fpg, pgx,
+            causal_bin, bupar_bin, fpg_bin, pgx_bin,
+        )
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        args.json_out.write_text(json.dumps(avail, indent=2))
+        print(f"\navailable.json written → {args.json_out}")
+
     return 0
 
 
