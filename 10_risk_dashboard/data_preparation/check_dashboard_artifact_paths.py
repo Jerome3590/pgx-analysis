@@ -85,13 +85,25 @@ def check_feature_importance(root: Path) -> list[tuple[str, bool, str]]:
 
 
 def check_causal(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
-    """Causal Analysis tab: dashboard_data.json per cohort/age_band (visualizations/causal)."""
+    """Causal Analysis tab: dashboard_data.json per cohort/age_band.
+
+    Checks the full-cohort path first; if absent, falls back to any per-bin
+    dashboard_data.json (pipeline now generates per-bin only by default).
+    """
     results = []
     out = root / "10_risk_dashboard" / "visualizations" / "causal"
     for cohort, age_band in combos:
         ab_fname = age_band.replace("-", "_")
+        # Preferred: full-cohort path (legacy / manual runs)
         path = out / cohort / ab_fname / "dashboard_data.json"
-        results.append((f"Causal {cohort}/{age_band}", path.exists(), str(path)))
+        if not path.exists():
+            # Fallback: any per-bin dashboard_data.json present (current pipeline output)
+            for bin_name in _BINS:
+                bin_path = out / cohort / ab_fname / bin_name / "dashboard_data.json"
+                if bin_path.exists():
+                    path = bin_path
+                    break
+        results.append((f"Causal {cohort}/{age_band}", path.exists(), str(out / cohort / ab_fname)))
     return results
 
 
@@ -137,10 +149,12 @@ def check_fpgrowth(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str,
     for cohort, age_band in combos:
         ab_fname = age_band.replace("-", "_")
         plots_dir = base_dir / cohort / ab_fname / "plots"
-        data_dir = base_dir / cohort / ab_fname / "data"
+        # Itemsets are saved directly under {cohort}/{ab_fname}/ by cohort_fpgrowth.py,
+        # NOT under a data/ subdir (previous check used the wrong path).
+        age_dir = base_dir / cohort / ab_fname
         network = plots_dir / f"{cohort}_{ab_fname}_combined_rules_network.html"
         itemsets_png = plots_dir / f"{cohort}_{ab_fname}_drug_name_combined_top_itemsets.png"
-        itemsets_json = data_dir / "drug_name_itemsets.json"
+        itemsets_json = age_dir / "drug_name_itemsets.json"
         any_exists = (
             network.exists() or itemsets_png.exists() or itemsets_json.exists()
         )
@@ -278,10 +292,25 @@ def _build_available_json(
     for cohort, band_bins in cbb.items():
         risk_map[cohort] = sorted(band_bins.keys())
 
+    # Causal: merge full-cohort hits with per-bin hits so available.json is accurate
+    # even when the pipeline only generates per-bin causal data (current default).
+    causal_merged = list(causal)  # already includes per-bin fallback from check_causal()
+    # Additionally, ensure any cohort/age_band that has per-bin data but was
+    # missed by check_causal (e.g., no dashboard_data.json at all locally) is captured.
+    causal_ok_keys = {name.split(" ", 1)[1] for name, ok, _ in causal if ok}  # "opioid_ed/55-64"
+    for name, ok, path in causal_bin:
+        if not ok:
+            continue
+        # name = "Causal (bin) opioid_ed/55-64/low" → extract cohort/age_band
+        label = name[len("Causal (bin) "):].rsplit("/", 1)[0]  # "opioid_ed/55-64"
+        if label not in causal_ok_keys:
+            causal_merged.append((f"Causal {label}", True, path))
+            causal_ok_keys.add(label)
+
     return {
         "generated": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
         "risk":          risk_map,
-        "causal":        _cohort_bands(causal,    "Causal "),
+        "causal":        _cohort_bands(causal_merged, "Causal "),
         "bupar":         _cohort_bands(bupar,      "BupaR "),
         "dtw":           _cohort_bands(
                              [r for r in dtw if "chart_data" in r[0]], "DTW chart_data "),

@@ -618,6 +618,47 @@ def n_event_bin_from_n_events(n_events: int, thresholds: Dict[str, float]) -> st
     return "extreme"
 
 
+_DENSITY_BIN_ORDER: List[str] = ["low", "medium", "high", "extreme"]
+
+
+def _nearest_available_bin_s3(bucket: str, requested_bin: str, probe_key_fn) -> Optional[str]:
+    """Return the nearest density bin (by position in _DENSITY_BIN_ORDER) for which
+    probe_key_fn(bin_name) exists in S3.  Searches outward from the requested bin,
+    alternating below/above: idx-1, idx+1, idx-2, idx+2, ...
+    Returns None when no adjacent bin has data (caller falls back to full-cohort)."""
+    try:
+        idx = _DENSITY_BIN_ORDER.index(requested_bin)
+    except ValueError:
+        return None
+    n = len(_DENSITY_BIN_ORDER)
+    for delta in range(1, n):
+        for sign in (-1, 1):
+            candidate_idx = idx + sign * delta
+            if 0 <= candidate_idx < n:
+                candidate = _DENSITY_BIN_ORDER[candidate_idx]
+                if _s3_object_exists(bucket, probe_key_fn(candidate)):
+                    return candidate
+    return None
+
+
+def _nearest_available_bin_dict(by_density: Dict[str, Any], requested_bin: str) -> Optional[str]:
+    """Return the nearest density bin available as a key in by_density dict.
+    Searches outward from requested_bin position in _DENSITY_BIN_ORDER."""
+    try:
+        idx = _DENSITY_BIN_ORDER.index(requested_bin)
+    except ValueError:
+        return None
+    n = len(_DENSITY_BIN_ORDER)
+    for delta in range(1, n):
+        for sign in (-1, 1):
+            candidate_idx = idx + sign * delta
+            if 0 <= candidate_idx < n:
+                candidate = _DENSITY_BIN_ORDER[candidate_idx]
+                if by_density.get(candidate) is not None:
+                    return candidate
+    return None
+
+
 # Ordinal encoding used in feature schema: low=0, medium=1, high=2, extreme=3
 _BIN_ORDINAL_MAP: Dict[str, float] = {"low": 0.0, "medium": 1.0, "high": 2.0, "extreme": 3.0}
 
@@ -2596,26 +2637,44 @@ def handle_visualizations_dtw(event: Dict[str, Any]) -> Dict[str, Any]:
                 for field in _BY_DENSITY_FIELDS
             )
             bin_cd: Dict[str, Any] = {}
+            _resolved_bin = n_event_bin  # tracks which bin was actually used per-field
             for field in _BY_DENSITY_FIELDS:
                 by_density = cd.get(f"{field}_by_density") or {}
                 if n_event_bin in by_density:
                     bin_cd[field] = by_density[n_event_bin]
                     bin_cd[f"{field}_data_scope"] = "per_bin"
-                elif cd.get(field):
-                    bin_cd[field] = cd[field]
-                    bin_cd[f"{field}_data_scope"] = "full_cohort_fallback"
+                else:
+                    # Try nearest available bin key in this field's by_density dict
+                    nearest_for_field = _nearest_available_bin_dict(by_density, n_event_bin)
+                    if nearest_for_field:
+                        bin_cd[field] = by_density[nearest_for_field]
+                        bin_cd[f"{field}_data_scope"] = "nearest_bin_fallback"
+                        bin_cd[f"{field}_nearest_bin"] = nearest_for_field
+                    elif cd.get(field):
+                        bin_cd[field] = cd[field]
+                        bin_cd[f"{field}_data_scope"] = "full_cohort_fallback"
             # Fields without per-bin variants — carry over from full cohort
             for passthru in ("times_between_sequences", "target_pathway_patterns",
                              "time_to_target_sequences", "event_density_bins"):
                 if cd.get(passthru):
                     bin_cd[passthru] = cd[passthru]
                     bin_cd[f"{passthru}_data_scope"] = "full_cohort"
-            bin_cd["data_scope"] = "per_bin" if bin_found else "full_cohort_fallback"
+            # Determine overall data_scope for summary
+            scopes = {bin_cd.get(f"{f}_data_scope") for f in _BY_DENSITY_FIELDS if f in bin_cd}
+            if "per_bin" in scopes:
+                overall_scope = "per_bin"
+            elif "nearest_bin_fallback" in scopes:
+                overall_scope = "nearest_bin_fallback"
+            else:
+                overall_scope = "full_cohort_fallback"
+            bin_cd["data_scope"] = overall_scope
             bin_cd["requested_bin"] = n_event_bin
-            if not bin_found:
+            if overall_scope != "per_bin":
                 bin_cd["message"] = (
                     f"No per-bin DTW data for density='{n_event_bin}'. "
-                    "Showing full-cohort data. Run create_dtw_visuals (notebook 4) to generate per-bin visuals."
+                    + (f"Showing nearest available bin data where available."
+                       if overall_scope == "nearest_bin_fallback"
+                       else "Showing full-cohort data. Run create_dtw_visuals (notebook 4) to generate per-bin visuals.")
                 )
             payload["chart_data"] = bin_cd
 
@@ -2772,11 +2831,11 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
                     f"No per-bin FP-Growth data for density='{n_event_bin}'. "
                     "Showing full-cohort combined output. Run cohort_fpgrowth.py with per-bin output enabled."
                 )
-            # Per-bin: read itemsets from the bin-specific path; full-cohort: use /data/ subpath
+            # Per-bin: read itemsets from the bin-specific path; full-cohort: use age_band root
             if data_scope == "per_bin":
                 data_key = f"{base_key}/{item_type}_itemsets.json"
             else:
-                data_key = f"{prefix}/{cohort}/{age_band}/data/{item_type}_itemsets.json"
+                data_key = f"{prefix}/{cohort}/{age_band}/{item_type}_itemsets.json"
             try:
                 obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=data_key)
                 p["itemsets_data"] = json.loads(obj["Body"].read().decode("utf-8"))
@@ -2797,8 +2856,21 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
                 except (ClientError, json.JSONDecodeError):
                     pass
                 return _response(200, _build_fpgrowth_payload(bin_base_key, "per_bin"))
-            # Per-bin not found — fall back to full-cohort with label
+            # Try nearest available bin before falling back to full-cohort
+            nearest = _nearest_available_bin_s3(
+                S3_DASHBOARD_BUCKET, n_event_bin,
+                lambda b: f"{prefix}/{cohort}/{age_band}/density/{b}/plots/{item_type}_itemsets.json",
+            )
             full_base_key = f"{prefix}/{cohort}/{age_band}/plots"
+            if nearest:
+                nearest_base_key = f"{prefix}/{cohort}/{age_band}/density/{nearest}/plots"
+                p = _build_fpgrowth_payload(nearest_base_key, "nearest_bin_fallback")
+                p["nearest_bin"] = nearest
+                p["message"] = (
+                    f"No per-bin FP-Growth data for density='{n_event_bin}'. "
+                    f"Showing nearest available bin '{nearest}'."
+                )
+                return _response(200, p)
             return _response(200, _build_fpgrowth_payload(full_base_key, "full_cohort_fallback"))
 
         # No bin requested: serve combined full-cohort output
@@ -2907,7 +2979,20 @@ def handle_visualizations_bupar_activity_frequency(event: Dict[str, Any]) -> Dic
             probe_key = f"{bin_prefix}/{base}_activity_frequency.json"
             if _s3_object_exists(bucket, probe_key):
                 return _response(200, _load_activity_freq_from_prefix(bin_prefix, "per_bin"))
-            # Not found — full-cohort fallback with label
+            # Try nearest available bin before falling back to full-cohort
+            nearest = _nearest_available_bin_s3(
+                bucket, n_event_bin,
+                lambda b: f"{vis_prefix}/{cohort}/{age_band}/density/{b}/plots/{base}_activity_frequency.json",
+            )
+            if nearest:
+                nearest_prefix = f"{vis_prefix}/{cohort}/{age_band}/density/{nearest}/plots"
+                result = _load_activity_freq_from_prefix(nearest_prefix, "nearest_bin_fallback")
+                result["nearest_bin"] = nearest
+                result["message"] = (
+                    f"No per-bin BupaR activity data for density='{n_event_bin}'. "
+                    f"Showing nearest available bin '{nearest}'."
+                )
+                return _response(200, result)
             result = _load_activity_freq_from_prefix(full_prefix, "full_cohort_fallback")
             result["message"] = (
                 f"No per-bin BupaR activity data for density='{n_event_bin}'. "
@@ -3043,6 +3128,41 @@ def handle_visualizations_bupar(event: Dict[str, Any]) -> Dict[str, Any]:
                     except (ClientError, json.JSONDecodeError, TypeError):
                         pass
                 return _response(200, bin_payload)
+            # Try nearest available bin before falling back to full-cohort
+            nearest = _nearest_available_bin_s3(
+                S3_DASHBOARD_BUCKET, n_event_bin,
+                lambda b: f"{vis_prefix_bupar}/{cohort}/{age_band}/density/{b}/plots/{base}_overall_activity_frequency.png",
+            )
+            if nearest:
+                nearest_base_key = f"{vis_prefix_bupar}/{cohort}/{age_band}/density/{nearest}/plots"
+                nearest_probe = f"{nearest_base_key}/{base}_overall_activity_frequency.png"
+                if _s3_object_exists(S3_DASHBOARD_BUCKET, nearest_probe):
+                    nb_payload: Dict[str, Any] = {"n_event_bin": n_event_bin, "data_scope": "nearest_bin_fallback", "nearest_bin": nearest}
+                    nb_payload["message"] = (
+                        f"No per-bin BupaR visuals for density='{n_event_bin}'. "
+                        f"Showing nearest available bin '{nearest}'."
+                    )
+                    nb_candidates: List[Tuple[str, str]] = [
+                        ("activity_frequency_image", f"{nearest_base_key}/{base}_overall_activity_frequency.png"),
+                        ("pre_target_frequency_image", f"{nearest_base_key}/{base}_{pre_suffix}_activity_frequency.png"),
+                        ("sequence_image", f"{nearest_base_key}/{base}_activity_sequence_top.png"),
+                        ("trace_explorer_pre_image", f"{nearest_base_key}/{base}_trace_explorer_{pre_suffix}.png"),
+                        ("process_matrix_drug_drug", f"{nearest_base_key}/{base}_process_matrix_drug_drug.png"),
+                    ]
+                    for pk, sk in nb_candidates:
+                        if _s3_object_exists(S3_DASHBOARD_BUCKET, sk):
+                            nb_payload[pk] = _dashboard_s3_url(sk)
+                    for key, json_file in [
+                        ("trace_explorer_plot", f"{base}_trace_explorer_plot.json"),
+                        ("process_matrix_drug_drug", f"{base}_process_matrix_drug_drug.json"),
+                        ("activity_sequence_top", f"{base}_activity_sequence_top.json"),
+                    ]:
+                        try:
+                            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=f"{nearest_base_key}/{json_file}")
+                            nb_payload[key] = json.loads(obj["Body"].read().decode("utf-8"))
+                        except (ClientError, json.JSONDecodeError, TypeError):
+                            pass
+                    return _response(200, nb_payload)
             # Per-bin not found — keep full-cohort payload with fallback label
             payload["data_scope"] = "full_cohort_fallback"
             payload["message"] = (
@@ -3094,14 +3214,29 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
                 payload["data_scope"] = "per_bin"
                 resolved_dir = bin_dir
             else:
-                # Per-bin not found — fall back to full-cohort with label
-                if _s3_object_exists(S3_DASHBOARD_BUCKET, full_html_key):
-                    payload["network_topology_url"] = _dashboard_s3_url(full_html_key)
-                payload["data_scope"] = "full_cohort_fallback"
-                payload["message"] = (
-                    f"No per-bin PGx network for density='{n_event_bin}'. "
-                    "Showing full-cohort network. Run fetch_vip_reports + build_network_topology with --bin."
+                # Try nearest available bin before falling back to full-cohort
+                nearest = _nearest_available_bin_s3(
+                    S3_DASHBOARD_BUCKET, n_event_bin,
+                    lambda b: f"{net_base}/density/{b}/network_topology.html",
                 )
+                if nearest:
+                    nearest_dir = f"{net_base}/density/{nearest}"
+                    payload["network_topology_url"] = _dashboard_s3_url(f"{nearest_dir}/network_topology.html")
+                    payload["data_scope"] = "nearest_bin_fallback"
+                    payload["nearest_bin"] = nearest
+                    payload["message"] = (
+                        f"No per-bin PGx network for density='{n_event_bin}'. "
+                        f"Showing nearest available bin '{nearest}'."
+                    )
+                    resolved_dir = nearest_dir
+                else:
+                    if _s3_object_exists(S3_DASHBOARD_BUCKET, full_html_key):
+                        payload["network_topology_url"] = _dashboard_s3_url(full_html_key)
+                    payload["data_scope"] = "full_cohort_fallback"
+                    payload["message"] = (
+                        f"No per-bin PGx network for density='{n_event_bin}'. "
+                        "Showing full-cohort network. Run fetch_vip_reports + build_network_topology with --bin."
+                    )
         else:
             if _s3_object_exists(S3_DASHBOARD_BUCKET, full_html_key):
                 payload["network_topology_url"] = _dashboard_s3_url(full_html_key)

@@ -122,12 +122,6 @@ def _resolve_local(
         if candidate.exists():
             return candidate
 
-        # Fallback: FP-Growth drug_name_itemsets.json may live under data/ locally
-        if not expanded_static_file.startswith(("data/", "plots/")):
-            data_candidate = local_base / "data" / expanded_static_file
-            if data_candidate.exists():
-                return data_candidate
-
         # Return non-existent candidate so caller can report it as missing
         return candidate
 
