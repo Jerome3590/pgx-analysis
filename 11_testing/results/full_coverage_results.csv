@@ -1,0 +1,8 @@
+timestamp,cohort,age_band,age_input,top_drugs,top_icds,top_icds_importance,top_drugs_importance,baseline_status,baseline_score,baseline_band,baseline_bin,highrisk_status,highrisk_score,highrisk_band,highrisk_bin,highrisk_n_events_for_bin,highrisk_model_used,highrisk_bin_model,highrisk_models_failed,risk_increased,score_delta,ui_visible,ui_score_text,ui_band_text,ui_bin_badge,duration_ms,error
+2026-04-17T22:05:01.114Z,opioid_ed,0-12,6,drug_CLONIDINE_HYDROCHLORIDE|drug_ONDANSETRON_ODT|drug_GUANFACINE_ER,icd_F909|icd_Z23,0.2052|0.1558,0.2495|0.1746|0.1242,,,,,,,,,,,,,,,false,--,,,64105,"expect(received).toBe(expected) // Object.is equality
+
+Expected: 200
+Received: null"
+2026-04-17T22:06:05.235Z,opioid_ed,13-24,18,drug_BUPRENORPHINE_HCL_NALOXON|drug_GABAPENTIN|drug_NALTREXONE_HCL,icd_Z23|icd_M25562,0.0579|0.0282,0.1618|0.0753|0.0578,200,0.05818463925523662,low,,200,0.7703769207000732,high,high,200,xgboost,true,catboost|xgboost_rf,true,0.712192,true,77.0%,HIGH,Event density: high  (n=200),7337,
+2026-04-17T22:06:12.573Z,opioid_ed,25-44,35,drug_BUPRENORPHINE_HCL_NALOXON|drug_GABAPENTIN|drug_T401X1A,icd_Z01419|icd_B1920,0.0320|0.0240,0.1256|0.0404|0.0185,200,0.07714160839160839,low,,200,0.971393883228302,high,high,200,xgboost,true,catboost|xgboost_rf,true,0.894252,true,97.1%,HIGH,Event density: high  (n=200),7286,
+2026-04-17T22:06:19.860Z,opioid_ed,45-54,50,drug_BUPRENORPHINE_HCL_NALOXON|drug_CLONIDINE_HYDROCHLORIDE|drug_GABAPENTIN,icd_Z79891|icd_G8929,0.0796|0.0769,0.1395|0.0635|0.0412,200,0.07985473856847203,low,,200,0.9891708493232727,high,high,200,xgboost,true,catboost|xgboost_rf,true,0.909316,true,98.9%,HIGH,Event density: high  (n=200),6925,

@@ -13,7 +13,8 @@
     "testEnvironment": "node",
     "testTimeout": 60000,
     "maxWorkers": 1,
-    "verbose": true
+    "verbose": true,
+    "setupFiles": ["./jest.setup.env.js"]
   },
   "dependencies": {
     "puppeteer": "^22.0.0"

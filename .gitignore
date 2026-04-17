@@ -44,6 +44,8 @@ from_s3/*
 # Dashboard visualization outputs (BupaR, DTW, FP-Growth generated data/plots)
 9_risk_dashboard/visualizations/*/outputs/
 10_risk_dashboard/visualizations/*/outputs/
+# Generated lambda bundle and model artifacts for deployment
+10_risk_dashboard/lambda_dir/
 # Synced from S3 testing prefix for local analysis (sync_testing_from_s3.py)
 10_risk_dashboard/visualizations/s3_sync_testing/
 # PharmGKB API sample response (test_pharmgkb_throttle.py --inspect)
