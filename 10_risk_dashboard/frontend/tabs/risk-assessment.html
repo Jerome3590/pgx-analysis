@@ -28,7 +28,30 @@
         <span>Optional — Patient counts (per mi_person_key):</span>
         <label># drugs <input type="number" id="inputNdrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
         <label style="margin-left: 1rem;"># CPIC drugs <input type="number" id="inputCpicDrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
+        <label style="margin-left: 1rem;" title="Total claim rows for this patient (COUNT(*) per mi_person_key). Overrides submitted code count for density-bin routing. Leave blank to default to low."># total events <input type="number" id="inputNevents" min="0" step="1" placeholder="—" style="width: 5rem; margin-left: 0.25rem;"></label>
       </div>
+
+      <!-- Density-bin reference table — hidden until first calculation; updated with real thresholds -->
+      <div id="density-table-wrap" class="control-group full-width" style="display:none;">
+        <div style="font-size:0.8rem;font-weight:600;color:#475569;margin-bottom:0.4rem;">
+          Event density bins
+          <span id="density-table-caption" style="font-weight:400;color:#94a3b8;margin-left:0.5rem;"></span>
+        </div>
+        <table style="border-collapse:collapse;width:100%;max-width:480px;font-size:0.85rem;">
+          <thead>
+            <tr style="border-bottom:1px solid #e2e8f0;">
+              <th style="padding:0.25rem 0.6rem;text-align:left;font-weight:600;color:#475569;">Bin</th>
+              <th style="padding:0.25rem 0.6rem;text-align:left;font-weight:600;color:#475569;"># Total Events</th>
+              <th style="padding:0.25rem 0.6rem;text-align:left;font-weight:600;color:#475569;">Percentile</th>
+            </tr>
+          </thead>
+          <tbody id="density-table-body"></tbody>
+        </table>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.35rem;">
+          Thresholds are cohort- and age-band-specific (trained p25 / p50 / p95). Enter <em># total events</em> above to override bin routing; leave blank to default to <strong>low</strong>.
+        </p>
+      </div>
+
       <div class="control-group full-width">
         <div class="button-row">
           <button id="btnRisk">Calculate Risk Score</button>

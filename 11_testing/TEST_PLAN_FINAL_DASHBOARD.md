@@ -114,6 +114,169 @@ The suite:
 
 ---
 
+## 8. Combinatorial Test Plan
+
+Covers all **16 cohort × age_band** combinations across **5 density-bin scenarios**, for both automated pytest and manual CLI validation.
+
+### 8.1 Matrix
+
+| Cohort | Age bands (8 each) | Total combos |
+|--------|-------------------|--------------|
+| `opioid_ed` | 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114 | 8 |
+| `non_opioid_ed` | 0-12, 13-24, 25-44, 45-54, 55-64, 65-74, 75-84, 85-114 | 8 |
+
+### 8.2 Density-bin scenarios (POST /risk)
+
+Default `n_event_bin` thresholds: **p25=5, p50=15, p95=50** (from `_DEFAULT_NEVENT_THRESHOLDS`; may be overridden per cohort/age_band by a trained thresholds JSON).
+
+| Scenario | Total codes | Expected `n_event_bin` | Code breakdown |
+|----------|-------------|----------------------|----------------|
+| `baseline` | 0 | `is_baseline=true` (2019 outcome rate, no model) | no drugs/ICDs/CPTs |
+| `low` | 3 | `low` (n ≤ p25=5) | 1 drug + 1 ICD + 1 CPT |
+| `medium` | 10 | `medium` (5 < n ≤ p50=15) | 4 drugs + 4 ICDs + 2 CPTs |
+| `high` | 25 | `high` (15 < n ≤ p95=50) | 10 drugs + 10 ICDs + 5 CPTs |
+| `extreme` | 55 | `extreme` (n > p95=50) | 20 drugs + 20 ICDs + 15 CPTs |
+
+**Total parametrized cases**: 16 × 5 = **80 POST /risk tests** + 16 × 5 = **80 GET /visualizations/* tests** = 160 total.
+
+### 8.3 JSON response assertions (per 200 response)
+
+| Field | Assertion |
+|-------|-----------|
+| `risk_score` | `float` in `[0.0, 1.0]` |
+| `risk_band` | `in {"low", "medium", "high"}` |
+| `cohort_used` | equals submitted cohort |
+| `age_band_used` | equals submitted age_band |
+| `n_event_bin` | `in {"low", "medium", "high", "extreme"}` (non-baseline) |
+| `n_event_bin` | matches expected bin for scenario (default thresholds) |
+| `n_events` | equals `len(drugs) + len(icds) + len(cpts)` |
+| `is_baseline` | `true` when 0 codes; absent/false otherwise |
+| `codes_used` | dict with `drugs`, `icds`, `cpts` list keys |
+| `codes_unknown` | dict with `drugs`, `icds`, `cpts` list keys |
+| `model_breakdown` | dict (may be empty if models not deployed) |
+| HTTP 500 | tolerated when per-bin models not yet deployed; structural tests skip |
+
+### 8.4 Automated pytest runner
+
+**File**: `11_testing/tests/test_combinatorial_risk.py`
+
+```powershell
+# From repo root — local Lambda (no server; models optional)
+pytest 11_testing/tests/test_combinatorial_risk.py -v
+
+# Filter to one cohort/age_band
+pytest 11_testing/tests/test_combinatorial_risk.py -v -k "opioid_ed/25-44"
+
+# Filter to one density scenario across all combos
+pytest 11_testing/tests/test_combinatorial_risk.py -v -k "extreme"
+
+# Live API (requires deployed API Gateway)
+$env:BASE_URL = "https://<id>.execute-api.us-east-1.amazonaws.com/prod"
+pytest 11_testing/tests/test_combinatorial_risk.py -v -k "live"
+
+# Full suite including visualizations via live API
+pytest 11_testing/tests/test_combinatorial_risk.py -v -k "live or Viz"
+```
+
+### 8.5 CLI runner (PowerShell)
+
+**File**: `11_testing/cli_test_risk.ps1`
+
+Prints colour-coded PASS/FAIL per request; exits 0 on all pass, 1 on any failure.
+
+```powershell
+# All 16 combos × 5 scenarios against local offline server (default http://localhost:8000/prod)
+# Start offline server first: python 11_testing/offline_dashboard_server.py
+.\11_testing\cli_test_risk.ps1
+
+# Against production API
+.\11_testing\cli_test_risk.ps1 -BaseUrl "https://<id>.execute-api.us-east-1.amazonaws.com/prod"
+
+# Single cohort/age_band pair
+.\11_testing\cli_test_risk.ps1 -Cohort opioid_ed -AgeBand 25-44
+
+# Single scenario across all combos + visualization endpoints
+.\11_testing\cli_test_risk.ps1 -Scenario extreme -Viz
+
+# Full matrix with visualizations against production
+$env:BASE_URL = "https://<id>.execute-api.us-east-1.amazonaws.com/prod"
+.\11_testing\cli_test_risk.ps1 -Viz
+```
+
+### 8.5b Puppeteer browser tests (automated E2E)
+
+**Directory**: `11_testing/puppeteer/`
+
+Runs the full combinatorial matrix through the **actual browser UI** (headless Chromium). Intercepts `POST /risk` and `GET /visualizations/*` responses via Puppeteer's `waitForResponse()` to assert the same JSON fields as the pytest suite — but end-to-end through CloudFront / S3 static assets + API Gateway.
+
+**Install (once):**
+```bash
+cd 11_testing/puppeteer
+npm install
+```
+
+**Run — local offline server:**
+```bash
+# Terminal 1: start offline server
+python 11_testing/offline_dashboard_server.py
+
+# Terminal 2: run tests
+DASHBOARD_URL=http://localhost:8000/index.html \
+API_BASE_URL=http://localhost:8000/prod \
+npx jest --forceExit
+```
+
+**Run — production (PowerShell):**
+```powershell
+$env:DASHBOARD_URL = "https://d1234.cloudfront.net/index.html"
+$env:API_BASE_URL  = "https://xxx.execute-api.us-east-1.amazonaws.com/prod"
+cd 11_testing/puppeteer
+npx jest --forceExit
+```
+
+**Filter to a single test file:**
+```bash
+npm run test:combo    # POST /risk combinatorial (70 cases: 7 bands × 2 cohorts × 5 scenarios)
+npm run test:viz      # GET /visualizations/* (all cohort × age_band combinations)
+npm run test:card     # POST /pgx/card (3 cases)
+```
+
+**Test files:**
+
+| File | What it covers |
+|------|----------------|
+| `tests/combinatorial.test.js` | POST /risk × all cohort/band/scenario combos; asserts JSON + DOM |
+| `tests/viz.test.js` | All 6 viz tabs × all cohort/band combos; asserts HTTP status + JSON shape |
+| `tests/pgx-card.test.js` | PGx Card: CYP2D6 variants, empty-payload 400, multi-gene card |
+| `helpers/browser.js` | Shared Puppeteer helpers (launch, inject codes, intercept response) |
+| `helpers/scenarios.js` | Code pools + density scenario definitions (mirrors Python) |
+
+### 8.6 Website (browser) manual test pass
+
+After a successful CLI run, perform a manual browser pass against the deployed CloudFront URL:
+
+| Step | Action | Expected |
+|------|--------|----------|
+| 1 | Open dashboard URL | Dashboard loads; Risk Assessment tab visible |
+| 2 | For each of the 8 age bands × 2 cohorts: select in dropdowns | Drugs/ICD/CPT grids populate |
+| 3 | Submit with **0 codes** (baseline) | `risk_score` shown; label "Population baseline" |
+| 4 | Select 1–3 codes (`low` scenario) | Score updates; `n_event_bin=low` in debug/console |
+| 5 | Select 10 codes (`medium` scenario) | `n_event_bin=medium` |
+| 6 | Select 25 codes (`high` scenario) | `n_event_bin=high` |
+| 7 | Select 50+ codes (`extreme` scenario) | `n_event_bin=extreme`; `inference_note` shown if fallback |
+| 8 | PGx Card tab: enter CYP2D6 *1/*1 | Card renders with gene + drug list |
+| 9 | For each viz tab: select valid cohort/age_band, click Load | Visualization loads or friendly "not found" message |
+| 10 | Repeat step 9 with 0-12 age band | Friendly "insufficient data" message; no 500 error panel |
+
+### 8.7 Known edge cases
+
+- **`0-12` age band**: model artifacts may be absent (insufficient training N); expect HTTP 500 on `/risk` which is tolerated. Dashboard should show a friendly message, not a blank or uncaught error.
+- **`non_opioid_ed` + geriatric bands**: target is ED visit (HCG), not F1120; `F1120` in the `icds` list is stripped by the feature builder (correct behavior — do not submit it as an input code).
+- **Per-bin model fallback**: if `n_event_bin_thresholds.json` is missing, defaults (p25=5, p50=15, p95=50) are used. If per-bin `.joblib` files are missing, the full-cohort model is used and `inference_note` is set in the response.
+- **Custom thresholds**: if a trained thresholds JSON exists for a cohort/age_band, the `n_event_bin` assertion in the `extreme` scenario might differ from the default expectation. Update `SCENARIO_CODE_COUNTS` in `test_combinatorial_risk.py` accordingly or use `-k "not extreme"` to skip that tier.
+
+---
+
 ## 5. Manual / CI Checklist
 
 - [ ] Run `prepare_lambda_dir.py` (or equivalent) and confirm container bundle has metadata, models, CPIC.

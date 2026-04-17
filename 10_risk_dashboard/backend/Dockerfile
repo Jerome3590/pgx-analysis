@@ -22,9 +22,14 @@ COPY outputs/models/ ${LAMBDA_TASK_ROOT}/models/
 COPY outputs/metadata/ ${LAMBDA_TASK_ROOT}/metadata/
 COPY outputs/cpic/ ${LAMBDA_TASK_ROOT}/data/
 
+# Entrypoint: optionally downloads latest lambda_function.py from S3 before runtime starts.
+# Set CODE_S3_KEY env var on the Lambda function to enable code-only updates from S3.
+COPY backend/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Set working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
 
-# Set Lambda handler
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 CMD [ "lambda_function.lambda_handler" ]
 
