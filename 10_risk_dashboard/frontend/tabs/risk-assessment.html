@@ -28,7 +28,8 @@
         <span>Optional — Patient counts (per mi_person_key):</span>
         <label># drugs <input type="number" id="inputNdrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
         <label style="margin-left: 1rem;"># CPIC drugs <input type="number" id="inputCpicDrugs" min="0" step="1" placeholder="—" style="width: 4rem; margin-left: 0.25rem;"></label>
-        <label style="margin-left: 1rem;" title="Total claim rows for this patient (COUNT(*) per mi_person_key). Overrides submitted code count for density-bin routing. Leave blank to default to low."># total events <input type="number" id="inputNevents" min="0" step="1" placeholder="—" style="width: 5rem; margin-left: 0.25rem;"></label>
+        <label style="margin-left: 1rem;" title="Total claim-event rows for this patient (COUNT(*) per mi_person_key). Determines event density bin (low / medium / high / extreme) used for model routing. Leave blank to default to low-density bin."># total events <input type="number" id="inputNevents" min="0" step="1" placeholder="— (→ low)" style="width: 6rem; margin-left: 0.25rem;" oninput="updateNeventBinIndicator()"></label>
+        <span id="nevent-bin-indicator" style="margin-left: 0.5rem; font-size: 0.8rem; font-weight: 600; display: none;"></span>
       </div>
 
       <!-- Density-bin reference table — hidden until first calculation; updated with real thresholds -->

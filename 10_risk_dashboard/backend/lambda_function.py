@@ -1396,12 +1396,21 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
         # Load feature schema and run ensemble when user has entered codes
         feature_schema = load_feature_schema(cohort, age_band)
         codes_validation = get_codes_used_unknown(drugs, icds, cpts, feature_schema)
-        # Compute n_event_bin FIRST so it can be embedded in the feature vector
-        # (n_event_bin_ordinal) as well as used for per-bin model routing.
-        n_events_submitted = len(drugs or []) + len(icds or []) + len(cpts or [])
+        # n_event_bin reflects PATIENT UTILIZATION DENSITY (total claim-event rows,
+        # COUNT(*) per mi_person_key) — NOT the number of codes the clinician selected.
+        # Codes selected in the UI identify which conditions/drugs the patient has;
+        # n_events captures how heavily the patient uses the healthcare system.
+        # When the caller supplies n_events, map it to low/medium/high/extreme via
+        # cohort-/age-band-specific P25/P50/P95 thresholds.  Without n_events, default
+        # to "low" (most conservative; do not use code count as a proxy).
+        n_events_submitted = len(drugs or []) + len(icds or [])
         nevent_thresholds = load_n_event_bin_thresholds(cohort, age_band)
-        n_events_for_bin = n_events_override if n_events_override is not None else n_events_submitted
-        n_event_bin_value = n_event_bin_from_n_events(n_events_for_bin, nevent_thresholds)
+        if n_events_override is not None:
+            n_events_for_bin = n_events_override
+            n_event_bin_value = n_event_bin_from_n_events(n_events_for_bin, nevent_thresholds)
+        else:
+            n_events_for_bin = None
+            n_event_bin_value = "low"  # default when patient utilization density is unknown
 
         # When pgx_num_drugs is not explicitly provided by the caller, auto-derive
         # it from the submitted drug count so that the model's dominant aggregate
@@ -1420,11 +1429,22 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
             n_event_bin=n_event_bin_value,
         )
 
-        ensemble_result = predict_risk(
-            cohort, age_band, feature_vector,
-            require_all_models=True,
-            n_event_bin=n_event_bin_value,
-        )
+        try:
+            ensemble_result = predict_risk(
+                cohort, age_band, feature_vector,
+                require_all_models=True,
+                n_event_bin=n_event_bin_value,
+            )
+        except FileNotFoundError as model_err:
+            return _response(404, {
+                "error": f"Per-bin model not available for density bin '{n_event_bin_value}'",
+                "detail": str(model_err),
+                "cohort": cohort,
+                "age_band": age_band,
+                "n_event_bin": n_event_bin_value,
+                "nevent_thresholds": nevent_thresholds,
+                "suggestion": "Select a different event density bin, or leave # total events blank to use the low-density model.",
+            })
 
         risk_score = ensemble_result['ensemble_score']
         model_predictions = ensemble_result['predictions']

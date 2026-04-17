@@ -22,20 +22,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DASHBOARD_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$DASHBOARD_ROOT"
 
-# Step 1: Prepare data (if not already done)
-if [ ! -d "outputs/models" ]; then
-    echo -e "${YELLOW}Outputs not found. Preparing data...${NC}"
-    cd data_preparation
-    python generate_metadata.py --all
-    python generate_metrics.py
-    python prepare_models.py --all
-    python prepare_cpic_data.py
-    cd ..
+# Step 1: Prepare lambda_dir.
+# Auto-detect environment:
+#   EC2  (/mnt/nvme present OR 6_final_model/outputs exists) → local paths only (--no-s3)
+#   Windows / CI (no local training outputs)                  → S3 (default, no flag)
+PREPARE_FLAGS=""
+FINAL_MODEL_OUTPUTS="${DASHBOARD_ROOT}/../6_final_model/outputs"
+if [ -d "/mnt/nvme" ] || [ -d "${FINAL_MODEL_OUTPUTS}" ]; then
+    echo -e "${GREEN}EC2 detected (local training outputs found) — using local paths${NC}"
+    PREPARE_FLAGS="--no-s3"
+else
+    echo -e "${YELLOW}Windows/CI detected — pulling models from S3${NC}"
 fi
-# Optional: metrics in ECR bundle (Lambda prefers S3 gold/dashboard/metadata/model_performance_metrics.json)
-if [ ! -f "outputs/metadata/model_performance_metrics.json" ]; then
-    echo -e "${YELLOW}Generating model performance metrics (fallback for Documentation tab)...${NC}"
-    cd data_preparation && python generate_metrics.py && cd ..
+
+python deployment/prepare_lambda_dir.py ${PREPARE_FLAGS}
+if [ $? -ne 0 ]; then
+    echo -e "${RED}ERROR: Model preparation failed.${NC}"
+    if [ -n "${PREPARE_FLAGS}" ]; then
+        echo -e "${RED}Local EC2 paths not found. Run training pipeline (notebook 3) first.${NC}"
+    else
+        echo -e "${RED}S3 models not found. Run notebook 5 (prepare_models.py --upload-s3) on EC2 first.${NC}"
+    fi
+    exit 1
 fi
 
 # Step 2: Build Docker image (Dockerfile is in backend/, build from dashboard root)

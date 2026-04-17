@@ -1308,6 +1308,28 @@
     }
   }
 
+  // Stored thresholds from last successful /risk response (per cohort/age_band)
+  window._lastNeventThresholds = null;
+
+  function updateNeventBinIndicator() {
+    const el = document.getElementById("inputNevents");
+    const indicator = document.getElementById("nevent-bin-indicator");
+    if (!indicator) return;
+    const val = el && el.value !== "" ? Number(el.value) : null;
+    if (val === null || isNaN(val)) {
+      indicator.style.display = "none";
+      return;
+    }
+    const t = window._lastNeventThresholds || { p25: 5, p50: 15, p95: 50 };
+    let bin, color, bg;
+    if (val <= t.p25)      { bin = "low";     color = "#15803d"; bg = "#f0fdf4"; }
+    else if (val <= t.p50) { bin = "medium";  color = "#a16207"; bg = "#fefce8"; }
+    else if (val <= t.p95) { bin = "high";    color = "#c2410c"; bg = "#fff7ed"; }
+    else                   { bin = "extreme"; color = "#9d174d"; bg = "#fdf2f8"; }
+    indicator.textContent = `→ ${bin}`;
+    indicator.style.cssText = `margin-left:0.5rem;font-size:0.8rem;font-weight:700;display:inline;padding:0.1rem 0.5rem;border-radius:99px;background:${bg};color:${color};text-transform:uppercase;`;
+  }
+
   function updateDensityTable(thresholds, cohort, ageBand) {
     const el = document.getElementById("density-table-body");
     const caption = document.getElementById("density-table-caption");
@@ -1332,6 +1354,9 @@
     if (caption) caption.textContent = `Density bins — ${cohort} / ${ageBand}`;
     const wrap = document.getElementById("density-table-wrap");
     if (wrap) wrap.style.display = "";
+    // Cache so updateNeventBinIndicator() uses real cohort-/age-band-specific thresholds
+    window._lastNeventThresholds = { p25, p50, p95 };
+    updateNeventBinIndicator();
   }
 
   function displayRiskResults(data, cohort, ageBand) {

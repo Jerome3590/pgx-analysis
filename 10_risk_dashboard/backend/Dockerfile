@@ -17,10 +17,10 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 # Copy Lambda function code
 COPY backend/lambda_function.py ${LAMBDA_TASK_ROOT}/
 
-# Copy prepared models, metadata, and data (outputs/ from dashboard root)
-COPY outputs/models/ ${LAMBDA_TASK_ROOT}/models/
-COPY outputs/metadata/ ${LAMBDA_TASK_ROOT}/metadata/
-COPY outputs/cpic/ ${LAMBDA_TASK_ROOT}/data/
+# Copy prepared models, metadata, and data (lambda_dir/ populated by prepare_lambda_dir.py)
+COPY lambda_dir/models/ ${LAMBDA_TASK_ROOT}/models/
+COPY lambda_dir/metadata/ ${LAMBDA_TASK_ROOT}/metadata/
+COPY lambda_dir/data/ ${LAMBDA_TASK_ROOT}/data/
 
 # Entrypoint: optionally downloads latest lambda_function.py from S3 before runtime starts.
 # Set CODE_S3_KEY env var on the Lambda function to enable code-only updates from S3.
