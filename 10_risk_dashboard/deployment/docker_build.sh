@@ -35,7 +35,20 @@ else
     echo -e "${YELLOW}Windows/CI detected — pulling models from S3${NC}"
 fi
 
-python deployment/prepare_lambda_dir.py ${PREPARE_FLAGS}
+# Auto-detect Python binary (EC2 jupyter-env first, then python3, then python)
+if [ -x "/home/pgx3874/jupyter-env/bin/python3.11" ]; then
+    PYTHON_BIN="/home/pgx3874/jupyter-env/bin/python3.11"
+elif command -v python3 &>/dev/null; then
+    PYTHON_BIN="python3"
+elif command -v python &>/dev/null; then
+    PYTHON_BIN="python"
+else
+    echo -e "${RED}ERROR: No Python interpreter found.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}Using Python: ${PYTHON_BIN}${NC}"
+
+${PYTHON_BIN} deployment/prepare_lambda_dir.py ${PREPARE_FLAGS}
 if [ $? -ne 0 ]; then
     echo -e "${RED}ERROR: Model preparation failed.${NC}"
     if [ -n "${PREPARE_FLAGS}" ]; then
