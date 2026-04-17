@@ -1600,7 +1600,13 @@
     const baseIcds = getMultiSelectValues(icdsEl);
     const baseCpts = getMultiSelectValues(cptsEl);
 
-    // Create scenarios
+    if (!baseDrugs.length && !baseIcds.length && !baseCpts.length) {
+      setStatus("Select at least one code to compare against baseline.", "error");
+      return;
+    }
+
+    // Base = no codes (uses 2019 population baseline_risk from Lambda)
+    // Scenario = current selection → shows risk lift from this patient's med list
     const scenarios = [
       {
         name: "Current Selection",
@@ -1621,11 +1627,11 @@
             age: age,
             cohort: cohort,
             age_band: ageBand,
-            drugs: baseDrugs,
-            icds: baseIcds,
-            cpts: baseCpts
+            drugs: [],
+            icds: [],
+            cpts: []
           },
-          scenarios: scenarios.slice(1) // Exclude base from scenarios
+          scenarios: scenarios
         })
       });
 

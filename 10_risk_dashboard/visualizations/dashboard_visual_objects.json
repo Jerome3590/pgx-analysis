@@ -80,7 +80,7 @@
       "s3_path": "vcu/pgx-risk-calculator/visualizations/fpgrowth/{cohort}/{age_band}/",
       "notes": "{base}={cohort}_{age_band_fname}. JSON + Plotly first for Top Itemsets and Itemset Support Distribution (drug_name_itemsets.json); PNG fallback. plots: network HTML, itemsets PNG. plots/empty_state.json when pipeline finds no rules. Step 6 sync.",
       "static_files": [
-        "data/drug_name_itemsets.json",
+        "drug_name_itemsets.json",
         "plots/{base}_combined_rules_network.html",
         "plots/{base}_drug_name_combined_top_itemsets.png",
         "plots/empty_state.json"
