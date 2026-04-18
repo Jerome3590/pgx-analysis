@@ -56,5 +56,5 @@ PowerShell 7 profile is available as a named profile for `.ps1` test scripts.
 |---|---||
 | `aws` CLI commands | WSL ✅ (credentials symlinked) |
 | `python3` deployment scripts | WSL ✅ (boto3 installed) |
-| `.ps1` Puppeteer test scripts | PS7 via `pwsh.exe -File ...` |
+| Puppeteer / Jest tests | WSL ✅ (`npx jest` — Linux Chromium at `~/.cache/puppeteer/`) |
 | `git` | WSL ✅ |

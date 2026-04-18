@@ -932,26 +932,31 @@ Show FP-Growth drug network alongside FFA/SHAP results for drug-focused pattern 
 
 Puppeteer end-to-end tests run against the live dashboard (`https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html`).
 
-**Last passing run: 2026-04-18 — 40/40 tests, 8 suites**
+**Last passing run: 2026-04-18 — 42/42 tests, 8 suites (WSL native)**
 
 | Suite | Tests | Key assertions |
 |---|---|---|
 | `tab-risk` | 4 ✅ | Risk score + band visible · n_event_bin badge · invalid age guard |
 | `tab-causal` | 5 ✅ | `causal-n-event-bin` auto-synced from `window._patientNEventBin` · causal factors non-empty · code filter regression · error guard |
 | `tab-feature-importance` | 4 ✅ | opioid / non-opioid / combined views · heatmap or image populated |
-| `tab-bupar` | 4 ✅ | opioid + non-opioid happy path · density bin · error guard |
+| `tab-bupar` | 5 ✅ | opioid + non-opioid happy path · density bin · Activity Rate bin chart renders Plotly ✓ · error guard |
 | `tab-dtw` | 5 ✅ | 3 cohort/age combos · density re-render · error guard |
-| `tab-fpgrowth` | 6 ✅ | 3 combos · support image via Plotly JSON or PNG · network iframe · error guard |
-| `tab-pgx-card` | 6 ✅ | CYP2D6 · SLCO1B1 + TPMT + DPYD · empty-variant guard |
+| `tab-fpgrowth` | 7 ✅ | 3 combos · support image via Plotly JSON or PNG · network iframe · Itemset Support bin chart (soft) · error guard |
+| `tab-pgx-card` | 7 ✅ | CYP2D6 · SLCO1B1 + TPMT + DPYD · empty-variant guard · gene list populated · card display |
 | `tab-pgx-cohort` | 5 ✅ | Network iframe · status · citations · radar SVG · non-opioid cross-cohort |
 
-**Run commands:**
-```powershell
+**Run commands (WSL / Windsurf native — no PS7 wrapper needed):**
+```bash
 # Full tab suite (all 8 suites)
-& "C:\Program Files\PowerShell\7\pwsh.exe" -Command "Set-Location 'C:\Projects\pgx-analysis\11_testing'; .\run_puppeteer.ps1 -Suite tabs"
+cd /mnt/c/Projects/pgx-analysis/11_testing/puppeteer
+npx jest --testPathPattern=tests/tabs/ --forceExit --verbose
 
-# Single suite debug (edit debug_one_test.ps1 --testPathPattern to target a specific suite)
-C:\Projects\pgx-analysis\11_testing\debug_one_test.ps1
+# Single suite (npm script shortcuts)
+npm run test:risk
+npm run test:causal
+npm run test:bupar
+npm run test:fpgrowth
+# etc. — see package.json scripts
 ```
 
 Test files: `11_testing/puppeteer/tests/tabs/`
