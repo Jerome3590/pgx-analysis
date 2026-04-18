@@ -155,6 +155,64 @@ async function readRiskDisplay(page) {
 /** page.waitForTimeout was removed in Puppeteer v22; use this instead. */
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+/**
+ * Click a secondary tab button and optionally wait for a key selector to confirm
+ * the tab HTML has injected into the DOM.
+ * @param {import('puppeteer').Page} page
+ * @param {string} tabName  data-tab attribute value (e.g. "causal-analysis")
+ * @param {string|null} waitForSelector  CSS selector to await after click
+ */
+async function navigateToTab(page, tabName, waitForSelector = null) {
+  await page.evaluate(t => {
+    const btn = document.querySelector(`.tab-button[data-tab="${t}"]`);
+    if (btn) btn.click();
+  }, tabName);
+  if (waitForSelector) {
+    await page.waitForSelector(waitForSelector, { timeout: 10_000 });
+  } else {
+    await sleep(500);
+  }
+}
+
+/**
+ * Click a visualization Load button and wait for the first matching GET response.
+ * Does NOT filter by API_BASE — accepts both static CloudFront and Lambda responses.
+ * Returns null if no response arrives within timeout (static tab with no API call).
+ * @param {import('puppeteer').Page} page
+ * @param {string} btnId       Element ID of the Load button (without #)
+ * @param {string} pathFrag    URL path fragment to match (e.g. "/causal")
+ * @param {number} timeout     ms to wait for response
+ */
+async function loadVisualization(page, btnId, pathFrag, timeout = 15_000) {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      resp => resp.url().includes(pathFrag) && resp.request().method() === "GET",
+      { timeout }
+    ).catch(() => null),
+    page.click(`#${btnId}`),
+  ]);
+  return response;
+}
+
+/**
+ * Read the text content of a status element.
+ * @param {import('puppeteer').Page} page
+ * @param {string} statusId  Element ID (without #)
+ */
+async function getStatusText(page, statusId) {
+  return page.$eval(`#${statusId}`, el => el.textContent.trim()).catch(() => null);
+}
+
+/**
+ * Set a select dropdown value directly via $eval.
+ * @param {import('puppeteer').Page} page
+ * @param {string} selector  CSS selector (e.g. "#bupar-cohort")
+ * @param {string} value
+ */
+async function setDropdown(page, selector, value) {
+  await page.$eval(selector, (el, v) => { el.value = v; }, value);
+}
+
 module.exports = {
   DASHBOARD_URL,
   API_BASE_URL,
@@ -166,5 +224,9 @@ module.exports = {
   injectCodes,
   clickCalculate,
   readRiskDisplay,
+  navigateToTab,
+  loadVisualization,
+  getStatusText,
+  setDropdown,
   sleep,
 };

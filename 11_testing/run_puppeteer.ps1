@@ -10,7 +10,7 @@
 #>
 param(
     [string]$Pattern = "",
-    [ValidateSet("all","combo","viz","card")]
+    [ValidateSet("all","combo","viz","tabs","risk","causal","fi","bupar","dtw","fpgrowth","card","cohort")]
     [string]$Suite = "all"
 )
 
@@ -27,10 +27,18 @@ if (-not (Test-Path (Join-Path $puppeteerDir "node_modules"))) {
 }
 
 $pat = switch ($Suite) {
-    "combo" { "tests/combinatorial" }
-    "viz"   { "tests/viz" }
-    "card"  { "tests/pgx-card" }
-    default { if ($Pattern) { $Pattern } else { "tests/" } }
+    "combo"    { "tests/combinatorial" }
+    "viz"      { "tests/viz" }
+    "tabs"     { "tests/tabs/" }
+    "risk"     { "tabs/tab-risk" }
+    "causal"   { "tabs/tab-causal" }
+    "fi"       { "tabs/tab-feature-importance" }
+    "bupar"    { "tabs/tab-bupar" }
+    "dtw"      { "tabs/tab-dtw" }
+    "fpgrowth" { "tabs/tab-fpgrowth" }
+    "card"     { "tabs/tab-pgx-card" }
+    "cohort"   { "tabs/tab-pgx-cohort" }
+    default    { if ($Pattern) { $Pattern } else { "tests/" } }
 }
 
 Write-Host ""

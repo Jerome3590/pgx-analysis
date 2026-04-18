@@ -14,7 +14,7 @@
  */
 
 const puppeteer = require("puppeteer");
-const { launchBrowser, openDashboard, selectCohort, setAge, sleep } = require("../helpers/browser");
+const { launchBrowser, openDashboard, selectCohort, setAge, clickCalculate, sleep } = require("../helpers/browser");
 const { AGE_BAND_MIDPOINTS, COHORTS, AGE_BANDS } = require("../helpers/scenarios");
 
 // Visualization tab definitions: tab data-tab value, load button id, API path fragment
@@ -62,6 +62,13 @@ async function loadVizTab(tabName, btnId) {
 }
 
 // ── Combinatorial viz matrix ───────────────────────────────────────────────
+// Mermaid workflow source: 10_risk_dashboard/README.md — per-tab flowcharts
+//
+// Tab prerequisites (from mermaid charts):
+//   Risk Assessment  → selectCohort + setAge + clickCalculate (sets currentCohort/currentAgeBand)
+//   Causal Analysis  → REQUIRES Risk Assessment context (currentCohort · currentAgeBand · codes)
+//   Feature Importance → standalone (no Risk Assessment context required)
+//   BupaR / DTW / FP-Growth / PGx Cohort → cohort + age_band sufficient
 
 describe("Visualization tabs — combinatorial matrix", () => {
 
@@ -78,8 +85,11 @@ describe("Visualization tabs — combinatorial matrix", () => {
         describe(`age_band: ${ageBand}`, () => {
 
           beforeAll(async () => {
+            // Risk Assessment mermaid: Enter age → Calculate Risk Score
+            // Required for Causal tab (sets currentCohort / currentAgeBand in JS state)
             await setAge(page, age);
-          });
+            await clickCalculate(page);
+          }, 25_000);
 
           for (const { tab, btnId, pathFrag } of VIZ_TABS) {
 
@@ -119,11 +129,18 @@ describe("Visualization tabs — combinatorial matrix", () => {
 
 // ── Causal Analysis with codes selected (regression: feature name prefix bug) ──
 //
-// The combinatorial matrix test clicks btnLoadCausal with NO codes selected,
-// so selectedFeatureSet is empty and the broken filter path was never exercised.
-// This test selects known codes first, uses n_event_bin=medium to force the
-// per-bin Lambda path (always makes an API call), and asserts causal_factors
-// is non-empty and contains features matching the submitted codes.
+// Mermaid workflow (10_risk_dashboard/README.md — Tab: Causal Analysis):
+//   1. Risk Assessment context: currentCohort · currentAgeBand · selected drugs/ICDs/CPTs
+//      → selectCohort + setAge + clickCalculate (populates code select lists)
+//   2. Navigate to Causal Analysis tab
+//   3. Optional: select codes from populated lists (drugs / ICDs / CPTs)
+//   4. Optional: filter by event density bin (causal-n-event-bin)
+//   5. Click Load Causal Analysis (btnLoadCausal)
+//   6. GET static causal_data.json from CloudFront or Lambda /visualizations/causal
+//   7. Assert: top_causal_factors non-empty, feature names use correct prefix
+//
+// This test exercises step 3 (code filter) which was never hit by the combinatorial
+// matrix (no codes selected → selectedFeatureSet empty → filter path skipped).
 
 describe("Causal Analysis — with codes selected (per-bin filter regression)", () => {
   const TEST_COHORT   = "opioid_ed";
@@ -136,8 +153,16 @@ describe("Causal Analysis — with codes selected (per-bin filter regression)", 
   beforeAll(async () => {
     await selectCohort(page, TEST_COHORT);
     await setAge(page, TEST_AGE);
+    // Calculate risk first — sets currentCohort/currentAgeBand and populates code select lists
+    await clickCalculate(page);
     await sleep(600);  // wait for updateCodeLists() to populate selects
-  }, 15_000);
+    // Activate the causal analysis tab so btnLoadCausal is visible/clickable
+    await page.evaluate(() => {
+      const btn = document.querySelector('.tab-button[data-tab="causal-analysis"]');
+      if (btn) btn.click();
+    });
+    await sleep(300);
+  }, 30_000);
 
   test("causal_factors non-empty and contains submitted code features", async () => {
     // Select codes directly in the DOM (no updateCodeLists() between read and load for causal)
@@ -147,16 +172,17 @@ describe("Causal Analysis — with codes selected (per-bin filter regression)", 
       const icdsEl  = document.getElementById("icds");
       if (drugsEl) sel(drug)(drugsEl);
       if (icdsEl)  sel(icd)(icdsEl);
-      // Set the per-bin selector so Lambda's per-bin path is used (always fires an API call)
+      // Set bin value only — do NOT dispatch change event here; change listener auto-clicks
+      // btnLoadCausal which would fire a fetch before waitForResponse is registered (race condition).
       const binEl = document.getElementById("causal-n-event-bin");
-      if (binEl) { binEl.value = bin; binEl.dispatchEvent(new Event("change", { bubbles: true })); }
+      if (binEl) { binEl.value = bin; }
     }, DRUG_CODE, ICD_CODE, TEST_BIN);
 
     const [response] = await Promise.all([
+      // No API_BASE filter: causal tab now fetches static JSON from CloudFront first
+      // (visualizations/causal/{cohort}/{ageBand}/{bin}/causal_data.json), not Lambda.
       page.waitForResponse(
-        resp => resp.url().includes("/causal") &&
-                resp.request().method() === "GET" &&
-                (!API_BASE || resp.url().startsWith(API_BASE)),
+        resp => resp.url().includes("/causal") && resp.request().method() === "GET",
         { timeout: 20_000 }
       ).catch(() => null),
       page.click("#btnLoadCausal"),
@@ -169,7 +195,8 @@ describe("Causal Analysis — with codes selected (per-bin filter regression)", 
     expect(body).not.toBeNull();
     expect(typeof body).toBe("object");
 
-    const factors = (body.chart_data || {}).causal_factors || [];
+    // Accept static format (top_causal_factors) or Lambda format (chart_data.causal_factors)
+    const factors = body.top_causal_factors || (body.chart_data || {}).causal_factors || [];
     // At least one causal factor must be returned for the submitted codes
     expect(factors.length).toBeGreaterThan(0);
 

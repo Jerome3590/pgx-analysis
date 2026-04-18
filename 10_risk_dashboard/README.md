@@ -629,24 +629,30 @@ Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional 
 
 ```mermaid
 flowchart TD
-    A([Causal Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs]
+    A([Causal Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first]
     B --> C[Optional: enter what-if codes\ncausal-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE]
     C --> D[Optional: filter top-N features\n10 · 20 · All]
-    D --> E[Optional: filter by\nevent density bin\nAll · low · medium · high · extreme]
+    D --> E[Optional: filter by event density bin\nAll · low · medium · high · extreme\nAuto-synced from Risk n_event_bin on tab open]
     E --> F[Click Load Causal Analysis\nbtnLoadCausal]
-    F --> G[GET /visualizations/causal\n?cohort=&age_band=&codes=&n_event_bin=]
-    G --> H{HTTP 200?}
-    H -->|Error| I[causal-status error]
-    H -->|200| J[causal-factors-chart\nPlotly bar: Top Causal Factors FFA]
-    J --> K[shap-importance-chart\nPlotly bar: SHAP Feature Importance]
-    K --> L[causal-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect]
-    L --> M{What-if codes\nentered?}
-    M -->|Yes| N[second trace overlaid\non each chart]
-    M -->|No| O([Three charts displayed])
-    N --> O
+    F --> G{n_event_bin\nselected?}
+    G -->|Yes bin| H[GET static causal_data.json\nCloudFront: visualizations/causal/\ncohort/ageBand/bin/causal_data.json]
+    G -->|All bins| I[GET manifest entry OR\ndefault static path\nvisualization/causal/cohort/ageBand/]
+    H --> J{Static fetch\nHTTP 200?}
+    I --> J
+    J -->|200| K[Client-side filter:\nfilter top_causal_factors by\nselectedFeatureSet drugs/ICDs/CPTs]
+    J -->|4xx/5xx| L[Fallback: GET Lambda\n/visualizations/causal\n?cohort=&age_band=&n_event_bin=]
+    K --> M[causal-factors-chart\nPlotly bar: Top Causal Factors FFA]
+    L --> M
+    M --> N[shap-importance-chart\nPlotly bar: SHAP Feature Importance]
+    N --> O[causal-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect]
+    O --> P{What-if codes\nentered?}
+    P -->|Yes| Q[second trace overlaid\non each chart]
+    P -->|No| R([Three charts displayed])
+    Q --> R
 
-    style I fill:#fee2e2
-    style O fill:#dcfce7
+    style J fill:#fef9c3
+    style L fill:#fee2e2,stroke:#f87171
+    style R fill:#dcfce7
 ```
 
 ---
@@ -921,6 +927,36 @@ Show FP-Growth drug network alongside FFA/SHAP results for drug-focused pattern 
 - `visualizations/fpgrowth/README_visualization_only.md`: Why FP-Growth is visualization-only
 - `visualizations/fpgrowth/README.md`: FP-Growth analysis documentation
 - `8_ffa_analysis/README.md`: FFA analysis documentation (includes causal importance that reflects SHAP consensus)
+
+## E2E Test Results
+
+Puppeteer end-to-end tests run against the live dashboard (`https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html`).
+
+**Last passing run: 2026-04-18 — 40/40 tests, 8 suites**
+
+| Suite | Tests | Key assertions |
+|---|---|---|
+| `tab-risk` | 4 ✅ | Risk score + band visible · n_event_bin badge · invalid age guard |
+| `tab-causal` | 5 ✅ | `causal-n-event-bin` auto-synced from `window._patientNEventBin` · causal factors non-empty · code filter regression · error guard |
+| `tab-feature-importance` | 4 ✅ | opioid / non-opioid / combined views · heatmap or image populated |
+| `tab-bupar` | 4 ✅ | opioid + non-opioid happy path · density bin · error guard |
+| `tab-dtw` | 5 ✅ | 3 cohort/age combos · density re-render · error guard |
+| `tab-fpgrowth` | 6 ✅ | 3 combos · support image via Plotly JSON or PNG · network iframe · error guard |
+| `tab-pgx-card` | 6 ✅ | CYP2D6 · SLCO1B1 + TPMT + DPYD · empty-variant guard |
+| `tab-pgx-cohort` | 5 ✅ | Network iframe · status · citations · radar SVG · non-opioid cross-cohort |
+
+**Run commands:**
+```powershell
+# Full tab suite (all 8 suites)
+& "C:\Program Files\PowerShell\7\pwsh.exe" -Command "Set-Location 'C:\Projects\pgx-analysis\11_testing'; .\run_puppeteer.ps1 -Suite tabs"
+
+# Single suite debug (edit debug_one_test.ps1 --testPathPattern to target a specific suite)
+C:\Projects\pgx-analysis\11_testing\debug_one_test.ps1
+```
+
+Test files: `11_testing/puppeteer/tests/tabs/`
+
+---
 
 ## Documentation
 

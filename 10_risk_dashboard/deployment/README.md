@@ -143,15 +143,28 @@ Expected: `causal ≥ 14`, `fpgrowth = 14`, `fpgrowth_per_bin ≥ 20`.
 
 4. **Deploy Frontend**:
    - **S3 location:** `s3://jerome-dixon.io/vcu/pgx-risk-calculator/`
-   - Upload `../frontend/index.html` and assets to that prefix (e.g. `aws s3 sync ../frontend/ s3://jerome-dixon.io/vcu/pgx-risk-calculator/`)
+   - Sync all frontend files (preferred — uses `aws s3 sync` under the hood):
+     ```powershell
+     python 10_risk_dashboard/deployment/sync_frontend_to_s3.py
+     ```
+   - Or sync manually:
+     `aws s3 sync 10_risk_dashboard/frontend/ s3://jerome-dixon.io/vcu/pgx-risk-calculator/`
    - Upload model performance metrics:  
      `aws s3 cp ../outputs/metadata/model_performance_metrics.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/model_performance_metrics.json --content-type application/json`
    - Upload cohort metadata for dropdowns (same-origin, no API call):  
      `aws s3 cp ../outputs/metadata/metadata_opioid_ed.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/opioid_ed.json --content-type application/json`  
      `aws s3 cp ../outputs/metadata/metadata_non_opioid_ed.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/non_opioid_ed.json --content-type application/json`  
      (The 5_build_and_deploy notebook uploads metrics and metadata automatically after frontend sync.)
-   - Configure the bucket for static website hosting (or use CloudFront with that origin)
-   - (Optional) Set up CloudFront distribution
+   - **CloudFront invalidation** (required after every frontend deploy — clears CDN cache):
+     - **Distribution ID:** `E3MZK5HYTJ14P3`  (alias: `jerome-dixon.io`, origin: `jerome-dixon.io.s3-website-us-east-1.amazonaws.com`)
+     - Invalidate `index.html` only (fast):
+       ```powershell
+       aws cloudfront create-invalidation --distribution-id E3MZK5HYTJ14P3 --paths "/vcu/pgx-risk-calculator/index.html"
+       ```
+     - Invalidate all frontend assets (after tab HTML or JS changes):
+       ```powershell
+       aws cloudfront create-invalidation --distribution-id E3MZK5HYTJ14P3 --paths "/vcu/pgx-risk-calculator/*"
+       ```
 
 ## Architecture
 

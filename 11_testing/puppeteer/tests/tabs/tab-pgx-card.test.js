@@ -12,7 +12,7 @@
  *   DASHBOARD_URL=... API_BASE_URL=... npx jest tests/pgx-card --forceExit
  */
 
-const { launchBrowser, openDashboard, sleep } = require("../helpers/browser");
+const { launchBrowser, openDashboard, sleep } = require("../../helpers/browser");
 
 let browser;
 let page;

@@ -15,7 +15,7 @@
  *   npx jest tests/pgx-cohort --forceExit --verbose
  */
 
-const { launchBrowser, openDashboard, sleep } = require("../helpers/browser");
+const { launchBrowser, openDashboard, sleep } = require("../../helpers/browser");
 
 let browser, page;
 

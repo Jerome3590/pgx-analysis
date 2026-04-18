@@ -5,8 +5,7 @@ $puppeteerDir = Join-Path $PSScriptRoot "puppeteer"
 $logFile      = Join-Path $PSScriptRoot "results\debug_one_test.log"
 
 Push-Location $puppeteerDir
-$out = & npx jest --testPathPattern=tests/viz `
-    "--testNamePattern=causal_factors non-empty" `
+$out = & npx jest --testPathPattern=tabs/tab-causal `
     --forceExit --verbose 2>&1
 $exit = $LASTEXITCODE
 Pop-Location
