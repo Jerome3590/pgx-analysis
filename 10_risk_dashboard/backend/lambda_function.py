@@ -2849,19 +2849,16 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             bin_empty_key = f"{bin_base_key}/empty_state.json"
             # Probe for per-bin itemsets JSON (pipeline writes {item_type}_itemsets.json here)
             bin_itemsets_key = f"{bin_base_key}/{item_type}_itemsets.json"
-            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_itemsets_key) or _s3_object_exists(S3_DASHBOARD_BUCKET, bin_empty_key):
-                try:
-                    obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=bin_empty_key)
-                    return _response(200, json.loads(obj["Body"].read().decode("utf-8")))
-                except (ClientError, json.JSONDecodeError):
-                    pass
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_itemsets_key):
                 return _response(200, _build_fpgrowth_payload(bin_base_key, "per_bin"))
-            # Try nearest available bin before falling back to full-cohort
+            # Requested bin has no itemsets (missing or empty_state). Try nearest bin with
+            # real data before falling back — empty_state means insufficient transactions,
+            # but a nearby bin may have usable patterns.
+            full_base_key = f"{prefix}/{cohort}/{age_band}/plots"
             nearest = _nearest_available_bin_s3(
                 S3_DASHBOARD_BUCKET, n_event_bin,
                 lambda b: f"{prefix}/{cohort}/{age_band}/density/{b}/plots/{item_type}_itemsets.json",
             )
-            full_base_key = f"{prefix}/{cohort}/{age_band}/plots"
             if nearest:
                 nearest_base_key = f"{prefix}/{cohort}/{age_band}/density/{nearest}/plots"
                 p = _build_fpgrowth_payload(nearest_base_key, "nearest_bin_fallback")
@@ -2871,6 +2868,13 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
                     f"Showing nearest available bin '{nearest}'."
                 )
                 return _response(200, p)
+            # No nearest bin — return empty_state for requested bin if it exists
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_empty_key):
+                try:
+                    obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=bin_empty_key)
+                    return _response(200, json.loads(obj["Body"].read().decode("utf-8")))
+                except (ClientError, json.JSONDecodeError):
+                    pass
             return _response(200, _build_fpgrowth_payload(full_base_key, "full_cohort_fallback"))
 
         # No bin requested: serve combined full-cohort output
