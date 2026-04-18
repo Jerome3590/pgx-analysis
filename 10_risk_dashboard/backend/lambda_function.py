@@ -267,10 +267,10 @@ def load_metadata(cohort: str) -> Dict[str, Any]:
 
 def handle_performance(_event: Dict[str, Any]) -> Dict[str, Any]:
     """GET /performance — return MC-CV model scores per cohort/age_band from feature schemas."""
-    from py_helpers.constants import REQUIRED_COHORTS
+    COHORTS = ["opioid_ed", "non_opioid_ed"]
     AGE_BANDS = ["0-12", "13-24", "25-44", "45-54", "55-64", "65-74", "75-84", "85-114"]
     result: Dict[str, Any] = {}
-    for cohort in REQUIRED_COHORTS:
+    for cohort in COHORTS:
         result[cohort] = {}
         for age_band in AGE_BANDS:
             schema = load_feature_schema(cohort, age_band)
