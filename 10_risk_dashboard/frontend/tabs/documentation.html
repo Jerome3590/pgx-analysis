@@ -10,19 +10,21 @@
         </p>
 
         <h2>Tabs</h2>
-        <p><strong>Cohort:</strong> Opioid ED | Polypharmacy (use these to switch cohort and load the right metadata). Both cohorts support age bands 13–114.</p>
-        <p><strong>Main tabs:</strong> Risk Assessment | Drugs | ICD Codes | CPT Codes | Causal Analysis | DTW Trajectories | FP-Growth Patterns | BupaR Process Mining | PGx Cohort | Feature Importance | PGx Patient Card | Documentation</p>
+        <p><strong>Cohort selector (top row):</strong> <em>Opioid ED</em> | <em>Polypharmacy</em> — switches cohort and loads cohort-specific metadata. Both cohorts support age bands 13–114.</p>
+        <p><strong>Primary tabs (second row):</strong> Documentation | Risk Assessment | Drugs | ICD Codes | CPT Codes | PGx Card</p>
+        <p><strong>Visualization tabs (third row):</strong> Feature Importance | Causal Analysis | BupaR Process Mining | DTW Trajectories | FP-Growth Patterns | PGx Cohort</p>
         <ul>
-          <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections.</li>
+          <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections. After calculation, an <strong>Event Density badge</strong> (low / medium / high / extreme) appears — this bin is auto-synced to all visualization tabs to load patient-matched per-bin data.</li>
           <li><strong>Drugs</strong> — Search and add drugs for your patient. Selections are used for the risk calculation. A visual display shows all selected drugs with option to remove them.</li>
-          <li><strong>ICD Codes</strong> — Search and add ICD codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only. Selections are used for the risk calculation.</li>
-          <li><strong>CPT Codes</strong> — Search and add CPT codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only. Selections are used for the risk calculation.</li>
-          <li><strong>Causal Analysis</strong> — View causal importance and interaction plots by cohort and age band.</li>
-          <li><strong>DTW Trajectories</strong> — Dynamic time warping trajectory visualizations.</li>
-          <li><strong>FP-Growth Patterns</strong> — Frequent itemset and network visualizations.</li>
-          <li><strong>BupaR Process Mining</strong> — Process mining and activity frequency charts.</li>
+          <li><strong>ICD Codes</strong> — Search and add ICD codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only.</li>
+          <li><strong>CPT Codes</strong> — Search and add CPT codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only.</li>
+          <li><strong>PGx Card</strong> — Generate a PGx patient card from SNP/phenotype input. Auto-populated with cohort and age band after risk calculation.</li>
           <li><strong>Feature Importance</strong> — Aggregated feature importance heatmaps by cohort (from Step 3a / 2_feature_importance).</li>
-          <li><strong>PGx Patient Card</strong> — Generate a PGx card from SNP/phenotype input.</li>
+          <li><strong>Causal Analysis</strong> — View causal importance and interaction plots by cohort, age band, and event density bin. Filterable by patient codes.</li>
+          <li><strong>BupaR Process Mining</strong> — Process mining, activity frequency charts, and Gantt visualizations. Includes <em>Activity Rate by Event Density Bin</em> panel (grouped bar / heatmap toggle).</li>
+          <li><strong>DTW Trajectories</strong> — Dynamic time warping trajectory visualizations by cohort, age band, and event density bin.</li>
+          <li><strong>FP-Growth Patterns</strong> — Frequent itemset and drug association network visualizations. Includes <em>Itemset Support by Event Density Bin</em> panel (grouped bar / heatmap toggle).</li>
+          <li><strong>PGx Cohort</strong> — PGx gene network topology and citation radar for the selected cohort and age band.</li>
         </ul>
 
         <h2>Research questions and visualizations</h2>
@@ -53,7 +55,8 @@
           <li>Open <strong>Drugs</strong> tab, search and add the drugs you need. View selected drugs in the display area.</li>
           <li>For the <strong>Opioid ED</strong> cohort, also open <strong>ICD Codes</strong> and <strong>CPT Codes</strong> tabs to add additional codes.</li>
           <li>Return to <strong>Risk Assessment</strong> and click <em>Calculate Risk Score</em>.</li>
-          <li>Use <em>Compare Scenarios</em> to compare different code sets.</li>
+          <li>Use <em>Compare Scenarios</em> to compare different code sets side-by-side.</li>
+          <li>After risk calculation, note the <strong>Event Density badge</strong> (low / medium / high / extreme). Visualization tabs auto-sync to this bin, loading patient-matched density data automatically.</li>
           <li>Explore visualizations on other tabs (Causal Analysis, DTW, etc.) to understand feature importance and patterns.</li>
         </ol>
 
