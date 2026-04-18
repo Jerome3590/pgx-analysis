@@ -1,0 +1,60 @@
+{
+  // AWS: local/dev only — use profile mushin in Cursor terminals. On EC2, use IAM instance profile (do not set AWS_PROFILE).
+  "terminal.integrated.env.windows": { "AWS_PROFILE": "mushin" },
+  "terminal.integrated.env.linux": { "AWS_PROFILE": "mushin" },
+  "terminal.integrated.env.osx": { "AWS_PROFILE": "mushin" },
+
+  // Terminal settings
+  "terminal.integrated.defaultProfile.windows": "WSL",
+  "terminal.integrated.profiles.windows": {
+    "WSL": {
+      "path": "C:\\Windows\\System32\\wsl.exe",
+      "args": []
+    },
+    "Git Bash": {
+      "path": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "args": []
+    },
+    "PowerShell": {
+      "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "args": ["-NoLogo"],
+      "icon": "terminal-powershell"
+    },
+    "Command Prompt": {
+      "path": "C:\\Windows\\System32\\cmd.exe",
+      "args": []
+    }
+  },
+  "terminal.integrated.automationProfile.windows": {
+    "path": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "args": ["-NoProfile"]
+  },
+  // Command execution settings
+  "terminal.integrated.commandsToSkipShell": [],
+  
+  // Timeout settings (if supported)
+  "terminal.integrated.enablePersistentSessions": true,
+  
+  // Python settings
+  "python.defaultInterpreterPath": "python",
+  
+  // Git settings
+  "git.enabled": true,
+  "git.path": "git",
+  
+  // File watcher settings (might affect command execution)
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python-envs.pythonProjects": [],
+  // R settings
+  "r.rterm.windows": "C:/Program Files/R/R-4.5.3/bin/R.exe",
+  "r.rpath.windows": "C:/Program Files/R/R-4.5.3/bin/R.exe",
+  "r.library": "C:/r_library",
+  "r.sessionWatcher": true,
+  "r.alwaysUseActiveTerminal": true,
+  "r.bracketedPaste": true
+}
