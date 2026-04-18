@@ -141,9 +141,9 @@ def calculate_model_weights_and_scores(
         normalized_logloss_score = 1 / (1 + mean_logloss)
         composite_score = 0.5 * mean_pr_auc + 0.5 * normalized_logloss_score
         model_scores[internal_name] = {
-            'mean_logloss': mean_logloss,
-            'mean_pr_auc': mean_pr_auc,
-            'composite_score': composite_score
+            'mean_logloss': float(mean_logloss),
+            'mean_pr_auc': float(mean_pr_auc),
+            'composite_score': float(composite_score)
         }
 
     if not model_scores:
@@ -182,7 +182,7 @@ def calculate_model_weights_and_scores(
         w = weights.get(model, 0.0)
         if model in model_scores:
             print(f"    {model}: {w:.3f} (composite_score: {model_scores[model]['composite_score']:.4f})")
-            model_scores[model]['selected'] = (w == 1.0)
+            model_scores[model]['selected'] = bool(w == 1.0)
         else:
             print(f"    {model}: {w:.3f} (no MC-CV data)")
     return weights, model_scores
