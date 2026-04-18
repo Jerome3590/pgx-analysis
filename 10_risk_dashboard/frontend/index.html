@@ -2457,9 +2457,9 @@
     const whatIfCodes = whatIfInput ? whatIfInput.split(",").map(s => s.trim()).filter(Boolean) : [];
     const nEventBinCausal = document.getElementById("causal-n-event-bin")?.value || "all";
     const params = new URLSearchParams({ cohort, age_band: ageBand });
-    if (selectedDrugs.length) params.set("drugs", selectedDrugs.join(","));
-    if (selectedIcds.length) params.set("icds", selectedIcds.join(","));
-    if (selectedCpts.length) params.set("cpts", selectedCpts.join(","));
+    if (selectedDrugs.length) params.set("drugs", selectedDrugs.map(c => c.replace(/^drug_/i, '')).join(","));
+    if (selectedIcds.length) params.set("icds", selectedIcds.map(c => c.replace(/^icd_/i, '')).join(","));
+    if (selectedCpts.length) params.set("cpts", selectedCpts.map(c => c.replace(/^cpt_/i, '')).join(","));
     if (whatIfCodes.length) params.set("whatif", whatIfCodes.join(","));
     if (nEventBinCausal && nEventBinCausal !== "all") params.set("n_event_bin", nEventBinCausal);
     const binLabelCausal = nEventBinCausal && nEventBinCausal !== "all" ? ` [${nEventBinCausal} density]` : "";
@@ -2484,9 +2484,9 @@
         const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
         const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
         const selectedFeatureSet = new Set([
-          ...selectedDrugs.map(c => "item_" + String(c).toUpperCase()),
-          ...selectedIcds.map(c => "item_" + String(c).toUpperCase()),
-          ...selectedCpts.map(c => "item_" + String(c).toUpperCase())
+          ...selectedDrugs.map(c => "item_" + String(c)),
+          ...selectedIcds.map(c => "item_" + String(c)),
+          ...selectedCpts.map(c => "item_" + String(c))
         ]);
         const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
         chartData = {
@@ -2512,9 +2512,9 @@
           const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.causal_responsibility ?? r.importance ?? 0) }));
           const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
           const selectedFeatureSet = new Set([
-            ...selectedDrugs.map(c => "item_" + String(c).toUpperCase()),
-            ...selectedIcds.map(c => "item_" + String(c).toUpperCase()),
-            ...selectedCpts.map(c => "item_" + String(c).toUpperCase())
+            ...selectedDrugs.map(c => "item_" + String(c)),
+            ...selectedIcds.map(c => "item_" + String(c)),
+            ...selectedCpts.map(c => "item_" + String(c))
           ]);
           const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
           chartData = {
