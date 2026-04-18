@@ -2,7 +2,7 @@
 manuscript/
 f31_proposal/
 
-.vscode
+.vscode/*
 !.vscode/settings.json
 .trunk
 .Rproj.user
