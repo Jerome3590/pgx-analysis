@@ -100,6 +100,14 @@ def load_model(cohort: str, age_band: str, model_type: str) -> Optional[Any]:
 
 
 def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
+    """Thin wrapper — returns weights only. See calculate_model_weights_and_scores."""
+    weights, _ = calculate_model_weights_and_scores(cohort, age_band)
+    return weights
+
+
+def calculate_model_weights_and_scores(
+    cohort: str, age_band: str
+) -> Tuple[Dict[str, float], Dict[str, Any]]:
     """
     Choose the best model per cohort/age_band based on MC-CV performance.
 
@@ -108,11 +116,8 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
     use the best model for the respective cohort (and age_band).
 
     Returns:
-        {
-            'catboost': 0.0 or 1.0,
-            'xgboost': 0.0 or 1.0,
-            'xgboost_rf': 0.0 or 1.0
-        }
+        weights: {'catboost': 0.0|1.0, 'xgboost': 0.0|1.0, 'xgboost_rf': 0.0|1.0}
+        model_scores: {'catboost': {mean_pr_auc, mean_logloss, composite_score, n_runs, selected}, ...}
     """
     age_band_fname = age_band.replace("-", "_")
     default_models = ['catboost', 'xgboost', 'xgboost_rf']
@@ -121,7 +126,7 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
     if not mc_cv_path.exists():
         print(f"Warning: MC-CV results not found: {mc_cv_path}")
         print("  Using equal weights (1.0 each)")
-        return {m: 1.0 / len(default_models) for m in default_models}
+        return {m: 1.0 / len(default_models) for m in default_models}, {}
 
     df = pd.read_csv(mc_cv_path)
     csv_to_internal = {'XGBoost': 'xgboost', 'XGBoost_RF': 'xgboost_rf', 'CatBoost': 'catboost'}
@@ -143,7 +148,7 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
 
     if not model_scores:
         print("Warning: No MC-CV data, using equal weights")
-        return {m: 1.0 / len(default_models) for m in default_models}
+        return {m: 1.0 / len(default_models) for m in default_models}, {}
 
     # Check if Ensemble was selected in model_metrics_summary.csv
     summary_path = FINAL_MODEL_DIR / cohort / age_band_fname / f'{cohort}_{age_band_fname}_model_metrics_summary.csv'
@@ -177,9 +182,10 @@ def calculate_model_weights(cohort: str, age_band: str) -> Dict[str, float]:
         w = weights.get(model, 0.0)
         if model in model_scores:
             print(f"    {model}: {w:.3f} (composite_score: {model_scores[model]['composite_score']:.4f})")
+            model_scores[model]['selected'] = (w == 1.0)
         else:
             print(f"    {model}: {w:.3f} (no MC-CV data)")
-    return weights
+    return weights, model_scores
 
 
 def _resolve_train_data_path(cohort: str, age_band_fname: str) -> Tuple[Optional[Path], str]:
@@ -287,7 +293,7 @@ def extract_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
     if DUCKDB_AVAILABLE:
         try:
             schema = _extract_feature_schema_duckdb(data_path, data_format)
-            model_weights = calculate_model_weights(cohort, age_band)
+            model_weights, model_scores = calculate_model_weights_and_scores(cohort, age_band)
             out = {
                 "features": schema["feature_names"],
                 "defaults": schema["defaults"],
@@ -295,6 +301,8 @@ def extract_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
                 "n_features": len(schema["feature_names"]),
                 "n_samples": schema["n_samples"],
             }
+            if model_scores:
+                out["model_scores"] = model_scores
             if schema["patient_bucket_thresholds"]:
                 out["patient_bucket_thresholds"] = schema["patient_bucket_thresholds"]
             return out
@@ -326,7 +334,7 @@ def extract_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
                 }
             except Exception:
                 pass
-    model_weights = calculate_model_weights(cohort, age_band)
+    model_weights, model_scores = calculate_model_weights_and_scores(cohort, age_band)
     out = {
         "features": feature_names,
         "defaults": defaults,
@@ -334,6 +342,8 @@ def extract_feature_schema(cohort: str, age_band: str) -> Dict[str, Any]:
         "n_features": len(feature_names),
         "n_samples": len(df),
     }
+    if model_scores:
+        out["model_scores"] = model_scores
     if patient_bucket_thresholds:
         out["patient_bucket_thresholds"] = patient_bucket_thresholds
     return out

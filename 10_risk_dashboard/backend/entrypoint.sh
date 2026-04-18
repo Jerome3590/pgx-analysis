@@ -11,9 +11,18 @@ set -e
 
 if [ -n "${CODE_S3_KEY}" ] && [ -n "${PGX_RESULTS_BUCKET}" ]; then
     echo "[entrypoint] Downloading code override from s3://${PGX_RESULTS_BUCKET}/${CODE_S3_KEY}"
-    aws s3 cp "s3://${PGX_RESULTS_BUCKET}/${CODE_S3_KEY}" "${LAMBDA_TASK_ROOT}/lambda_function.py" \
-        && echo "[entrypoint] Code override loaded successfully." \
-        || echo "[entrypoint] WARNING: S3 code download failed — using baked-in lambda_function.py."
+    python3 -c "
+import boto3, os, sys
+try:
+    boto3.client('s3').download_file(
+        os.environ['PGX_RESULTS_BUCKET'],
+        os.environ['CODE_S3_KEY'],
+        os.path.join(os.environ.get('LAMBDA_TASK_ROOT', '/var/task'), 'lambda_function.py')
+    )
+    print('[entrypoint] Code override loaded successfully.')
+except Exception as e:
+    print(f'[entrypoint] WARNING: S3 code download failed ({e}) — using baked-in lambda_function.py.')
+" 2>&1
 fi
 
 exec /lambda-entrypoint.sh "$@"

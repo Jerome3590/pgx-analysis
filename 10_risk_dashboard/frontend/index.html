@@ -782,6 +782,7 @@
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
       <button class="tab-button" data-tab="cohort-pgx-visualizations" onclick="switchTab('cohort-pgx-visualizations')">PGx Cohort</button>
+      <button class="tab-button" data-tab="model-performance-visualizations" onclick="switchTab('model-performance-visualizations')">Model Performance</button>
     </div>
 
     <!-- Risk Assessment Tab -->
@@ -818,6 +819,9 @@
     <!-- PGx Cohort Tab (Cohort PGx: VIP reports + network topology per cohort/age_band) -->
     <div id="cohort-pgx-visualizations-tab" class="tab-content"></div>
 
+    <!-- Model Performance Tab -->
+    <div id="model-performance-visualizations-tab" class="tab-content"></div>
+
     <!-- Documentation Tab (same-page content, no navigation away) -->
     <div id="documentation-tab" class="tab-content"></div>
   </div>
@@ -841,6 +845,7 @@
     ['dtw-visualizations-tab', 'tabs/dtw.html'],
     ['fpgrowth-visualizations-tab', 'tabs/fpgrowth.html'],
     ['cohort-pgx-visualizations-tab', 'tabs/cohort-pgx.html'],
+    ['model-performance-visualizations-tab', 'tabs/model-performance.html'],
     ['documentation-tab', 'tabs/documentation.html'],
   ];
   await Promise.all(_TABS.map(async ([id, file]) => {
@@ -1526,8 +1531,20 @@
       .filter(function(p) { return Number.isFinite(p.score); })
       .sort(function(a, b) { return b.score - a.score; });
 
-    if (!pairs.length || !window.Plotly) {
-      chartEl.innerHTML = '<p class="status-message info" style="margin:0;">No per-model scores available.</p>';
+    if (!pairs.length) {
+      chartEl.innerHTML = '<p class="status-message info" style="margin:0;">Add Drug / ICD / CPT codes to see per-model scores.</p>';
+      return;
+    }
+    if (!window.Plotly) {
+      // Plotly CDN unavailable — render a simple HTML table fallback
+      var rows = pairs.map(function(p) {
+        return '<tr><td style="padding:4px 12px 4px 0;font-weight:500;">' + p.model + '</td>'
+          + '<td style="padding:4px 0;">' + (p.score * 100).toFixed(1) + '%</td></tr>';
+      }).join('');
+      chartEl.innerHTML = '<table style="font-size:0.9em;margin:8px 0;">'
+        + '<thead><tr><th style="text-align:left;padding:4px 12px 4px 0;">Model</th>'
+        + '<th style="text-align:left;">Risk Score</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table>';
       return;
     }
 
@@ -1555,6 +1572,103 @@
     };
 
     Plotly.newPlot('model-chart', [trace], layout, { responsive: true, displayModeBar: false });
+  }
+
+  // ── Model Performance ────────────────────────────────────────────────────
+  var _perfData = null;
+  var _perfCohort = 'opioid_ed';
+
+  async function loadModelPerformance() {
+    if (_perfData) { renderPerfChart(_perfCohort); return; }
+    const statusEl = document.getElementById('perf-status');
+    if (statusEl) statusEl.textContent = 'Loading performance data...';
+    try {
+      const resp = await fetch(API_BASE + '/performance');
+      const json = await resp.json();
+      _perfData = json.by_cohort || {};
+      const hasData = Object.values(_perfData).some(c => Object.keys(c).length > 0);
+      if (!hasData) {
+        if (statusEl) statusEl.textContent = 'MC-CV performance data not yet embedded. Re-run prepare_models.py on EC2, then redeploy.';
+        return;
+      }
+      if (statusEl) statusEl.textContent = '';
+      renderPerfChart(_perfCohort);
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Could not load performance data: ' + e.message;
+    }
+  }
+
+  window.switchPerfCohort = function(cohort) {
+    _perfCohort = cohort;
+    document.querySelectorAll('#perf-cohort-tabs .tab-button').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('perf-tab-' + (cohort === 'opioid_ed' ? 'opioid' : 'non_opioid'));
+    if (btn) btn.classList.add('active');
+    ['opioid_ed','non_opioid_ed'].forEach(function(c) {
+      const el = document.getElementById('perf-chart-' + c);
+      if (el) el.style.display = (c === cohort) ? '' : 'none';
+    });
+    if (_perfData) renderPerfChart(cohort);
+  };
+
+  function renderPerfChart(cohort) {
+    const cohortData = (_perfData || {})[cohort] || {};
+    const ageBands = Object.keys(cohortData).sort();
+    if (!ageBands.length || !window.Plotly) return;
+
+    const models = ['catboost', 'xgboost', 'xgboost_rf'];
+    const colors = { catboost: '#0f766e', xgboost: '#3b82f6', xgboost_rf: '#8b5cf6' };
+    const labels = { catboost: 'CatBoost', xgboost: 'XGBoost', xgboost_rf: 'XGBoost RF' };
+
+    var traces = models.map(function(m) {
+      var prAucs = ageBands.map(function(ab) {
+        var s = (cohortData[ab] || {}).model_scores || {};
+        return s[m] ? s[m].mean_pr_auc : null;
+      });
+      return {
+        name: labels[m],
+        x: ageBands,
+        y: prAucs,
+        type: 'bar',
+        marker: { color: colors[m] },
+        hovertemplate: labels[m] + ' %{x}: PR-AUC=%{y:.3f}<extra></extra>'
+      };
+    });
+
+    var layout = {
+      title: (cohort === 'opioid_ed' ? 'Opioid ED' : 'Polypharmacy') + ' — PR-AUC by Model & Age Band',
+      barmode: 'group',
+      xaxis: { title: 'Age Band' },
+      yaxis: { title: 'Mean PR-AUC (25-run MC-CV)', range: [0, 1] },
+      legend: { orientation: 'h', y: -0.2 },
+      margin: { t: 50, r: 20, b: 80, l: 60 }
+    };
+
+    var chartId = 'perf-chart-' + cohort;
+    Plotly.react(chartId, traces, layout, { responsive: true, displayModeBar: false });
+
+    // Summary table
+    var tableContainer = document.getElementById('perf-table-container');
+    if (!tableContainer) return;
+    var rows = ageBands.map(function(ab) {
+      var s = (cohortData[ab] || {}).model_scores || {};
+      var cells = models.map(function(m) {
+        var ms = s[m];
+        if (!ms) return '<td>—</td><td>—</td>';
+        var sel = ms.selected ? ' <span style="font-size:0.7em;background:#dcfce7;color:#166534;padding:1px 5px;border-radius:3px;">✓ selected</span>' : '';
+        return '<td>' + ms.mean_pr_auc.toFixed(3) + sel + '</td><td>' + ms.mean_logloss.toFixed(3) + '</td>';
+      }).join('');
+      return '<tr><td style="font-weight:500;white-space:nowrap;padding-right:12px;">' + ab + '</td>' + cells + '</tr>';
+    }).join('');
+    var header = models.map(function(m) {
+      return '<th colspan="2" style="text-align:center;padding:4px 8px;">' + labels[m] + '</th>';
+    }).join('');
+    var subHeader = models.map(function() {
+      return '<th style="font-size:0.75em;color:#64748b;padding:2px 8px;">PR-AUC</th><th style="font-size:0.75em;color:#64748b;padding:2px 8px;">LogLoss</th>';
+    }).join('');
+    tableContainer.innerHTML = '<table style="border-collapse:collapse;font-size:0.85em;width:100%;">'
+      + '<thead><tr><th style="padding-right:12px;">Age Band</th>' + header + '</tr>'
+      + '<tr><th></th>' + subHeader + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody></table>';
   }
 
   function renderRiskDistribution(dist) {
@@ -1809,6 +1923,8 @@
         console.log("Metadata already loaded, updating displays");
         updateSelectionDisplays();
       }
+    } else if (tabName === "model-performance-visualizations") {
+      loadModelPerformance();
     } else if (tabName === "pgx-card") {
       // Auto-load cohort PGx profile if patient bin is known but profile not yet loaded
       if (window._patientNEventBin && !window._pgxCohortGeneScores) {
