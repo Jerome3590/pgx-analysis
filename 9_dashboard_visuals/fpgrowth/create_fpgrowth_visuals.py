@@ -301,6 +301,141 @@ def create_visualizations(
             return False
 
 
+def generate_combined_bin_itemset_heatmap(
+    cohort_name: str,
+    age_band: str,
+    top_n: int = 50,
+    logger: logging.Logger | None = None,
+) -> bool:
+    """Build density/combined/fpgrowth_itemset_heatmap.json from per-bin drug_name_itemsets JSONs.
+
+    Reads per-bin drug_name_itemsets.json for each density bin, extracts support values,
+    and writes a cross-bin support matrix in the format expected by the dashboard:
+      {row_labels, column_labels, matrix, metric}
+
+    Output path (local):
+      DASHBOARD_FPGROWTH_OUT/{cohort}/{age_band_fname}/density/combined/fpgrowth_itemset_heatmap.json
+    S3 key (underscores — matches frontend fetch URL):
+      visualizations/fpgrowth/{cohort}/{age_band_fname}/density/combined/fpgrowth_itemset_heatmap.json
+    """
+    import json as _json
+    age_band_fname = age_band.replace("-", "_")
+    bins = ("low", "medium", "high", "extreme")
+
+    def _format_itemset_label(itemsets) -> str:
+        if isinstance(itemsets, list):
+            parts = itemsets
+        elif isinstance(itemsets, str):
+            parts = itemsets.split(",")
+        else:
+            parts = [str(itemsets)]
+        cleaned = [p.strip().replace("DRUG:", "").replace("drug_", "").replace("_", " ").title() for p in parts if p]
+        return " : ".join(cleaned[:5]) or "(empty)"
+
+    bin_data: dict = {}
+    for bin_name in bins:
+        bin_json_path = (
+            DASHBOARD_FPGROWTH_OUT / cohort_name / age_band_fname
+            / "density" / bin_name / "plots" / "drug_name_itemsets.json"
+        )
+        if not bin_json_path.exists():
+            # Try legacy path without /plots/
+            legacy_path = (
+                DASHBOARD_FPGROWTH_OUT / cohort_name / age_band_fname
+                / "density" / bin_name / "drug_name_itemsets.json"
+            )
+            if legacy_path.exists():
+                bin_json_path = legacy_path
+            else:
+                if logger:
+                    logger.warning("drug_name_itemsets.json not found for bin=%s: %s", bin_name, bin_json_path)
+                continue
+        try:
+            with open(bin_json_path) as f:
+                records = _json.load(f)
+            if isinstance(records, list) and records:
+                bin_data[bin_name] = records
+        except Exception as e:
+            if logger:
+                logger.warning("Could not read itemsets JSON for bin=%s: %s", bin_name, e)
+
+    if not bin_data:
+        if logger:
+            logger.warning("No per-bin itemsets JSON files found for %s/%s; skipping combined heatmap", cohort_name, age_band)
+        return False
+
+    # Build per-itemset support dict per bin: label -> {bin: support}
+    all_labels: dict = {}
+    for bin_name, records in bin_data.items():
+        for rec in records:
+            label = _format_itemset_label(rec.get("itemsets", []))
+            support = float(rec.get("support", 0))
+            if label not in all_labels:
+                all_labels[label] = {}
+            if label not in all_labels or support > all_labels[label].get(bin_name, 0):
+                all_labels[label][bin_name] = round(support, 6)
+
+    if not all_labels:
+        if logger:
+            logger.warning("No itemset labels extracted; skipping combined heatmap")
+        return False
+
+    ranked_labels = sorted(
+        all_labels.keys(),
+        key=lambda lbl: max(all_labels[lbl].values()),
+        reverse=True,
+    )[:top_n]
+
+    column_labels = [b for b in bins if b in bin_data]
+    matrix = [
+        [all_labels[lbl].get(b, 0.0) for b in column_labels]
+        for lbl in ranked_labels
+    ]
+
+    heatmap_json = {
+        "row_labels": ranked_labels,
+        "column_labels": column_labels,
+        "matrix": matrix,
+        "metric": "support",
+        "cohort": cohort_name,
+        "age_band": age_band,
+    }
+
+    out_dir = DASHBOARD_FPGROWTH_OUT / cohort_name / age_band_fname / "density" / "combined"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "fpgrowth_itemset_heatmap.json"
+    with open(out_path, "w") as f:
+        _json.dump(heatmap_json, f)
+    if logger:
+        logger.info(
+            "Wrote combined FP-Growth itemset heatmap: %s (%d itemsets × %d bins)",
+            out_path, len(ranked_labels), len(column_labels),
+        )
+
+    try:
+        import boto3 as _boto3
+        import os as _os
+        s3_bucket = _os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+        dashboard_prefix = _os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+        s3_key = (
+            f"{dashboard_prefix.rstrip('/')}/visualizations/fpgrowth"
+            f"/{cohort_name}/{age_band_fname}/density/combined/fpgrowth_itemset_heatmap.json"
+        )
+        _boto3.client("s3").put_object(
+            Bucket=s3_bucket,
+            Key=s3_key,
+            Body=_json.dumps(heatmap_json).encode(),
+            ContentType="application/json",
+        )
+        if logger:
+            logger.info("Uploaded combined FP-Growth heatmap to s3://%s/%s", s3_bucket, s3_key)
+    except Exception as e:
+        if logger:
+            logger.warning("S3 upload failed for combined FP-Growth heatmap: %s", e)
+
+    return True
+
+
 def create_fpgrowth_visuals(
     cohort_name: str,
     age_band: str,
@@ -375,6 +510,7 @@ def create_fpgrowth_visuals(
                 logger.error("Visualization step failed")
             else:
                 logger.info("[OK] Visualizations complete")
+            generate_combined_bin_itemset_heatmap(cohort_name, age_band, logger=logger.logger)
         else:
             logger.info("[STEP 2/2] Skipping visualization creation")
 

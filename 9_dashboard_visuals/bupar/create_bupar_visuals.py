@@ -718,6 +718,129 @@ def generate_per_bin_activity_frequency(
     return written > 0
 
 
+def generate_combined_bin_activity_heatmap(
+    cohort_name: str,
+    age_band: str,
+    top_n: int = 50,
+    logger: logging.Logger | None = None,
+) -> bool:
+    """Build density/combined/bupar_activity_heatmap.json from per-bin activity_frequency JSONs.
+
+    Reads per-bin activity_frequency.json for each density bin, computes rate_per_patient
+    per code, and writes a cross-bin rate matrix in the format expected by the dashboard:
+      {row_labels, column_labels, matrix, metric}
+
+    Output path (local):
+      DASHBOARD_BUPAR_OUT/{cohort}/{age_band_fname}/density/combined/bupar_activity_heatmap.json
+    S3 key:
+      visualizations/bupar/{cohort}/{age_band}/density/combined/bupar_activity_heatmap.json
+    """
+    import json as _json
+    age_band_fname = age_band.replace("-", "_")
+    base = f"{cohort_name}_{age_band_fname}"
+    bins = ("low", "medium", "high", "extreme")
+
+    bin_data: dict = {}
+    for bin_name in bins:
+        bin_json_path = (
+            DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname
+            / "density" / bin_name / "plots"
+            / f"{base}_activity_frequency.json"
+        )
+        if not bin_json_path.exists():
+            if logger:
+                logger.warning("Per-bin activity_frequency.json not found for bin=%s: %s", bin_name, bin_json_path)
+            continue
+        try:
+            with open(bin_json_path) as f:
+                bin_data[bin_name] = _json.load(f)
+        except Exception as e:
+            if logger:
+                logger.warning("Could not read bin activity JSON for bin=%s: %s", bin_name, e)
+
+    if not bin_data:
+        if logger:
+            logger.warning("No per-bin activity_frequency.json files found for %s/%s; skipping combined heatmap", cohort_name, age_band)
+        return False
+
+    all_codes: set = set()
+    for bd in bin_data.values():
+        all_codes.update(bd.get("data", {}).keys())
+
+    if not all_codes:
+        if logger:
+            logger.warning("No activity codes found in per-bin JSON files; skipping combined heatmap")
+        return False
+
+    code_rates: dict = {}
+    for code in all_codes:
+        code_rates[code] = {}
+        for bin_name in bins:
+            if bin_name not in bin_data:
+                code_rates[code][bin_name] = 0.0
+                continue
+            bd = bin_data[bin_name]
+            n_patients = bd.get("n_patients", 0)
+            counts = bd.get("data", {}).get(code, [])
+            total = sum(counts) if isinstance(counts, list) else int(counts)
+            code_rates[code][bin_name] = round(total / n_patients, 6) if n_patients > 0 else 0.0
+
+    ranked_codes = sorted(
+        code_rates.keys(),
+        key=lambda c: max(code_rates[c].values()),
+        reverse=True,
+    )[:top_n]
+
+    column_labels = [b for b in bins if b in bin_data]
+    matrix = [
+        [code_rates[code].get(b, 0.0) for b in column_labels]
+        for code in ranked_codes
+    ]
+
+    heatmap_json = {
+        "row_labels": ranked_codes,
+        "column_labels": column_labels,
+        "matrix": matrix,
+        "metric": "rate_per_patient",
+        "cohort": cohort_name,
+        "age_band": age_band,
+    }
+
+    out_dir = DASHBOARD_BUPAR_OUT / cohort_name / age_band_fname / "density" / "combined"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "bupar_activity_heatmap.json"
+    with open(out_path, "w") as f:
+        _json.dump(heatmap_json, f)
+    if logger:
+        logger.info(
+            "Wrote combined BupaR activity heatmap: %s (%d codes × %d bins)",
+            out_path, len(ranked_codes), len(column_labels),
+        )
+
+    try:
+        import boto3 as _boto3
+        import os as _os
+        s3_bucket = _os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
+        dashboard_prefix = _os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+        s3_key = (
+            f"{dashboard_prefix.rstrip('/')}/visualizations/bupar"
+            f"/{cohort_name}/{age_band_fname}/density/combined/bupar_activity_heatmap.json"
+        )
+        _boto3.client("s3").put_object(
+            Bucket=s3_bucket,
+            Key=s3_key,
+            Body=_json.dumps(heatmap_json).encode(),
+            ContentType="application/json",
+        )
+        if logger:
+            logger.info("Uploaded combined BupaR heatmap to s3://%s/%s", s3_bucket, s3_key)
+    except Exception as e:
+        if logger:
+            logger.warning("S3 upload failed for combined BupaR heatmap: %s", e)
+
+    return True
+
+
 def create_bupar_visuals(
     cohort_name: str,
     age_band: str,
@@ -835,6 +958,7 @@ def create_bupar_visuals(
         # Per-bin activity frequency JSON (Python-side supplement; uses model events + thresholds)
         if bin_name is None:
             generate_per_bin_activity_frequency(cohort_name, age_band, logger=logger.logger)
+            generate_combined_bin_activity_heatmap(cohort_name, age_band, logger=logger.logger)
 
         if local_test:
             logger.info("Local test: skipping S3 upload for full-cohort plots (per-bin still attempted above)")

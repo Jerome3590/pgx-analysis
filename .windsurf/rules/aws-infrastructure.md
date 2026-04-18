@@ -82,9 +82,9 @@ Both instances are **spot**, type `x2iedn.8xlarge`, region `us-east-1`.
 
 ## Standard Deployment Commands
 
-```powershell
+```bash
 # Frontend — sync + invalidate index.html (use after index.html or tab HTML changes)
-python 10_risk_dashboard/deployment/sync_frontend_to_s3.py
+python3 10_risk_dashboard/deployment/sync_frontend_to_s3.py
 aws cloudfront create-invalidation --distribution-id E3MZK5HYTJ14P3 --paths "/vcu/pgx-risk-calculator/index.html"
 
 # Frontend — full invalidation (use after tab HTML or asset changes)
@@ -94,8 +94,8 @@ aws cloudfront create-invalidation --distribution-id E3MZK5HYTJ14P3 --paths "/vc
 aws s3 cp 10_risk_dashboard/backend/lambda_function.py s3://pgxdatalake/gold/dashboard/code/lambda_function.py
 aws lambda update-function-configuration --function-name pgx-risk-calculator --environment "Variables={S3_BUCKET=pgxdatalake,CODE_S3_KEY=gold/dashboard/code/lambda_function.py,PREFER_S3=false,PGX_RESULTS_BUCKET=pgxdatalake}"
 
-# Lambda — full rebuild + ECR push (Windows, requires Docker Desktop)
-powershell -ExecutionPolicy Bypass -File "10_risk_dashboard/deployment/scripts/build_and_push.ps1"
+# Lambda — full rebuild + ECR push (Windows PS7, requires Docker Desktop)
+pwsh.exe -ExecutionPolicy Bypass -File "/mnt/c/Projects/pgx-analysis/10_risk_dashboard/deployment/scripts/build_and_push.ps1"
 
 # Lambda — full rebuild + ECR push (EC2)
 bash 10_risk_dashboard/deployment/docker_build.sh
