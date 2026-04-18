@@ -336,6 +336,31 @@ assert 'F1120' not in response['codes_used']['icds']
 
 ---
 
+## Error 13 — Causal Analysis filter bug not caught: test never selected codes
+
+### Symptom
+Causal Analysis tab showed no output when codes were selected, but all Puppeteer tests passed.
+
+### Root Cause
+`viz.test.js` combinatorial matrix clicks `btnLoadCausal` with **no codes selected**. When `selectedDrugs/Icds/Cpts` are empty arrays, `selectedFeatureSet.size === 0` → the filter is skipped entirely and all causal factors are returned unfiltered. The broken code path (`"item_" + code.toUpperCase()` producing `item_DRUG_GABAPENTIN` instead of `item_drug_GABAPENTIN`) was never exercised.
+
+The assertions only checked HTTP 200 + valid JSON — not that `causal_factors` was non-empty or that submitted codes appeared in the results.
+
+### Fix
+Added a dedicated regression test in `viz.test.js`:
+1. Selects cohort + age first, waits for `updateCodeLists()` to populate the selects
+2. Uses `page.evaluate` to select `drug_GABAPENTIN` and `icd_B1920` by value in the DOM multi-selects (safe here — causal handler reads selects directly, no `updateCodeLists()` between DOM write and read)
+3. Sets `causal-n-event-bin` to `medium` to force the per-bin Lambda API path (always fires a GET, not a static fetch)
+4. Asserts `causal_factors.length > 0` AND that at least one feature name matches `item_drug_GABAPENTIN` or `item_icd_B1920` (guards against the `item_DRUG_GABAPENTIN` regression)
+
+### Design Rule
+> For any tab that filters or transforms user-selected codes, write at least one test that actually **selects codes** before triggering the load action. A test that exercises the tab with no selection only validates the no-filter path.
+
+### Note on DOM injection vs. fetch interception
+Unlike `POST /risk` (where `updateCodeLists()` in the same closure scope resets selects before they are read — see Error 5), the causal handler reads `getMultiSelectValues(drugsEl)` **directly when the button is clicked** without calling `updateCodeLists()` first. DOM injection of `option.selected = true` is therefore safe and sufficient for this tab.
+
+---
+
 ## Test Infrastructure: New Scripts Added
 
 | Script | Purpose |

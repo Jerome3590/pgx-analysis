@@ -117,6 +117,71 @@ describe("Visualization tabs — combinatorial matrix", () => {
   } // cohorts
 });
 
+// ── Causal Analysis with codes selected (regression: feature name prefix bug) ──
+//
+// The combinatorial matrix test clicks btnLoadCausal with NO codes selected,
+// so selectedFeatureSet is empty and the broken filter path was never exercised.
+// This test selects known codes first, uses n_event_bin=medium to force the
+// per-bin Lambda path (always makes an API call), and asserts causal_factors
+// is non-empty and contains features matching the submitted codes.
+
+describe("Causal Analysis — with codes selected (per-bin filter regression)", () => {
+  const TEST_COHORT   = "opioid_ed";
+  const TEST_AGE      = 35;          // 25-44 band
+  const TEST_BIN      = "medium";
+  // Known codes from opioid_ed/25-44 metadata; values in select have drug_/icd_ prefix
+  const DRUG_CODE     = "drug_GABAPENTIN";
+  const ICD_CODE      = "icd_B1920";
+
+  beforeAll(async () => {
+    await selectCohort(page, TEST_COHORT);
+    await setAge(page, TEST_AGE);
+    await sleep(600);  // wait for updateCodeLists() to populate selects
+  }, 15_000);
+
+  test("causal_factors non-empty and contains submitted code features", async () => {
+    // Select codes directly in the DOM (no updateCodeLists() between read and load for causal)
+    await page.evaluate((drug, icd, bin) => {
+      const sel = v => el => { const o = Array.from(el.options).find(x => x.value === v); if (o) o.selected = true; };
+      const drugsEl = document.getElementById("drugs");
+      const icdsEl  = document.getElementById("icds");
+      if (drugsEl) sel(drug)(drugsEl);
+      if (icdsEl)  sel(icd)(icdsEl);
+      // Set the per-bin selector so Lambda's per-bin path is used (always fires an API call)
+      const binEl = document.getElementById("causal-n-event-bin");
+      if (binEl) { binEl.value = bin; binEl.dispatchEvent(new Event("change", { bubbles: true })); }
+    }, DRUG_CODE, ICD_CODE, TEST_BIN);
+
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        resp => resp.url().includes("/causal") &&
+                resp.request().method() === "GET" &&
+                (!API_BASE || resp.url().startsWith(API_BASE)),
+        { timeout: 20_000 }
+      ).catch(() => null),
+      page.click("#btnLoadCausal"),
+    ]);
+
+    expect(response).not.toBeNull();
+    expect(response.status()).toBe(200);
+
+    const body = await response.json().catch(() => null);
+    expect(body).not.toBeNull();
+    expect(typeof body).toBe("object");
+
+    const factors = (body.chart_data || {}).causal_factors || [];
+    // At least one causal factor must be returned for the submitted codes
+    expect(factors.length).toBeGreaterThan(0);
+
+    // The feature names must match item_drug_GABAPENTIN or item_icd_B1920 pattern
+    // (not item_DRUG_GABAPENTIN — regression guard for the prefix bug)
+    const featureNames = factors.map(f => f.feature);
+    const hasExpectedDrug = featureNames.some(f => f === "item_drug_GABAPENTIN");
+    const hasExpectedIcd  = featureNames.some(f => f === "item_icd_B1920");
+    expect(hasExpectedDrug || hasExpectedIcd).toBe(true);
+  }, 30_000);
+});
+
 // ── Missing-param guard (vizualization tabs require cohort+age_band) ───────
 
 describe("Visualization tabs — no age set shows error or empty state", () => {
