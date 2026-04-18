@@ -4,10 +4,19 @@
   "description": "Puppeteer / Jest end-to-end tests for the PGx Risk Dashboard",
   "private": true,
   "scripts": {
-    "test":        "jest --testPathPattern=tests/ --forceExit",
-    "test:combo":  "jest --testPathPattern=combinatorial --forceExit",
-    "test:viz":    "jest --testPathPattern=viz --forceExit",
-    "test:card":   "jest --testPathPattern=pgx-card --forceExit"
+    "test":         "jest --testPathPattern=tests/ --forceExit",
+    "test:tabs":    "jest --testPathPattern=tests/tabs/ --forceExit",
+    "test:suites":  "jest --testPathPattern=tests/[^/]+\\.test\\.js --forceExit",
+    "test:combo":   "jest --testPathPattern=combinatorial --forceExit",
+    "test:viz":     "jest --testPathPattern=tests/viz --forceExit",
+    "test:risk":    "jest --testPathPattern=tabs/tab-risk --forceExit",
+    "test:causal":  "jest --testPathPattern=tabs/tab-causal --forceExit",
+    "test:bupar":   "jest --testPathPattern=tabs/tab-bupar --forceExit",
+    "test:dtw":     "jest --testPathPattern=tabs/tab-dtw --forceExit",
+    "test:fpgrowth":"jest --testPathPattern=tabs/tab-fpgrowth --forceExit",
+    "test:fi":      "jest --testPathPattern=tabs/tab-feature-importance --forceExit",
+    "test:card":    "jest --testPathPattern=tabs/tab-pgx-card --forceExit",
+    "test:cohort":  "jest --testPathPattern=tabs/tab-pgx-cohort --forceExit"
   },
   "jest": {
     "testEnvironment": "node",

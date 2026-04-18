@@ -1382,6 +1382,11 @@
         window._patientNEventBin = bin;
         const pgxCardBin = document.getElementById("pgx-card-bin");
         if (pgxCardBin) pgxCardBin.value = bin;
+        // Sync per-bin selectors on all viz tabs so they load patient-matched density data
+        ["causal-n-event-bin", "fpgrowth-n-event-bin", "bupar-n-event-bin", "cohort-pgx-n-event-bin"].forEach(id => {
+          const el = document.getElementById(id);
+          if (el && el.querySelector(`option[value="${bin}"]`)) el.value = bin;
+        });
         // Mirror cohort + age band to PGx Card and background-load the profile
         const _pcCohort = document.getElementById("pgx-card-cohort");
         const _pcAge    = document.getElementById("pgx-card-age-band");
@@ -1857,6 +1862,14 @@
       } else if (currentMetadata) {
         console.log("Metadata already loaded, updating displays");
         updateSelectionDisplays();
+      }
+    } else if (tabName === "causal-analysis") {
+      // Sync causal-n-event-bin to patient's event density bin (set after risk calculation)
+      if (window._patientNEventBin) {
+        const causalBinEl = document.getElementById("causal-n-event-bin");
+        if (causalBinEl && causalBinEl.querySelector(`option[value="${window._patientNEventBin}"]`)) {
+          causalBinEl.value = window._patientNEventBin;
+        }
       }
     } else if (tabName === "pgx-card") {
       // Auto-load cohort PGx profile if patient bin is known but profile not yet loaded
