@@ -20,6 +20,107 @@ Scripts and configurations for deploying the dashboard to AWS.
 
 **S3 CORS and public read:** When the frontend fetches direct S3 URLs (e.g. `causal_data_url`), the dashboard bucket must have (1) **CORS** configured and (2) **bucket policy** allowing public `GetObject` for the dashboard prefix (or serve assets only via CloudFront). See [../docs/S3_CORS_SETUP.md](../docs/S3_CORS_SETUP.md) (CORS + 403 troubleshooting) and `../docs/s3-public-read-policy.json`. **CORS is applied automatically** in the deployment workflow: notebook 5 **Step 6** runs `apply_dashboard_bucket_cors.py` before syncing frontend/assets so the bucket CORS is idempotent and repeatable for production and new visuals.
 
+## EC2 vs Local (Windows) Deployment Workflows
+
+### When to use each
+
+| Task | EC2 | Windows (Local) |
+|---|---|---|
+| Retrain models (notebook 3) | ✅ Required | ❌ |
+| Regenerate visualization artifacts (notebook 4) | ✅ Required | ❌ |
+| Sync artifacts to S3 (notebook 5 Step 6) | ✅ Preferred | ✅ (if data already on S3) |
+| Full Docker rebuild + ECR push | ✅ Preferred (fast, local models) | ✅ (slow, pulls models from S3) |
+| `lambda_function.py` code-only change | ✅ | ✅ (use S3 update path — no rebuild) |
+| Frontend `index.html` change | ✅ | ✅ |
+
+---
+
+### EC2 Full Deployment
+
+**Prerequisites:** SSH to EC2, activate the project env, navigate to repo root.
+
+```bash
+# 1. Regenerate per-bin visualization artifacts (if pipeline changed)
+#    Run notebook 4 FP-Growth / BupaR / DTW / Cohort PGx cells as needed
+
+# 2. Sync artifacts to S3
+cd /home/pgx3874/pgx-analysis
+python3 10_risk_dashboard/deployment/sync_visuals_to_s3.py
+
+# 3. Full Docker rebuild, push to ECR, update Lambda
+bash 10_risk_dashboard/deployment/docker_build.sh
+```
+
+`docker_build.sh` auto-detects the Python binary (`jupyter-env/bin/python3.11` → `python3` → `python`) and uses `--no-s3` (local model files) automatically when EC2 training outputs are present.
+
+---
+
+### Windows (Local) — Full Docker Rebuild
+
+**Prerequisites:** Docker Desktop running, AWS CLI configured (`aws sts get-caller-identity` to verify).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "C:\Projects\pgx-analysis\10_risk_dashboard\deployment\scripts\build_and_push.ps1"
+```
+
+`build_and_push.ps1` uses the dashboard root as Docker build context (required — Dockerfile references `COPY backend/...` and `COPY lambda_dir/...` relative to dashboard root). `prepare_lambda_dir.py` pulls models from S3 since EC2 training outputs are not present locally.
+
+**Note:** Full rebuild takes longer on Windows because models must be downloaded from S3. Prefer the S3 code-only update (below) for pure Python changes.
+
+---
+
+### Windows (Local) — Code-Only Lambda Update (Fastest)
+
+Use when only `lambda_function.py` changed — no model or artifact changes:
+
+```powershell
+# 1. Upload updated code to S3
+aws s3 cp C:\Projects\pgx-analysis\10_risk_dashboard\backend\lambda_function.py `
+    s3://pgxdatalake/gold/dashboard/code/lambda_function.py
+
+# 2. Trigger cold start (Lambda downloads new code on next invocation)
+aws lambda update-function-configuration `
+    --function-name pgx-risk-calculator `
+    --environment 'Variables={S3_BUCKET=pgxdatalake,CODE_S3_KEY=gold/dashboard/code/lambda_function.py,PREFER_S3=false,PGX_RESULTS_BUCKET=pgxdatalake}'
+```
+
+Lambda cold start takes ~20 s. Verify with an API call after waiting:
+```bash
+curl -s "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod/available" | python3 -c "import sys,json; d=json.load(sys.stdin); print('causal combos:', sum(len(v) for v in d.get('causal',{}).values()))"
+```
+
+---
+
+### How `docker_build.sh` decides EC2 vs Windows/CI
+
+```bash
+FINAL_MODEL_OUTPUTS="${DASHBOARD_ROOT}/../6_final_model/outputs"
+if [ -d "/mnt/nvme" ] || [ -d "${FINAL_MODEL_OUTPUTS}" ]; then
+    # EC2: use local model files (fast, no S3 download)
+    PREPARE_FLAGS="--no-s3"
+else
+    # Windows/CI: pull models from S3
+    PREPARE_FLAGS=""
+fi
+```
+
+---
+
+### Verify deployment from anywhere
+
+```python
+import urllib.request, json
+base = "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod"
+av = json.loads(urllib.request.urlopen(f"{base}/available").read())
+print("causal:", sum(len(v) for v in av.get("causal",{}).values()), "combos")
+print("fpgrowth:", sum(len(v) for v in av.get("fpgrowth",{}).values()), "combos")
+print("fpgrowth_per_bin:", sum(len(bins) for c in av.get("fpgrowth_per_bin",{}).values() for bins in c.values()), "bin-combos")
+```
+
+Expected: `causal ≥ 14`, `fpgrowth = 14`, `fpgrowth_per_bin ≥ 20`.
+
+---
+
 ## Deployment Steps
 
 1. **Prepare Models and Metadata**:
@@ -159,6 +260,119 @@ This adds `Access-Control-Allow-Origin` (and related headers) to API Gateway’s
 
 4. **Check the browser Network tab**  
    Find the request to `.../metadata?cohort=...`. If it is blocked (CORS) you’ll see a red entry and no response headers. If it returns 4xx/5xx, the response body will show the backend error.
+
+---
+
+## Lessons Learned (2026-04-18)
+
+### 1 — `python: command not found` in `docker_build.sh` on EC2
+
+**Symptom:** `docker_build.sh` line 38 fails with `python: command not found` on EC2.  
+**Root cause:** EC2 uses a virtualenv (`/home/pgx3874/jupyter-env/bin/python3.11`); `python` is not on PATH.  
+**Fix:** Auto-detect the Python binary at the top of `docker_build.sh`:
+```bash
+if [ -x "/home/pgx3874/jupyter-env/bin/python3.11" ]; then
+    PYTHON_BIN="/home/pgx3874/jupyter-env/bin/python3.11"
+elif command -v python3 &>/dev/null; then
+    PYTHON_BIN="python3"
+else
+    PYTHON_BIN="python"
+fi
+${PYTHON_BIN} deployment/prepare_lambda_dir.py ${PREPARE_FLAGS}
+```
+
+---
+
+### 2 — Bare `except` in boto3 S3 checks silently swallows `NoCredentialsError`
+
+**Symptom:** `s3.head_object()` in a `try/except Exception` block reported every S3 key as MISSING when run on a machine without AWS credentials.  
+**Root cause:** `NoCredentialsError` is a subclass of `Exception`. A bare `except` catches it and falls through to the "missing" branch, producing completely false results without any warning.  
+**Fix:** Always catch specific errors from boto3:
+```python
+from botocore.exceptions import ClientError, NoCredentialsError
+try:
+    s3.head_object(Bucket=bucket, Key=key)
+    return True
+except ClientError as e:
+    if e.response["Error"]["Code"] in ("404", "NoSuchKey", "403", "AccessDenied"):
+        return False
+    raise
+except NoCredentialsError:
+    raise  # Never silently swallow credential errors
+```
+**Never** use `try/except Exception` or bare `except` around S3 existence probes.
+
+---
+
+### 3 — FP-Growth per-bin path mismatch (local vs S3)
+
+**Symptom:** Lambda returned `full_cohort_fallback` for all bins even though `available.json` showed per-bin data present.  
+**Root cause:** `_save_per_density_fpgrowth_outputs` saved JSON locally to `density/{bin}/drug_name_itemsets.json` (no `plots/` subdir) but the inline S3 upload and Lambda probe both expected `density/{bin}/plots/drug_name_itemsets.json`. Step 6 sync mirrored the local path, so S3 had files at the wrong location.  
+**Fix:** Changed local save to `density/{bin}/plots/` (matching the S3/Lambda canonical path). Added backward-compat Lambda probe that also checks the legacy `density/{bin}/` path during transition.  
+**Rule:** Local save path and S3 upload path in `_save_per_density_fpgrowth_outputs` must always be identical so Step 6 sync produces the correct S3 layout.
+
+---
+
+### 4 — Manifest-based sync (`sync_visuals_to_s3.py`) does not auto-discover per-bin subdirs
+
+**Symptom:** Per-bin FP-Growth files existed on EC2 disk but were never uploaded to S3.  
+**Root cause:** `sync_visuals_to_s3.py` only uploads files explicitly listed in `static_files` per manifest entry. Per-bin subdirs (`density/{bin}/plots/`) were not in the manifest so they were silently skipped.  
+**Fix:** Added 4 per-bin manifest entries to `dashboard_visual_objects.json` (one per density level: `low`, `medium`, `high`, `extreme`), each with `s3_path` pointing to `density/{bin}/plots/`.  
+**Rule:** Any new S3 path that Lambda reads must have a corresponding manifest entry. The manifest is the single source of truth for what gets synced.
+
+---
+
+### 5 — `_resolve_local` only captured the first path component after `{age_band}`
+
+**Symptom:** Per-bin manifest entries (e.g. `s3_path: ".../density/low/plots/"`) resolved to the wrong local directory (`density/` only, losing `low/plots/`).  
+**Root cause:** `_resolve_local` split on `/` and took only `parts[0]` after `{age_band}`, truncating multi-level fixed subpaths.  
+**Fix:** Changed to capture all fixed components between `{age_band}` and the next `{` placeholder (or end of path):
+```python
+parts = raw.split("/")
+fixed_parts = [p for p in itertools.takewhile(lambda p: p and "{" not in p, parts)]
+after_age_band = "/".join(fixed_parts)  # e.g. "density/low/plots"
+```
+
+---
+
+### 6 — `empty_state.json` must not short-circuit nearest-bin fallback
+
+**Symptom:** When a requested bin had insufficient transactions (`empty_state.json`), the user saw "no data" even though an adjacent bin had real patterns.  
+**Root cause:** Lambda checked `empty_state.json` existence first and immediately returned it, skipping the nearest-bin search.  
+**Fix:** Priority order is now:
+1. Requested bin has `itemsets.json` → `per_bin`
+2. Nearest bin with real `itemsets.json` exists → `nearest_bin_fallback`
+3. Requested bin has `empty_state.json`, no adjacent bins have data → return empty state
+4. Nothing → `full_cohort_fallback`
+
+---
+
+### 7 — Lambda code-only update via S3 (no Docker rebuild required)
+
+The Lambda `entrypoint.sh` downloads `lambda_function.py` from S3 on every cold start when `CODE_S3_KEY` is set. Use this for fast code-only iterations:
+```bash
+# Upload new code
+aws s3 cp backend/lambda_function.py s3://pgxdatalake/gold/dashboard/code/lambda_function.py
+
+# Trigger cold start by touching env vars
+aws lambda update-function-configuration \
+    --function-name pgx-risk-calculator \
+    --environment 'Variables={S3_BUCKET=pgxdatalake,CODE_S3_KEY=gold/dashboard/code/lambda_function.py,PREFER_S3=false,PGX_RESULTS_BUCKET=pgxdatalake}'
+```
+Cold start takes ~20 s. This is ~10× faster than a full Docker rebuild for pure Python changes.
+
+---
+
+### 8 — `build_and_push.ps1` Docker build context
+
+**Symptom:** Docker image digest unchanged after editing `lambda_function.py`; changes not picked up.  
+**Root cause:** `build_and_push.ps1` passed `backend/` as the Docker build context, but the `Dockerfile` expects the **dashboard root** as context (it references `COPY backend/lambda_function.py`). With the wrong context, Docker can't see the changed file and reuses cached layers.  
+**Fix:** The Dockerfile must be built from the dashboard root (`10_risk_dashboard/`):
+```powershell
+docker build -t pgx-risk-calculator:latest `
+    -f "$DashboardRoot\backend\Dockerfile" `
+    "$DashboardRoot"
+```
 
 ## See Also
 
