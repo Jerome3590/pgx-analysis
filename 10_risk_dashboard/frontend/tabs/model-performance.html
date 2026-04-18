@@ -1,0 +1,24 @@
+<div class="tab-inner">
+  <h2>Model Performance — MC-CV Holdout Validation</h2>
+  <p style="font-size:0.875rem;color:#64748b;margin-bottom:1rem;">
+    25-run Monte Carlo cross-validation (MC-CV) on 2019 holdout data. Composite score = 0.5 × PR-AUC + 0.5 × (1/(1+LogLoss)).
+    The selected model (or ensemble) is used for risk prediction.
+  </p>
+
+  <div id="perf-cohort-tabs" style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+    <button class="tab-button active" id="perf-tab-opioid"
+      onclick="switchPerfCohort('opioid_ed')" style="font-size:0.85rem;">
+      Opioid ED
+    </button>
+    <button class="tab-button" id="perf-tab-non_opioid"
+      onclick="switchPerfCohort('non_opioid_ed')" style="font-size:0.85rem;">
+      Polypharmacy (Non-Opioid)
+    </button>
+  </div>
+
+  <div id="perf-status" style="font-size:0.875rem;color:#64748b;min-height:2rem;"></div>
+  <div id="perf-chart-opioid_ed" style="width:100%;min-height:360px;"></div>
+  <div id="perf-chart-non_opioid_ed" style="width:100%;min-height:360px;display:none;"></div>
+
+  <div id="perf-table-container" style="margin-top:1.5rem;overflow-x:auto;"></div>
+</div>

@@ -6,7 +6,7 @@ $ECR     = "$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
 Write-Host "Logging in to ECR..."
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR
 
-$DashboardRoot = "$PSScriptRoot\.."   # 10_risk_dashboard/
+$DashboardRoot = (Resolve-Path "$PSScriptRoot\..\..")   # deployment/scripts/ -> deployment/ -> 10_risk_dashboard/
 Write-Host "Building Docker image (context: $DashboardRoot)..."
 docker build -t "${REPO}:latest" -f "$DashboardRoot\backend\Dockerfile" "$DashboardRoot"
 
