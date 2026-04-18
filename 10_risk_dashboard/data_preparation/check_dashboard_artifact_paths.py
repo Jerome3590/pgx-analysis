@@ -201,17 +201,17 @@ def check_bupar_per_bin(root: Path, combos: list[tuple[str, str]]) -> list[tuple
 
 
 def check_fpgrowth_per_bin(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool, str]]:
-    """Per-bin FP-Growth itemsets/rules under density/{bin}/. Informational only."""
+    """Per-bin FP-Growth itemsets/rules under density/{bin}/plots/. Informational only."""
     results = []
     base_dir = root / "10_risk_dashboard" / "visualizations" / "fpgrowth"
     for cohort, age_band in combos:
         ab_fname = age_band.replace("-", "_")
         for bin_name in _BINS:
-            density_dir = base_dir / cohort / ab_fname / "density" / bin_name
-            itemsets = density_dir / "drug_name_itemsets.json"
-            rules = density_dir / "drug_name_rules.json"
+            plots_dir = base_dir / cohort / ab_fname / "density" / bin_name / "plots"
+            itemsets = plots_dir / "drug_name_itemsets.json"
+            rules = plots_dir / "drug_name_rules.json"
             any_exists = itemsets.exists() or rules.exists()
-            results.append((f"FP-Growth (bin) {cohort}/{age_band}/{bin_name}", any_exists, str(density_dir)))
+            results.append((f"FP-Growth (bin) {cohort}/{age_band}/{bin_name}", any_exists, str(plots_dir)))
     return results
 
 

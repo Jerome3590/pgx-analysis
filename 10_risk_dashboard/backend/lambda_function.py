@@ -2851,13 +2851,21 @@ def handle_visualizations_fpgrowth(event: Dict[str, Any]) -> Dict[str, Any]:
             bin_itemsets_key = f"{bin_base_key}/{item_type}_itemsets.json"
             if _s3_object_exists(S3_DASHBOARD_BUCKET, bin_itemsets_key):
                 return _response(200, _build_fpgrowth_payload(bin_base_key, "per_bin"))
+            # Backward-compat: pre-fix pipeline saved JSON directly under density/{bin}/ (no plots/)
+            legacy_itemsets_key = f"{prefix}/{cohort}/{age_band}/density/{n_event_bin}/{item_type}_itemsets.json"
+            if _s3_object_exists(S3_DASHBOARD_BUCKET, legacy_itemsets_key):
+                return _response(200, _build_fpgrowth_payload(bin_base_key, "per_bin"))
             # Requested bin has no itemsets (missing or empty_state). Try nearest bin with
             # real data before falling back — empty_state means insufficient transactions,
             # but a nearby bin may have usable patterns.
             full_base_key = f"{prefix}/{cohort}/{age_band}/plots"
             nearest = _nearest_available_bin_s3(
                 S3_DASHBOARD_BUCKET, n_event_bin,
-                lambda b: f"{prefix}/{cohort}/{age_band}/density/{b}/plots/{item_type}_itemsets.json",
+                lambda b: (
+                    f"{prefix}/{cohort}/{age_band}/density/{b}/plots/{item_type}_itemsets.json"
+                    if _s3_object_exists(S3_DASHBOARD_BUCKET, f"{prefix}/{cohort}/{age_band}/density/{b}/plots/{item_type}_itemsets.json")
+                    else f"{prefix}/{cohort}/{age_band}/density/{b}/{item_type}_itemsets.json"
+                ),
             )
             if nearest:
                 nearest_base_key = f"{prefix}/{cohort}/{age_band}/density/{nearest}/plots"

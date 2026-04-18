@@ -109,10 +109,14 @@ def _resolve_local(
         after_age_band = ""
         if "{age_band}" in s3_path:
             raw = s3_path.split("{age_band}", 1)[1].strip("/")
-            # Only use the first path component as the fixed subdir (ignore further placeholders)
-            first_part = raw.split("/")[0] if raw else ""
-            if first_part and "{" not in first_part:
-                after_age_band = first_part
+            # Capture all fixed path components after {age_band} up to the first placeholder
+            parts = raw.split("/")
+            fixed_parts = []
+            for part in parts:
+                if not part or "{" in part:
+                    break
+                fixed_parts.append(part)
+            after_age_band = "/".join(fixed_parts)  # e.g. "density/low/plots"
 
         local_base = repo_root / entry_path / cohort / age_band_fname
         if after_age_band:
