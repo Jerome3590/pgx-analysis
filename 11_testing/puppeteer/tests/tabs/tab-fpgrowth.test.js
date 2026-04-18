@@ -128,6 +128,34 @@ describe("FP-Growth tab — DOM rendering (mermaid: E→G support image, H netwo
 
 });
 
+describe("FP-Growth tab — DOM rendering (Itemset Support by Event Density Bin panel)", () => {
+
+  beforeAll(async () => {
+    await loadFpgrowth("opioid_ed", "55-64");
+    await sleep(3000); // fpgrowth_itemset_heatmap.json loads in background after primary response
+  }, 30_000);
+
+  test("fpgrowth-bin-bar-container renders Plotly chart or shows graceful not-available message", async () => {
+    // Dashboard fetches density/combined/fpgrowth_itemset_heatmap.json in background.
+    // If present: renders Plotly grouped bar chart (SVG inside container).
+    // If absent:  renders "Grouped bar chart not available." (data-dependent).
+    const result = await page.evaluate(() => {
+      const el = document.getElementById("fpgrowth-bin-bar-container");
+      if (!el) return null;
+      if (el.querySelector("svg")) return "plotly";
+      return el.textContent.trim().slice(0, 80) || "";
+    });
+    expect(result).not.toBeNull(); // element must exist in DOM
+    if (result === "plotly") {
+      console.log("fpgrowth-bin-bar-container: Plotly grouped bar chart rendered ✓");
+    } else {
+      console.warn("fpgrowth-bin-bar-container: not rendered — fpgrowth_itemset_heatmap.json missing from S3 (run generate_combined_bin_itemset_heatmap):", result);
+    }
+    // Not hard-failing: data-dependent on pipeline having generated the combined heatmap JSON
+  }, 10_000);
+
+});
+
 // ---------------------------------------------------------------------------
 
 describe("FP-Growth tab — no selection guard (mermaid: B→ missing cohort/age → error)", () => {

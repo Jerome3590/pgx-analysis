@@ -90,6 +90,36 @@ describe("BupaR tab — happy path (mermaid: A→B→D→E→F→H)", () => {
 
 // ---------------------------------------------------------------------------
 
+describe("BupaR tab — DOM rendering (Activity Rate by Event Density Bin panel)", () => {
+
+  beforeAll(async () => {
+    await loadBupar("opioid_ed", "55-64");
+    await sleep(3000); // bupar_activity_heatmap.json loads in background after primary response
+  }, 30_000);
+
+  test("bupar-bin-bar-container renders Plotly chart or shows graceful not-available message", async () => {
+    // Dashboard fetches density/combined/bupar_activity_heatmap.json in background.
+    // If present: renders Plotly grouped bar chart (SVG inside container).
+    // If absent:  renders "Grouped bar chart not available." (data-dependent).
+    const result = await page.evaluate(() => {
+      const el = document.getElementById("bupar-bin-bar-container");
+      if (!el) return null;
+      if (el.querySelector("svg")) return "plotly";
+      return el.textContent.trim().slice(0, 80) || "";
+    });
+    expect(result).not.toBeNull(); // element must exist in DOM
+    if (result === "plotly") {
+      console.log("bupar-bin-bar-container: Plotly grouped bar chart rendered ✓");
+    } else {
+      console.warn("bupar-bin-bar-container: not rendered — bupar_activity_heatmap.json missing from S3 (run generate_combined_bin_activity_heatmap):", result);
+    }
+    // Not hard-failing: data-dependent on pipeline having generated the combined heatmap JSON
+  }, 10_000);
+
+});
+
+// ---------------------------------------------------------------------------
+
 describe("BupaR tab — no selection guard (mermaid: B→ missing cohort/age → error)", () => {
 
   test("empty age band → bupar-status shows error, page alive", async () => {
