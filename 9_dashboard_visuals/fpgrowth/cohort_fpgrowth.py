@@ -164,7 +164,7 @@ def _save_per_density_fpgrowth_outputs(
 ) -> None:
     """Write per-density FP-Growth itemsets + rules JSON locally and upload to dashboard S3.
 
-    Local:  LOCAL_OUTPUT_ROOT/{cohort}/{age_band_fname}/density/{density}/
+    Local:  LOCAL_OUTPUT_ROOT/{cohort}/{age_band_fname}/density/{density}/plots/
     S3:     visualizations/fpgrowth/{cohort}/{age_band}/density/{density}/plots/
 
     Silently skips upload when SKIP_DASHBOARD_S3_UPLOAD=1 (notebook 5 Step 6 handles sync).
@@ -172,25 +172,26 @@ def _save_per_density_fpgrowth_outputs(
     import os as _os
     age_band_fname = age_band.replace("-", "_")
     density_dir = LOCAL_OUTPUT_ROOT / cohort_name / age_band_fname / "density" / density
-    density_dir.mkdir(parents=True, exist_ok=True)
+    plots_dir = density_dir / "plots"
+    plots_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         is_df = itemsets_df.copy()
         if "itemsets" in is_df.columns:
             is_df["itemsets"] = is_df["itemsets"].apply(lambda x: list(x))
-        is_path = density_dir / f"{item_type}_itemsets.json"
+        is_path = plots_dir / f"{item_type}_itemsets.json"
         is_df.to_json(is_path, orient="records", indent=2)
 
         rs_df = rules_df.copy()
         for col in ("antecedents", "consequents"):
             if col in rs_df.columns:
                 rs_df[col] = rs_df[col].apply(lambda x: list(x))
-        rs_path = density_dir / f"{item_type}_rules.json"
+        rs_path = plots_dir / f"{item_type}_rules.json"
         rs_df.to_json(rs_path, orient="records", indent=2)
 
         logger.info(
             "Per-density FP-Growth: saved %d itemsets + %d rules to %s",
-            len(is_df), len(rs_df), density_dir,
+            len(is_df), len(rs_df), plots_dir,
         )
     except Exception as e:
         logger.warning("Per-density FP-Growth local save failed (%s/%s): %s", density, item_type, e)
@@ -205,8 +206,7 @@ def _save_per_density_fpgrowth_outputs(
                 _network_combined_plotly_with_filter,
                 _write_empty_network_html,
             )
-            plots_dir = density_dir / "plots"
-            plots_dir.mkdir(parents=True, exist_ok=True)
+            # plots_dir already created above
             G = _build_combined_rules_graph([(item_type, rs_df)])
             if G is not None:
                 network_html_path = _network_combined_plotly_with_filter(

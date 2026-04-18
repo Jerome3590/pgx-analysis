@@ -87,6 +87,42 @@
       ]
     },
     {
+      "visual_name": "FP-Growth per-bin itemsets (low)",
+      "dashboard_tab": "FP-Growth Patterns",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/fpgrowth",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/fpgrowth/{cohort}/{age_band}/density/low/plots/",
+      "notes": "Per-bin FP-Growth for density=low. Lambda serves from density/{bin}/plots/.",
+      "static_files": ["drug_name_itemsets.json", "drug_name_rules.json", "drug_name_combined_rules_network.html", "empty_state.json"]
+    },
+    {
+      "visual_name": "FP-Growth per-bin itemsets (medium)",
+      "dashboard_tab": "FP-Growth Patterns",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/fpgrowth",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/fpgrowth/{cohort}/{age_band}/density/medium/plots/",
+      "notes": "Per-bin FP-Growth for density=medium.",
+      "static_files": ["drug_name_itemsets.json", "drug_name_rules.json", "drug_name_combined_rules_network.html", "empty_state.json"]
+    },
+    {
+      "visual_name": "FP-Growth per-bin itemsets (high)",
+      "dashboard_tab": "FP-Growth Patterns",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/fpgrowth",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/fpgrowth/{cohort}/{age_band}/density/high/plots/",
+      "notes": "Per-bin FP-Growth for density=high.",
+      "static_files": ["drug_name_itemsets.json", "drug_name_rules.json", "drug_name_combined_rules_network.html", "empty_state.json"]
+    },
+    {
+      "visual_name": "FP-Growth per-bin itemsets (extreme)",
+      "dashboard_tab": "FP-Growth Patterns",
+      "path_type": "directory",
+      "path": "10_risk_dashboard/visualizations/fpgrowth",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/fpgrowth/{cohort}/{age_band}/density/extreme/plots/",
+      "notes": "Per-bin FP-Growth for density=extreme.",
+      "static_files": ["drug_name_itemsets.json", "drug_name_rules.json", "drug_name_combined_rules_network.html", "empty_state.json"]
+    },
+    {
       "visual_name": "Cohort PGx network topology",
       "dashboard_tab": "PGx Cohort",
       "path_type": "directory",
