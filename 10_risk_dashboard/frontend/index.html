@@ -1528,6 +1528,7 @@
 
     if (!pairs.length) {
       chartEl.innerHTML = '<p class="status-message info" style="margin:0;">Add Drug / ICD / CPT codes to see per-model scores.</p>';
+      renderPerfValidationInfo(currentCohort, currentAgeBand);
       return;
     }
     if (!window.Plotly) {
@@ -1540,6 +1541,7 @@
         + '<thead><tr><th style="text-align:left;padding:4px 12px 4px 0;">Model</th>'
         + '<th style="text-align:left;">Risk Score</th></tr></thead>'
         + '<tbody>' + rows + '</tbody></table>';
+      renderPerfValidationInfo(currentCohort, currentAgeBand);
       return;
     }
 
