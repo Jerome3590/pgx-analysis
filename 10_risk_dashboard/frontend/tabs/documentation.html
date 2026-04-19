@@ -88,24 +88,42 @@
           So: BupaR and DTW visuals are driven by SHAP/FFA combined; FP-Growth visuals are driven by the final (cohort) feature importance list.
         </p>
 
-        <h2>Event density bins — how #events and bins work</h2>
+        <h2>Event density bins — what #events means and how bins work</h2>
         <p>
-          Every patient risk calculation also computes an <strong>event count</strong> — the total number of distinct drug, ICD, and CPT codes submitted. This count is mapped to one of four <strong>event density bins</strong>:
+          <strong>#events</strong> is the total count of distinct drug, ICD, and CPT codes you submit for the patient.
+          For example: 3 drugs + 4 ICD codes + 2 CPT codes = <strong>9 events</strong>.
+          This count is compared against percentile thresholds derived from the training population (P25 / P50 / P95)
+          for that specific cohort and age band, and mapped to one of four density bins:
         </p>
         <table class="doc-metrics">
-          <thead><tr><th>Bin</th><th>Meaning</th><th>Implication</th></tr></thead>
+          <thead><tr><th>Bin</th><th>Rule</th><th>Clinical meaning</th></tr></thead>
           <tbody>
-            <tr><td><strong>low</strong></td><td>Few codes submitted (sparse history)</td><td>Model trained on patients with minimal prior utilization</td></tr>
-            <tr><td><strong>medium</strong></td><td>Moderate code count</td><td>Typical outpatient or moderate-utilization patient</td></tr>
-            <tr><td><strong>high</strong></td><td>Many codes submitted</td><td>Complex, high-utilization patient</td></tr>
-            <tr><td><strong>extreme</strong></td><td>Very high code count</td><td>Highly complex patient; model trained on highest-utilization stratum</td></tr>
+            <tr><td><strong>low</strong></td><td>#events ≤ P25</td><td>Sparse history — few prior utilization records</td></tr>
+            <tr><td><strong>medium</strong></td><td>P25 &lt; #events ≤ P50</td><td>Typical outpatient utilization</td></tr>
+            <tr><td><strong>high</strong></td><td>P50 &lt; #events ≤ P95</td><td>Complex, high-utilization patient</td></tr>
+            <tr><td><strong>extreme</strong></td><td>#events &gt; P95</td><td>Highest-complexity stratum — very high prior utilization</td></tr>
           </tbody>
         </table>
-        <p>
-          Bin thresholds are derived from the training cohort distribution for each cohort / age band combination, so the same code count may fall in different bins depending on the selected cohort and age.
+        <p><strong>Sample thresholds (opioid_ed / 25-44, approximate):</strong></p>
+        <table class="doc-metrics">
+          <thead><tr><th>Bin</th><th>Approximate #events range</th><th>Percentile cut</th></tr></thead>
+          <tbody>
+            <tr><td><strong>low</strong></td><td>1 – 5 codes</td><td>≤ P25</td></tr>
+            <tr><td><strong>medium</strong></td><td>6 – 15 codes</td><td>P25 – P50</td></tr>
+            <tr><td><strong>high</strong></td><td>16 – 50 codes</td><td>P50 – P95</td></tr>
+            <tr><td><strong>extreme</strong></td><td>51+ codes</td><td>&gt; P95</td></tr>
+          </tbody>
+        </table>
+        <p style="font-size:0.85em; color:#64748b;">
+          Thresholds are computed from the training cohort distribution (P25/P50/P95 of per-patient event counts in <code>model_events.parquet</code>)
+          and vary by cohort and age band. The values above are representative defaults — actual cuts differ per cohort/age band.
         </p>
         <p>
-          <strong>Why it matters:</strong> Separate XGBoost and CatBoost models are trained for each bin, tuned independently via Optuna. Risk scores, causal factors, DTW trajectories, FP-Growth patterns, and BupaR process views all load the <em>per-bin</em> data matching the patient's density level. After clicking <em>Calculate Risk Score</em>, the <strong>Event Density badge</strong> shows the patient's bin, and all visualization tabs auto-sync to it.
+          <strong>Why it matters:</strong> Separate XGBoost and CatBoost models are trained and Optuna-tuned independently per bin.
+          Risk scores, causal factors, DTW trajectories, FP-Growth patterns, and BupaR process views all load
+          the <em>per-bin</em> data matching the patient's density level.
+          After clicking <em>Calculate Risk Score</em>, the <strong>Event Density badge</strong> shows the patient's bin
+          and all visualization tabs auto-sync to it.
         </p>
 
         <h2>Technical notes</h2>
