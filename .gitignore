@@ -15,6 +15,7 @@ f31_proposal/
 .cursorrules
 .cursor/
 .cursorignore
+.windsurf/
 !manuscript/.cursorrules
 
 # Legacy duplicate figure output from older generator paths (canonical: manuscript/figures/)
