@@ -9,9 +9,7 @@ f31_proposal/
 .Rproj*
 *.Rhistory
 .html
-# Track dashboard HTML for deployment (sync to S3 from notebook)
-!9_risk_dashboard/frontend/*.html
-!9_risk_dashboard/pgx_dashboard.html
+10_risk_dashboard/pgx_dashboard.html
 .venv/
 .venv*
 .cursorrules
