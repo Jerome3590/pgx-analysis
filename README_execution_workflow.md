@@ -30,7 +30,7 @@ This document provides a step-by-step checklist for executing the complete workf
 ## Prerequisites
 
 - EC2 instance with access to S3 (`pgxdatalake` and `pgx-repository` buckets) via **IAM instance profile** (do not set `AWS_PROFILE` on EC2).
-- **Local/dev:** Use profile `mushin` for AWS CLI (e.g. `.vscode/settings.json` sets `AWS_PROFILE=mushin` for Cursor terminals).
+- **Local/dev:** Use profile `mushin` for AWS CLI (e.g. `.vscode/settings.json` sets `AWS_PROFILE=mushin` for integrated terminals).
 - **Full reset:** To run the workflow from scratch (no checkpoints, no S3/EC2 artifacts), run `./utility_scripts/cleanup_cohort_data.sh` first. See [docs/README_checkpoints_and_workflow_resets.md](docs/README_checkpoints_and_workflow_resets.md).
 - Python 3.11+ with jupyter-env activated
 - R with required packages (bupaR, edeaR, etc.)
