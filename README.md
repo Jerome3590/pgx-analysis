@@ -19,9 +19,11 @@ aws configure
 # See 0_config_and_pipeline.ipynb for full instructions
 ```
 
-## Local Agent Rules
+## 🌐 Live Dashboard
 
-See [.cursorrules](.cursorrules) for workspace-specific agent guidance used by the local project environment.
+**[https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html](https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html)**
+
+Hosted on S3 + CloudFront. See [`10_risk_dashboard/`](10_risk_dashboard/) for deployment details.
 
 ## 🚀 Running the Workflow
 

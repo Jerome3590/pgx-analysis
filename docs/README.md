@@ -188,7 +188,7 @@ docs/
 - **READMEs**: `README.md` or `README_<lowercase_with_underscores>.md` (e.g. `README_model_data_overview.md`). No numbered suffixes (e.g. avoid `README2.md`). Exception: proper nouns such as `README_bupaR.md` (BupaR) may keep their capitalization.
 - **Standalone / technical docs**: `UPPERCASE_WITH_UNDERSCORES.md` (e.g. `WORKFLOW_UPDATES.md`, `TIME_ESTIMATES.md`).
 - **No spaces** in filenames; use underscores. Exceptions (e.g. `Presentations/`) may use Title_Case where needed.
-- **References**: Use the exact filename case in links so they work on case-sensitive systems. See project root `.cursorrules` for full conventions.
+- **References**: Use the exact filename case in links so they work on case-sensitive systems.
 
 ## 🔍 Finding Documentation
 
