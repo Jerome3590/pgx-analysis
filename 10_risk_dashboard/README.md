@@ -3,6 +3,7 @@
 This directory contains the **production-ready risk assessment dashboard** and deployment artifacts for the PGx analysis pipeline.
 
 **Risk calculator dashboard (hosted):**  
+- **Live:** [https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html](https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html)
 - **S3:** `s3://jerome-dixon.io/vcu/pgx-risk-calculator/` — frontend and static assets for the PGx risk calculator.
 
 ## Quick Overview
