@@ -1,4 +1,4 @@
-# Step 9: Risk Dashboard
+# Step 10: Risk Dashboard
 
 This directory contains the **production-ready risk assessment dashboard** and deployment artifacts for the PGx analysis pipeline.
 
