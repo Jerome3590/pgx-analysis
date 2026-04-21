@@ -118,7 +118,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_analysis_workflow.md](CrossStep_Workflow/README_analysis_workflow.md)** - Canonical analysis workflow (Steps 1–10; five notebooks 1→2→3→4→5)
 - **[README_research_questions_mapping.md](CrossStep_Workflow/README_research_questions_mapping.md)** - Research questions to analysis methods mapping
 - **[README_healthcare_outcomes.md](CrossStep_Workflow/README_healthcare_outcomes.md)** - Healthcare outcomes rationale for cohort design
-- **[docs/archived/README_cross_ageband_analysis.md](archived/README_cross_ageband_analysis.md)** - Cross-age band analysis (optional; archived)
+- **Cross-age band analysis** — archived; no longer part of active pipeline
 
 ### Visualization & Output
 **Location**: [`CrossStep_Visualization/`](CrossStep_Visualization/)
@@ -129,7 +129,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 ### Development & Testing
 **Location**: [`CrossStep_Development/`](CrossStep_Development/)
 
-- **Workflow testing** (QA): moved to [archived/qa/README_workflow_testing.md](../archived/qa/README_workflow_testing.md)
+- **Workflow testing** (QA): see [`11_testing/DASHBOARD_VALIDATION.md`](../11_testing/DASHBOARD_VALIDATION.md) and [`11_testing/TEST_PLAN_FINAL_DASHBOARD.md`](../11_testing/TEST_PLAN_FINAL_DASHBOARD.md)
 - **[README_parallelization_pipeline.md](CrossStep_Development/README_parallelization_pipeline.md)** - Parallelization strategies
 - **[README_local_notebook.md](CrossStep_Development/README_local_notebook.md)** - Local notebook development
 - **[README_duckdb_dev.md](CrossStep_Development/README_duckdb_dev.md)** - DuckDB development notes
@@ -137,6 +137,8 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_logging.md](CrossStep_Development/README_logging.md)** - Pipeline logging architecture, EC2/S3 log locations, troubleshooting guide
 - **[README_event_density_bins.md](CrossStep_Development/README_event_density_bins.md)** - n_event_bin architecture end-to-end (training → SHAP/FFA → Lambda)
 - **[README_lessons_learned.md](CrossStep_Development/README_lessons_learned.md)** - Critical QA bugs, design decisions, final production workflow lessons
+- **[DEPLOYMENT_LESSONS_LEARNED.md](../10_risk_dashboard/docs/DEPLOYMENT_LESSONS_LEARNED.md)** - Dashboard deployment lessons (tab display bugs, CloudFront/browser cache layers)
+- **[README_target_leakage.md](../9_dashboard_visuals/fpgrowth/README_target_leakage.md)** - FP-Growth target leakage analysis (confirmed: FP-Growth features cause leakage; visualization only)
 
 ## 📊 Presentations
 **Location**: [`Presentations/`](Presentations/)
