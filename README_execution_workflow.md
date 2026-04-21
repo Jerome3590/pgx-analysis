@@ -262,10 +262,13 @@ python 6_final_model/run_final_model.py \
 
 **Verify:**
 ```bash
-# Check models trained (age_band_fname uses underscore, e.g. 13_24)
-ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/models/
-ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/*model_metrics_summary.csv
-ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/*mc_cv_results.csv
+# Check per-bin models trained (age_band_fname uses underscore, e.g. 25_44)
+# Bins: low / medium / high / extreme
+ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/
+ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/{bin}/{cohort}_{age_band_fname}_model_metrics_summary.csv
+ls -lh 6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/{bin}/{cohort}_{age_band_fname}_mc_cv_results.csv
+# S3 path:
+# s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/bin_models/{bin}/
 ```
 
 ### 4.5 Step 7: SHAP Analysis
@@ -387,27 +390,29 @@ See [9_dashboard_visuals/README.md](9_dashboard_visuals/README.md) for the full 
 ### 6.2 Build and Deploy Dashboard
 
 ```bash
-cd ~/pgx-analysis/10_risk_dashboard
+cd ~/pgx-analysis
 
-# Build frontend
-cd frontend
-npm install
-npm run build
+# 1. Copy per-bin models + Lambda code into deploy directory
+python 10_risk_dashboard/deployment/prepare_lambda_dir.py
 
-# Deploy backend (Lambda function)
-# Follow 10_risk_dashboard/deployment/README.md
+# 2. Build Docker image and push to ECR (requires Docker)
+bash 10_risk_dashboard/deployment/docker_build.sh
 
-# Deploy to S3
-aws s3 sync dist/ s3://{your-dashboard-bucket}/
+# 3. Sync static frontend (HTML/CSS/JS) to S3
+python 10_risk_dashboard/deployment/sync_frontend_to_s3.py
 
-# Configure API Gateway (if not already)
-# utility_scripts/create_api_gateway_pgx_risk_calculator.sh or .ps1
-# See 10_risk_dashboard/backend/README.md
+# 4. Sync visualization artifacts to S3
+python 10_risk_dashboard/deployment/sync_visuals_to_s3.py
+
+# 5. Invalidate CloudFront cache
+aws cloudfront create-invalidation \
+    --distribution-id E3MZK5HYTJ14P3 \
+    --paths "/vcu/pgx-risk-calculator/*"
 ```
 
 **Verify:**
-- Frontend accessible via S3/CloudFront
-- Backend API responding via API Gateway
+- Frontend accessible at `https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html`
+- Backend API responding via API Gateway (`https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod`)
 - All visualization tabs working (Causal Analysis, BupaR, DTW, FP-Growth)
 
 **Do you need to update the Lambda image for dashboard visuals?**
