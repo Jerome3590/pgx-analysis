@@ -67,6 +67,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 | Date       | Scope / tab              | Change |
 |------------|--------------------------|--------|
+| 2026-04-21 | README sync              | Corrected primary tab order (Documentation now first); added missing h2 sections (Dashboard visual artifacts from manifest, Event density bins) to Documentation tab checklist; updated tabs list to reflect actual primary + visualization tab order. |
 | 2026-03-31 | Full production workflow | Notebook 4 final production workflow: BupaR → DTW → FP-Growth → Causal → Cohort PGx (VIP reports + PubMed citations + network topology, full cohort + per-bin) → PGx patient card → manifest → time-between-events histogram → manuscript checkpoint writer (416 checkpoints, 0 errors). Checkpoint fields now include `[BupaR/bin]` (n_activities + top activity), `[CohortPGx/bin]` (network_html), and `[SHAP/bin]` (top feature name). Documented in `9_dashboard_visuals/README.md` and `README_execution_workflow.md`. |
 | 2025-02-25 | Production finalization  | Removed legacy orphaned "Feature Interactions" tab (`#interactions-tab`). Interactions remain only as panel inside Causal Analysis tab. |
 | 2025-02-25 | Validation README        | Added per-tab and main-page sections; this updates log for tracking. |
@@ -79,7 +80,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 - [ ] **Title:** `<h1>` is "PGx Risk Assessment Dashboard"; `<title>` matches.
 - [ ] **Cohort tabs:** Two buttons—Opioid ED (`data-cohort="opioid_ed"`, `id="cohort-tab-opioid-ed"`) and Polypharmacy (`data-cohort="non_opioid_ed"`, `id="cohort-tab-polypharmacy"`). Values match partition names. Only one active at a time.
-- [ ] **Primary tab bar:** Risk Assessment, Drugs, ICD Codes, CPT Codes, PGx Card, Documentation. `data-tab` values: `risk-assessment`, `drugs`, `icd-codes`, `cpt-codes`, `pgx-card`, `documentation`. Default active: `risk-assessment`.
+- [ ] **Primary tab bar:** Documentation, Risk Assessment, Drugs, ICD Codes, CPT Codes, PGx Card. `data-tab` values: `documentation`, `risk-assessment`, `drugs`, `icd-codes`, `cpt-codes`, `pgx-card`. Default active: `risk-assessment`.
 - [ ] **Secondary tab bar (visualizations):** Feature Importance, Causal Analysis, BupaR Process Mining, DTW Trajectories, FP-Growth Patterns, PGx Cohort. `data-tab` values: `feature-importance-visualizations`, `causal-analysis`, `bupar-visualizations`, `dtw-visualizations`, `fpgrowth-visualizations`, `cohort-pgx-visualizations`.
 - [ ] **Tab content IDs:** Each tab content div has `id="{data-tab}-tab"` and class `tab-content`; `switchTab()` receives the same string as `data-tab`.
 - [ ] **API_BASE:** Config (and optional `?apiBase=` override) points to correct Lambda/API Gateway URL for the environment.
@@ -137,9 +138,9 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 ## Documentation tab (`documentation-tab`)
 
 - [ ] **Subtitle:** "How to use the PGx Risk Assessment Dashboard. All content stays on this page."
-- [ ] **Sections (h2):** Overview, Tabs, Research questions and visualizations, Workflow, Model performance and at-risk identification, Feature importance sources for visuals, Technical notes.
+- [ ] **Sections (h2):** Overview, Tabs, Research questions and visualizations, Workflow, Model performance and at-risk identification, Dashboard visual artifacts (from manifest), Feature importance sources for visuals, Event density bins — what #events means and how bins work, Technical notes.
 - [ ] **Overview:** F1120 Opioid ED and Polypharmacy; age bands 13–114; cohort switch and age band selection.
-- [ ] **Tabs list:** Matches actual tab order and names (Risk Assessment, Drugs, ICD Codes, CPT Codes, Causal, DTW, FP-Growth, BupaR, Feature Importance, PGx Patient Card, Documentation).
+- [ ] **Tabs list:** Matches actual tab order and names — Primary: Documentation | Risk Assessment | Drugs | ICD Codes | CPT Codes | PGx Card; Visualization: Feature Importance | Causal Analysis | BupaR Process Mining | DTW Trajectories | FP-Growth Patterns | PGx Cohort.
 - [ ] **RQ table:** N1–N6 and RQ1/RQ2 with correct tab and visual names; N5 includes Feature Importance and Causal; N4 drug-only; N3 DTW; etc.
 - [ ] **Model metrics container:** `#doc-metrics-container`; loads `model_performance_metrics.json` (path-style S3 or API).
 - [ ] **Feature importance sources:** BupaR/DTW use SHAP/FFA combined; FP-Growth uses final feature importance list. Copy matches RESEARCH_QUESTIONS_ARTIFACTS.
