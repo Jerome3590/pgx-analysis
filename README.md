@@ -109,10 +109,14 @@ pgx-analysis/
 ├── 9_dashboard_visuals/          # Step 9 (visual prep): BupaR, DTW, FP-Growth visualization generation
 ├── 10_risk_dashboard/            # Step 10 (build/deploy): Risk calculator, Lambda, API Gateway
 ├── 11_testing/                   # Integration and smoke tests for pipeline steps and dashboard visuals
-├── archived/                     # Archived notebooks and one-off scripts (not part of the default runbook)
+├── aws-pgx-setup/                # AWS infrastructure config (EC2, Lambda, ECR, IAM, CloudFront, S3)
+├── pgx-patient-card/             # PGx patient card assets (drug cards, gene cards)
 ├── py_helpers/                   # Shared Python utilities (S3, DuckDB, logging)
 ├── r_helpers/                    # Shared R utilities
+├── utility_scripts/              # Pipeline management: cleanup, status checks, S3 sync helpers
+├── status/                       # Workflow status tracking (WORKFLOW_STATUS.md)
 ├── docs/                         # Comprehensive documentation
+├── archived/                     # Archived notebooks and one-off scripts (not part of the default runbook)
 ├── 0_config_and_pipeline.ipynb   # Configuration and pipeline run instructions
 ├── 1_cohort_workflow.ipynb       # Workflow: Steps 1–2
 ├── 2_feature_importance.ipynb    # Workflow: Steps 3a–3c
@@ -120,6 +124,9 @@ pgx-analysis/
 ├── 4_dashboard_visuals.ipynb     # Workflow: Dashboard visualizations
 ├── 5_build_and_deploy.ipynb      # Workflow: Build and deploy
 ├── README.md                     # This file
+├── README_execution_workflow.md  # Detailed pipeline execution guide (phases, prerequisites)
+├── README_dashboard_visuals.md   # Dashboard visual artifact path mapping
+├── README_dashboard_validation.md # Dashboard frontend validation and update tracking
 └── requirements.txt              # Python dependencies
 ```
 
