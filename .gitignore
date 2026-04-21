@@ -100,6 +100,10 @@ archived/
 9_dashboard_visuals/cohort_pgx/archived/
 status/archived/
 
+# PHTS project template/reference files (not part of this project)
+*.phts
+*phts_style*
+
 # Log files
 *.log
 
