@@ -1,5 +1,5 @@
 """
-Cross-age-band aggregated feature importance heatmap for the dashboard.
+Aggregated feature importance heatmap for the dashboard (features × age bands).
 
 Uses only final feature importance after BupaR edits (Step 3b):
 3b_feature_importance_eda/outputs/{cohort}/{age_band}/{cohort}_{age_band}_cohort_feature_importance.csv.

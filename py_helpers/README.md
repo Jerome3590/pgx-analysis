@@ -47,7 +47,7 @@ from py_helpers.checkpoint_utils import upload_file_to_s3
 |------|-------------|---------|
 | `feature_importance_utils.py` | MC-CV runner, aggregation, feature ranking | Step 3a |
 | `feature_importance_model_utils.py` | Model wrappers for MC-CV | Step 3a |
-| `feature_importance_heatmap.py` | Cross-age-band heatmap generation | Step 3a + dashboard |
+| `feature_importance_heatmap.py` | Aggregated feature importance heatmap (features × age bands) | Step 3a + dashboard |
 | `feature_importance_eda_utils.py` | BupaR post-target leakage analysis | Step 3b |
 | `feature_importance_filters.py` | Feature filtering rules | Step 3b, 3c |
 | `mc_cv_utils.py` | Monte Carlo cross-validation infrastructure | Step 3a |

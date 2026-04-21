@@ -238,9 +238,9 @@ The pipeline generates comprehensive feature importance visualizations from Mont
 - High ICD code count: Diagnosis patterns are most predictive
 - Balanced distribution: Multiple data sources contribute to predictions
 
-### 5. Cross-Age-Band Heatmaps
+### 5. Aggregated Feature Importance Heatmap
 
-**File:** `{cohort}_{year}_ageband_heatmap_top50.png`  
+**File:** `{cohort}_aggregated_fi_heatmap.png`  
 **Format:** Heatmap (Features × Age Bands)
 
 **Description:**
@@ -305,7 +305,7 @@ create_ageband_heatmap(
 1. **Compare Multiple Visualizations**: Use all four charts together for comprehensive understanding
 2. **Consider Model Quality**: Prioritize features with both high importance and high Recall
 3. **Check Consistency**: Features appearing in multiple visualizations are more reliable
-4. **Age Band Analysis**: Use cross-age-band heatmaps to understand generalizability
+4. **Age Band Analysis**: Use the aggregated feature importance heatmap to understand generalizability
 5. **Clinical Context**: Always interpret feature importance in clinical context
 
 ## BupaR Process Mining Visualizations

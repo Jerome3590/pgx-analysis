@@ -355,9 +355,7 @@ This section addresses the two primary errors that have surfaced in the PGx Risk
 
 **Operational checks (to populate heatmaps):**
 1. **Generate aggregated heatmaps.** The repo uses `py_helpers/feature_importance_heatmap.py` (e.g. `create_aggregated_fi_heatmap`) which writes `{cohort}_aggregated_fi_heatmap.png` under `outputs_base/{cohort}/plots/`. The deploy notebook (5_build_and_deploy) uploads from there to `feature_importance/{cohort}/aggregated_fi_heatmap.png`. Ensure the feature importance step has been run and the deploy step uploads these files.
-2. **If using the R cross-age-band script** (`r_helpers/create_cross_ageband_heatmap.R`): it outputs `{cohort}_{year}_ageband_heatmap_top50.png`. The dashboard expects `aggregated_fi_heatmap.png` per cohort. Either:
-   - **Option A:** Copy or rename the R output to `aggregated_fi_heatmap.png` and upload to `feature_importance/{cohort}/aggregated_fi_heatmap.png`, or
-   - **Option B:** Use the Python pipeline (`py_helpers/feature_importance_heatmap.py`) which already produces the expected filename.
+2. **Python pipeline only:** `py_helpers/feature_importance_heatmap.py` produces `{cohort}_aggregated_fi_heatmap.png` and `{cohort}_aggregated_fi_heatmap.json` under `outputs_base/{cohort}/plots/`. The deploy notebook uploads these to `feature_importance/{cohort}/aggregated_fi_heatmap.png` and `.json`.
 3. **Combined heatmap:** Deploy notebook uploads `combined_cohorts_feature_importance_heatmap.png` from the local path produced by the same Python helper (e.g. `plots/combined_cohorts_feature_importance_heatmap.png`).
 
 ### 7.3 General dashboard deployment verification
