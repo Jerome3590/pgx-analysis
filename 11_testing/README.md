@@ -7,6 +7,7 @@ Central place for **test plans**, **all tests**, and **running tests** from your
 | Item | Description |
 |------|--------------|
 | [TEST_PLAN_FINAL_DASHBOARD.md](TEST_PLAN_FINAL_DASHBOARD.md) | Test plan for the final dashboard: required artifacts, Lambda/API Gateway, per-component checks |
+| [DASHBOARD_VALIDATION.md](DASHBOARD_VALIDATION.md) | Validation checklist for frontend changes and S3 deploys: tabs, visual headings, S3 path-style URLs, manifest alignment, CORS |
 | **tests/** | All project tests: dashboard (final) + dashboard_visuals (BupaR/DTW/FP-Growth). See [tests/README.md](tests/README.md). |
 | `run_tests.ps1` | PowerShell script to run all tests from repo root (Windows) |
 | `run_tests.bat` | Batch file to run tests (cmd or double-click) |

@@ -125,7 +125,6 @@ pgx-analysis/
 ├── README.md                     # This file
 ├── README_execution_workflow.md  # Detailed pipeline execution guide (phases, prerequisites)
 ├── README_dashboard_visuals.md   # Dashboard visual artifact path mapping
-├── README_dashboard_validation.md # Dashboard frontend validation and update tracking
 └── requirements.txt              # Python dependencies
 ```
 
