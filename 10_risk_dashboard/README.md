@@ -368,55 +368,55 @@ End-to-end sequence from user interaction through Lambda inference to rendered r
 ```mermaid
 sequenceDiagram
     actor User
-    participant JS as Dashboard JS<br/>(index.html)
+    participant JS as Dashboard JS
     participant APIGW as API Gateway
-    participant Lambda as Lambda (ECR)
+    participant Lambda as Lambda ECR
     participant S3 as S3 Bucket
 
-    Note over User,S3: ── Page Load ──────────────────────────────────────────────
-    User->>JS: Select cohort tab<br/>(opioid_ed / non_opioid_ed)
-    JS->>APIGW: GET /metadata?cohort=…
+    Note over User,S3: Page Load
+    User->>JS: Select cohort tab - opioid_ed or non_opioid_ed
+    JS->>APIGW: GET /metadata?cohort=opioid_ed
     APIGW->>Lambda: forward
-    Lambda-->>JS: code lists per age band<br/>{ drugs[], icds[], cpts[] } per age_band
-    JS->>JS: updateCodeLists()<br/>populate #drugs / #icds / #cpts selects
+    Lambda-->>JS: code lists per age band - drugs, icds, cpts
+    JS->>JS: updateCodeLists - populate selects
 
-    Note over User,S3: ── Code Selection ─────────────────────────────────────────
-    User->>JS: Type age (e.g. 60)
-    JS->>JS: determineAgeBand(60) → "55-64"<br/>updateCodeLists() → refresh selects for band
+    Note over User,S3: Code Selection
+    User->>JS: Type age e.g. 60
+    JS->>JS: determineAgeBand → 55-64, updateCodeLists
 
-    User->>JS: Drugs tab → search box → select codes
-    JS->>JS: filterOptions() on input event<br/>change event → updateDrugDisplay() chips
+    User->>JS: Drugs tab - search and select codes
+    JS->>JS: filterOptions on input, updateDrugDisplay chips
 
-    User->>JS: ICD Codes tab → search → select<br/>(opioid_ed only; hidden for non_opioid_ed)
-    User->>JS: CPT Codes tab → search → select<br/>(opioid_ed only; hidden for non_opioid_ed)
+    User->>JS: ICD Codes tab - search and select - opioid_ed only
+    User->>JS: CPT Codes tab - search and select - opioid_ed only
 
-    Note over User,S3: ── Risk Calculation ───────────────────────────────────────
-    User->>JS: Click "Calculate Risk Score"
-    JS->>JS: calculateRisk()<br/>① validate age (13–114) + cohort<br/>② updateCodeLists() — preserves selections<br/>③ getMultiSelectValues() → drugs/icds/cpts arrays
-    JS->>APIGW: POST /risk<br/>{ cohort, age_band, drugs[], icds[], cpts[] }
+    Note over User,S3: Risk Calculation
+    User->>JS: Click Calculate Risk Score
+    JS->>JS: validate age 13-114, get selected codes
+    JS->>APIGW: POST /risk with cohort, age_band, drugs, icds, cpts
     APIGW->>Lambda: forward
-    Lambda->>Lambda: compute n_event_bin from len(drugs+icds+cpts)<br/>load bin_models/{bin}/{model}.joblib<br/>load calibration_{model}.joblib (if present)<br/>build feature vector from feature_schema.json<br/>ensemble inference → weighted average<br/>calibrate probability → risk_score
-    Lambda-->>JS: { risk_score, risk_band, n_event_bin,<br/>  causal_factors, model_breakdown,<br/>  codes_used, codes_unknown, … }
-    JS->>User: Render score + band chip + density-bin badge<br/>what-if comparison enabled
+    Lambda->>Lambda: compute n_event_bin, load bin model, ensemble inference
+    Lambda-->>JS: risk_score, risk_band, n_event_bin, causal_factors
+    JS->>User: Render score, band chip, density-bin badge
 
-    Note over User,S3: ── Visualization Tabs (on demand) ─────────────────────────
-    opt User clicks a visualization tab + Load button
-        JS->>APIGW: GET /visualizations/{causal|feature_importance|bupar|dtw|fpgrowth|cohort_pgx}<br/>?cohort=…&age_band=…[&n_event_bin=…]
+    Note over User,S3: Visualization Tabs - on demand
+    opt User clicks a visualization tab and Load button
+        JS->>APIGW: GET /visualizations/causal or bupar or dtw or fpgrowth
         APIGW->>Lambda: forward
-        Lambda->>S3: resolve pre-computed asset paths<br/>s3://pgxdatalake/gold/{analysis}/{cohort}/{age_band}/
-        S3-->>Lambda: presigned / public asset URLs
-        Lambda-->>JS: { chart_urls[], data_urls[], … }
-        JS->>S3: fetch PNG / interactive HTML assets
+        Lambda->>S3: resolve pre-computed asset paths
+        S3-->>Lambda: asset URLs
+        Lambda-->>JS: chart_urls, data_urls
+        JS->>S3: fetch PNG or HTML assets
         S3-->>JS: static visualization content
-        JS->>User: render charts (Plotly / iframe / img)
+        JS->>User: render charts via Plotly or iframe
     end
 
-    Note over User,S3: ── PGx Card (optional) ────────────────────────────────────
+    Note over User,S3: PGx Card - optional
     opt User submits gene variants on PGx Card tab
-        JS->>APIGW: POST /pgx/card<br/>{ cohort, age_band, variants[] }
+        JS->>APIGW: POST /pgx/card with cohort, age_band, variants
         APIGW->>Lambda: forward
-        Lambda->>Lambda: CPIC lookup → gene actionability<br/>drug interactions → card JSON
-        Lambda-->>JS: { genes[], drugs[], actionability[] }
+        Lambda->>Lambda: CPIC lookup, gene actionability, drug interactions
+        Lambda-->>JS: genes, drugs, actionability
         JS->>User: render pharmacogenomic card
     end
 ```
