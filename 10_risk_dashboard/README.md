@@ -601,7 +601,7 @@ flowchart TD
 
 #### Tab: Feature Importance
 
-Standalone — does not depend on Risk Assessment cohort/age context. Loads a full cross-age-band heatmap from Step 3a.
+Standalone — does not depend on Risk Assessment cohort/age context. Loads an aggregated feature importance heatmap (features × age bands) from Step 3a.
 
 ```mermaid
 flowchart TD

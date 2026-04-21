@@ -18,8 +18,7 @@
 4. [Aggregation Method](#aggregation-method)
 5. [Output Files](#output-files)
 6. [Visualization](#visualization)
-7. [Cross-Age-Band Analysis](#cross-age-band-analysis)
-8. [Usage Examples](#usage-examples)
+7. [Usage Examples](#usage-examples)
 9. [Best Practices](#best-practices)
 10. [Troubleshooting](#troubleshooting)
 
@@ -134,7 +133,7 @@ The notebook (Cell 5) runs all combinations defined in `COHORT_NAMES` × `AGE_BA
 - Automatically handles multiple cohorts and age-bands
 - Idempotent: Skips already-processed combinations (checks local files and S3)
 - Nested parallelism: Optimizes worker allocation between task-level and MC-CV level
-- Cross-age-band aggregation: Only runs when all combinations are complete
+- Aggregated heatmap: Runs after all age-band combinations are complete
 
 ### Single Cohort Execution (Optional)
 
@@ -777,35 +776,6 @@ Four publication-ready plots are automatically generated:
 
 ---
 
-## Cross-Age-Band Analysis
-
-After running feature importance for multiple age bands, create comparison heatmaps:
-
-```r
-source("create_cross_ageband_heatmap.R")
-
-create_ageband_heatmap(
-  cohort_name = "opioid_ed",
-  event_year = 2016,
-  age_bands = c("13-24", "25-44", "45-54", "55-64", "65-74"),
-  top_n = 50
-)
-```
-
-**Outputs:**
-- Heatmap: Features × Age bands (color = importance)
-- Summary CSV: Variability metrics (CV, consistency)
-- Insights: Universal vs age-specific features
-
-**Use Cases:**
-- Identify universal risk factors (low CV)
-- Find age-specific features (high CV)
-- Decide between age-agnostic vs age-stratified models
-
-**See:** [docs/archived/README_cross_ageband_analysis.md](../archived/README_cross_ageband_analysis.md) for details (optional; archived).
-
----
-
 ## Usage Examples
 
 ### 1. Feature Selection for Downstream ML
@@ -1007,8 +977,7 @@ N_SPLITS <- 50  # instead of 100
 - **Visualization Guide:** [`docs/README_feature_importance_visualization.md`](README_feature_importance_visualization.md)
 - **Visualization Script:** `py_helpers/create_feature_importance_visualizations.py` (Python, recommended)
 - **Legacy Visualization Script:** `r_helpers/create_visualizations.R` (R, maintained for backward compatibility)
-- **Cross-Age-Band Analysis (optional):** [docs/archived/README_cross_ageband_analysis.md](../archived/README_cross_ageband_analysis.md)
-- **Workflow Testing (QA):** [archived/qa/README_workflow_testing.md](../../archived/qa/README_workflow_testing.md)
+- **Workflow Testing (QA):** [`11_testing/DASHBOARD_VALIDATION.md`](../../../11_testing/DASHBOARD_VALIDATION.md)
 - **S3 Output Structure:** `S3_OUTPUT_STRUCTURE.md`
 - **rsample Bug:** `docs/RSAMPLE_BUG_WORKAROUND.md`
 

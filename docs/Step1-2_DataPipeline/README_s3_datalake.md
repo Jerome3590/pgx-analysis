@@ -226,27 +226,6 @@ features_2018 = load_from_s3('.../event_year=2018/...')
 
 ---
 
-## Cross-Age-Band Analysis
-
-After running feature importance for multiple age bands, create comparison heatmaps:
-
-```
-s3://pgxdatalake/gold/feature_importance/cohort_name=opioid_ed/cross_ageband_analysis/
-├── opioid_ed_2016_ageband_heatmap_top50.png      # Heatmap: features × age bands
-└── opioid_ed_2016_ageband_summary_top50.csv      # Statistics: variability, consistency
-```
-
-**Script:** `create_cross_ageband_heatmap.R`
-
-**Outputs:**
-- Heatmap showing how features change across age bands
-- Summary statistics (CV, range, consistency metrics)
-- Identifies universal vs age-specific features
-
-**See:** [docs/archived/README_cross_ageband_analysis.md](../archived/README_cross_ageband_analysis.md) for details (optional analysis; not part of final workflow).
-
----
-
 ## Related Files
 
 ### Local Outputs
@@ -258,8 +237,6 @@ s3://pgxdatalake/gold/feature_importance/cohort_name=opioid_ed/cross_ageband_ana
 - `docs/README_feature_importance.md` - Complete analysis documentation
 - `feature_importance_mc_cv.ipynb` - Analysis notebook
 - `create_visualizations.R` - Per-cohort visualization script
-- `create_cross_ageband_heatmap.R` - Cross-age-band comparison
-- `docs/archived/README_cross_ageband_analysis.md` - Cross-age-band analysis (archived; optional)
 - `docs/RSAMPLE_BUG_WORKAROUND.md` - Known issues and fixes
 
 ---

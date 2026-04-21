@@ -14,5 +14,4 @@ This file is a **short pointer** to the canonical workflow documentation.
 
 - For research‑question–to‑method mappings and cohort‑specific examples, see:
   - `docs/CrossStep_Workflow/README_research_questions_mapping.md`
-  - `docs/archived/README_cross_ageband_analysis.md` (optional cross-age-band analysis; archived) 
 

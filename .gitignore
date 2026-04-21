@@ -104,6 +104,9 @@ status/archived/
 *.phts
 *phts_style*
 
+# Archived R scripts (superseded by Python equivalents)
+r_helpers/create_cross_ageband_heatmap.R
+
 # Log files
 *.log
 
