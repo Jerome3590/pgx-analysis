@@ -116,7 +116,6 @@ pgx-analysis/
 ├── utility_scripts/              # Pipeline management: cleanup, status checks, S3 sync helpers
 ├── status/                       # Workflow status tracking (WORKFLOW_STATUS.md)
 ├── docs/                         # Comprehensive documentation
-├── archived/                     # Archived notebooks and one-off scripts (not part of the default runbook)
 ├── 0_config_and_pipeline.ipynb   # Configuration and pipeline run instructions
 ├── 1_cohort_workflow.ipynb       # Workflow: Steps 1–2
 ├── 2_feature_importance.ipynb    # Workflow: Steps 3a–3c
@@ -303,7 +302,6 @@ For each `(cohort, age_band)` combination, the pipeline runs:
 ### Shared Utilities
 - `py_helpers/` - S3, DuckDB, logging, constants
 - `r_helpers/` - R-based utilities
-- `archived/` - Archived notebooks and scripts (optional reference)
 
 ---
 
