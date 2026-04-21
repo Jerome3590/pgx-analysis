@@ -693,7 +693,7 @@ flowchart TD
     E --> F{HTTP 200?}
     F -->|Error| G[dtw-status error]
     F -->|200| H{Sub-tab}
-    H -->|Overview and Trajectories| I[Trajectory Analysis PNG\ndtw_trajectory_analysis_{cohort}_{age_band}.png\nfrom S3 gold/feature_importance/]
+    H -->|Overview and Trajectories| I[Trajectory Analysis PNG\ndtw_trajectory_analysis_COHORT_AGEBAND.png\nfrom S3 gold/feature_importance/]
     H -->|Routine vs Utilization| J[Outcome rate + event counts\nby routine vs utilization activity]
     I --> K([DTW visuals displayed])
     J --> K
