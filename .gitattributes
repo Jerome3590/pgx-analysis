@@ -14,7 +14,7 @@
 *.tsv text eol=lf
 *.R text eol=lf
 *.r text eol=lf
-*.ipynb text eol=lf
+*.ipynb text eol=lf filter=nbstripout
 *.qmd text eol=lf
 *.sql text eol=lf
 *.html text eol=lf
