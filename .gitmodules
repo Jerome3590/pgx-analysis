@@ -1,3 +1,6 @@
 [submodule "aws-pgx-setup"]
 	path = aws-pgx-setup
 	url = https://github.com/Jerome3590/aws-pgx-setup.git
+[submodule "manuscript"]
+	path = manuscript
+	url = https://github.com/Jerome3590/pgx-analysis-manuscript.git
