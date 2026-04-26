@@ -41,9 +41,23 @@ docs/invoice2570376517.pdf
 # FFA analysis results (model outputs, SHAP, causal importance, etc.)
 8_ffa_analysis/results/
 
+# F31 NIH proposal — now tracked in manuscript submodule
+f31_proposal/
+
 # Dashboard visualization outputs (BupaR, DTW, FP-Growth generated data/plots)
 9_risk_dashboard/visualizations/*/outputs/
 10_risk_dashboard/visualizations/*/outputs/
+
+# DTW generated data and plots (feature engineering CSV/parquet, HTML plots, chart JSON)
+10_risk_dashboard/visualizations/dtw/feature_engineering/
+10_risk_dashboard/visualizations/dtw/**/plots/
+10_risk_dashboard/visualizations/dtw/**/*.html
+10_risk_dashboard/visualizations/dtw/**/chart_data.json
+10_risk_dashboard/visualizations/dtw/**/sequence_heatmap.json
+10_risk_dashboard/visualizations/dtw/**/density/
+
+# Lit review background PDFs (downloaded journal articles — not source)
+9_dashboard_visuals/cohort_pgx/lit_review/background/*.pdf
 # Generated lambda bundle and model artifacts for deployment
 10_risk_dashboard/lambda_dir/
 # Synced from S3 testing prefix for local analysis (sync_testing_from_s3.py)
