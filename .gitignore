@@ -1,6 +1,5 @@
 # ── Dissertation content (private until after defense) ───────────────────────
 # manuscript/ is now a private submodule → pgx-analysis-manuscript (private repo)
-f31_proposal/
 
 .vscode/*
 !.vscode/settings.json
