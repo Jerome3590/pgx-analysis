@@ -25,6 +25,24 @@ aws configure
 
 Hosted on S3 + CloudFront. See [`10_risk_dashboard/`](10_risk_dashboard/) for deployment details.
 
+---
+
+## 📄 Manuscripts Under Review — CTS
+
+All five dissertation chapters submitted to [*Clinical and Translational Science*](https://ascpt.onlinelibrary.wiley.com/journal/17528062) (Wiley/ASCPT). Submission portal: [cts.msubmit.net](https://cts.msubmit.net/cgi-bin/main.plex). CTS guidelines and revision tracking: [`manuscript/docs/cts/`](manuscript/docs/cts/).
+
+| CH | CTS Manuscript ID | Title | Repo Steps | Status |
+|---|---|---|---|---|
+| **CH_1** | CTS-2026-0255-T | [Bridging Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk Prediction: A Systematic Quantitative Literature Review](manuscript/CH_1/ch01_cts.qmd) | Background / Methodology Foundation | Under Review |
+| **CH_2** | CTS-2026-0235-T | [Building the Clinical OODA Loop: A Partition-First Data Architecture for Model-Based Precision Analytics](manuscript/CH_2/ch02_psp.qmd) | Steps 1a → 1b → 2 | Under Review |
+| **CH_3** | CTS-2026-0196 | [Causal Temporal Drivers of Opioid-Related ED Visits: An Ensemble Machine Learning Study with Consensus-Based Feature Attribution](manuscript/CH_3/ch03_cts.qmd) | Steps 3a → 3b → 6 → 7 → 8 | **Revision R1** — all items resolved May 18, 2026 |
+| **CH_4** | CTS-2026-0197 | [Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Polypharmacy](manuscript/CH_4/ch04_psp.qmd) | Steps 5 → 8 | Under Review |
+| **CH_5** | CTS-2026-0230-T | [A Serverless Pharmacogenomic Risk Dashboard: Translating Ensemble Models and Causal Rules to Clinical Decision Support](manuscript/CH_5/ch05_cpt.qmd) | Steps 9 → 10 | Under Review |
+
+> Code availability statement in each manuscript references this repository: `https://github.com/Jerome3590/pgx-analysis`
+
+---
+
 ## 🚀 Running the Workflow
 
 **Configuration and Execution:**
@@ -138,6 +156,7 @@ pgx-analysis/
 - Clean and standardize medical and pharmacy data
 - Apply drug name and ICD code mappings
 - **Output:** Bronze/Silver/Gold tier data
+- **Manuscript:** CH_2 — CTS-2026-0235-T · *Building the Clinical OODA Loop: A Partition-First Data Architecture for Model-Based Precision Analytics*
 
 ### Step 1b: Event Filtering (ICD/Administrative Codes)
 - **Location:** `1b_apcd_event_filter/`
@@ -145,6 +164,7 @@ pgx-analysis/
 - Removes post-event leakage and protocol violations
 - **Runs before cohort creation** to reduce downstream data volume
 - **Output:** Filtered event set used by Steps 2 and 3a
+- **Manuscript:** CH_2 — CTS-2026-0235-T · *Building the Clinical OODA Loop*
 
 ### Step 2: Cohort Creation
 - **Location:** `2_create_cohort/`
@@ -152,6 +172,7 @@ pgx-analysis/
 - Apply age band stratification
 - Comprehensive quality assurance and validation
 - **Output:** `cohort_{cohort_name}_ageband_{band}.parquet` for each cohort/age band
+- **Manuscript:** CH_2 — CTS-2026-0235-T · *Building the Clinical OODA Loop*
 
 ### Step 3a: Feature Importance Screening
 - **Location:** `3a_feature_importance/`
@@ -161,6 +182,7 @@ pgx-analysis/
   - **XGBoost RF Mode** - Random forest-style boosting
 - Aggregate importance scores across models and folds
 - **Output:** `aggregated_feature_importance.csv`
+- **Manuscript:** CH_3 — CTS-2026-0196 · *Causal Temporal Drivers of Opioid-Related ED Visits*
 
 ### Step 3b: Feature Importance EDA & Refinement
 - **Location:** `3b_feature_importance_eda/`
@@ -168,6 +190,7 @@ pgx-analysis/
 - Code research and clinical validation
 - Refine feature set based on findings
 - **Output:** `cohort_feature_importance.csv` (refined)
+- **Manuscript:** CH_3 — CTS-2026-0196 · *Causal Temporal Drivers of Opioid-Related ED Visits*
 
 ### Step 3c: Final Feature Update
 - **Part of:** `2_feature_importance.ipynb`
@@ -188,6 +211,7 @@ pgx-analysis/
 - Pharmacogenomics feature engineering
 - Add PGx derivatives and interactions
 - **Output:** `pgx_added_features.csv`
+- **Manuscript:** CH_4 — CTS-2026-0197 · *Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Polypharmacy*
 
 ### Step 6: Final Model Training
 - **Location:** `6_final_model/`
@@ -196,12 +220,14 @@ pgx-analysis/
 - SHAP analysis always uses XGBoost + CatBoost binaries; FFA always uses best XGBoost variant (`xgb` or `xgb_rf`)
 - Per-bin models (low / medium / high / extreme event density) trained separately via `train_per_bin()`
 - **Output:** `{model}.joblib`, `model_metrics_summary.csv`, `model_selection_metadata.json`
+- **Manuscript:** CH_3 — CTS-2026-0196 · *Causal Temporal Drivers of Opioid-Related ED Visits*
 
 ### Step 7: SHAP Analysis
 - **Location:** `7_shap_analysis/`
 - Compute global and local SHAP values using XGBoost and CatBoost native binaries (fixed regardless of selected model)
 - Identify most important features and their directional impacts
 - **Output:** `{cohort}_{ab}_shap_global_importance_{model}.csv`, `{cohort}_{ab}_shap_sample_values_{model}.parquet`
+- **Manuscript:** CH_3 — CTS-2026-0196 · *Causal Temporal Drivers of Opioid-Related ED Visits*
 
 ### Step 8: Formal Feature Attribution (FFA) Analysis
 - **Location:** `8_ffa_analysis/`
@@ -209,11 +235,13 @@ pgx-analysis/
 - SHAP-based filtering and prioritization of rules; CatBoost run separately for cross-validation
 - Compute feature attribution and causal importance scores
 - **Output:** `causal_importance.parquet`, `feature_importance_axp.parquet`, `interaction_analysis.parquet`
+- **Manuscripts:** CH_3 — CTS-2026-0196 · *Causal Temporal Drivers* · and CH_4 — CTS-2026-0197 · *Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Polypharmacy*
 
 ### Steps 9–10: Risk Dashboard
 - **Step 9 / Notebook 4 — Visual prep** (`9_dashboard_visuals/`): Generate BupaR process mining, DTW trajectory, and FP-Growth visualizations; combine SHAP + FFA results into `combined_importance.csv`
 - **Step 10 / Notebook 5 — Build & deploy** (`10_risk_dashboard/`): Prepare models and metadata for Lambda; build Docker container; deploy S3 frontend + Lambda + API Gateway
 - **Output:** Visualization artifacts in S3, Lambda ECR container, live API endpoints
+- **Manuscript:** CH_5 — CTS-2026-0230-T · *A Serverless Pharmacogenomic Risk Dashboard: Translating Ensemble Models and Causal Rules to Clinical Decision Support*
 
 ---
 
