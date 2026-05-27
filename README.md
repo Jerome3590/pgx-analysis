@@ -35,7 +35,7 @@ All five dissertation chapters submitted to [*Clinical and Translational Science
 |---|---|---|---|---|
 | **CH_1** | CTS-2026-0255-T | [Bridging Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk Prediction: A Systematic Quantitative Literature Review](manuscript/CH_1/ch01_cts.qmd) | Background / Methodology Foundation | Under Review |
 | **CH_2** | CTS-2026-0235-T | [Building the Clinical OODA Loop: A Partition-First Data Architecture for Model-Based Precision Analytics](manuscript/CH_2/ch02_psp.qmd) | Steps 1a → 1b → 2 | Under Review |
-| **CH_3** | CTS-2026-0196 | [Causal Temporal Drivers of Opioid-Related ED Visits: An Ensemble Machine Learning Study with Consensus-Based Feature Attribution](manuscript/CH_3/ch03_cts.qmd) | Steps 3a → 3b → 6 → 7 → 8 | **Revision R1** — all items resolved May 18, 2026 |
+| **CH_3** | CTS-2026-0196 | [Causal Temporal Drivers of Opioid-Related ED Visits: An Ensemble Machine Learning Study with Consensus-Based Feature Attribution](manuscript/CH_3/ch03_cts.qmd) | Steps 3a → 3b → 6 → 7 → 8 | **Revision R1 complete — pending submission** · Decision: May 11, 2026 · All items resolved: May 18, 2026 · **Due: June 8, 2026** |
 | **CH_4** | CTS-2026-0197 | [Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Polypharmacy](manuscript/CH_4/ch04_psp.qmd) | Steps 5 → 8 | Under Review |
 | **CH_5** | CTS-2026-0230-T | [A Serverless Pharmacogenomic Risk Dashboard: Translating Ensemble Models and Causal Rules to Clinical Decision Support](manuscript/CH_5/ch05_cpt.qmd) | Steps 9 → 10 | Under Review |
 
