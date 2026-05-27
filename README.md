@@ -1,8 +1,8 @@
-# Prescription Drug Analysis with FpGrowth, BupaR and CatBoost Integration
+# Opioid and Polypharmacy ED Risk Prediction: XGBoost · CatBoost · DTW · FP-Growth · BupaR · Formal Feature Attribution
 
-End-to-end workflow for feature discovery, noise reduction, and causal-oriented modeling using drug exposures, ICD/CPT codes, and classification outcomes.
+End-to-end machine learning pipeline predicting opioid-related and polypharmacy/geriatric ED events — from APCD cohort creation through ensemble model training, causal feature attribution, temporal trajectory analysis, and serverless clinical decision support.
 
-**This project builds a classification model on large-scale healthcare data, then uses model-based feature importance plus pattern and process mining to derive a stable feature set and interpretable explanations for causal analyses.**
+**Combines XGBoost/CatBoost ensemble modeling, SHAP analysis, Formal Feature Attribution (FFA), Dynamic Time Warping (DTW) trajectory clustering, FP-Growth pattern mining, and BupaR process mining on large-scale healthcare claims data (Virginia APCD). Pharmacogenomic (PGx) features are incorporated as causal inputs to explain drug-drug interaction and gene-drug interaction contributions to ED event risk.**
 
 ---
 
