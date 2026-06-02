@@ -2,7 +2,7 @@
       <p class="subtitle">
         <strong>Research focus:</strong> What features drive the target outcome and how do they relate? What drug combinations drive polypharmacy ED visit?
         <br>
-        <small style="color: #64748b;">Uses the <strong>same cohort, age, and feature selections</strong> as Risk Assessment: Opioid ED / Polypharmacy tab, Age (for age band), and your selected Drugs, ICD, and CPT codes. Charts show causal/SHAP for those selected features.</small>
+        <small style="color: #64748b;">Uses the <strong>same cohort, age, and feature selections</strong> as Risk Assessment: Opioid ED / Polypharmacy tab, Age (for age band), and your selected Drugs, ICD, and CPT codes. Charts show interaction/SHAP signals for those selected features.</small>
       </p>
       <div class="controls">
         <div class="control-group full-width">
@@ -20,7 +20,7 @@
         </div>
         <div class="control-group">
           <label for="causal-n-event-bin">Event density:</label>
-          <select id="causal-n-event-bin" aria-label="Causal event density filter">
+          <select id="causal-n-event-bin" aria-label="Scenario event density filter">
             <option value="all">All</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -29,15 +29,15 @@
           </select>
         </div>
         <div class="control-group full-width">
-          <button id="btnLoadCausal">Load Causal Analysis</button>
+          <button id="btnLoadCausal">Load Scenario Analysis</button>
           <button id="btnClearCausalFilters" type="button" class="secondary">Clear filters</button>
         </div>
       </div>
       <p class="subtitle" style="margin-top: 0.5rem;"><small style="color: #64748b;">Cohort = active tab above (Opioid ED / Polypharmacy). Age band = from Age on Risk Assessment. Select features on <strong>Drugs</strong>, <strong>ICD Codes</strong>, and <strong>CPT Codes</strong> tabs. Add what-if codes above to compare. Clear filters reloads with no selection.</small></p>
-      <div id="causal-status" class="status-message">Set cohort and age on Risk Assessment, optionally select codes on Drugs/ICD/CPT, then click 'Load Causal Analysis'</div>
+      <div id="causal-status" class="status-message">Set cohort and age on Risk Assessment, optionally select codes on Drugs/ICD/CPT, then click 'Load Scenario Analysis'</div>
       <div class="panels">
         <div class="panel">
-          <h2>Top Causal Factors (FFA)</h2>
+          <h2>Top Interaction Factors (FFA)</h2>
           <div id="causal-factors-chart"></div>
         </div>
         <div class="panel">
