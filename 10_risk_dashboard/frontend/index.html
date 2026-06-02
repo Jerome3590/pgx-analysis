@@ -2567,7 +2567,7 @@
       const nScenario = (chartData.interaction_factors || []).length;
       const nWhatIf = (chartData.interaction_factors_whatif || []).length;
       if (chartData.filtered_by_codes) {
-        let msg = nCausal > 0
+        let msg = nScenario > 0
           ? `Scenario analysis loaded (${nScenario} current feature${nScenario !== 1 ? "s" : ""}).`
           : "No scenario data for selected features—try different drugs/ICD/CPT or load without selection.";
         if (nWhatIf > 0) msg += ` What-if: ${nWhatIf} feature${nWhatIf !== 1 ? "s" : ""}.`;
