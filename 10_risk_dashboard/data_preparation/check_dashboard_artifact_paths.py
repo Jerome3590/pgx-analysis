@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -139,6 +140,20 @@ def check_dtw(root: Path, combos: list[tuple[str, str]]) -> list[tuple[str, bool
         heatmap = out_dir / "sequence_heatmap.json"
         results.append((f"DTW chart_data {cohort}/{age_band}", chart.exists(), str(chart)))
         results.append((f"DTW sequence_heatmap {cohort}/{age_band}", heatmap.exists(), str(heatmap)))
+        # N3 chart payloads are required for dashboard messaging/plots in supported age bands.
+        # 0-12 is intentionally excluded due to low patient counts.
+        if age_band != "0-12" and chart.exists():
+            has_tb = False
+            has_ttt = False
+            try:
+                with open(chart, encoding="utf-8") as f:
+                    payload = json.load(f)
+                has_tb = bool(payload.get("times_between_sequences"))
+                has_ttt = bool(payload.get("time_to_target_sequences"))
+            except Exception:
+                pass
+            results.append((f"DTW N3 times_between {cohort}/{age_band}", has_tb, str(chart)))
+            results.append((f"DTW N3 time_to_target {cohort}/{age_band}", has_ttt, str(chart)))
     return results
 
 
