@@ -2543,6 +2543,14 @@ def handle_visualizations_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
         try:
             obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=scenario_key)
             data = json.loads(obj["Body"].read().decode("utf-8"))
+            # Backward-compat: legacy artifacts may still expose top_causal_factors.
+            # Mirror into top_interaction_factors so frontend/API consumers can rely on
+            # scenario terminology until pipeline outputs are regenerated.
+            if isinstance(data, dict):
+                top_interaction = data.get("top_interaction_factors")
+                top_causal = data.get("top_causal_factors")
+                if (not top_interaction) and isinstance(top_causal, list) and top_causal:
+                    data["top_interaction_factors"] = top_causal
             payload["scenario_data"] = data
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
@@ -2553,24 +2561,58 @@ def handle_visualizations_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
         # Build chart_data from full-cohort scenario_data.json
         if payload.get("scenario_data"):
             raw = payload["scenario_data"]
-            top = raw.get("top_interaction_factors") or []
+            top = (
+                raw.get("top_interaction_factors")
+                or raw.get("top_causal_factors")
+                or raw.get("feature_importance")
+                or []
+            )
 
             def row_to_factor(r: Dict[str, Any]) -> Dict[str, Any]:
                 feat = r.get("feature") or ""
-                return {"feature": feat, "importance": float(r.get("interaction_score") or r.get("importance") or 0)}
+                return {
+                    "feature": feat,
+                    "importance": float(
+                        r.get("interaction_score")
+                        or r.get("causal_responsibility")
+                        or r.get("importance")
+                        or r.get("combined_importance_norm")
+                        or r.get("combined_importance")
+                        or 0
+                    ),
+                }
 
             def row_to_shap(r: Dict[str, Any]) -> Dict[str, Any]:
                 feat = r.get("feature") or ""
-                return {"feature": feat, "importance": float(r.get("shap_importance") or r.get("importance") or 0)}
+                return {
+                    "feature": feat,
+                    "importance": float(
+                        r.get("shap_importance")
+                        or r.get("shap_norm")
+                        or r.get("importance")
+                        or r.get("combined_importance_norm")
+                        or 0
+                    ),
+                }
 
             if selected_set:
                 interaction_factors = [row_to_factor(r) for r in top if (r.get("feature") or "") in selected_set]
                 shap_importance = [row_to_shap(r) for r in top if (r.get("feature") or "") in selected_set]
-                filtered_by_codes = True
+                # Backward-compat fallback: older artifacts may use naming variants that don't
+                # exactly match selected codes; show top model features rather than empty charts.
+                if not interaction_factors and top:
+                    interaction_factors = [row_to_factor(r) for r in top]
+                    shap_importance = [row_to_shap(r) for r in top]
+                    filtered_by_codes = False
+                    filter_fallback = "top_model_features"
+                else:
+                    filtered_by_codes = True
+                    filter_fallback = None
             else:
                 interaction_factors = [row_to_factor(r) for r in top]
                 shap_importance = [row_to_shap(r) for r in top]
                 filtered_by_codes = False
+                filter_fallback = None
 
             interaction_factors_whatif = [row_to_factor(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
             shap_importance_whatif = [row_to_shap(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
@@ -2581,6 +2623,8 @@ def handle_visualizations_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
                 "filtered_by_codes": filtered_by_codes,
                 "importance_source": "full_cohort_ffa",
             }
+            if filter_fallback:
+                chart_data["filter_fallback"] = filter_fallback
             if interaction_factors_whatif:
                 chart_data["interaction_factors_whatif"] = interaction_factors_whatif
             if shap_importance_whatif:

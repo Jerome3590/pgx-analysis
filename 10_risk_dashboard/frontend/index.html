@@ -2481,6 +2481,7 @@
     try {
       let chartData = null;
       const normalizeScenarioCode = (raw) => String(raw || "").trim().replace(/^(drug|icd|cpt)_/i, "").toUpperCase();
+      const getScenarioTopRows = (obj) => (obj && (obj.top_interaction_factors || obj.top_causal_factors || obj.feature_importance)) || [];
       const buildScenarioFeatureSet = (drugs, icds, cpts) => {
         const out = new Set();
         drugs.forEach(v => {
@@ -2517,16 +2518,20 @@
       const staticCausalResp = await fetch(scenarioStaticUrl);
       if (staticCausalResp.ok) {
         const prebuilt = await staticCausalResp.json();
-        const top = prebuilt.top_interaction_factors || [];
-        const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.importance ?? 0) }));
-        const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
+        const top = getScenarioTopRows(prebuilt);
+        const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.causal_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
+        const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.shap_norm ?? r.importance ?? r.combined_importance_norm ?? 0) }));
         const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
         const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
+        const filteredInteraction = selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors;
+        const filteredShap = selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance;
+        const usedFallbackToTop = selectedFeatureSet.size > 0 && filteredInteraction.length === 0 && causalFactors.length > 0;
         chartData = {
-          interaction_factors: selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors,
-          shap_importance: selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance,
-          filtered_by_codes: selectedFeatureSet.size > 0
+          interaction_factors: usedFallbackToTop ? causalFactors : filteredInteraction,
+          shap_importance: usedFallbackToTop ? shapImportance : filteredShap,
+          filtered_by_codes: selectedFeatureSet.size > 0 && !usedFallbackToTop
         };
+        if (usedFallbackToTop) chartData.filter_fallback = "top_model_features";
         if (whatIfFeatureSet.size > 0) {
           chartData.interaction_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
           chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
@@ -2541,16 +2546,20 @@
         chartData = data.chart_data || null;
         if (!chartData && data.scenario_data) {
           const prebuilt = data.scenario_data;
-          const top = prebuilt.top_interaction_factors || [];
-          const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.importance ?? 0) }));
-          const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
+          const top = getScenarioTopRows(prebuilt);
+          const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.causal_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
+          const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.shap_norm ?? r.importance ?? r.combined_importance_norm ?? 0) }));
           const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
           const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
+          const filteredInteraction = selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors;
+          const filteredShap = selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance;
+          const usedFallbackToTop = selectedFeatureSet.size > 0 && filteredInteraction.length === 0 && causalFactors.length > 0;
           chartData = {
-            interaction_factors: selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors,
-            shap_importance: selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance,
-            filtered_by_codes: selectedFeatureSet.size > 0
+            interaction_factors: usedFallbackToTop ? causalFactors : filteredInteraction,
+            shap_importance: usedFallbackToTop ? shapImportance : filteredShap,
+            filtered_by_codes: selectedFeatureSet.size > 0 && !usedFallbackToTop
           };
+          if (usedFallbackToTop) chartData.filter_fallback = "top_model_features";
           if (whatIfFeatureSet.size > 0) {
             chartData.interaction_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
             chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
@@ -2589,6 +2598,11 @@
         if (nWhatIf > 0) msg += ` What-if: ${nWhatIf} feature${nWhatIf !== 1 ? "s" : ""}.`;
         document.getElementById("scenario-status").textContent = msg;
         document.getElementById("scenario-status").className = nScenario > 0 ? "status-message success" : "status-message error";
+      } else if (chartData.filter_fallback === "top_model_features") {
+        let msg = "Selected features did not match scenario naming in this artifact; showing top model features (SHAP+FFA) instead.";
+        if (nWhatIf > 0) msg += ` What-if: ${nWhatIf} feature${nWhatIf !== 1 ? "s" : ""}.`;
+        document.getElementById("scenario-status").textContent = msg;
+        document.getElementById("scenario-status").className = "status-message info";
       } else {
         let msg = "Scenario analysis loaded successfully (top features). Select drugs/ICD/CPT to filter.";
         if (nWhatIf > 0) msg += ` What-if: ${nWhatIf} feature${nWhatIf !== 1 ? "s" : ""}.`;
@@ -3902,7 +3916,11 @@
             yaxis: { title: data.time_to_target_sequences.y_label || 'Days' }
           }, { responsive: true });
         } else {
-          setEmptyMessage(timeToTargetEl, 'Time to target (N3) will appear here when chart_data.json includes time_to_target_sequences.');
+          const hasChartData = data.chart_data && !data.chart_data.empty;
+          const msg = hasChartData
+            ? 'chart_data.json was loaded but does not include N3 time-to-target metrics for this cohort/age. Re-run the DTW pipeline (create_dtw_trajectories → create_dtw_features → create_dtw_visuals) so chart_data is rebuilt with time_to_target_sequences (requires timestamped event columns, e.g. event_date), then re-sync to S3.'
+            : 'Time to target (N3) will appear here when chart_data.json includes time_to_target_sequences.';
+          setEmptyMessage(timeToTargetEl, msg);
         }
       } catch (e) { setEmptyMessage(timeToTargetEl, 'This visual could not be displayed. The data may be missing or in an unexpected format.'); }
     }

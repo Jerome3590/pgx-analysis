@@ -337,6 +337,21 @@ def create_dtw_visuals(
         if isinstance(chart_data.get("metrics"), dict):
             chart_data["metrics"].setdefault("charts_not_built", {})[f"density_bin_{_missing_bin}"] = _reason
         _log("info", "chart_data.metrics.charts_not_built[density_bin_%s]: %s", _missing_bin, _reason)
+    _metrics = chart_data.get("metrics", {}) if isinstance(chart_data, dict) else {}
+    _n3 = _metrics.get("n3", {}) if isinstance(_metrics, dict) else {}
+    _cnb = _metrics.get("charts_not_built", {}) if isinstance(_metrics, dict) else {}
+    _log(
+        "info",
+        "N3 tracking summary cohort=%s age_band=%s tb_source=%s ttt_source=%s summary_tb_n=%s summary_ttt_n=%s reason_tb=%s reason_ttt=%s",
+        cohort_name,
+        age_band,
+        _n3.get("times_between_source", "missing"),
+        _n3.get("time_to_target_source", "missing"),
+        _n3.get("summary_trajectories_with_time_between", 0),
+        _n3.get("summary_target1_with_time_to_target", 0),
+        _cnb.get("times_between_sequences", "built_or_fallback"),
+        _cnb.get("time_to_target_sequences", "built_or_fallback"),
+    )
     with open(chart_path, "w", encoding="utf-8") as f:
         json.dump(chart_data, f, indent=0)
     _log("info", "Wrote %s", chart_path)
@@ -950,6 +965,34 @@ def _compute_time_to_target_sequences(df: pd.DataFrame) -> Optional[Dict[str, An
     }
 
 
+def _fallback_n3_all_bucket(
+    df: pd.DataFrame,
+    metric_col: str,
+    *,
+    chart_name: str,
+    y_label: str,
+) -> Optional[Dict[str, Any]]:
+    """Fallback N3 chart builder when routine bucketing isn't available.
+
+    Returns a single-bucket chart using all valid rows for the metric.
+    """
+    if df.empty or metric_col not in df.columns:
+        return None
+    use = pd.to_numeric(df[metric_col], errors="coerce").dropna()
+    if len(use) < 4:
+        return None
+    return {
+        "x": ["All trajectories"],
+        "y": [float(round(float(use.mean()), 1))],
+        "n": [int(len(use))],
+        "type": "bar",
+        "name": chart_name,
+        "x_label": "All trajectories",
+        "y_label": y_label,
+        "note": "Fallback aggregate used because routine-vs-no-routine buckets were unavailable in this build.",
+    }
+
+
 def _compute_target_pathway_patterns(df: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """Analyze target=1 patients to identify common trajectory patterns leading to adverse events. Prebuilt on EC2."""
     if df.empty or "target" not in df.columns or "seq_pattern_str" not in df.columns:
@@ -1171,6 +1214,8 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
     out["summary"] = _build_chart_data_summary(dtw_df)
     charts_built: List[str] = []
     charts_not_built: Dict[str, str] = {}
+    n3_tb_source = "missing"
+    n3_ttt_source = "missing"
 
     routine = _compute_dtw_routine_comparison(dtw_df)
     if routine:
@@ -1219,6 +1264,7 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
     if times_between:
         out["times_between_sequences"] = times_between
         charts_built.append("times_between_sequences")
+        n3_tb_source = "bucketed"
         _log_n3("info", "N3 times_between_sequences: built with %d categories (mean days between consecutive events by routine vs no routine)", len(times_between.get("x", [])))
     else:
         if "mean_days_between_events" not in dtw_df.columns:
@@ -1233,11 +1279,27 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
             reason = "insufficient rows or no valid mean_days_between_events"
             charts_not_built["times_between_sequences"] = reason
             _log_n3("info", "N3 times_between_sequences: not built — %s", reason)
+        # If summary indicates N3 data exists, emit a one-bucket fallback so downstream
+        # consumers still receive the expected key while pipeline artifacts are standardized.
+        if int(out.get("summary", {}).get("trajectories_with_time_between") or 0) > 0:
+            tb_fallback = _fallback_n3_all_bucket(
+                dtw_df,
+                "mean_days_between_events",
+                chart_name="Mean days between consecutive events",
+                y_label="Mean days between consecutive events",
+            )
+            if tb_fallback:
+                out["times_between_sequences"] = tb_fallback
+                charts_built.append("times_between_sequences_fallback")
+                charts_not_built.pop("times_between_sequences", None)
+                n3_tb_source = "fallback_all_trajectories"
+                _log_n3("info", "N3 times_between_sequences: fallback aggregate emitted (single bucket).")
 
     time_to_target = _compute_time_to_target_sequences(dtw_df)
     if time_to_target:
         out["time_to_target_sequences"] = time_to_target
         charts_built.append("time_to_target_sequences")
+        n3_ttt_source = "bucketed"
         _log_n3("info", "N3 time_to_target_sequences: built with %d categories (mean days from first event to target by routine vs no routine)", len(time_to_target.get("x", [])))
     else:
         if "days_first_event_to_target" not in dtw_df.columns:
@@ -1248,6 +1310,20 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
             reason = "insufficient target=1 rows or no valid days_first_event_to_target"
             charts_not_built["time_to_target_sequences"] = reason
             _log_n3("info", "N3 time_to_target_sequences: not built — %s", reason)
+        if int(out.get("summary", {}).get("trajectories_target1_with_time_to_target") or 0) > 0:
+            target_subset = dtw_df[dtw_df["target"] == 1] if "target" in dtw_df.columns else dtw_df
+            ttt_fallback = _fallback_n3_all_bucket(
+                target_subset,
+                "days_first_event_to_target",
+                chart_name="Mean days from first event to target",
+                y_label="Mean days from first event to target (target=1 only)",
+            )
+            if ttt_fallback:
+                out["time_to_target_sequences"] = ttt_fallback
+                charts_built.append("time_to_target_sequences_fallback")
+                charts_not_built.pop("time_to_target_sequences", None)
+                n3_ttt_source = "fallback_all_trajectories"
+                _log_n3("info", "N3 time_to_target_sequences: fallback aggregate emitted (single bucket).")
 
     # Stratify by event_density_bin for dashboard filter (same bins as create_dtw_trajectories)
     if "event_density_bin" in dtw_df.columns:
@@ -1274,6 +1350,12 @@ def _build_dtw_chart_data(dtw_df: pd.DataFrame, logger: Optional[logging.Logger]
         "dtw_rows": int(len(dtw_df)),
         "charts_built": charts_built,
         "charts_not_built": charts_not_built,
+        "n3": {
+            "times_between_source": n3_tb_source,
+            "time_to_target_source": n3_ttt_source,
+            "summary_trajectories_with_time_between": int(out.get("summary", {}).get("trajectories_with_time_between") or 0),
+            "summary_target1_with_time_to_target": int(out.get("summary", {}).get("trajectories_target1_with_time_to_target") or 0),
+        },
         "success": len(charts_not_built) == 0,
     }
     if charts_not_built:
