@@ -1,6 +1,6 @@
 # Project TODO
 
-_Last updated: 2026-06-01 — completion tracked here; action plans = spec; [`manuscript/docs/cts/cts_peer_review/README.md`](manuscript/docs/cts/cts_peer_review/README.md) = index; due-date staging in [`manuscript/docs/cts/due_date/`](manuscript/docs/cts/due_date/README.md)._
+_Last updated: 2026-06-01 — completion tracked here; action plans = spec; [`manuscript/docs/cts/README_CTS_PEER_REVIEW_INDEX.md`](manuscript/docs/cts/README_CTS_PEER_REVIEW_INDEX.md) = index; due-date staging in [`manuscript/docs/cts/due_date/`](manuscript/docs/cts/due_date/README.md)._
 
 Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`, `manuscript/docs/cts/README_CTS.md`.
 
@@ -10,9 +10,9 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 | ID | Manuscript | Chapter | Action plan | Status |
 |:---|:-----------|:--------|:------------|:-------|
-| **CH3** | CTS-2026-0196 | CH_3 | [cts_2026_0196_revision_action_plan.md](manuscript/docs/cts/cts_peer_review/cts_2026_0196_revision_action_plan.md) | 🟡 **Ready** — awaiting **Dr. Price** review → Wiley upload |
-| **CH4** | CTS-2026-0235-T | CH_4 | [cts_0235_t_revision_action_plan.md](manuscript/docs/cts/cts_peer_review/cts_0235_t_revision_action_plan.md) | 🟡 **Ready** — package built (`36e28bf`); **co-author review** → upload |
-| **CH5** | CTS-2026-0255-T | CH_5 | [cts_2026_0255_t_revision_action_plan.md](manuscript/docs/cts/cts_peer_review/cts_2026_0255_t_revision_action_plan.md) | 🔴 **Not started** — revision due ~June 2026 |
+| **CH3** | CTS-2026-0196 | CH_3 | [cts_2026_0196_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-08/CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | 🟡 **Ready** — awaiting **Dr. Price** review → Wiley upload |
+| **CH4** | CTS-2026-0235-T | CH_4 | [cts_0235_t_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-29/CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) | 🟡 **Ready** — package built (`36e28bf`); **co-author review** → upload |
+| **CH5** | CTS-2026-0255-T | CH_5 | [cts_2026_0255_t_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-30/CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🔴 **Not started** — revision due ~June 2026 |
 | T4 | `nbstripout` git filter (Windows) | pgx-analysis | — | ⬜ Open |
 | T5 | Parent repo local changes (puppeteer) | pgx-analysis | — | ⬜ Open — notebooks committed; `11_testing/puppeteer/*` untracked |
 | T6 | CH1 initial submission (CTS-2026-0197) | CH_1 | `manuscript_status.txt` | 🟡 Halted — title page + supp files |
@@ -22,7 +22,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 ## CH3 — CTS-2026-0196 (pending upload)
 
-**Spec:** [action plan](manuscript/docs/cts/cts_peer_review/cts_2026_0196_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_3](manuscript/docs/cts/README_CTS.md) · **Response:** `ch03_cts_revision_response.qmd`
+**Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-08/CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_3](manuscript/docs/cts/README_CTS.md) · **Response:** `ch03_cts_revision_response.qmd`
 
 **Status:** Revision package in repo; **not uploaded to Wiley**. Awaiting **Dr. Price** review.
 
@@ -36,13 +36,13 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 **Do not** re-run `sync_docs_cts.py --chapter 3` without `.\build.ps1 -Submit -Chapter 3` first.
 
-**Paths:** `manuscript/docs/cts/cts_peer_review/CTS-2026-0196_*` · `docs/cts/submission/ch03/` · `docs/cts/due_date/2026-06-08_CTS-2026-0196/`
+**Paths:** `docs/cts/due_date/2026-06-08/CTS-2026-0196/response/` · `docs/cts/due_date/2026-06-08/CTS-2026-0196/edits/` · `docs/cts/due_date/2026-06-08/CTS-2026-0196/submission/outputs/`
 
 ---
 
 ## CH4 — CTS-2026-0235-T (pending upload)
 
-**Spec:** [action plan](manuscript/docs/cts/cts_peer_review/cts_0235_t_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_4](manuscript/docs/cts/README_CTS.md) · **Response:** [ch04_cts_revision_response.qmd](manuscript/docs/cts/ch04_cts_revision_response.qmd)
+**Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-29/CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_4](manuscript/docs/cts/README_CTS.md) · **Response:** [ch04_cts_revision_response.qmd](manuscript/docs/cts/ch04_cts_revision_response.qmd)
 
 **Status:** QMD + refs + `-Submit` build + response with page/line cites + tables after references (`manuscript` `36e28bf`). **Not uploaded to Wiley**. Awaiting **co-author review**.
 
@@ -79,13 +79,13 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 **Do not** re-run `sync_docs_cts.py --chapter 4` without `.\build.ps1 -Submit -Chapter 4` first.
 
-**Paths:** `manuscript/docs/cts/cts_peer_review/CTS-2026-0235-T_*` · `docs/cts/submission/ch04/` · `docs/cts/due_date/2026-06-29_CTS-2026-0235-T/`
+**Paths:** `docs/cts/due_date/2026-06-29/CTS-2026-0235-T/response/` · `docs/cts/due_date/2026-06-29/CTS-2026-0235-T/edits/` · `docs/cts/due_date/2026-06-29/CTS-2026-0235-T/submission/outputs/`
 
 ---
 
 ## CH5 — CTS-2026-0255-T
 
-**Spec:** [action plan](manuscript/docs/cts/cts_peer_review/cts_2026_0255_t_revision_action_plan.md) · **Draft response:** [Revision Response for Serverless…](manuscript/docs/cts/cts_peer_review/Revision%20Response%20for%20Serverless%20Pharmacogenomic%20Dashboard%20Manuscript.md)
+**Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-30/CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) · **Draft response:** [Revision Response for Serverless…](manuscript/docs/cts/due_date/2026-06-30/CTS-2026-0255-T/response/Revision%20Response%20for%20Serverless%20Pharmacogenomic%20Dashboard%20Manuscript.md)
 
 ### Phase 1 — Framing
 
@@ -172,7 +172,7 @@ flowchart LR
 
 ## Completed (2026-06-01)
 
-- [x] Peer review markdown action plans + [README workflow](manuscript/docs/cts/cts_peer_review/README.md)
+- [x] Peer review markdown action plans + [README workflow](manuscript/docs/cts/README_CTS_PEER_REVIEW_INDEX.md)
 - [x] CH3 revision package in git — **upload pending** ([README_CTS § CH_3](manuscript/docs/cts/README_CTS.md))
 - [x] CH4 revision package: QMD, refs, submit build, tables after refs, response cites (`36e28bf`) — **upload pending** ([README_CTS § CH_4](manuscript/docs/cts/README_CTS.md))
 - [x] `move_tables_after_references.py` in CTS submit pipeline
