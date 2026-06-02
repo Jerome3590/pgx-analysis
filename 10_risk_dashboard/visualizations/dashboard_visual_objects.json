@@ -132,13 +132,13 @@
       "static_files": ["network_topology.html"]
     },
     {
-      "visual_name": "Causal dashboard JSON",
-      "dashboard_tab": "Causal Analysis",
+      "visual_name": "Scenario dashboard JSON",
+      "dashboard_tab": "Scenario Analysis (FFA/SHAP)",
       "path_type": "file_pattern",
-      "path": "10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json",
-      "s3_path": "vcu/pgx-risk-calculator/visualizations/causal/{cohort}/{age_band}/causal_data.json",
-      "notes": "upload_causal_outputs_to_s3 → visualizations/causal/ (S3 hyphen). One file per cohort/age_band.",
-      "static_files": ["causal_data.json"]
+      "path": "10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json",
+      "s3_path": "vcu/pgx-risk-calculator/visualizations/scenario/{cohort}/{age_band}/scenario_data.json",
+      "notes": "upload_scenario_outputs_to_s3 → visualizations/scenario/ (S3 hyphen). One file per cohort/age_band.",
+      "static_files": ["scenario_data.json"]
     }
   ]
 }

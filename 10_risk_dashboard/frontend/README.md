@@ -12,7 +12,7 @@ The frontend dashboard is a single-page application (SPA) built with vanilla HTM
 ## Tabs
 
 1. **Risk Assessment** - Calculate risk scores for opioid ED visits or polypharmacy
-2. **Causal Analysis** - Explore FFA causal factors and SHAP importance
+2. **Scenario Analysis (FFA/SHAP)** - Explore FFA interaction factors and SHAP importance
 3. **DTW Trajectories** - View patient trajectory patterns
 4. **FP-Growth Patterns** - Explore drug-name itemsets and association rules (drugs only)
 5. **BupaR Process Mining** - View process flows, activity sequences, and Drug × Drug process matrix
@@ -40,7 +40,7 @@ The manifest is the single source of truth for **all data visual requirements**:
 | **BupaR Process Mining** | `{base}_trace_explorer_plot.json`, `{base}_pre_target_activity_frequency.json`, `{base}_process_matrix_drug_drug.json`, `{base}_activity_sequence_top.json`, etc. | **JSON + Plotly first** for Trace Explorer, Trace Explorer Pre-Target, Process Matrix (Drug × Drug), Sequences to Target, and activity frequency charts. PNG used only as fallback when JSON is missing. Manifest lists all under `visualizations/bupar/{cohort}/{age_band}/plots/`. |
 | **DTW Trajectories** | `chart_data.json`, `sequence_heatmap.json`, `plots/trajectory_overview_plot.json`, `plots/dtw_trajectory_analysis_{base}.png`, `plots/dtw_trajectory_cluster_1d/3d_{base}.html` | **JSON-first:** chart_data, sequence_heatmap, and trajectory_overview_plot fetched from static (manifest); overview uses trajectory_overview_plot JSON (Plotly) when present, then overview PNG (urls[3]), then interactive HTML. Sample Trajectories visual removed. API fallback when static did not provide data. |
 | **FP-Growth** | `drug_name_itemsets.json`, `plots/{base}_combined_rules_network.html`, `plots/{base}_drug_name_combined_top_itemsets.png` | Manifest drives itemsets and network URLs; empty_state.json when pipeline produced no rules. |
-| **Causal Analysis** | `causal_data.json` per cohort/age_band | Static path from manifest; API fallback. |
+| **Scenario Analysis (FFA/SHAP)** | `scenario_data.json` per cohort/age_band | Static path from manifest; API fallback. |
 | **Feature Importance** | `aggregated_fi_heatmap.json` / `.png` per cohort; combined heatmap | Manifest paths; API fallback. |
 | **PGx Cohort** | `network_topology.html` | Manifest path under `visualizations/cohort_pgx/networks/{cohort}/{age_band}/`. |
 

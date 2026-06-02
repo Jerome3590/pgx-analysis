@@ -4,13 +4,13 @@ Combine SHAP and FFA Results for Final Reporting
 
 This script aggregates and combines SHAP and FFA analysis results from Steps 7 and 8
 to create comprehensive patient-level explanations. Note: Consensus is already reflected
-in FFA's causal importance scores, which use SHAP-prioritized rules.
+in FFA's interaction-importance scores, which use SHAP-prioritized rules.
 
 Usage:
     python 10_risk_dashboard/data_preparation/combine_shap_ffa_results.py \\
         --cohort opioid_ed --age-band 25-44
-    # Writes to 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json (EC2 path).
-    # Upload to S3: visualizations/causal/{cohort}/{age_band}/causal_data.json (use --upload-to-dashboard or upload_causal_outputs_to_s3.py).
+    # Writes to 10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json (EC2 path).
+    # Upload to S3: visualizations/scenario/{cohort}/{age_band}/scenario_data.json (use --upload-to-dashboard).
 """
 
 import os
@@ -569,7 +569,7 @@ def generate_dashboard_outputs_phts_style(
     with open(json_path, "w") as f:
         json.dump(dashboard_data, f, indent=2)
     logger.info(f"Saved dashboard_data.json (PHTS-style) to {json_path}")
-    # Caller may upload this to dashboard S3 via --upload-to-dashboard (same shape as causal_data.json)
+    # Caller may upload this to dashboard S3 via --upload-to-dashboard (same shape as scenario_data.json)
     csv_path = output_dir / "top_causal_factors.csv"
     top_causal.to_csv(csv_path, index=False)
     logger.info(f"Saved top_causal_factors.csv to {csv_path}")
@@ -579,8 +579,8 @@ def generate_dashboard_outputs_phts_style(
     return dashboard_data
 
 
-def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str, bin_name: str | None = None) -> bool:
-    """Upload dashboard_data.json to S3 dashboard bucket as causal_data.json for GET /visualizations/causal.
+def upload_scenario_data_to_dashboard(json_path: Path, cohort: str, age_band: str, bin_name: str | None = None) -> bool:
+    """Upload dashboard_data.json to S3 dashboard bucket as scenario_data.json for GET /visualizations/scenario.
     S3 paths use age_band with hyphen (e.g. 25-44); EC2 paths use underscore (25_44)."""
     try:
         import boto3
@@ -590,7 +590,7 @@ def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str,
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
     prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
     _bin_seg = f"/{bin_name}" if bin_name else ""
-    key = f"{prefix}/visualizations/causal/{cohort}/{age_band}{_bin_seg}/causal_data.json"
+    key = f"{prefix}/visualizations/scenario/{cohort}/{age_band}{_bin_seg}/scenario_data.json"
     try:
         s3 = boto3.client("s3")
         s3.upload_file(
@@ -599,10 +599,10 @@ def upload_causal_data_to_dashboard(json_path: Path, cohort: str, age_band: str,
             key,
             ExtraArgs={"ContentType": "application/json"},
         )
-        logger.info("Uploaded causal_data.json to s3://%s/%s", bucket, key)
+        logger.info("Uploaded scenario_data.json to s3://%s/%s", bucket, key)
         return True
     except Exception as e:
-        logger.warning("Failed to upload causal_data.json to S3: %s", e)
+        logger.warning("Failed to upload scenario_data.json to S3: %s", e)
         return False
 
 
@@ -617,7 +617,7 @@ def main():
         help="Optional density bin. Reads SHAP/FFA from bin_models/{bin}/ and writes to .../{cohort}/{age_band}/{bin}/. "
         "Omit for cohort-level (aggregate) inputs under .../{cohort}/{age_band}/ only.",
     )
-    parser.add_argument("--output-dir", default="10_risk_dashboard/visualizations/causal", help="Output directory (EC2: .../visualizations/causal/{cohort}/{age_band_fname}/)")
+    parser.add_argument("--output-dir", default="10_risk_dashboard/visualizations/scenario", help="Output directory (EC2: .../visualizations/scenario/{cohort}/{age_band_fname}/)")
     parser.add_argument("--top-k", type=int, default=20, help="Top K features for consensus")
     parser.add_argument("--weight-shap", type=float, default=0.5, help="Weight for SHAP (0-1)")
     parser.add_argument("--weight-ffa", type=float, default=0.5, help="Weight for FFA (0-1)")
@@ -632,7 +632,7 @@ def main():
     parser.add_argument(
         "--upload-to-dashboard",
         action="store_true",
-        help="Upload dashboard_data.json to S3 dashboard bucket as visualizations/causal/{cohort}/{age_band}/causal_data.json (set S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX)",
+        help="Upload dashboard_data.json to S3 dashboard bucket as visualizations/scenario/{cohort}/{age_band}/scenario_data.json (set S3_DASHBOARD_BUCKET, S3_DASHBOARD_PREFIX)",
     )
     args = parser.parse_args()
 
@@ -649,7 +649,7 @@ def main():
         return
     
     _bin_name: str | None = getattr(args, "bin", None)
-    # EC2 path: 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}[/{bin}]/ (README_dashboard_validation.md)
+    # EC2 path: 10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}[/{bin}]/ (README_dashboard_validation.md)
     _out_base = Path(args.output_dir) / args.cohort / args.age_band.replace("-", "_")
     output_dir = _out_base / _bin_name if _bin_name else _out_base
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -801,7 +801,7 @@ def main():
             combined_importance, output_dir, args.cohort, args.age_band, args.top_k
         )
         if getattr(args, "upload_to_dashboard", False):
-            upload_causal_data_to_dashboard(
+            upload_scenario_data_to_dashboard(
                 output_dir / "dashboard_data.json", args.cohort, args.age_band,
                 bin_name=getattr(args, "bin", None),
             )

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Upload causal dashboard JSON to S3 for the Causal Analysis tab.
+Upload scenario dashboard JSON to S3 for the Scenario Analysis tab.
 
-Scans 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/ for dashboard_data.json (EC2 uses underscore)
-and uploads each to the dashboard bucket as visualizations/causal/{cohort}/{age_band}/causal_data.json (S3 uses hyphen).
-Lambda (GET /visualizations/causal) reads from S3; this script is run during deployment
+Scans 10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/ for dashboard_data.json (EC2 uses underscore)
+and uploads each to the dashboard bucket as visualizations/scenario/{cohort}/{age_band}/scenario_data.json (S3 uses hyphen).
+Lambda (GET /visualizations/scenario) reads from S3; this script is run during deployment
 (5_build_and_deploy.ipynb or pgx_dashboard_visuals.py) so the tab has data.
 
 Usage (from repo root):
-    python 10_risk_dashboard/data_preparation/upload_causal_outputs_to_s3.py
+    python 10_risk_dashboard/data_preparation/upload_scenario_outputs_to_s3.py
 
 Environment:
     S3_DASHBOARD_BUCKET (default: jerome-dixon.io)
@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CAUSAL_VISUALS_DIR = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
+CAUSAL_VISUALS_DIR = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "scenario"
 
 
 def main() -> int:
@@ -49,39 +49,39 @@ def main() -> int:
                 continue
             age_band_fname = age_dir.name  # EC2 dir: 25_44
             age_band_s3 = age_band_fname.replace("_", "-")  # S3 path: 25-44
-            # Full-cohort causal data
+            # Full-cohort scenario data
             json_path = age_dir / "dashboard_data.json"
             if json_path.exists():
-                key = f"{prefix}/visualizations/causal/{cohort}/{age_band_s3}/causal_data.json"
+                key = f"{prefix}/visualizations/scenario/{cohort}/{age_band_s3}/scenario_data.json"
                 try:
                     s3.upload_file(
                         str(json_path), bucket, key,
                         ExtraArgs={"ContentType": "application/json"},
                     )
-                    print(f"  ✓ Causal data: {cohort}/{age_band_s3} -> s3://{bucket}/{key}")
+                    print(f"  ✓ Scenario data: {cohort}/{age_band_s3} -> s3://{bucket}/{key}")
                     uploaded += 1
                 except Exception as e:
                     print(f"  ⚠ Upload failed {cohort}/{age_band_s3}: {e}", file=sys.stderr)
-            # Per-bin causal data
+            # Per-bin scenario data
             for bin_name in _BINS:
                 bin_json = age_dir / bin_name / "dashboard_data.json"
                 if not bin_json.exists():
                     continue
-                bin_key = f"{prefix}/visualizations/causal/{cohort}/{age_band_s3}/{bin_name}/causal_data.json"
+                bin_key = f"{prefix}/visualizations/scenario/{cohort}/{age_band_s3}/{bin_name}/scenario_data.json"
                 try:
                     s3.upload_file(
                         str(bin_json), bucket, bin_key,
                         ExtraArgs={"ContentType": "application/json"},
                     )
-                    print(f"  ✓ Causal data (bin={bin_name}): {cohort}/{age_band_s3}/{bin_name} -> s3://{bucket}/{bin_key}")
+                    print(f"  ✓ Scenario data (bin={bin_name}): {cohort}/{age_band_s3}/{bin_name} -> s3://{bucket}/{bin_key}")
                     uploaded += 1
                 except Exception as e:
                     print(f"  ⚠ Upload failed {cohort}/{age_band_s3}/{bin_name}: {e}", file=sys.stderr)
 
     if uploaded:
-        print(f"Causal dashboard JSON: {uploaded} file(s) uploaded to S3.")
+        print(f"Scenario dashboard JSON: {uploaded} file(s) uploaded to S3.")
     else:
-        print("No dashboard_data.json found under 10_risk_dashboard/visualizations/causal/ (run combine_shap_ffa_results or run_shap_ffa_workflow first).")
+        print("No dashboard_data.json found under 10_risk_dashboard/visualizations/scenario/ (run combine_shap_ffa_results or run_shap_ffa_workflow first).")
     return 0
 
 

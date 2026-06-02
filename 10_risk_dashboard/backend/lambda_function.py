@@ -4,7 +4,7 @@ AWS Lambda function for PGx Risk Dashboard API.
 Lambda receives user input (cohort, model/feature selections) and **filters** only—it does not
 process or generate visualization data. All visuals are prebuilt on EC2 and saved to S3; Lambda
 returns URLs to those prebuilt assets. Risk inference uses the ensemble (CatBoost, XGBoost,
-XGBoost RF) with user-provided features; causal/visualization endpoints return prebuilt or
+XGBoost RF) with user-provided features; scenario visualization endpoints return prebuilt or
 pre-indexed data filtered by cohort/age_band/features.
 
 Handles:
@@ -12,9 +12,10 @@ Handles:
 - POST /risk - Risk score from ensemble, filtered by user-selected cohort and features
 - POST /risk/comparison - Compares risk scores for user-provided scenarios
 - POST /risk/drug_contributions - Leave-one-out per-drug Δp̂ for What-If / deprescribing tab
-- POST /causal/importance - Returns causal importance filtered by selected drugs/features (prebuilt data)
-- POST /causal/interactions - Returns interaction results filtered by selection (prebuilt data)
-- GET /visualizations/* - Returns URLs to prebuilt S3 assets only (no processing)
+- POST /scenario/importance - Interaction importance filtered by selected drugs/features (prebuilt data)
+- POST /scenario/interactions - Multi-feature interaction results filtered by selection (prebuilt data)
+- GET /visualizations/scenario - Scenario / FFA+SHAP dashboard JSON (canonical)
+- GET /visualizations/* - Returns URLs to other prebuilt S3 assets (no processing)
 - GET /visualizations/cohort_pgx - Returns network_topology_url for PGx Cohort tab
 
 Environment Variables:
@@ -33,6 +34,13 @@ from io import BytesIO
 
 import boto3
 from botocore.exceptions import ClientError
+
+from scenario_paths import (
+    API_SCENARIO_IMPORTANCE,
+    API_SCENARIO_INTERACTIONS,
+    API_VISUALIZATIONS_SCENARIO,
+    s3_scenario_data_key,
+)
 
 # Try to import model libraries (may not be available in Lambda)
 try:
@@ -525,7 +533,7 @@ def _normalize_feature_schema_for_training(schema: Dict[str, Any]) -> Dict[str, 
     - n_events (continuous claim count) is excluded post-refactor: the per-bin
       routing already stratifies by density; keeping n_events as a continuous
       feature dominates gradient-boosted splits and makes per-drug
-      counterfactuals flat (Δp̂ ≈ 0).  n_event_bin_ordinal (0–3) is retained
+      what-if deltas flat (Δp̂ ≈ 0).  n_event_bin_ordinal (0–3) is retained
       as the density signal.
     Older feature_schema.json files may still list both → drop them here so
     the feature vector matches the retrained model's expected shape.
@@ -910,10 +918,10 @@ def build_feature_vector(
 
     When auto_pgx_num_drugs=True and pgx_num_drugs/pgx_num_cpic_drugs are not
     supplied, both aggregate counts are derived from len(drugs) so that
-    leave-one-out counterfactuals produce meaningful Δp̂ values instead of
+    leave-one-out what-if deltas produce meaningful Δp̂ values instead of
     collapsing to zero (previously the schema training-median default was used
     regardless of submitted drug count, making the dominant model features
-    constant across all counterfactual scenarios).
+    constant across all what-if scenarios).
 
     When n_event_bin is provided (e.g. 'low', 'medium', 'high', 'extreme'),
     n_event_bin_ordinal is set from _BIN_ORDINAL_MAP instead of falling back
@@ -976,7 +984,7 @@ def build_feature_vector(
 
     # Auto-derive pgx_num_drugs / pgx_num_cpic_drugs from submitted drug count
     # when auto_pgx_num_drugs=True and no explicit values were provided.
-    # This ensures counterfactual scenarios (drug removed → n_drug-1) produce
+    # This ensures what-if scenarios (drug removed → n_drug-1) produce
     # a real Δp̂ instead of staying stuck at the training-median default.
     if auto_pgx_num_drugs:
         if pgx_num_drugs is None:
@@ -1280,15 +1288,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_risk_comparison(event)
         elif method == "POST" and path.endswith("/risk"):
             return handle_risk(event)
-        elif method == "POST" and path.endswith("/causal/interactions"):
-            return handle_causal_interactions(event)
-        elif method == "POST" and path.endswith("/causal/importance"):
-            return handle_causal_importance(event)
-        elif method == "POST" and path.endswith("/causal"):
-            return _response(404, {"error": "Unknown causal endpoint — use /causal/importance or /causal/interactions"})
+        elif method == "POST" and path.endswith(API_SCENARIO_INTERACTIONS):
+            return handle_scenario_interactions(event)
+        elif method == "POST" and path.endswith(API_SCENARIO_IMPORTANCE):
+            return handle_scenario_importance(event)
+        elif method == "POST" and path.endswith("/scenario"):
+            return _response(
+                404,
+                {
+                    "error": "Unknown endpoint — use /scenario/importance or /scenario/interactions"
+                },
+            )
         elif method == "GET" and path.startswith("/visualizations/"):
-            if path.endswith("/causal"):
-                return handle_visualizations_causal(event)
+            if path.endswith(API_VISUALIZATIONS_SCENARIO):
+                return handle_visualizations_scenario(event)
             elif path.endswith("/dtw"):
                 return handle_visualizations_dtw(event)
             elif path.endswith("/fpgrowth/network_html"):
@@ -1720,7 +1733,7 @@ def handle_drug_contributions(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     POST /risk/drug_contributions
 
-    Computes per-drug leave-one-out counterfactual Δp̂ for every drug in the
+    Computes per-drug leave-one-out what-if Δp̂ for every drug in the
     submitted list, powering the What-If / deprescribing tab.
 
     For each drug D:
@@ -2169,9 +2182,9 @@ def filter_interactions_by_features(interaction_df: pd.DataFrame, selected_featu
     return interaction_df[mask].copy()
 
 
-def handle_causal_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
+def handle_scenario_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    POST /causal/interactions
+    POST /scenario/interactions
     
     Returns multi-feature interaction analysis results.
     
@@ -2261,7 +2274,7 @@ def handle_causal_interactions(event: Dict[str, Any]) -> Dict[str, Any]:
         })
 
 
-def load_causal_importance(cohort: str, age_band: str, model_type: str = "xgboost", bin_name: Optional[str] = None) -> pd.DataFrame:
+def load_interaction_importance(cohort: str, age_band: str, model_type: str = "xgboost", bin_name: Optional[str] = None) -> pd.DataFrame:
     """
     Load feature importance results.
 
@@ -2270,14 +2283,14 @@ def load_causal_importance(cohort: str, age_band: str, model_type: str = "xgboos
     Returns an empty DataFrame if the per-bin file is absent — no full-cohort
     fallback, so the caller can surface a meaningful "not available" message.
 
-    When bin_name is None the full-cohort FFA causal_importance.parquet is
+    When bin_name is None the full-cohort FFA interaction importance parquet is
     loaded (legacy/baseline path).
 
     The per-bin CSV has columns 'feature' and 'importance'; the latter is
-    renamed to 'causal_importance' to match the existing response schema.
+    normalized to 'interaction_importance' for the scenario response schema.
     """
     if not MODEL_LIBS_AVAILABLE:
-        print("ERROR: pandas not available. Cannot load causal importance.")
+        print("ERROR: pandas not available. Cannot load interaction importance.")
         return pd.DataFrame()
 
     age_band_fname = age_band.replace("-", "_")
@@ -2290,8 +2303,8 @@ def load_causal_importance(cohort: str, age_band: str, model_type: str = "xgboos
             if p.exists():
                 try:
                     df = pd.read_csv(p)
-                    if "importance" in df.columns and "causal_importance" not in df.columns:
-                        df = df.rename(columns={"importance": "causal_importance"})
+                    if "importance" in df.columns and "interaction_importance" not in df.columns:
+                        df = df.rename(columns={"importance": "interaction_importance"})
                     print(f"Loaded per-bin FI ({bin_name}/{model_type}) from container")
                     return df
                 except Exception as e:
@@ -2301,41 +2314,41 @@ def load_causal_importance(cohort: str, age_band: str, model_type: str = "xgboos
             obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
             import io
             df = pd.read_csv(io.BytesIO(obj["Body"].read()))
-            if "importance" in df.columns and "causal_importance" not in df.columns:
-                df = df.rename(columns={"importance": "causal_importance"})
+            if "importance" in df.columns and "interaction_importance" not in df.columns:
+                df = df.rename(columns={"importance": "interaction_importance"})
             print(f"Loaded per-bin FI ({bin_name}/{model_type}) from S3: {s3_key}")
             return df
         except Exception:
             print(f"Per-bin feature importance not found for bin='{bin_name}', model='{model_type}'. Run notebook 3 first.")
             return pd.DataFrame()
     else:
-        # ── Full-cohort FFA causal importance (parquet) ───────────────────────
+        # ── Full-cohort FFA interaction importance (parquet) ──────────────────
         if USE_CONTAINER_MODELS:
-            container_causal_path = Path(MODEL_BASE_PATH).parent.parent / "8_ffa_analysis" / "outputs" / cohort / age_band_fname / model_type / "causal_importance.parquet"
-            if container_causal_path.exists():
+            container_path = Path(MODEL_BASE_PATH).parent.parent / "8_ffa_analysis" / "outputs" / cohort / age_band_fname / model_type / "interaction_importance.parquet"
+            if container_path.exists():
                 try:
-                    return pd.read_parquet(container_causal_path)
+                    return pd.read_parquet(container_path)
                 except Exception as e:
-                    print(f"Warning: Failed to load causal importance from container: {e}")
-        s3_key = f"gold/ffa_analysis/{cohort}/{age_band}/{model_type}/causal_importance.parquet"
+                    print(f"Warning: Failed to load interaction importance from container: {e}")
+        s3_key = f"gold/ffa_analysis/{cohort}/{age_band}/{model_type}/interaction_importance.parquet"
         try:
             obj = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
             df = pd.read_parquet(BytesIO(obj["Body"].read()))
-            print(f"Loaded causal importance from S3: s3://{S3_BUCKET}/{s3_key}")
+            print(f"Loaded interaction importance from S3: s3://{S3_BUCKET}/{s3_key}")
             return df
         except ClientError as e:
             code = e.response.get("Error", {}).get("Code")
             if code in ("NoSuchKey", "404", "NotFound"):
-                print(f"Causal importance not found: s3://{S3_BUCKET}/{s3_key}")
+                print(f"Interaction importance not found: s3://{S3_BUCKET}/{s3_key}")
                 return pd.DataFrame()
             raise
 
 
-def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
+def handle_scenario_importance(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    POST /causal/importance
+    POST /scenario/importance
     
-    Returns single-feature causal importance results, optionally filtered by selected drugs.
+    Returns single-feature interaction importance results, optionally filtered by selected drugs.
     
     Request Body:
     {
@@ -2348,10 +2361,10 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
     
     Response:
     {
-        "causal_importance": [
+        "interaction_importance": [
             {
                 "feature": "item_DRUG_A",
-                "causal_importance": 0.123456,
+                "interaction_importance": 0.123456,
                 "rank": 1
             },
             ...
@@ -2376,16 +2389,16 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
             return _response(400, {"error": "cohort and age_band are required"})
 
         # Load per-bin or full-cohort feature importance
-        causal_df = load_causal_importance(cohort, age_band, model_type, bin_name=n_event_bin)
+        interaction_df = load_interaction_importance(cohort, age_band, model_type, bin_name=n_event_bin)
         
-        if causal_df.empty:
+        if interaction_df.empty:
             msg = (
                 f"No feature importance found for bin='{n_event_bin}'. Run train_per_bin() (notebook 3) first."
                 if n_event_bin else
-                "No causal importance results found. Run Step 8 (FFA Analysis) first."
+                "No interaction importance results found. Run Step 8 (FFA Analysis) first."
             )
             return _response(200, {
-                "causal_importance": [],
+                "interaction_importance": [],
                 "summary": {
                     "total_features": 0,
                     "filtered_features": 0,
@@ -2396,32 +2409,37 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
             })
         
         # Filter to selected drugs if provided
-        filtered_df = causal_df.copy()
+        filtered_df = interaction_df.copy()
         if selected_drugs:
             # Convert drug codes to feature names (item_DRUG_CODE format)
             selected_features = [f"item_{drug.upper()}" for drug in selected_drugs]
             # Filter to features that match selected drugs
             filtered_df = filtered_df[filtered_df['feature'].isin(selected_features)]
         
-        # Sort by causal importance and get top N
-        filtered_df = filtered_df.sort_values('causal_importance', ascending=False)
+        # Sort by interaction importance and get top N
+        importance_col = "interaction_importance" if "interaction_importance" in filtered_df.columns else (
+            "importance" if "importance" in filtered_df.columns else "causal_importance"
+        )
+        filtered_df = filtered_df.sort_values(importance_col, ascending=False)
         top_df = filtered_df.head(top_n).copy()
         top_df['rank'] = range(1, len(top_df) + 1)
+        if importance_col != "interaction_importance":
+            top_df = top_df.rename(columns={importance_col: "interaction_importance"})
         
         # Format response
-        causal_importance = top_df[['feature', 'causal_importance', 'rank']].to_dict('records')
+        interaction_importance = top_df[['feature', 'interaction_importance', 'rank']].to_dict('records')
         
         summary = {
-            "total_features": len(causal_df),
+            "total_features": len(interaction_df),
             "filtered_features": len(filtered_df),
             "selected_drugs": selected_drugs,
-            "top_n_returned": len(causal_importance),
+            "top_n_returned": len(interaction_importance),
             "n_event_bin": n_event_bin,
             "importance_source": "per_bin" if n_event_bin else "full_cohort_ffa",
         }
 
         return _response(200, {
-            "causal_importance": causal_importance,
+            "interaction_importance": interaction_importance,
             "summary": summary
         })
     
@@ -2433,8 +2451,8 @@ def handle_causal_importance(event: Dict[str, Any]) -> Dict[str, Any]:
         })
 
 
-def _causal_feature_set_from_codes(drugs: List[str], icds: List[str], cpts: List[str]) -> set:
-    """Build set of feature names that match causal_data (item_X, item_icd_X, item_cpt_X, item_drug_X)."""
+def _interaction_feature_set_from_codes(drugs: List[str], icds: List[str], cpts: List[str]) -> set:
+    """Build set of feature names for scenario data (item_X, item_icd_X, item_cpt_X, item_drug_X)."""
     out = set()
     for code in drugs:
         c = str(code).strip().upper()
@@ -2454,15 +2472,15 @@ def _causal_feature_set_from_codes(drugs: List[str], icds: List[str], cpts: List
     return out
 
 
-def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
+def handle_visualizations_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    GET /visualizations/causal?cohort=...&age_band=...[&drugs=...&icds=...&cpts=...&whatif=...]
+    GET /visualizations/scenario?cohort=...&age_band=...[&drugs=...&icds=...&cpts=...&whatif=...]
 
-    Same pattern as Feature Importance: load causal_data.json from S3 and return inline.
+    Same pattern as Feature Importance: load scenario_data.json from S3 and return inline.
     Lambda applies optional filters (drugs, icds, cpts, whatif) and returns chart_data
-    (causal_factors, shap_importance, whatif variants, feature_interactions) so the
-    frontend can render without re-filtering. Radar plot uses top N of causal_factors.
-    S3 key: {S3_DASHBOARD_PREFIX}/visualizations/causal/{cohort}/{age_band}/causal_data.json (age_band with hyphen, e.g. 25-44).
+    (interaction_factors, shap_importance, whatif variants, feature_interactions) so the
+    frontend can render without re-filtering. Radar plot uses top N of interaction_factors.
+    S3 key: {S3_DASHBOARD_PREFIX}/visualizations/scenario/{cohort}/{age_band}/scenario_data.json (age_band with hyphen, e.g. 25-44).
     """
     try:
         params = event.get("queryStringParameters") or {}
@@ -2478,42 +2496,41 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
         icds = [x.strip() for x in (params.get("icds") or "").split(",") if x.strip()]
         cpts = [x.strip() for x in (params.get("cpts") or "").split(",") if x.strip()]
         whatif_codes = [x.strip() for x in (params.get("whatif") or "").split(",") if x.strip()]
-        selected_set = _causal_feature_set_from_codes(drugs, icds, cpts)
-        whatif_set = _causal_feature_set_from_codes(whatif_codes, whatif_codes, whatif_codes) if whatif_codes else set()
+        selected_set = _interaction_feature_set_from_codes(drugs, icds, cpts)
+        whatif_set = _interaction_feature_set_from_codes(whatif_codes, whatif_codes, whatif_codes) if whatif_codes else set()
 
         # S3 paths use hyphen (25-44); EC2/file paths use underscore (25_44)
-        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/causal/{cohort}/{age_band}"
-        causal_key = f"{prefix}/causal_data.json"
-        payload: Dict[str, Any] = {"causal_data_url": _dashboard_s3_url(causal_key), "n_event_bin": n_event_bin}
+        scenario_key = s3_scenario_data_key(S3_DASHBOARD_PREFIX, cohort, age_band)
+        payload: Dict[str, Any] = {"scenario_data_url": _dashboard_s3_url(scenario_key), "n_event_bin": n_event_bin}
 
-        # When n_event_bin is supplied, load per-bin FI CSV exclusively (no causal_data.json fallback)
+        # When n_event_bin is supplied, load per-bin FI CSV exclusively (no scenario_data.json fallback)
         if n_event_bin:
-            bin_df = load_causal_importance(cohort, age_band, model_type, bin_name=n_event_bin)
+            bin_df = load_interaction_importance(cohort, age_band, model_type, bin_name=n_event_bin)
             if not bin_df.empty:
-                fi_col = "causal_importance" if "causal_importance" in bin_df.columns else "importance"
+                fi_col = "interaction_importance" if "interaction_importance" in bin_df.columns else "importance"
                 top_rows = bin_df.sort_values(fi_col, ascending=False)
                 if selected_set:
                     top_rows = top_rows[top_rows["feature"].isin(selected_set)]
                     filtered_by_codes = True
                 else:
                     filtered_by_codes = False
-                causal_factors = [
+                interaction_factors = [
                     {"feature": r["feature"], "importance": float(r[fi_col])}
                     for _, r in top_rows.iterrows()
                 ]
                 chart_data: Dict[str, Any] = {
-                    "causal_factors": causal_factors,
-                    "shap_importance": causal_factors,  # same source; SHAP not available per-bin
+                    "interaction_factors": interaction_factors,
+                    "shap_importance": interaction_factors,  # same source; SHAP not available per-bin
                     "filtered_by_codes": filtered_by_codes,
                     "importance_source": "per_bin",
                 }
                 if whatif_set:
                     wif_rows = bin_df[bin_df["feature"].isin(whatif_set)].sort_values(fi_col, ascending=False)
-                    chart_data["causal_factors_whatif"] = [
+                    chart_data["interaction_factors_whatif"] = [
                         {"feature": r["feature"], "importance": float(r[fi_col])}
                         for _, r in wif_rows.iterrows()
                     ]
-                    chart_data["shap_importance_whatif"] = chart_data["causal_factors_whatif"]
+                    chart_data["shap_importance_whatif"] = chart_data["interaction_factors_whatif"]
                 payload["chart_data"] = chart_data
             else:
                 payload["message"] = (
@@ -2522,50 +2539,50 @@ def handle_visualizations_causal(event: Dict[str, Any]) -> Dict[str, Any]:
                 )
             return _response(200, payload)
 
-        # Full-cohort path: load causal_data.json from S3
+        # Full-cohort path: load scenario_data.json from S3
         try:
-            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=causal_key)
+            obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=scenario_key)
             data = json.loads(obj["Body"].read().decode("utf-8"))
-            payload["causal_data"] = data
+            payload["scenario_data"] = data
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
                 raise
         except (json.JSONDecodeError, TypeError):
             pass
 
-        # Build chart_data from full-cohort causal_data.json
-        if payload.get("causal_data"):
-            raw = payload["causal_data"]
-            top = raw.get("top_causal_factors") or []
+        # Build chart_data from full-cohort scenario_data.json
+        if payload.get("scenario_data"):
+            raw = payload["scenario_data"]
+            top = raw.get("top_interaction_factors") or []
 
             def row_to_factor(r: Dict[str, Any]) -> Dict[str, Any]:
                 feat = r.get("feature") or ""
-                return {"feature": feat, "importance": float(r.get("causal_responsibility") or r.get("importance") or 0)}
+                return {"feature": feat, "importance": float(r.get("interaction_score") or r.get("importance") or 0)}
 
             def row_to_shap(r: Dict[str, Any]) -> Dict[str, Any]:
                 feat = r.get("feature") or ""
                 return {"feature": feat, "importance": float(r.get("shap_importance") or r.get("importance") or 0)}
 
             if selected_set:
-                causal_factors = [row_to_factor(r) for r in top if (r.get("feature") or "") in selected_set]
+                interaction_factors = [row_to_factor(r) for r in top if (r.get("feature") or "") in selected_set]
                 shap_importance = [row_to_shap(r) for r in top if (r.get("feature") or "") in selected_set]
                 filtered_by_codes = True
             else:
-                causal_factors = [row_to_factor(r) for r in top]
+                interaction_factors = [row_to_factor(r) for r in top]
                 shap_importance = [row_to_shap(r) for r in top]
                 filtered_by_codes = False
 
-            causal_factors_whatif = [row_to_factor(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
+            interaction_factors_whatif = [row_to_factor(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
             shap_importance_whatif = [row_to_shap(r) for r in top if (r.get("feature") or "") in whatif_set] if whatif_set else []
 
             chart_data = {
-                "causal_factors": causal_factors,
+                "interaction_factors": interaction_factors,
                 "shap_importance": shap_importance,
                 "filtered_by_codes": filtered_by_codes,
                 "importance_source": "full_cohort_ffa",
             }
-            if causal_factors_whatif:
-                chart_data["causal_factors_whatif"] = causal_factors_whatif
+            if interaction_factors_whatif:
+                chart_data["interaction_factors_whatif"] = interaction_factors_whatif
             if shap_importance_whatif:
                 chart_data["shap_importance_whatif"] = shap_importance_whatif
             if raw.get("feature_interactions"):
