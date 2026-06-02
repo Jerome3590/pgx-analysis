@@ -1,6 +1,6 @@
 # Project TODO
 
-_Last updated: 2026-06-01 — completion tracked here; action plans = spec; [`manuscript/docs/cts/cts_peer_review/README.md`](manuscript/docs/cts/cts_peer_review/README.md) = index._
+_Last updated: 2026-06-01 — completion tracked here; action plans = spec; [`manuscript/docs/cts/cts_peer_review/README.md`](manuscript/docs/cts/cts_peer_review/README.md) = index; due-date staging in [`manuscript/docs/cts/due_date/`](manuscript/docs/cts/due_date/README.md)._
 
 Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`, `manuscript/docs/cts/README_CTS.md`.
 
@@ -36,7 +36,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 **Do not** re-run `sync_docs_cts.py --chapter 3` without `.\build.ps1 -Submit -Chapter 3` first.
 
-**Paths:** `manuscript/docs/cts/cts_peer_review/CTS-2026-0196_*` · `docs/cts/submission/ch03/`
+**Paths:** `manuscript/docs/cts/cts_peer_review/CTS-2026-0196_*` · `docs/cts/submission/ch03/` · `docs/cts/due_date/2026-06-08_CTS-2026-0196/`
 
 ---
 
@@ -79,7 +79,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 **Do not** re-run `sync_docs_cts.py --chapter 4` without `.\build.ps1 -Submit -Chapter 4` first.
 
-**Paths:** `manuscript/docs/cts/cts_peer_review/CTS-2026-0235-T_*` · `docs/cts/submission/ch04/`
+**Paths:** `manuscript/docs/cts/cts_peer_review/CTS-2026-0235-T_*` · `docs/cts/submission/ch04/` · `docs/cts/due_date/2026-06-29_CTS-2026-0235-T/`
 
 ---
 
