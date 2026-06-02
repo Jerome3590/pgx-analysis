@@ -48,9 +48,9 @@ Thresholds are fixed in the backend (`DEFAULT_RISK_BAND_THRESHOLDS`: `low_medium
 
 ### Visualization Endpoints (filter only; return prebuilt S3 URLs)
 
-- **`GET /visualizations/causal`** - Return causal/SHAP data (same pattern as Feature Importance: load JSON, optional Lambda processing)
+- **`GET /visualizations/scenario`** - Return scenario/SHAP data (same pattern as Feature Importance: load JSON, optional Lambda processing)
   - Query params: `cohort`, `age_band`; optional `drugs`, `icds`, `cpts`, `whatif` (comma-separated codes) to filter
-  - Returns: `causal_data` (raw from S3), `chart_data` (Lambda-built: causal_factors, shap_importance, causal_factors_whatif, shap_importance_whatif, feature_interactions when present) for bar charts, radar, and drug/feature interactions
+  - Returns: `scenario_data` (raw from S3), `chart_data` (Lambda-built: interaction_factors, shap_importance, interaction_factors_whatif, shap_importance_whatif, feature_interactions when present) for bar charts, radar, and drug/feature interactions
 
 - **`GET /visualizations/dtw`** - Return DTW assets (prefer inline JSON when present)
   - Query params: `cohort`, `age_band`

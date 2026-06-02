@@ -6,12 +6,12 @@ three logical endpoints:
 
 - GET  /metadata  -> handle_metadata
 - POST /risk      -> handle_risk
-- POST /causal    -> handle_causal
+- POST /scenario  -> handle_scenario
 
 The dashboard HTML/JS (served from S3) calls these endpoints to:
 - Discover valid age bands and value sets for Drug/ICD/CPT controls.
 - Compute risk of F1120 / ADE from the final model ensemble.
-- Provide causal “what-if” results based on FFA outputs or model counterfactuals.
+- Provide scenario “what-if” results based on FFA outputs or model deltas.
 """
 
 import json
@@ -57,7 +57,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Routes based on HTTP method + path:
     - GET /metadata
     - POST /risk
-    - POST /causal
+    - POST /scenario
     """
     try:
         method = event.get("httpMethod", "GET")
@@ -74,8 +74,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_metadata(event)
         if method == "POST" and path.endswith("/risk"):
             return handle_risk(event)
-        if method == "POST" and path.endswith("/causal"):
-            return handle_causal(event)
+        if method == "POST" and path.endswith("/scenario"):
+            return handle_scenario(event)
 
         return _response(404, {"error": f"Unsupported route: {method} {raw_path}"})
 
@@ -208,12 +208,12 @@ def handle_risk(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# /causal – causal “what-if” from FFA
+# /scenario – what-if scenario analysis from FFA
 # ---------------------------------------------------------------------------
 
-def handle_causal(event: Dict[str, Any]) -> Dict[str, Any]:
+def handle_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    POST /causal
+    POST /scenario
 
     Expected request body:
       {
@@ -233,9 +233,9 @@ def handle_causal(event: Dict[str, Any]) -> Dict[str, Any]:
       }
 
     Template implementation:
-      - In production, this should read precomputed FFA causal summaries from S3
-        (e.g., s3://<bucket>/<FFA_PREFIX>/causal_summary_{cohort}_{age_band}.json)
-        OR perform fast on‑the‑fly counterfactual scoring using the final model.
+      - In production, this should read precomputed FFA interaction summaries from S3
+        (e.g., s3://<bucket>/<FFA_PREFIX>/scenario_summary_{cohort}_{age_band}.json)
+        OR perform fast on-the-fly what-if scoring using the final model.
     """
     body = json.loads(event.get("body") or "{}")
     cohort = body.get("cohort", "opioid_ed")
@@ -244,7 +244,7 @@ def handle_causal(event: Dict[str, Any]) -> Dict[str, Any]:
     icds: List[str] = body.get("icds", []) or []
     cpts: List[str] = body.get("cpts", []) or []
 
-    # TODO: Replace this with real FFA causal effects loaded from S3.
+    # TODO: Replace this with real FFA interaction effects loaded from S3.
     # For now, create simple placeholders that show negative deltas (risk reduction)
     # when removing codes that look like “high‑risk” markers.
     effects: List[Dict[str, Any]] = []

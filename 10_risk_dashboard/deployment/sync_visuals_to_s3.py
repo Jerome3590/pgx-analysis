@@ -9,7 +9,7 @@ Nothing outside the manifest static_files is uploaded, preventing S3 pollution w
 intermediate files such as trajectory_status_*.json, dtw_model_events_diagnostics_*.json,
 *.csv, *.parquet, Rplots.pdf, and other pipeline artifacts the dashboard never reads.
 
-NOTE: Causal Analysis artifacts (dashboard_data.json → causal_data.json rename-on-upload)
+NOTE: Scenario Analysis artifacts (dashboard_data.json → scenario_data.json rename-on-upload)
 are handled separately by upload_causal_outputs_to_s3.py, which is still called by
 5_build_and_deploy.py before this script.
 
@@ -48,7 +48,7 @@ CONTENT_TYPES = {
 }
 
 # These dashboard tabs are handled by separate dedicated scripts; skip here to avoid double-upload.
-_SKIP_TABS = {"Causal Analysis"}
+_SKIP_TABS = {"Scenario Analysis (FFA/SHAP)"}
 
 
 def _content_type(path: Path) -> str:

@@ -466,7 +466,7 @@ def main() -> None:
     parser.add_argument(
         "--upload-to-dashboard",
         action="store_true",
-        help="After combine, upload causal_data.json to S3 dashboard bucket (for GET /visualizations/causal).",
+        help="After combine, upload scenario_data.json to S3 dashboard bucket (for GET /visualizations/scenario).",
     )
     args = parser.parse_args()
     age_band_fname = _age_band_fname(args.age_band)
@@ -616,7 +616,7 @@ def main() -> None:
 
     if not args.skip_combine:
         combine_script = Path(__file__).parent / "combine_shap_ffa_results.py"
-        causal_visuals_dir = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
+        causal_visuals_dir = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "scenario"
         combine_cmd = [
             str(get_workflow_python_bin()),
             str(combine_script),
