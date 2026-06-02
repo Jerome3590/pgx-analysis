@@ -12,7 +12,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 |:---|:-----------|:--------|:------------|:-------|
 | **CH3** | CTS-2026-0196 | CH_3 | [cts_2026_0196_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | 🟡 **Ready** — causality alignment rebuild + marked MS; **Dr. Price** review → Wiley |
 | **CH4** | CTS-2026-0235-T | CH_4 | [cts_0235_t_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) | 🟡 **Ready** — same alignment pass; **co-author review** → upload |
-| **CH5** | CTS-2026-0255-T | CH_5 | [cts_2026_0255_t_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟡 **In progress** — QMD + submit build + Figure 3 scenario panels; marked MS + `submission/outputs/` staged; formal response QMD TODO |
+| **CH5** | CTS-2026-0255-T | CH_5 | [cts_2026_0255_t_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟡 **Ready for co-author review** — full package built; `ch05_cts_revision_response.qmd` → DOCX |
 | T4 | `nbstripout` git filter (Windows) | pgx-analysis | — | ⬜ Open |
 | T5 | Parent repo local changes (puppeteer) | pgx-analysis | — | ⬜ Open — notebooks committed; `11_testing/puppeteer/*` untracked |
 | T6 | CH1 initial submission (CTS-2026-0197) | CH_1 | `manuscript_status.txt` | 🟡 Halted — title page + supp files |
@@ -94,25 +94,25 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 - [x] Position as **technical feasibility** (abstract, conclusions, Reviewer 2 response text)
 - [x] Soften *causal* / *What-If* → model-based scenario analysis; shared guardrail sentence (CH3–CH5)
 - [x] **Figure 3** — two-panel Scenario Analysis screenshot (`scenario_analysis0/1` → `fig_scenario.png`)
-- [ ] Privacy/regulatory wording — deployment-context dependent (final proofread)
+- [x] Privacy/regulatory wording — deployment-context dependent (Methods, Discussion, Limitations)
 
 ### Phase 2 — Methods (Reviewer 1)
 
-- [ ] 573 CPIC concordance cases: simulated vs real; cohort description
-- [ ] Justify 84-model ensemble; note simpler baselines (single XGBoost, rule-based CPIC)
-- [ ] CPIC concordance scoring definition; ambiguous pairs
-- [ ] Imputation method for partial inputs
-- [ ] Running title — remove “draft”
-- [ ] Table S1/S2 legends: age bands, density bins; add 1–2 gene-drug examples
+- [x] 573 CPIC concordance cases: logic-verification set from CPIC snapshot (not patient cohort)
+- [x] Justify 84-model ensemble; baselines (pooled XGBoost, rules-only CPIC)
+- [x] CPIC concordance scoring definition; ambiguous pairs → “review required”
+- [x] Imputation method: Imputation of Normality (age-band medians; vs MICE)
+- [x] Running title — no “draft”
+- [x] Table S1/S2 legends: age bands, density bins; gene–drug examples (e.g., CYP2D6/codeine)
 
 ### Phase 3 — Structure & formatting
 
 - [x] Fix section numbering (Section 5 Limitations)
-- [ ] Shorten §2.5 storage / §3.7 CI/CD / §3.8 bench → supplement where possible (audit on proofread)
-- [ ] Table 2 readability; compare to existing clinical PGx platforms
+- [x] CI/CD compressed → Supplementary File S6; container sizing in Table S1
+- [x] Table 2 (PGx coverage) note + Discussion platform comparison (PREDICT)
 - [x] `.\build.ps1 -Submit -Chapter 5` → `docs/cts/submission/ch05/` + `due_date/.../submission/outputs/`
 - [x] Marked revised MS → `edits/CTS-2026-0255-T_revised_manuscript_marked.docx`
-- [ ] Formal `ch05_cts_revision_response.qmd` + DOCX (currently markdown draft only)
+- [x] Formal `ch05_cts_revision_response.qmd` + DOCX (`CTS-2026-0255-T_revision_response.docx`)
 - [ ] Co-author review → Wiley upload (due ~2026-06-30)
 
 ---
@@ -126,7 +126,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 | `move_tables_after_references.py` | ⬜ audit on next CH3 rebuild | ✅ | Apply |
 | `mark_revisions.py` | ✅ | ✅ | ✅ (2026-06-02) |
 | `sync_docs_cts.py` | ✅ | ✅ | ✅ (ch. 5 MS only) |
-| Response QMD + page/line cites | ✅ | ✅ | Markdown draft; QMD TODO |
+| Response QMD + page/line cites | ✅ | ✅ | ✅ QMD + DOCX (section cites; refresh page/lines after final proofread) |
 | Causality guardrail (CH3–CH5) | ✅ | ✅ | ✅ — `LESSONS_LEARNED_CTS_TERMINOLOGY.md` |
 
 ---
