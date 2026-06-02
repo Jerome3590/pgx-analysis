@@ -2480,6 +2480,30 @@
     document.getElementById("scenario-status").className = "status-message info";
     try {
       let chartData = null;
+      const normalizeScenarioCode = (raw) => String(raw || "").trim().replace(/^(drug|icd|cpt)_/i, "").toUpperCase();
+      const buildScenarioFeatureSet = (drugs, icds, cpts) => {
+        const out = new Set();
+        drugs.forEach(v => {
+          const c = normalizeScenarioCode(v);
+          if (!c) return;
+          out.add("item_" + c);
+          out.add("item_drug_" + c);
+        });
+        icds.forEach(v => {
+          const c = normalizeScenarioCode(v);
+          if (!c) return;
+          out.add("item_" + c);
+          out.add("item_icd_" + c);
+        });
+        cpts.forEach(v => {
+          const c = normalizeScenarioCode(v);
+          if (!c) return;
+          out.add("item_" + c);
+          out.add("item_cpt_" + c);
+        });
+        return out;
+      };
+
       const manifest = await getDashboardManifest().catch(function() { return null; });
       const scenarioStaticUrl = (nEventBinScenario && nEventBinScenario !== "all")
         ? staticJsonPath("visualizations/scenario/" + cohort + "/" + ageBand + "/" + nEventBinScenario + "/scenario_data.json")
@@ -2496,12 +2520,8 @@
         const top = prebuilt.top_interaction_factors || [];
         const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.importance ?? 0) }));
         const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
-        const selectedFeatureSet = new Set([
-          ...selectedDrugs.map(c => "item_" + String(c)),
-          ...selectedIcds.map(c => "item_" + String(c)),
-          ...selectedCpts.map(c => "item_" + String(c))
-        ]);
-        const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
+        const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
+        const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
         chartData = {
           interaction_factors: selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors,
           shap_importance: selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance,
@@ -2524,12 +2544,8 @@
           const top = prebuilt.top_interaction_factors || [];
           const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.importance ?? 0) }));
           const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.importance ?? 0) }));
-          const selectedFeatureSet = new Set([
-            ...selectedDrugs.map(c => "item_" + String(c)),
-            ...selectedIcds.map(c => "item_" + String(c)),
-            ...selectedCpts.map(c => "item_" + String(c))
-          ]);
-          const whatIfFeatureSet = new Set(whatIfCodes.map(c => "item_" + String(c).toUpperCase()));
+          const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
+          const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
           chartData = {
             interaction_factors: selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors,
             shap_importance: selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance,
