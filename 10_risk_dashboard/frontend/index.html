@@ -777,7 +777,7 @@
     <!-- Data visualization tabs: Feature Importance first (input for BupaR, FP-Growth, DTW); final model refines further -->
     <div class="tabs tabs-secondary">
       <button class="tab-button" data-tab="feature-importance-visualizations" onclick="switchTab('feature-importance-visualizations')">Feature Importance</button>
-      <button class="tab-button" data-tab="causal-analysis" onclick="switchTab('causal-analysis')">Causal Analysis</button>
+      <button class="tab-button" data-tab="causal-analysis" onclick="switchTab('causal-analysis')">Scenario Analysis (FFA/SHAP)</button>
       <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
@@ -3422,7 +3422,7 @@
         });
       }
       Plotly.newPlot('causal-factors-chart', traces, {
-        title: hasWhatIf ? 'Top Causal Factors: Current vs What-if' : 'Top Causal Factors',
+        title: hasWhatIf ? 'Top Interaction Factors: Current vs What-if' : 'Top Interaction Factors',
         xaxis: { title: 'Feature' },
         yaxis: { title: 'Causal Importance' },
         barmode: hasWhatIf ? 'group' : 'relative',
