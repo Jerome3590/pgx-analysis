@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 
 # Copy Lambda function code
 COPY backend/lambda_function.py ${LAMBDA_TASK_ROOT}/
+COPY backend/scenario_paths.py ${LAMBDA_TASK_ROOT}/
 
 # Copy prepared models, metadata, and data (lambda_dir/ populated by prepare_lambda_dir.py)
 COPY lambda_dir/models/ ${LAMBDA_TASK_ROOT}/models/
