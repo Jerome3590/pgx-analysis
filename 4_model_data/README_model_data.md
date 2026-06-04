@@ -44,6 +44,20 @@ Step 4 removes target leakage when building model data: for **case events**, onl
 
 **Target-date column naming (`non_opioid_ed`):** The target date is taken from one cohort column (`first_ed_non_opioid_date` or `first_opioid_ed_date` depending on export). Semantics align; canonical model_events output uses **`first_o11_p_date`**. If an older parquet still has the alternate names, **rename** to `first_o11_p_date` rather than recomputing events.
 
+**SQL (cases):** `CAST(event_date AS DATE) < CAST(<target_col> AS DATE)` — see `create_model_data.py` (`leakage_condition`).
+
+### Case vs control event windows
+
+Step 4 applies **different event scope** for cases and controls (documented for leakage audits and `n_events` interpretation):
+
+| | Cases (`target = 1`) | Controls (`target = 0`) |
+|--|----------------------|-------------------------|
+| **Temporal filter** | Only events **strictly before** target date (`first_f1120_date` / `first_o11_p_date`) | No per-patient target date; events from gold medical/pharmacy for the partition **year** |
+| **Item filter** | Restricted to Step 3b feature-importance items | All events except **post-target leakage codes** identified in 3b (blacklist on drug/ICD/CPT fields) |
+| **Step 6 `n_events`** | Row count = pre-target, FI-filtered events | Row count = full control extract (typically higher volume) |
+
+Cohort construction (`2_create_cohort`) may apply an age-band **pharmacy lookback** for narrative cohort tables; Step 4 `model_events` is the authoritative input to `build_final_cohort_model_features.py`. Cross-step leakage checklist: [`docs/CrossStep_Development/README_target_leakage.md`](../docs/CrossStep_Development/README_target_leakage.md). Index-date QA: `2_create_cohort/qa_index_date_uniqueness.py`.
+
 ### Feature-Importance Filtering
 
 Refined feature-importance CSVs (from Step 3b) drive the case-side event filtering:

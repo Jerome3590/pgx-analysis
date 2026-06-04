@@ -11,6 +11,8 @@ Feature Importance EDA performs additional exploratory data analysis on **alread
 
 Based on this EDA, we filter and update the aggregated feature importances to produce refined `cohort_feature_importance` files. **Step 3c** (in `2_feature_importance.ipynb`) is the final update: it strips any remaining BupaR-identified leakage from these CSVs; Step 4 uses only the Step 3c output to create model data.
 
+**Cross-reference:** Full pipeline narrative (timing audit on **target cases only**, `n_events` as residual utilization/linkage confound—not item leakage) is in [`docs/CrossStep_Development/README_target_leakage.md`](../docs/CrossStep_Development/README_target_leakage.md) § Post-Target Audit (Step 3b).
+
 ## Purpose
 
 - **Identify post-target leakage**: Use BupaR process mining to analyze sequences before and after the target event (F1120 for opioid_ed, HCG for polypharmacy) to identify features that may leak future information

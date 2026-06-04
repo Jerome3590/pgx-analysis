@@ -4,31 +4,101 @@
 
 This document outlines our approach to preventing **target leakage** in the final model and ensuring all features are **truly predictive** (i.e., available at prediction time without knowledge of the target outcome).
 
-**Production pipeline:** Feature engineering for the final model **does not** build trajectory, sequence, or itemset columns. We only build **n_events**, **item_*** (drug/ICD/CPT from feature importance), **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs), and other schema features. `remove_target_leakage.py` / `run_final_model.py` still strip trajectory/sequence/itemset names **defensively** if those columns ever appear. FPGrowth and BupaR feed **dashboard visualizations** only; DTW supports **protocol filtering** and visuals, not the training matrix.
+**Production pipeline:** Feature engineering for the final model **does not** build trajectory, sequence, or itemset columns. We only build **n_events**, **item_*** (drug/ICD/CPT from feature importance; **drug-only** for `non_opioid_ed`), **PGx counts** (e.g. pgx_num_drugs, pgx_num_cpic_drugs), and other schema features. `remove_target_leakage.py` / `run_final_model.py` still strip trajectory/sequence/itemset names **defensively** if those columns ever appear. FPGrowth and BupaR feed **dashboard visualizations** only; DTW supports **protocol filtering** and visuals, not the training matrix.
+
+**Temporal validation:** Train on **2016–2018**, report metrics on **2019** holdout only; **2020** excluded (COVID). See `3a_feature_importance/README.md` and `6_final_model/README.md`.
+
+## Cohort Target Dates (Step 2 → Step 4)
+
+| Cohort | Target event | Cohort parquet column | `model_events` column |
+|--------|--------------|----------------------|------------------------|
+| `opioid_ed` | Opioid-related ED / F11.20 anchor | `first_opioid_ed_date` | `first_f1120_date` |
+| `non_opioid_ed` | Earliest qualifying HCG ED (O11, P51b, P33) + drug–ED window | `first_ed_non_opioid_date` | `first_o11_p_date` |
+
+**Index QA (Step 2):** `python 2_create_cohort/qa_index_date_uniqueness.py` verifies one target index date per `mi_person_key` per partition (prevents duplicate target rows that could inflate leakage checks). See `2_create_cohort/README.md` § Target Leakage and Downstream Modeling.
 
 ## Important Distinction: Feature Engineering vs. Final Model
 
-**For Feature Engineering and Exploratory Analysis:**
-- ✅ **F1120 MUST be included** in the data to:
+**For Feature Engineering and Exploratory Analysis (BupaR / dashboards):**
+- ✅ Target dates and target ICD codes (e.g. **F1120** for `opioid_ed`) **must** appear in event logs to:
   - Identify when the target event occurs
-  - Split events into pre-F1120 and post-F1120 for analysis
-  - Understand patterns leading up to F1120
-  - Create pre-event and post-event features for exploration
+  - Split events into pre-target and post-target for process-mining analysis
+  - Flag post-target codes in Step 3b (`LEAKAGE_ANALYSIS_SUMMARY.md`)
 
 **For Final Model Training:**
-- ❌ **F1120 MUST be excluded** from all features
-- ❌ **ALL events AFTER F1120 MUST be excluded** (everything past the target code)
-- ✅ **Only events BEFORE F1120** (not including F1120) are used
-- ❌ **No post-event features** are included
-- ❌ **No time-to-target features** are included
+- ❌ Target ICD codes (F1120, etc.) and target-date columns **must not** be model features
+- ❌ **ALL events on or after the target date** are dropped for **cases** in Step 4 (`event_date < target_date`)
+- ❌ **No post-event features** (`post_*`) or **time-to-target** features (`time_to_*`, `*_30d` before target, etc.)
+- ✅ Production uses **`n_events`** (count of rows in `model_events` per patient) and **`n_event_bin_ordinal`** in gradient boosting—not legacy BupaR `pre_n_*` columns (exploratory only; not built in Step 6)
 
-**Key Principle:** For final model training, we exclude everything past F1120. Only events that occur BEFORE the target code are used for feature calculation.
-
-This ensures that at prediction time, we don't need to know if/when F1120 will occur.
+**Key principle:** At scoring time, the model must not require knowledge of whether/when the index ED (or F1120) will occur. Case event rows in `model_events` are strictly pre-target.
 
 ### Where Event-Level Leakage Is Removed (Pipeline)
 
-Step 4 (model data) removes target leakage when building `model_events.parquet`: for **case events**, only events **strictly before** the target date are kept (`event_date < first_opioid_ed_date` or `first_ed_non_opioid_date`). Events on or after the target date are dropped. Implemented in **Step 4** (`4_model_data/create_model_data.py`). Step 3b (e.g. BupaR post-target analysis) and Step 3c identify leakage; Step 3c strips it from the feature list; Step 4 applies the filter when constructing model data.
+1. **Step 2 (`2_create_cohort`):** Defines index date per target; optional QA via `qa_index_date_uniqueness.py`.
+2. **Step 3b:** BupaR post-target analysis → drop leakage-prone items from `cohort_feature_importance.csv`.
+3. **Step 4 (`4_model_data/create_model_data.py`):** For **cases**, `event_date <` target date (`first_f1120_date` or `first_o11_p_date` / source `first_ed_non_opioid_date`). Events on or after the target date are dropped.
+4. **Step 6:** `remove_target_leakage.py` drops target-date columns, `post_*`, DTW, trajectory/itemset names; `prepare_train_test_s3.py` enforces 2016–2018 train / 2019 test.
+
+### Case vs Control Event Windows in `model_events` (Step 4)
+
+This asymmetry is **intentional** but affects interpretation of `n_events`:
+
+| | Case (`target = 1`) | Control (`target = 0`) |
+|--|---------------------|----------------------|
+| Event time filter | `event_date <` target date | No target-date truncation (partition-year gold extract) |
+| Item filter | Feature-importance items only | All items except 3b post-target code blacklist |
+| `n_events` in Step 6 | Pre-target, FI-filtered row count | Full extract row count per patient |
+
+Utilization-density bins and partition-first training mitigate control–case volume differences. See `4_model_data/README_model_data.md` § Case vs control event windows.
+
+## Post-Target Audit (Step 3b): Feature Importances vs. Target Population
+
+Step 3a permutation / MC-CV feature importance (`3a_feature_importance/run_mc_feature_importance.py`) ranks **item-level** candidates (`item_drug_*`, `item_icd_*`, `item_cpt_*`). High importance alone does not prove a code is usable at prediction time. Step 3b **audits each candidate against event timing in the target case population** before any code enters `cohort_feature_importance.csv`.
+
+### Workflow (3b)
+
+| Step | Script / output | Role |
+|------|-----------------|------|
+| 1 | Step 3a → `{cohort}_{age_band}_aggregated_feature_importance.csv` | Initial ranked feature list |
+| 2 | `3b_feature_importance_eda/1_bupaR/create_bupar_post_target_analysis.py` → `{cohort}_{age_band}_bupar_post_target_analysis.csv` | **Pre/post index timing audit on `target = 1` only** |
+| 3 | `2_filtering/create_safe_feature_filter_json.py` → `{cohort}_{age_band}_safe_feature_filter.json` | Whitelist: exclude ≥80% post-index; keep any meaningful pre-index presence |
+| 4 | `2_filtering/filter_and_refine_features.py` → `{cohort}_{age_band}_cohort_feature_importance.csv` | Refined FI for Step 4 / 6 |
+
+Orchestration: `3b_feature_importance_eda/run_feature_importance_eda.py`. See `3b_feature_importance_eda/README_feature_importance_eda.md`, `EXECUTION_ORDER.md`, `FEATURE_FILTERING_APPROACH.md`.
+
+### Timing audit logic (`analyze_post_target_leakage_from_events`)
+
+For each **target patient** (`target = 1`):
+
+1. Resolve **index date** (`first_ed_non_opioid_date` / F1120 anchor from cohort or `model_events`).
+2. For every event carrying a candidate code (drug; or ICD/CPT for `opioid_ed`), label **`pre`** if `event_date < index`, else **`post`**.
+3. Per feature (`item_*` name), compute `pre_count`, `post_count`, `post_target_ratio`, `pre_target_ratio`.
+4. Flag **`is_post_target_leakage = 1`** when `post_target_ratio ≥ 0.8` (default) and `total_count ≥ 5`.
+5. Flag **`is_pre_target_predictive = 1`** when `pre_target_ratio ≥ 0.8`.
+
+Example opioid_ed finding: **348 / 1,029** features were ≥80% post-F1120 (treatment meds, drug screens, repeat F1120, etc.) — documented in `3b_feature_importance_eda/LEAKAGE_ANALYSIS_SUMMARY.md`. Those codes are removed from the refined feature list; they are **not** leakage that survives into production `item_*` columns.
+
+`non_opioid_ed` runs the same logic on **drugs only**; polypharmacy `model_events` for cases is often pre-index by construction, but the audit still runs before refinement.
+
+### Step 6 re-check
+
+`6_final_model/remove_target_leakage.py` validates each retained **`item_*`** against `model_events`: if any target patient has that code **on or after** the index date, the column is dropped. This is a second guard after Step 3b.
+
+### Audit conclusion: `n_events` is not item-level leakage
+
+| Signal | Step 3b pre/post audit? | In production GBT matrix? |
+|--------|-------------------------|---------------------------|
+| `item_*` drug / ICD / CPT | Yes | Yes (refined whitelist only) |
+| Post-index treatment / monitoring codes | Flagged and removed | No |
+| **`n_events`** (row count in `model_events`) | **No** (not an `item_*` in the ratio loop) | Built in Step 6; trees use **`n_event_bin_ordinal`** |
+
+After the audit pipeline, **no item-level feature with persistent post-index dominance remains in the training matrix**. The main **residual confound** is **utilization volume** (`n_events` → density bins), which can reflect true healthcare intensity **or**:
+
+- **Imperfect VHI de-identified linkage** (`mi_person_key`): duplicate or fragmented member records across payers/time inflating counts.
+- A small subset of **high-utilization repeat presenters** (frequent ED/claims) increasing pre-index row counts without a single leaked drug code.
+
+That is **documentation / linkage confounding**, not target-date leakage from a specific `item_*`. Mitigation: utilization-density strata, partition-first training, and explicit Limitations (CH_4); exploratory unstratified SHAP may still rank raw `n_events` highly—production does not feed raw counts to trees.
 
 ---
 
@@ -118,22 +188,15 @@ Step 4 (model data) removes target leakage when building `model_events.parquet`:
 
 ## Kept Features (Predictive)
 
-### 1. Pre-Event Features ✅
+### 1. Production utilization features ✅ (`n_events` / `n_event_bin_ordinal`)
 
-**Kept:**
-- `pre_n_events` - Number of events before target event
-- `pre_n_drug_events` - Number of drug events before target event
-- `pre_n_icd_events` - Number of ICD events before target event
-- `pre_n_cpt_events` - Number of CPT events before target event
-- `pre_n_unique_activities` - Unique activities before target event
+**Built in Step 6 (`build_final_cohort_model_features.py`):**
+- `n_events` — `COUNT(*)` of rows in `model_events.parquet` per `mi_person_key` (cases: pre-target, FI-filtered events from Step 4)
+- `n_event_bin` / `n_event_bin_ordinal` — utilization-density strata (P25/P50/P95 on training cases); **ordinal bin is what gradient boosting uses**; raw `n_events` is dropped before training
 
-**Why kept:** These features are calculated using events that occur BEFORE the target event. However, **note**: These features still require knowledge of the target event date to define the "pre" period. For a fully predictive model, we should use:
-- **Fixed lookback windows** from a reference date (e.g., first event, cohort entry date)
-- **Rolling windows** from the current date (for real-time prediction)
+**Not used in production:** Legacy BupaR `pre_n_*` columns (`pre_n_events`, `pre_n_drug_events`, …). Those require the target date to define “pre” and appear only in exploratory BupaR exports (`5_bupaR_analysis/`). Step 6 does not merge them into `final_features.parquet`.
 
-**Current status:** Kept for initial model, but should be replaced with fixed lookback windows for production.
-
-**Source:** `5_bupaR_analysis/create_bupar_outputs_opioid_ed.R` (pre-F1120 features)
+**Source:** `6_final_model/build_final_cohort_model_features.py`; density bins — `docs/CrossStep_Development/README_event_density_bins.md`
 
 ---
 
@@ -191,7 +254,7 @@ Step 4 (model data) removes target leakage when building `model_events.parquet`:
 
 **Why kept:** PGx features are based on:
 - **Patient genetics** (static, available at any time)
-- **Drug exposure** (historical, available before prediction)
+- **Medication claims events** (historical pharmacy/medical lines before prediction; not dose/PK exposure)
 - **Population allele frequencies** (reference data, not patient-specific)
 
 **Source:** `5_pgx_analysis/create_pgx_features_patient_level.py`
@@ -308,5 +371,5 @@ Add features that capture temporal patterns without referencing target:
 
 ---
 
-**Last Updated:** December 9, 2025
+**Last Updated:** June 2, 2026 (Step 3b post-target audit vs. target population; `n_events`/VHI linkage conclusion)
 

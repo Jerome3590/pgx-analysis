@@ -29,7 +29,7 @@ python 5_pgx_analysis/add_pgx_features_to_model_data.py --cohort-name opioid_ed 
 
 This analysis step creates simple drug count features:
 
-1. **Drug Identification**: Extract unique drugs from patient drug exposure data (`model_events.parquet`)
+1. **Drug Identification**: Extract unique drugs from patient medication claims events data (`model_events.parquet`)
 2. **CPIC Drug Identification**: Use global drug-to-CPIC mapping to identify which drugs have CPIC pharmacogenomic guidelines
 3. **Patient-Level Aggregation**: Count total drugs and CPIC drugs per patient
 
@@ -122,7 +122,7 @@ If you have patient gene markers/SNPs, you could:
 1. **Fetch Allele Frequencies**: Use CPIC API or allele summary files to get population-specific frequencies
 2. **Calculate Diplotype**: Convert patient genotypes to diplotypes
 3. **Predict Phenotype**: Use CPIC diplotype-to-phenotype mappings
-4. **Create Risk Features**: Combine drug exposure with phenotype predictions to create risk scores
+4. **Create Risk Features**: Combine medication claims events with phenotype predictions to create risk scores
 
 **Example Workflow (if genetic data available):**
 ```python
@@ -135,7 +135,7 @@ diplotypes = convert_to_diplotype(patient_genotypes)
 # 3. Predict phenotype using CPIC mappings
 phenotypes = predict_phenotype(diplotypes)  # e.g., 'Normal Metabolizer', 'Poor Metabolizer'
 
-# 4. Combine with drug exposure
+# 4. Combine with medication claims events
 drug_phenotype_risk = calculate_risk(patient_drugs, phenotypes)
 ```
 
@@ -219,7 +219,7 @@ Some large or optional files under `data/` may be untracked (archives, experimen
 ### Current Features (2 features per patient)
 
 1. **`pgx_num_drugs`**: Total number of unique drugs per patient
-   - Counts all distinct drugs from patient's drug exposure data
+   - Counts all distinct drugs from patient's medication claims events data
    - Integer value (0 or greater)
 
 2. **`pgx_num_cpic_drugs`**: Number of CPIC drugs per patient
@@ -251,7 +251,7 @@ mi_person_key,pgx_num_drugs,pgx_num_cpic_drugs
 ## Input Dependencies
 
 This step requires completion of:
-- **Step 4**: Model Data Preparation (`model_events.parquet` with drug exposure data)
+- **Step 4**: Model Data Preparation (`model_events.parquet` with medication claims events data)
 
 **Optional (for building global mapping):**
 - **Step 3**: Feature Importance (to identify important drugs for global mapping)

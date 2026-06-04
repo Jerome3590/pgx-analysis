@@ -2481,7 +2481,7 @@
     try {
       let chartData = null;
       const normalizeScenarioCode = (raw) => String(raw || "").trim().replace(/^(drug|icd|cpt)_/i, "").toUpperCase();
-      const getScenarioTopRows = (obj) => (obj && (obj.top_interaction_factors || obj.top_causal_factors || obj.feature_importance)) || [];
+      const getScenarioTopRows = (obj) => (obj && (obj.top_interaction_factors || obj.feature_importance)) || [];
       const buildScenarioFeatureSet = (drugs, icds, cpts) => {
         const out = new Set();
         drugs.forEach(v => {
@@ -2519,21 +2519,21 @@
       if (staticCausalResp.ok) {
         const prebuilt = await staticCausalResp.json();
         const top = getScenarioTopRows(prebuilt);
-        const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.causal_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
+        const scenarioFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.interaction_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
         const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.shap_norm ?? r.importance ?? r.combined_importance_norm ?? 0) }));
         const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
         const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
-        const filteredInteraction = selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors;
+        const filteredInteraction = selectedFeatureSet.size > 0 ? scenarioFactors.filter(f => selectedFeatureSet.has(f.feature)) : scenarioFactors;
         const filteredShap = selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance;
-        const usedFallbackToTop = selectedFeatureSet.size > 0 && filteredInteraction.length === 0 && causalFactors.length > 0;
+        const usedFallbackToTop = selectedFeatureSet.size > 0 && filteredInteraction.length === 0 && scenarioFactors.length > 0;
         chartData = {
-          interaction_factors: usedFallbackToTop ? causalFactors : filteredInteraction,
+          interaction_factors: usedFallbackToTop ? scenarioFactors : filteredInteraction,
           shap_importance: usedFallbackToTop ? shapImportance : filteredShap,
           filtered_by_codes: selectedFeatureSet.size > 0 && !usedFallbackToTop
         };
         if (usedFallbackToTop) chartData.filter_fallback = "top_model_features";
         if (whatIfFeatureSet.size > 0) {
-          chartData.interaction_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
+          chartData.interaction_factors_whatif = scenarioFactors.filter(f => whatIfFeatureSet.has(f.feature));
           chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
         }
         if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
@@ -2547,21 +2547,21 @@
         if (!chartData && data.scenario_data) {
           const prebuilt = data.scenario_data;
           const top = getScenarioTopRows(prebuilt);
-          const causalFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.causal_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
+          const scenarioFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.interaction_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
           const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.shap_norm ?? r.importance ?? r.combined_importance_norm ?? 0) }));
           const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
           const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
-          const filteredInteraction = selectedFeatureSet.size > 0 ? causalFactors.filter(f => selectedFeatureSet.has(f.feature)) : causalFactors;
+          const filteredInteraction = selectedFeatureSet.size > 0 ? scenarioFactors.filter(f => selectedFeatureSet.has(f.feature)) : scenarioFactors;
           const filteredShap = selectedFeatureSet.size > 0 ? shapImportance.filter(f => selectedFeatureSet.has(f.feature)) : shapImportance;
-          const usedFallbackToTop = selectedFeatureSet.size > 0 && filteredInteraction.length === 0 && causalFactors.length > 0;
+          const usedFallbackToTop = selectedFeatureSet.size > 0 && filteredInteraction.length === 0 && scenarioFactors.length > 0;
           chartData = {
-            interaction_factors: usedFallbackToTop ? causalFactors : filteredInteraction,
+            interaction_factors: usedFallbackToTop ? scenarioFactors : filteredInteraction,
             shap_importance: usedFallbackToTop ? shapImportance : filteredShap,
             filtered_by_codes: selectedFeatureSet.size > 0 && !usedFallbackToTop
           };
           if (usedFallbackToTop) chartData.filter_fallback = "top_model_features";
           if (whatIfFeatureSet.size > 0) {
-            chartData.interaction_factors_whatif = causalFactors.filter(f => whatIfFeatureSet.has(f.feature));
+            chartData.interaction_factors_whatif = scenarioFactors.filter(f => whatIfFeatureSet.has(f.feature));
             chartData.shap_importance_whatif = shapImportance.filter(f => whatIfFeatureSet.has(f.feature));
           }
           if (prebuilt.feature_interactions) chartData.feature_interactions = prebuilt.feature_interactions;
@@ -3423,14 +3423,14 @@
       feature_interactions: full.feature_interactions,
       filtered_by_codes: full.filtered_by_codes
     };
-    renderCausalCharts(data);
+    renderScenarioCharts(data);
   }
 
   // Helper: strip item_ prefix for display on scenario charts (x-axis / labels only)
   function stripItemPrefix(s) { if (s == null) return ''; return String(s).replace(/^item_/i, ''); }
 
   // Helper functions to render visualizations
-  function renderCausalCharts(data) {
+  function renderScenarioCharts(data) {
     const hasWhatIf = data.interaction_factors_whatif && data.interaction_factors_whatif.length > 0;
     // Interaction factors bar chart (optionally two traces: current + what-if)
     if (data.interaction_factors && data.interaction_factors.length > 0) {

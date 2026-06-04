@@ -294,7 +294,8 @@ def get_target_name_by_cohort(cohort: str) -> str:
 
 
 # Canonical definition for non_opioid_ed (polypharmacy) cohort target - must stay in sync with
-# 2_create_cohort (phase2 HCG classification, phase3 21-day window) and 4_model_data.
+# 2_create_cohort (phase2 HCG classification, phase3 time_window_days) and 4_model_data.
+# Temporal window: FAERS exploratory work (1a_apcd_input_data/faers/) + APCD gap calibration; see 2_create_cohort/README.md.
 # Model_events target-date column for non_opioid_ed is first_o11_p_date; O11_P includes all qualifying ED codes (P51b, O11, P33).
 NON_OPIOID_ED_TARGET_DESCRIPTION = (
     "First ED visit (identified by HCG Setting: P51/O11/P33) within 21 days of a prescription drug event."

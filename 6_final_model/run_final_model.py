@@ -1789,6 +1789,7 @@ def train_and_evaluate(
     age_band: str,
     n_runs: int | None = None,
     bin_name: str | None = None,
+    force_retrain: bool = False,
 ) -> None:
     """
     Train XGBoost (CPU on Linux, GPU on Windows if available) and CatBoost on the assembled feature table,
@@ -1946,7 +1947,7 @@ def train_and_evaluate(
         and xgb_json_path.exists()
         and (has_catboost_artifact if has_catboost_in_summary else True)
     )
-    if skip_retrain:
+    if skip_retrain and not force_retrain:
         selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason = _recompute_selection_from_summary_df(existing_summary)
         _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost", "ensemble": "Ensemble"}
         # Update "selected" column in summary to match
@@ -3171,6 +3172,134 @@ def mirror_bin_artifacts_to_aggregate_root(
     )
 
 
+def evaluate_temporal_holdout(
+    df_holdout: pd.DataFrame,
+    cohort: str,
+    age_band: str,
+) -> None:
+    """Evaluate saved models on the 2019 temporal holdout; save metrics JSON and upload to S3.
+
+    Feature names are read from the best-XGBoost JSON (canonical source written by
+    train_and_evaluate).  Models are loaded from the joblib files under models/.
+    Works for both aggregate and per-bin train modes (evaluates aggregate models only).
+    """
+    from sklearn.metrics import (
+        roc_auc_score,
+        average_precision_score,
+        recall_score,
+        log_loss,
+    )
+
+    age_band_fname = age_band_to_fname(age_band)
+    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+
+    xgb_json_path = (
+        out_base / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
+    )
+    if not xgb_json_path.exists():
+        print(f"[HOLDOUT] XGB JSON not found at {xgb_json_path}; skipping holdout evaluation.")
+        return
+
+    with open(xgb_json_path) as f:
+        xgb_meta = json.load(f)
+    feature_names = xgb_meta.get("feature_names", [])
+    if not feature_names:
+        print("[HOLDOUT] No feature_names in XGB JSON; skipping holdout evaluation.")
+        return
+
+    # Align holdout columns to training feature space
+    for c in feature_names:
+        if c not in df_holdout.columns:
+            df_holdout[c] = 0
+    X_hold = (
+        df_holdout[feature_names]
+        .replace([float("inf"), float("-inf")], pd.NA)
+        .fillna(0)
+    )
+    y_hold = df_holdout["target"].astype(int)
+
+    if y_hold.nunique() < 2:
+        print("[HOLDOUT] Only one class present in 2019 holdout; skipping evaluation.")
+        return
+
+    results: dict = {}
+    y_prob_xgb: np.ndarray | None = None
+    y_prob_cb: np.ndarray | None = None
+
+    xgb_joblib = out_base / "models" / "xgboost.joblib"
+    if xgb_joblib.exists():
+        xgb_model = joblib.load(xgb_joblib)
+        y_prob_xgb = xgb_model.predict_proba(X_hold)[:, 1]
+        results["xgboost"] = {
+            "auroc": round(float(roc_auc_score(y_hold, y_prob_xgb)), 4),
+            "pr_auc": round(float(average_precision_score(y_hold, y_prob_xgb)), 4),
+            "recall_at_0.5": round(float(recall_score(y_hold, (y_prob_xgb >= 0.5).astype(int))), 4),
+            "logloss": round(float(log_loss(y_hold, y_prob_xgb)), 4),
+            "n_holdout": int(len(y_hold)),
+            "n_cases": int(y_hold.sum()),
+        }
+
+    cb_joblib = out_base / "models" / "catboost.joblib"
+    if cb_joblib.exists():
+        try:
+            cb_model = joblib.load(cb_joblib)
+            y_prob_cb = cb_model.predict_proba(X_hold)[:, 1]
+            results["catboost"] = {
+                "auroc": round(float(roc_auc_score(y_hold, y_prob_cb)), 4),
+                "pr_auc": round(float(average_precision_score(y_hold, y_prob_cb)), 4),
+                "recall_at_0.5": round(float(recall_score(y_hold, (y_prob_cb >= 0.5).astype(int))), 4),
+                "logloss": round(float(log_loss(y_hold, y_prob_cb)), 4),
+                "n_holdout": int(len(y_hold)),
+                "n_cases": int(y_hold.sum()),
+            }
+        except Exception as e:
+            print(f"[HOLDOUT] CatBoost load/predict failed: {e}")
+
+    if y_prob_xgb is not None and y_prob_cb is not None:
+        y_prob_ens = (y_prob_xgb + y_prob_cb) / 2
+        results["ensemble"] = {
+            "auroc": round(float(roc_auc_score(y_hold, y_prob_ens)), 4),
+            "pr_auc": round(float(average_precision_score(y_hold, y_prob_ens)), 4),
+            "recall_at_0.5": round(float(recall_score(y_hold, (y_prob_ens >= 0.5).astype(int))), 4),
+            "logloss": round(float(log_loss(y_hold, y_prob_ens)), 4),
+            "n_holdout": int(len(y_hold)),
+            "n_cases": int(y_hold.sum()),
+        }
+
+    if not results:
+        print("[HOLDOUT] No trained model joblibs found; skipping holdout evaluation.")
+        return
+
+    holdout_path = out_base / f"{cohort}_{age_band_fname}_holdout_2019_metrics.json"
+    payload = {
+        "cohort": cohort,
+        "age_band": age_band,
+        "holdout_year": 2019,
+        "train_years": "2016-2018",
+        "metrics": results,
+    }
+    with open(holdout_path, "w") as f:
+        json.dump(payload, f, indent=2)
+
+    print(f"\n{'='*60}")
+    print(f"[HOLDOUT 2019]  {cohort} / {age_band}  (n={len(y_hold)}, cases={int(y_hold.sum())})")
+    for model_name, m in results.items():
+        print(
+            f"  {model_name:12s}: AUROC={m['auroc']:.4f}  "
+            f"PR-AUC={m['pr_auc']:.4f}  Recall@0.5={m['recall_at_0.5']:.4f}"
+        )
+    print(f"  Saved → {holdout_path}")
+
+    try:
+        import boto3 as _boto3
+        _s3 = _boto3.client("s3")
+        _key = f"gold/final_model/{cohort}/{age_band}/{cohort}_{age_band_fname}_holdout_2019_metrics.json"
+        _s3.upload_file(str(holdout_path), "pgxdatalake", _key)
+        print(f"  Uploaded → s3://pgxdatalake/{_key}")
+    except Exception as _e:
+        print(f"  [HOLDOUT] S3 upload skipped: {_e}")
+
+
 def train_per_bin(
     df: pd.DataFrame,
     cohort: str,
@@ -3178,6 +3307,7 @@ def train_per_bin(
     n_runs: int | None = None,
     min_total: int = 50,
     min_per_class: int = 10,
+    force_retrain: bool = False,
 ) -> None:
     """
     Train a separate model for each n_event_bin (low / medium / high / extreme).
@@ -3231,7 +3361,7 @@ def train_per_bin(
                 print(f"  [ERROR] Fallback copy failed for bin={bin_name}: {e}")
             continue
 
-        train_and_evaluate(bin_df, cohort, age_band, n_runs=n_runs, bin_name=bin_name)
+        train_and_evaluate(bin_df, cohort, age_band, n_runs=n_runs, bin_name=bin_name, force_retrain=force_retrain)
 
     print(f"\n{'='*60}")
     print(f"Per-bin training complete: {cohort} / {age_band}")
@@ -3258,6 +3388,13 @@ def main() -> None:
         default="per_bin",
         help="per_bin (default): train density-bin models only; mirror one bin to aggregate outputs for deploy. "
         "aggregate: single cohort-wide model only (legacy). both: cohort-wide then per-bin subdirs.",
+    )
+    parser.add_argument(
+        "--force-retrain",
+        action="store_true",
+        default=False,
+        help="Force retraining even if model artifacts already exist (bypasses idempotency check). "
+        "Required when rerunning after a temporal-split correction.",
     )
     args = parser.parse_args()
 
@@ -3500,6 +3637,30 @@ def main() -> None:
             features_dir
             / f"{args.cohort}_{age_band_fname}_train_final_features_no_leakage.csv"
         )
+        # --- Temporal holdout split: train on ≤2018, evaluate on 2019 ---
+        df_holdout_2019: pd.DataFrame = pd.DataFrame()
+        try:
+            _events_path = _resolve_model_events_path(args.cohort, args.age_band)
+            _ep = str(_events_path).replace("\\", "/")
+            _con = duckdb.connect()
+            _year_df = _con.execute(
+                f"SELECT CAST(mi_person_key AS VARCHAR) AS mi_person_key, "
+                f"MAX(event_year) AS patient_year "
+                f"FROM read_parquet('{_ep}') GROUP BY mi_person_key"
+            ).df()
+            _con.close()
+            df["mi_person_key"] = df["mi_person_key"].astype(str)
+            df = df.merge(_year_df, on="mi_person_key", how="left")
+            df["patient_year"] = df["patient_year"].fillna(2018).astype(int)
+            df_holdout_2019 = df[df["patient_year"] == 2019].drop(columns=["patient_year"]).copy()
+            df = df[df["patient_year"] <= 2018].drop(columns=["patient_year"]).copy()
+            logger.info(
+                "Temporal split: train (2016-2018) = %d patients | holdout (2019) = %d patients",
+                len(df), len(df_holdout_2019),
+            )
+        except Exception as _te:
+            logger.warning("Temporal split failed (%s) — training on all years (no holdout).", _te)
+
         df.to_csv(features_path, index=False)
         logger.info("Saved final features (no leakage) to %s", features_path)
 
@@ -3516,14 +3677,19 @@ def main() -> None:
 
         if args.train_mode in ("aggregate", "both"):
             with step_block("final_model", "train_and_evaluate", logger=logger):
-                train_and_evaluate(df, args.cohort, args.age_band, n_runs=n_runs)
+                train_and_evaluate(df, args.cohort, args.age_band, n_runs=n_runs, force_retrain=args.force_retrain)
 
         if args.train_mode in ("per_bin", "both"):
             with step_block("final_model", "train_per_bin", logger=logger):
-                train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs)
+                train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs, force_retrain=args.force_retrain)
 
         if args.train_mode == "per_bin":
             mirror_bin_artifacts_to_aggregate_root(args.cohort, args.age_band)
+
+        # --- Evaluate on 2019 temporal holdout (true out-of-time validation) ---
+        if not df_holdout_2019.empty:
+            with step_block("final_model", "evaluate_temporal_holdout", logger=logger):
+                evaluate_temporal_holdout(df_holdout_2019, args.cohort, args.age_band)
 
         # Upload train/test to S3 (required for SHAP and FFA analysis; not optional)
         prepare_script = PROJECT_ROOT / "6_final_model" / "prepare_train_test_s3.py"

@@ -380,165 +380,30 @@ plot_files = create_feature_importance_plots(
 - **Random Forest**: No scaling needed (tree-based)
 - **Logistic Regression**: Standardize continuous features
 
-### Expected Feature Importance
-- **High importance**: 
-  - FPGrowth: `rules_target_icd_match`, `max_rule_lift_target_icd`, itemset match counts
-  - BupaR: Sequence features (`overall_is_top_sequence`, `overall_is_rare_sequence`), pre-event counts
-  - PGx: `pgx_genes_covered`, `pgx_drugs_with_mappings`
-  - Pre-event counts: `pre_n_events`, `pre_n_unique_activities`
-- **DTW features**: **NOT included** - DTW is used for protocol filtering only
+### Expected Feature Importance (production matrix)
 
-## Using Features for Triggering/Thresholding
+- **High importance (typical):** `item_*` drug indicators (and ICD/CPT for `opioid_ed` only), PGx counts (`pgx_num_drugs`, `pgx_num_cpic_drugs`), **`n_event_bin_ordinal`** (utilization stratum—not raw `n_events` in trees)
+- **Not in production matrix:** FP-Growth itemset/rule columns, BupaR `pre_n_*` / sequence flags, DTW distances, trajectory length/diversity
+- **Legacy exploratory only:** `pre_n_events`, `combined_trajectory_*` from older BupaR/DTW experiments—see `analyze_trigger_features.py` and `3b_feature_importance_eda/LEAKAGE_ANALYSIS_SUMMARY.md`; **not** emitted by `build_final_cohort_model_features.py`
 
-The final model features can be used to create **predictive triggers** for real-time patient risk assessment. This section documents which features are suitable for triggering and provides guidance on threshold selection.
+## Target Leakage Controls (Step 6)
 
-### Trigger-Ready Features
+| Control | Implementation |
+|---------|----------------|
+| Event-time filter | Step 4: case rows `event_date <` target date (`first_f1120_date` / `first_o11_p_date`) |
+| Column strip | `remove_target_leakage.py`, `run_final_model.py`: `post_*`, `time_to_*`, target dates, DTW, trajectory/itemset |
+| Train/test | `prepare_train_test_s3.py`: train ≤2018, test = 2019 |
+| Utilization | `n_event_bin_ordinal` in GBT; raw `n_events` dropped before training |
 
-#### 1. Trajectory Features (Filtered by FP-Growth Itemsets)
+**Case vs control `n_events`:** Counts rows in `model_events.parquet`—cases are pre-target and FI-filtered; controls use the full partition-year extract (see `4_model_data/README_model_data.md`). Full checklist: [`docs/CrossStep_Development/README_target_leakage.md`](../docs/CrossStep_Development/README_target_leakage.md).
 
-**Features:**
-- `combined_trajectory_length`: Number of events in patient trajectory (filtered by important codes)
-- `combined_trajectory_diversity`: Number of unique items in trajectory (filtered)
+### Optional exploratory script (`analyze_trigger_features.py`)
 
-**Characteristics:**
-- **Source**: DTW analysis pipeline (trajectory characteristics only, not DTW distances)
-- **Filtering**: Only includes events/codes identified as important by FP-Growth analysis
-- **Use Case**: Trigger on patients with **complex trajectories involving important codes**
-- **Advantage**: Focused on quality (important codes) rather than quantity (all events)
-- **Scaling**: Better for larger cohorts (filtered = less noise)
-
-**Feature Importance Ranking:**
-- `combined_trajectory_diversity`: Rank #22 (9.57% scaled importance)
-- `combined_trajectory_length`: Rank #36 (8.15% scaled importance)
-
-**Suggested Thresholds (Percentile-Based):**
-- **Medium Risk** (>75th percentile): `trajectory_length > 24`, `trajectory_diversity > 11`
-- **High Risk** (>90th percentile): `trajectory_length > 49`, `trajectory_diversity > 17`
-- **Very High Risk** (>95th percentile): `trajectory_length > 68`, `trajectory_diversity > 19`
-
-*Note: Thresholds are cohort/age-band specific. Use `analyze_trigger_features.py` to calculate cohort-specific percentiles.*
-
-#### 2. Pre-Event Count Features (All Events Before F1120)
-
-**Features:**
-- `pre_n_events`: Total events before F1120 (**#1 feature, 100% importance**)
-- `pre_n_unique_activities`: Unique activities before F1120 (**#2 feature, 85% importance**)
-- `pre_n_icd_events`: ICD events before F1120 (#3 feature, 83% importance)
-- `pre_n_cpt_events`: CPT events before F1120 (#4 feature, 74% importance)
-- `pre_n_drug_events`: Drug events before F1120
-
-**Characteristics:**
-- **Source**: BupaR analysis (all pre-F1120 events)
-- **Filtering**: Includes **ALL events** before target, not filtered
-- **Use Case**: Trigger on patients with **high overall healthcare utilization**
-- **Advantage**: Captures total event volume, not just important codes
-- **Best For**: Identifying patients with high healthcare engagement
-
-**Suggested Thresholds (Percentile-Based):**
-- **Medium Risk** (>75th percentile): `pre_n_events > 23`, `pre_n_unique_activities > 11`
-- **High Risk** (>90th percentile): `pre_n_events > 35`, `pre_n_unique_activities > 17`
-- **Very High Risk** (>95th percentile): `pre_n_events > 58`, `pre_n_unique_activities > 24`
-
-*Note: Thresholds are cohort/age-band specific. Use `analyze_trigger_features.py` to calculate cohort-specific percentiles.*
-
-### Key Differences: Trajectory vs Pre-Event Features
-
-| Feature Type | What It Measures | Best For | Correlation |
-|-------------|------------------|----------|-------------|
-| **Trajectory** | Events/codes filtered by FP-Growth (important only) | **Quality**: Patients with many important events | Low correlation with pre-event features |
-| **Pre-Event** | All events before F1120 | **Quantity**: Patients with high overall utilization | - |
-
-**Important:** These features capture **different patterns** (negative correlation ~-0.30), so combining them provides complementary signals.
-
-### Best Practices for Triggering
-
-1. **Use Percentile-Based Thresholds**
-   - Avoid absolute values (e.g., "> 50 events")
-   - Use percentiles (e.g., "> 90th percentile") for cohort-specific adaptation
-   - Recalculate thresholds per cohort/age band
-
-2. **Combine Multiple Features**
-   ```python
-   # Example: Multi-feature trigger
-   IF (trajectory_length > 90th_percentile) 
-      AND (pre_n_events > 75th_percentile) 
-   THEN flag_high_risk()
-   ```
-
-3. **Use Trajectory for Quality, Pre-Event for Quantity**
-   - Trajectory features = important codes (quality signal)
-   - Pre-event features = total volume (quantity signal)
-   - Combining both captures both dimensions
-
-4. **Age-Band-Specific Thresholds**
-   - Different age bands have different event distributions
-   - Calculate thresholds separately per age band
-   - Use `analyze_trigger_features.py` to generate cohort-specific thresholds
-
-5. **For Larger Cohorts**
-   - Trajectory features scale better (filtered = less noise)
-   - Pre-event features may have more variance in larger cohorts
-   - Consider using trajectory features as primary triggers for larger cohorts
-
-### Analysis Tool
-
-Use the provided analysis script to calculate cohort-specific thresholds:
+Analyzes distributions on **leakage-filtered** `final_features` parquet (production columns only). Use for percentile thresholds on `item_*` or binned utilization—not for legacy trajectory/`pre_n_*` columns unless reintroduced in a non-production branch.
 
 ```bash
-# Analyze trigger features for a specific cohort/age band
-python 6_final_model/analyze_trigger_features.py \
-    --cohort-name opioid_ed \
-    --age-band 0-12
+python 6_final_model/analyze_trigger_features.py --cohort-name non_opioid_ed --age-band 65-74
 ```
-
-**Output:**
-- Feature distributions (min, max, mean, median, percentiles)
-- Target vs control comparisons
-- Suggested thresholds (75th, 90th, 95th percentiles)
-- Correlation analysis between trajectory and pre-event features
-- Feature importance rankings
-
-### Example Trigger Implementation
-
-```python
-import pandas as pd
-import numpy as np
-
-def calculate_trigger_thresholds(df, feature_col, percentiles=[0.75, 0.90, 0.95]):
-    """Calculate percentile-based thresholds for a feature."""
-    thresholds = {}
-    for p in percentiles:
-        thresholds[f'{int(p*100)}th'] = df[feature_col].quantile(p)
-    return thresholds
-
-def flag_high_risk_patients(df, cohort_name, age_band):
-    """Flag high-risk patients using trajectory and pre-event features."""
-    # Load cohort-specific thresholds (calculated from training data)
-    # For production, these should be pre-calculated and stored
-    
-    # Example thresholds (cohort-specific)
-    traj_length_threshold = df['combined_trajectory_length'].quantile(0.90)
-    pre_events_threshold = df['pre_n_events'].quantile(0.90)
-    
-    # Multi-feature trigger
-    high_risk = (
-        (df['combined_trajectory_length'] > traj_length_threshold) |
-        (df['pre_n_events'] > pre_events_threshold)
-    )
-    
-    return high_risk
-
-# Usage
-feature_df = pd.read_csv('final_features_no_leakage.csv')
-high_risk_patients = flag_high_risk_patients(feature_df, 'opioid_ed', '0-12')
-```
-
-### Important Notes
-
-- **Trajectory features are NOT DTW distance features**: They are simple trajectory characteristics (length, diversity) calculated from filtered trajectories. DTW distance features were removed.
-- **Thresholds are cohort-specific**: Always calculate thresholds from training data for the specific cohort/age band.
-- **Use training data for thresholds**: Calculate thresholds from training set (2016-2018), apply to test/production data.
-- **Monitor threshold performance**: Track false positive/negative rates and adjust thresholds based on clinical feedback.
 
 ## Important Notes
 

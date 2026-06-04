@@ -533,10 +533,10 @@ def generate_dashboard_outputs_phts_style(
     # Include all features with importance > 0 in JSON (dashboard filter: Top 10 / Top 20 / All)
     combined_importance = combined_importance[vals > 0].sort_values(col, ascending=False)
     all_causal = combined_importance.copy()
-    all_causal = all_causal.rename(columns={"combined_importance_norm": "causal_responsibility"})
-    if "causal_responsibility" not in all_causal.columns:
-        all_causal["causal_responsibility"] = all_causal.get("combined_importance", all_causal.iloc[:, 1])
-    all_causal["shap_importance"] = all_causal.get("shap_norm", all_causal["causal_responsibility"])
+    all_causal = all_causal.rename(columns={"combined_importance_norm": "interaction_responsibility"})
+    if "interaction_responsibility" not in all_causal.columns:
+        all_causal["interaction_responsibility"] = all_causal.get("combined_importance", all_causal.iloc[:, 1])
+    all_causal["shap_importance"] = all_causal.get("shap_norm", all_causal["interaction_responsibility"])
     all_causal["rule_frequency"] = 0
     all_causal["total_rules"] = 0
     # Top K for CSV / summary (backward compat)
@@ -549,14 +549,14 @@ def generate_dashboard_outputs_phts_style(
         "mean_importance": float(combined_filtered["combined_importance_norm"].mean()),
         "max_importance": float(combined_filtered["combined_importance_norm"].max()),
         "top_feature": all_causal.iloc[0]["feature"] if len(all_causal) > 0 else None,
-        "top_feature_importance": float(all_causal.iloc[0]["causal_responsibility"]) if len(all_causal) > 0 else None,
+        "top_feature_importance": float(all_causal.iloc[0]["interaction_responsibility"]) if len(all_causal) > 0 else None,
     }
     dashboard_data = {
         "cohort": cohort,
         "age_band": age_band,
         "timestamp": datetime.now().isoformat(),
         "ffa_method": "shap_ffa_combined",
-        "top_causal_factors": all_causal.to_dict("records"),
+        "top_interaction_factors": all_causal.to_dict("records"),
         "summary": summary,
         "feature_importance": combined_filtered.head(50).to_dict("records"),
         "notes": {
@@ -570,9 +570,9 @@ def generate_dashboard_outputs_phts_style(
         json.dump(dashboard_data, f, indent=2)
     logger.info(f"Saved dashboard_data.json (PHTS-style) to {json_path}")
     # Caller may upload this to dashboard S3 via --upload-to-dashboard (same shape as scenario_data.json)
-    csv_path = output_dir / "top_causal_factors.csv"
+    csv_path = output_dir / "top_interaction_factors.csv"
     top_causal.to_csv(csv_path, index=False)
-    logger.info(f"Saved top_causal_factors.csv to {csv_path}")
+    logger.info(f"Saved top_interaction_factors.csv to {csv_path}")
     combined_shap_path = output_dir / "combined_shap_importance.csv"
     combined_importance.to_csv(combined_shap_path, index=False)
     logger.info(f"Saved combined_shap_importance.csv to {combined_shap_path}")

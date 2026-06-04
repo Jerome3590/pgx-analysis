@@ -202,7 +202,7 @@ pgx-analysis/
 ### Step 4: Model Data Preparation
 - **Location:** `4_model_data/`
 - Extract model-ready event dataset
-- Remove target leakage (events on/after target date for cases)
+- Remove target leakage (events on/after target date for cases; see `docs/CrossStep_Development/README_target_leakage.md`)
 - Create balanced target/control sets
 - **Output:** `model_events.parquet`
 
@@ -336,7 +336,7 @@ For each `(cohort, age_band)` combination, the pipeline runs:
 
 - **Unit of Analysis:** Patient-episode or encounter
 - **Outcome (Y):** Binary classification (e.g., opioid disorder, ED visit)
-- **Treatments (A):** Drug exposure indicators
+- **Treatments (A):** Medication claims-event indicators (`item_*`; occurrence in lookback, not dose/PK exposure). See `manuscript/TERMINOLOGY.md`.
 - **Covariates (X):**
   - ICD diagnosis codes (grouped/rolled up)
   - CPT procedure codes

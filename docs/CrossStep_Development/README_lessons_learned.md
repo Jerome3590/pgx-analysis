@@ -64,7 +64,7 @@ count = int(count_result) if count_result is not None else 0
 
 **Files Fixed:**
 - `phase1_data_preparation.py` - Medical/pharmacy counts
-- `phase2_event_processing.py` - Event and drug exposure counts
+- `phase2_event_processing.py` - Claims-event fact table and medication-event counts
 - `phase3_cohort_creation.py` - Cohort counts, ratios, F1120 checks
 - `phase4_finalization.py` - Final cohort counts, target checks, HCG checks
 

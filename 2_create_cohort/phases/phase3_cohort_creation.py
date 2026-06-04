@@ -25,6 +25,7 @@ from .common import (
 from py_helpers.constants import (
     S3_BUCKET,
     get_opioid_icd_sql_condition,
+    get_icd_codes_sql_condition,
     ALL_ICD_DIAGNOSIS_COLUMNS,
     OPIOID_ICD_CODES,
     NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR,
@@ -1214,16 +1215,17 @@ def run_phase3_step3_final_cohort_fact(context):
                 f"All available controls used: Target cases: {ed_non_opioid_ratio[0]:,}, Control cases: {ed_non_opioid_ratio[1]:,}"
             )
         
-        # F1120-specific checks in cohorts
+        # F1120-specific checks in cohorts (all 10 ICD diagnosis columns — matches exclusion logic)
+        f1120_condition = get_icd_codes_sql_condition(["F1120"])
         # Use fetchdf() to avoid INT32 overflow in COUNT queries
-        f1120_opioid_check_df = cohort_conn_duckdb.sql("""
+        f1120_opioid_check_df = cohort_conn_duckdb.sql(f"""
         SELECT 
             CAST(COUNT(*) AS BIGINT) as total_f1120_records,
             CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as distinct_f1120_patients,
             CAST(COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) AS BIGINT) as f1120_target_patients,
             CAST(COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) AS BIGINT) as f1120_control_patients
         FROM opioid_ed_cohort
-        WHERE primary_icd_diagnosis_code = 'F1120'
+        WHERE {f1120_condition}
         """).fetchdf()
         f1120_opioid_check = (
             int(f1120_opioid_check_df.iloc[0]['total_f1120_records']) if not f1120_opioid_check_df.empty and f1120_opioid_check_df.iloc[0]['total_f1120_records'] is not None else 0,
@@ -1233,14 +1235,14 @@ def run_phase3_step3_final_cohort_fact(context):
         )
         
         # Use fetchdf() to avoid INT32 overflow in COUNT queries
-        f1120_ed_non_opioid_check_df = cohort_conn_duckdb.sql("""
+        f1120_ed_non_opioid_check_df = cohort_conn_duckdb.sql(f"""
         SELECT 
             CAST(COUNT(*) AS BIGINT) as total_f1120_records,
             CAST(COUNT(DISTINCT mi_person_key) AS BIGINT) as distinct_f1120_patients,
             CAST(COUNT(DISTINCT CASE WHEN is_target_case = 1 THEN mi_person_key END) AS BIGINT) as f1120_target_patients,
             CAST(COUNT(DISTINCT CASE WHEN is_target_case = 0 THEN mi_person_key END) AS BIGINT) as f1120_control_patients
         FROM ed_non_opioid_cohort
-        WHERE primary_icd_diagnosis_code = 'F1120'
+        WHERE {f1120_condition}
         """).fetchdf()
         f1120_ed_non_opioid_check = (
             int(f1120_ed_non_opioid_check_df.iloc[0]['total_f1120_records']) if not f1120_ed_non_opioid_check_df.empty and f1120_ed_non_opioid_check_df.iloc[0]['total_f1120_records'] is not None else 0,
@@ -1249,13 +1251,13 @@ def run_phase3_step3_final_cohort_fact(context):
             int(f1120_ed_non_opioid_check_df.iloc[0]['f1120_control_patients']) if not f1120_ed_non_opioid_check_df.empty and f1120_ed_non_opioid_check_df.iloc[0]['f1120_control_patients'] is not None else 0
         )
         
-        logger.info(f"→ [PHASE 3 STEP 3] F1120 IN OPIOID_ED COHORT:")
+        logger.info(f"→ [PHASE 3 STEP 3] F1120 IN OPIOID_ED COHORT (any of 10 ICD diagnosis columns):")
         logger.info(f"  Total F1120 records: {f1120_opioid_check[0]:,}")
         logger.info(f"  Distinct F1120 patients: {f1120_opioid_check[1]:,}")
         logger.info(f"  F1120 target patients: {f1120_opioid_check[2]:,}")
         logger.info(f"  F1120 control patients: {f1120_opioid_check[3]:,}")
         
-        logger.info(f"→ [PHASE 3 STEP 3] F1120 IN ED_NON_OPIOID COHORT:")
+        logger.info(f"→ [PHASE 3 STEP 3] F1120 IN ED_NON_OPIOID COHORT (any of 10 ICD diagnosis columns; expect 0 targets):")
         logger.info(f"  Total F1120 records: {f1120_ed_non_opioid_check[0]:,}")
         logger.info(f"  Distinct F1120 patients: {f1120_ed_non_opioid_check[1]:,}")
         logger.info(f"  F1120 target patients: {f1120_ed_non_opioid_check[2]:,}")

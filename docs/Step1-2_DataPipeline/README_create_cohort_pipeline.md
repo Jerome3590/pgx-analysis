@@ -42,7 +42,7 @@ Following the October 2025 refactor, the pipeline has been fully modularized int
 | Phase | File | Function | Description |
 | :-- | :-- | :-- | :-- |
 | Phase 1 | `phase1_data_preparation.py` | `run_phase1_data_preparation()` | Load and integrate medical + pharmacy data from APCD |
-| Phase 2 | `phase2_event_processing.py` | `run_phase2_event_processing()` | Create unified event fact table and drug exposure |
+| Phase 2 | `phase2_event_processing.py` | `run_phase2_event_processing()` | Create unified claims-event fact table (dated pharmacy/medical lines) |
 | Phase 3 | `phase3_cohort_creation.py` | `run_phase3_cohort_creation()` | Build final cohort fact table (5:1 control ratio) |
 | Phase 4 | `phase4_finalization.py` | `run_phase4_finalization()` | Validate QA and export to S3 |
 

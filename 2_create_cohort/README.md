@@ -46,7 +46,7 @@ Following the October 2025 refactor, the pipeline has been fully modularized int
 | Phase | File | Function | Description |
 | :-- | :-- | :-- | :-- |
 | Phase 1 | `phase1_data_preparation.py` | `run_phase1_data_preparation()` | Load and integrate medical + pharmacy data from APCD |
-| Phase 2 | `phase2_event_processing.py` | `run_phase2_event_processing()` | Create unified event fact table and drug exposure |
+| Phase 2 | `phase2_event_processing.py` | `run_phase2_event_processing()` | Create unified claims-event fact table (dated pharmacy/medical lines) |
 | Phase 3 | `phase3_cohort_creation.py` | `run_phase3_step3_final_cohort_fact()` | Build final cohort fact table (target 5:1 control ratio, statistical independence, balanced temporal windows) |
 | Phase 4 | `phase4_finalization.py` | `run_phase4_finalization()` | Validate QA and export to S3 |
 
@@ -151,11 +151,12 @@ The pipeline includes temporal analysis fields that differ between cohorts:
 | Field | Type | Description | OPIOID_ED | ED_NON_OPIOID |
 | :-- | :-- | :-- | :-- | :-- |
 | `target` | INTEGER | **Legacy column** - Always 1 for OPIOID_ED/ED_NON_OPIOID cohorts (use `is_target_case` instead) | ✅ Always 1 | ✅ Always 1 |
-| `is_target_case` | INTEGER | Target case indicator (1=target case, 0=control) | ✅ Populated | ✅ Populated (uses 21-day window) |
+| `is_target_case` | INTEGER | Target case indicator (1=target case, 0=control) | ✅ Populated | ✅ Populated (age-band drug–ED window) |
 **Important Notes:**
 - **`target` column is legacy** - Always set to 1 for both cohorts. Use `is_target_case` for actual target/control distinction.
-- **`is_target_case` column** uses a fixed 21-day window for adverse drug event identification (excluding 0-day discharge prescriptions).
-- The 21-day window captures ~90.5% of adverse drug events based on distribution analysis.
+- **`is_target_case` (ED_NON_OPIOID)** uses **age-band-specific** drug–ED proximity windows from `get_non_opioid_ed_params()` in `py_helpers/constants.py` (e.g. 21 days and &lt;7 ED visits/year for 65–74; 30 days and 10 visits/year for 0–12). Zero-day drug–ED gaps are excluded (discharge-fill guard).
+- **One index per patient per partition:** `index_qualifying_ed` keeps the **earliest** qualifying ED per `mi_person_key` within the calendar-year partition; `first_ed_non_opioid_date` is that index date.
+- **Partition scope:** Phase 1 filters events to `event_year` only; index dates are first-within-year, not lifetime.
 
 #### Cohort-Specific Temporal Behavior
 
@@ -175,23 +176,23 @@ The pipeline includes temporal analysis fields that differ between cohorts:
   ```
 
 **ED_NON_OPIOID Cohort (Polypharmacy):**
-- **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits occurring within a 21-day window of drug events
+- **Time-Windowed HCG Target Events:** Target is defined as HCG ED visits (P51b, O11, P33 per `hcg_line`/`hcg_detail`) with a **most recent pre-ED pharmacy fill** in the age-band lookback window (1 to `time_window_days` days; 0-day gaps excluded)
 - **Dual Filter System for True Adverse Drug Events:** The cohort applies two sequential filters to ensure only true adverse drug events are included:
   1. **ED Visit Frequency Filter:** Only includes patients with **<7 ED visits per year** (configurable via `NON_OPIOID_ED_MAX_ED_VISITS_PER_YEAR` in `py_helpers/constants.py`)
      - Rationale: Patients with 7+ ED visits per year are likely not true adverse drug events (may indicate chronic conditions or frequent ED utilization patterns)
      - Filter applied first: Counts ED visits per patient per year, excludes patients with 7+ visits
-  2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
-     - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
-     - Filter applied second: For each ED event, finds most recent drug event before it, calculates days between them, includes only patients with 1-21 days (0-day gaps excluded as likely discharge prescriptions)
+  2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within `time_window_days` of ED event** (excluding 0-day discharge prescriptions)
+     - Rationale: True adverse drug events should have a temporal relationship between proximal medication claims events and the ED visit
+     - Filter applied second: For each ED event, finds most recent drug event before it, calculates days between them, includes only patients with 1–`time_window_days` (0-day gaps excluded as likely discharge prescriptions)
 - **Filter Pipeline:** The filtering logic uses a linear, sequential CTE approach for clarity and maintainability:
   - Each filter step is a separate CTE that builds on the previous step
   - This makes the logic easy to follow, debug, and modify
   - See [Filter Pipeline Diagram](#ed-non-opioid-filter-pipeline) below for visual representation
-- **21-Day Time Window:** Single window captures ~90.5% of adverse drug events (excluding 0-day discharge prescriptions) based on distribution analysis
+- **Age-band time window:** Defaults are documented in `AGE_BAND_PARAMETER_CHANGES.md` (adult geriatric bands typically 21 days; pediatric/oldest-old bands up to 30)
 - **Time Window Lookback:** Applied to BOTH target cases AND controls for balanced comparison
 - **Target Cases:** 
-  - Reference date: First ED_NON_OPIOID event within 21-day window of drug event (index event per patient)
-  - Includes: Medical events OR drug events within 21-day window before target
+  - Reference date: **Earliest** qualifying ED (`index_qualifying_ed`) — one index per `mi_person_key` per calendar-year partition
+  - Includes: All medical events for the patient; pharmacy events with `days_to_target_event` in `[0, time_window_days]`
   - Target indicator: `is_target_case` (1 if drug event within 1-21 days before ED, excluding 0-day discharge prescriptions)
   - **Filtered to patients with <7 ED visits per year** (true adverse drug events only)
   - **21-day window captures ~90.5% of adverse drug events** (excluding 0-day discharge prescriptions) based on distribution analysis
@@ -215,18 +216,18 @@ The ED_NON_OPIOID cohort uses a sequential filtering approach to identify true a
 ```mermaid
 flowchart TD
     A[All ED_NON_OPIOID Patients<br/>Excluding Opioid Patients<br/>N = Total Patients] --> B[Count ED Visits<br/>Per Patient Per Year<br/>hcg_patients_with_visit_counts]
-    B --> C{Filter 1:<br/>Visit Count<br/>< 5 per year?}
-    C -->|Yes| D[Patients with<br/>< 5 ED Visits/Year<br/>N = Filtered Count 1]
-    C -->|No| E[Excluded:<br/>7+ Visits/Year<br/>N = Excluded Count 1]
+    B --> C{Filter 1:<br/>Visit Count<br/>&lt; max_ed_visits/year?}
+    C -->|Yes| D[Patients below<br/>ED visit cap<br/>N = Filtered Count 1]
+    C -->|No| E[Excluded:<br/>Frequent ED users<br/>N = Excluded Count 1]
     D --> F[Get ED Events<br/>for Filtered Patients<br/>ed_events]
     F --> G[Get All Drug Events<br/>drug_events]
     G --> H[Match ED-Drug Pairs<br/>Find Most Recent Drug<br/>Before Each ED Event<br/>ed_drug_pairs]
     H --> I[Calculate Days<br/>From Drug to ED<br/>ed_drug_days]
-    I --> J{Filter 2:<br/>Temporal Relationship<br/>1-21 days?<br/>Exclude 0-day gaps}
-    J -->|Yes| K[Patients with<br/>Drug 1-21 days before ED<br/>N = Filtered Count 2<br/>Final Target Patients]
-    J -->|No| L[Excluded:<br/>0-day gaps or >21 days<br/>N = Excluded Count 2]
-    K --> M[Create Index ED Date<br/>First ED Event per Patient<br/>hcg_index]
-    M --> N[Build Cohort<br/>with 21-Day Window<br/>for Adverse Drug Events]
+    I --> J{Filter 2:<br/>Drug–ED gap<br/>1 to time_window_days?<br/>Exclude 0-day gaps}
+    J -->|Yes| K[Qualifying drug–ED pairs<br/>N = Filtered Count 2]
+    J -->|No| L[Excluded:<br/>0-day or beyond window<br/>N = Excluded Count 2]
+    K --> M[index_qualifying_ed<br/>Earliest qualifying ED<br/>per mi_person_key]
+    M --> N[Build Cohort<br/>Age-band lookback<br/>for pharmacy events]
 
     style A fill:#e1f5ff
     style D fill:#c8e6c9
@@ -247,9 +248,24 @@ flowchart TD
 - 0-day gaps (drug filled on same day as ED visit) are excluded as they likely represent discharge prescriptions rather than adverse drug events
 - Only drug events occurring 1-21 days before ED visit are considered for adverse drug event identification
 
-#### 21-Day Window Justification
+#### Drug–ED Temporal Window Justification (FAERS + APCD)
 
-The 21-day window for adverse drug event identification is based on empirical distribution analysis of drug-to-ED event gaps (excluding 0-day discharge prescriptions). Analysis of a sample cohort (age_band=65-74, event_year=2019) showed the following distribution:
+Target timing for `non_opioid_ed` uses a **two-part justification**: external pharmacovigilance plausibility (FAERS), then APCD-specific calibration of `time_window_days` (default **21 days** for bands 25–84).
+
+**External timing (FDA FAERS).** Project notebooks in `1a_apcd_input_data/faers/` (`faers.qmd`, `faers_eda.qmd`) analyze FDA FAERS parquet. Gold copies live at `s3://pgxdatalake-backups/gold_backup_20251109T193811Z/faers/` (age-band partitions with precomputed `duration` = therapy start → adverse-event onset; `drug_date` / `event_date` in ISO form). Re-run summary stats with `python py_helpers/faers_time_to_onset.py` (or `python 2_create_cohort/qa_faers_time_to_onset.py` wrapper) and optional `--base s3://pgxdatalake-backups/gold_backup_20251109T193811Z/faers`.
+
+Analyses focus on hospitalization (`outc_cod = 'HO'`) or death (`outc_cod = 'DE'`) outcomes and restrict to **positive durations under 30 days** in the primary cleaned view (`faers_events_cleaned`), deduplicated per `primaryid` + `caseid` (shortest duration). On the full backup (all age bands/years), that cleaned set has **468,298** reports; **87.7%** have duration ≤21 days. Bucket shares within 0&lt;duration&lt;30:
+
+| Days (therapy start → ADE) | Share of cleaned FAERS |
+|---------------------------|------------------------|
+| 1–7 | 49.5% |
+| 8–14 | 23.5% |
+| 15–21 | 14.7% |
+| 22–29 | 12.3% |
+
+Most mass lies in the first two weeks—consistent with acute ADE reporting. Published spontaneous-reporting studies likewise report short median times-to-onset for many acute reactions (often on the order of days to ~1–2 weeks, drug- and event-dependent), with longer latencies for chronic toxicities (see Hill et al., PLOS ONE 2013, doi:[10.1371/journal.pone.0068938](https://doi.org/10.1371/journal.pone.0068938)).
+
+**APCD calibration (why 21 days for adult/geriatric bands).** FAERS uses therapy start → **reported ADE onset**; the cohort uses **most recent pharmacy fill → HCG ED visit**. They are related but not identical estimands. On APCD, `time_window_days` was set to **21** for bands 25–84 because an empirical drug-to-ED gap distribution (excluding 0-day discharge prescriptions) in a reference partition (`age_band=65-74`, `event_year=2019`) showed the following:
 
 | Days from Drug to ED | ED Events | Percentage* | Cumulative |
 |---------------------|-----------|-------------|------------|
@@ -267,10 +283,32 @@ The 21-day window for adverse drug event identification is based on empirical di
 - Events beyond 21 days represent a smaller proportion and are less likely to be causally related to the ED visit
 - The 21-day window balances **clinical relevance** (captures majority of events) with **causal plausibility** (events beyond 21 days have weaker temporal association)
 
-**Clinical Rationale:**
-- Most adverse drug events manifest within 1-2 weeks of drug initiation or dose changes
-- A 21-day window aligns with typical drug half-lives and clinical monitoring periods
-- Events beyond 21 days are more likely to be coincidental rather than causally related
+**Synthesis:**
+- **FAERS** supports a **sub-month, acute** exposure-to-outcome frame (&lt;30 days in cleaned FAERS views).
+- **APCD** tightens that frame to **`time_window_days`** (21 for 25–84; 25 for 85–114; up to 30 for pediatric bands via `get_non_opioid_ed_params()`) to retain ~90.5% of qualifying drug–ED pairs in the reference partition while excluding weaker temporal links.
+- **0-day gaps** are excluded in both narratives where same-day fill + ED likely reflects discharge prescribing, not a proximal outpatient ADE precipitant.
+
+#### Target Leakage and Downstream Modeling (Cohort → Model Data → Final Features)
+
+Cohort outputs are the **temporal anchor** for all predictive modeling. Downstream steps must not use information on or after the index/target date when building case features.
+
+| Step | Script / output | Leakage control |
+|------|-----------------|-----------------|
+| **2 — Cohort** | `phases/phase3_cohort_creation.py` → `cohort.parquet` | **One index per target** per `mi_person_key` per `(event_year, age_band)` partition: earliest qualifying drug–ED pair (`first_ed_non_opioid_date` for `non_opioid_ed`; `first_opioid_ed_date` for `opioid_ed`). QA: `python 2_create_cohort/qa_index_date_uniqueness.py --cohort non_opioid_ed --year 2019 --age-band 65-74` |
+| **3b — Feature refinement** | BupaR post-target analysis | Flags codes that appear predominantly **after** the target event; refined `cohort_feature_importance.csv` drops those items |
+| **4 — Model events** | `4_model_data/create_model_data.py` → `model_events.parquet` | **Cases:** `event_date <` target date (`first_o11_p_date` / `first_f1120_date`; see `4_model_data/README_model_data.md`). **Controls:** partition-year events from gold medical/pharmacy (no case-level target-date truncation in Step 4); post-target **codes** blacklisted via 3b exclusions |
+| **6 — Final features** | `build_final_cohort_model_features.py`, `remove_target_leakage.py` | Patient-level `n_events` = row count in `model_events`; **`n_event_bin_ordinal`** in trees (not raw `n_events`). Target-date columns and `post_*` / `time_to_*` / DTW / trajectory / itemset columns stripped. Train **2016–2018**, evaluate **2019** only |
+
+**Cohorts and canonical target-date columns**
+
+| `cohort_name` | Index / target semantics | Column in cohort export | Column in `model_events` |
+|---------------|-------------------------|-------------------------|---------------------------|
+| `non_opioid_ed` | Earliest qualifying HCG ED (O11, P51b, P33) with pre-ED drug window | `first_ed_non_opioid_date` | `first_o11_p_date` |
+| `opioid_ed` | Opioid-related ED / F11.20 anchor | `first_opioid_ed_date` | `first_f1120_date` |
+
+**Not in the predictive matrix:** FP-Growth, BupaR sequence/itemset, and DTW distance features (dashboard / protocol filtering only). Full cross-step rules: [`docs/CrossStep_Development/README_target_leakage.md`](../docs/CrossStep_Development/README_target_leakage.md) (includes **Step 3b post-target audit** on the target population and why **`n_events`** is utilization/linkage confounding, not item-level leakage).
+
+**Utilization note (`n_events`):** After Step 4, case `n_events` counts **pre-target** events (feature-importance–filtered for cases); control `n_events` counts **all events in the partition-year extract** used for controls. Density stratification (`n_event_bin_ordinal`) and partition-first training address utilization dominance; see `docs/CrossStep_Development/README_event_density_bins.md` and CH_4 Methods (Internal Validation).
 
 **Example Log Output:**
 ```
@@ -313,8 +351,8 @@ WHERE (
 This ensures:
 - **Balanced Comparison:** Both targets and controls have the same temporal window structure
 - **Causality Assessment:** Only drugs prescribed within 30 days before the reference event are considered
-- **Risk Window Analysis:** Supports identification of high-risk drug exposure periods
-- **Temporal Relationships:** Enables analysis of drug exposure timing relative to reference events
+- **Risk Window Analysis:** Supports identification of high-risk medication claims-event periods
+- **Temporal Relationships:** Enables analysis of claims-event timing relative to reference events
 - **Statistical Validity:** Prevents bias from unequal temporal data between targets and controls
 
 ***
@@ -650,6 +688,18 @@ from helpers.pipeline_state import PipelineState
 state = PipelineState("create_cohort", "OPIOID_ED_65-74_2019", logger)
 print(state.get_progress())
 ```
+
+### Verify one index date per target patient
+
+After cohort parquet is written (local or S3), run:
+
+```bash
+python 2_create_cohort/qa_index_date_uniqueness.py --cohort non_opioid_ed --year 2019 --age-band 65-74
+# Or pass a local path after aws s3 cp:
+python 2_create_cohort/qa_index_date_uniqueness.py --path /path/to/cohort.parquet --cohort non_opioid_ed
+```
+
+Expect **0** patients with more than one distinct index date; multiple patients may share the same calendar index date.
 
 
 ***
@@ -1775,7 +1825,7 @@ The pipeline calculates temporal relationships between events and target events,
      - Patients with 7+ visits are excluded before temporal relationship analysis
      - Logging shows total patients before filter, after filter, and how many were excluded
   2. **Temporal Drug-ED Relationship Filter (1-21 days, excluding 0-day):**
-     - Rationale: True adverse drug events should have a temporal relationship between drug exposure and ED visit
+     - Rationale: True adverse drug events should have a temporal relationship between proximal medication claims events and the ED visit
      - Applied via sequential CTEs: `ed_events` → `drug_events` → `ed_drug_pairs` → `ed_drug_days` → `qualifying_ed` (filters to 1-21 days, excludes 0-day) → `index_qualifying_ed` → `target_cases`
      - For each ED event, finds most recent drug event before it
      - Calculates days from drug event to ED event

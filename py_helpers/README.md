@@ -87,6 +87,7 @@ from py_helpers.checkpoint_utils import upload_file_to_s3
 |------|-------------|---------|
 | `check_cohort_parquet_controls.py` | Validate cohort control ratios | Step 2 QA |
 | `check_model_events_controls.py` | Validate model_events control distribution | Step 4 QA |
+| `faers_time_to_onset.py` | FAERS S3 time-to-onset QA (HO/DE, &lt;30 d, deduped); supports `drug_date`/`event_date` gold parquet | Cohort timing / CH4 Methods |
 | `notebook_utils.py` | Jupyter display helpers | Notebooks |
 
 ---
