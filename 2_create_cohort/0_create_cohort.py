@@ -125,7 +125,7 @@ def cleanup_persistent_tables(context):
 STEP_EXECUTION_ORDER = [
     "phase1_data_preparation",     # Load pre-imputed medical and pharmacy data
     "phase2_step1_event_fact_table",  # Create unified event fact table
-    "phase2_step2_drug_exposure",     # Create drug exposure events
+    "phase2_step2_drug_exposure",     # Create medication claims events (legacy step key)
     "phase3_step3_final_cohort_fact", # Create final cohort fact tables with 5:1 ratio
     "phase4_complete_pipeline"        # Complete pipeline execution
 ]
@@ -230,8 +230,8 @@ def execute_pipeline(context):
         logger.info("→ [PIPELINE] Executing Phase 2 Step 1: Event Fact Table Creation")
         run_phase2_step1_event_fact_table(context)
         
-        # Phase 2 Step 2: Drug Exposure Events
-        logger.info("→ [PIPELINE] Executing Phase 2 Step 2: Drug Exposure Events")
+        # Phase 2 Step 2: Medication claims events
+        logger.info("→ [PIPELINE] Executing Phase 2 Step 2: Medication claims events")
         run_phase2_step2_drug_exposure(context)
         
         # Phase 3 Step 3: Final Cohort Creation (5:1 ratio)

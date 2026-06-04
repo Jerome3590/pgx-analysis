@@ -2,7 +2,7 @@
 Phase 2: Event Processing with DuckDB optimizations.
 
 Step 1: Event Fact Table Creation
-Step 2: Drug Exposure Events
+Step 2: Medication claims events (pharmacy lines → event fact)
 """
 
 from .common import (
@@ -332,7 +332,7 @@ def run_phase2_step1_event_fact_table(context):
 
 
 def run_phase2_step2_drug_exposure(context):
-    """Phase 2 Step 2: Drug Exposure Events with DuckDB optimizations."""
+    """Phase 2 Step 2: Medication claims events (pharmacy lines → event fact) with DuckDB optimizations."""
     logger = context["logger"]
     cohort_conn_duckdb = context["cohort_conn_duckdb"]
     age_band = context["age_band"]
@@ -346,7 +346,7 @@ def run_phase2_step2_drug_exposure(context):
         logger.info(f"{SYMBOLS['success']} [PHASE 2 STEP 2] Already completed - skipping")
         return
     
-    logger.info(f"{SYMBOLS['arrow']} [PHASE 2 STEP 2] Starting optimized drug exposure events creation...")
+    logger.info(f"{SYMBOLS['arrow']} [PHASE 2 STEP 2] Starting optimized medication claims events creation...")
     
     try:
         # Ensure gold-backed views exist if Phase 1 was skipped
@@ -354,7 +354,7 @@ def run_phase2_step2_drug_exposure(context):
         # Enable query profiling for this step (partition-safe filename)
         enable_query_profiling(cohort_conn_duckdb, logger, "json", f"/tmp/duckdb_profile_p2_step2_{age_band}_{event_year}.json")
         
-        # Create unified drug exposure view
+        # Create unified medication claims events view
         drug_exposure_sql = f"""
         CREATE OR REPLACE VIEW unified_drug_exposure AS
         SELECT 
@@ -375,7 +375,7 @@ def run_phase2_step2_drug_exposure(context):
           AND drug_name != '';
         """
         execute_sql_with_dev_validation(cohort_conn_duckdb, logger, drug_exposure_sql)
-        logger.info("→ [PHASE 2 STEP 2] Unified drug exposure view created")
+        logger.info("→ [PHASE 2 STEP 2] Unified medication claims events view created")
         
         # QA checks
         # Cast COUNT(*) to BIGINT to avoid INT32 overflow for large counts
@@ -383,7 +383,7 @@ def run_phase2_step2_drug_exposure(context):
         total_drug_events_result = cohort_conn_duckdb.sql("SELECT COUNT(*)::BIGINT FROM unified_drug_exposure").fetchone()[0]
         total_drug_events = int(total_drug_events_result) if total_drug_events_result is not None else 0
         
-        logger.info(f"→ [PHASE 2 STEP 2] QA: Total drug exposure events: {total_drug_events:,}")
+        logger.info(f"→ [PHASE 2 STEP 2] QA: Total medication claims events: {total_drug_events:,}")
         
         # Force checkpoint
         force_checkpoint(cohort_conn_duckdb, logger)
@@ -398,10 +398,10 @@ def run_phase2_step2_drug_exposure(context):
                 'timestamp': datetime.now().isoformat()
             })
         
-        logger.info(f"{SYMBOLS['success']} [PHASE 2 STEP 2] Optimized drug exposure events creation completed")
+        logger.info(f"{SYMBOLS['success']} [PHASE 2 STEP 2] Optimized medication claims events creation completed")
         
     except Exception as e:
-        logger.error(f"{SYMBOLS['fail']} [PHASE 2 STEP 2] Drug exposure events creation failed: {str(e)}")
+        logger.error(f"{SYMBOLS['fail']} [PHASE 2 STEP 2] Medication claims events creation failed: {str(e)}")
         if pipeline_state:
             pipeline_state.mark_step_failed(step_name, str(e))
         cleanup_duckdb_temp_files(logger)

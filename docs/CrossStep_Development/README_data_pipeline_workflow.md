@@ -168,7 +168,7 @@ The cohort creation pipeline follows a modular architecture with four main phase
 - **Quality Assurance**: Validates cohort separation and logs metrics
 - **Data Integrity**: Prevents data leakage between cohorts
 
-### Enhanced Drug Exposure Analysis
+### Enhanced Medication Claims-Event Analysis
 - **ADE Cohort**: 30-day lookback window for causality assessment
 - **Opioid Cohort**: Complete drug history for pattern analysis
 - **Temporal Relationships**: Precise tracking of drug-event timing

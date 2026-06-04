@@ -317,7 +317,7 @@ ls -lh 8_ffa_analysis/outputs/{cohort}/{age_band}/
 2. **BupaR** — process mining sequences and plots, per cohort/age_band; outputs to `10_risk_dashboard/visualizations/bupar/`
 3. **DTW** — trajectory features, bins, and plots, per cohort/age_band; outputs to `10_risk_dashboard/visualizations/dtw/`
 4. **FP-Growth** — drug itemsets, association rules, network HTML, per cohort/age_band; outputs to `10_risk_dashboard/visualizations/fpgrowth/`
-5. **Causal** — FFA + SHAP combined dashboard JSON; outputs to `10_risk_dashboard/visualizations/causal/`
+5. **Scenario** — FFA + SHAP combined dashboard JSON; outputs to `10_risk_dashboard/visualizations/scenario/`
 6. **Cohort PGx** — per cohort/age_band (full cohort + per-bin low/medium/high/extreme):
    - Fetch PharmGKB VIP reports (`fetch_vip_reports.py`)
    - Fetch PubMed citations + radar data (`fetch_pubmed_citations.py`)
@@ -333,7 +333,7 @@ ls -lh 8_ffa_analysis/outputs/{cohort}/{age_band}/
 ```bash
 cd ~/pgx-analysis
 jupyter notebook 4_dashboard_visuals.ipynb
-# Run all cells in order (Setup → BupaR → DTW → FP-Growth → Causal → Cohort PGx → PGx Card → Manifest → Checkpoints)
+# Run all cells in order (Setup → BupaR → DTW → FP-Growth → Scenario → Cohort PGx → PGx Card → Manifest → Checkpoints)
 ```
 
 **Option B – Python script (VS Code Jupyter `# %%` or CLI):**
@@ -369,7 +369,7 @@ Manuscript checkpoints written: 416  errors: 0
 - DTW: `10_risk_dashboard/visualizations/dtw/`
 - FP-Growth: `10_risk_dashboard/visualizations/fpgrowth/`
 - Cohort PGx: `10_risk_dashboard/visualizations/cohort_pgx/networks/`
-- Causal: `10_risk_dashboard/visualizations/causal/`
+- Scenario: `10_risk_dashboard/visualizations/scenario/`
 
 See [9_dashboard_visuals/README.md](9_dashboard_visuals/README.md) for the full checkpoint field reference.
 
@@ -413,11 +413,11 @@ aws cloudfront create-invalidation \
 **Verify:**
 - Frontend accessible at `https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html`
 - Backend API responding via API Gateway (`https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod`)
-- All visualization tabs working (Causal Analysis, BupaR, DTW, FP-Growth)
+- All visualization tabs working (Scenario Analysis, BupaR, DTW, FP-Growth)
 
 **Do you need to update the Lambda image for dashboard visuals?**
 - **BupaR, DTW, FP-Growth:** No Lambda code change. Lambda only returns S3 paths to artifacts. Run **Phase 4** (or `pgx_dashboard_visuals.py`); upload outputs to S3. Build and deploy run in **Phase 5** only.
-- **Causal tab:** The Lambda was updated to default to **top 500 SHAP/FFA important features** when the user does not select drugs/ICDs/CPTs. To get that behavior in production, **redeploy the Lambda** (rebuild the Docker image and update the Lambda function with the current `10_risk_dashboard/backend/lambda_function.py`). See `10_risk_dashboard/deployment/README.md` and `utility_scripts/create_api_gateway_pgx_risk_calculator.sh`.
+- **Scenario tab:** The Lambda defaults to **top 500 SHAP/FFA important features** when the user does not select drugs/ICDs/CPTs. To get that behavior in production, **redeploy the Lambda** (rebuild the Docker image and update the Lambda function with the current `10_risk_dashboard/backend/lambda_function.py`). See `10_risk_dashboard/deployment/README.md` and `utility_scripts/create_api_gateway_pgx_risk_calculator.sh`.
 
 ---
 
@@ -476,7 +476,7 @@ aws cloudfront create-invalidation \
 
 - **Feature importance (default):** Cleanup script **preserves** Step 3a/3b and `gold/feature_importance` by default. Phase 2 skips (cohort, age_band) that already have checkpoints/outputs and only runs for missing combinations. Keep **`FORCE_FEATURE_IMPORTANCE = False`** in Phase 2. Use **`--clear-feature-importance`** only when you need a full recompute.
 - **Time Windows**: Polypharmacy (ed_non_opioid) target = first ED visit (HCG Setting) within 21 days of a prescription drug event. See `2_create_cohort/README.md` and `py_helpers/constants.py` (NON_OPIOID_ED_TARGET_DESCRIPTION). Opioid_ed uses F11.20 target only.
-- **SHAP/FFA-driven visuals**: BupaR, DTW, FP-Growth, and Causal dashboard visuals use model-important features (Step 7 SHAP, Step 8 FFA). Run Step 7 and 8 before generating dashboard artifacts for best results.
+- **SHAP/FFA-driven visuals**: BupaR, DTW, FP-Growth, and Scenario dashboard visuals use model-important features (Step 7 SHAP, Step 8 FFA). Run Step 7 and 8 before generating dashboard artifacts for best results.
 - **Idempotent**: All scripts are idempotent and will skip completed steps
 - **Checkpoints**: Pipeline uses S3 checkpoints to track progress
 - **Logs**: Check log files in `logs/{step_name}/` at repo root (e.g. `logs/6_final_model/`, `logs/7_shap_analysis/`, `logs/9_dtw/`); all steps mirror to `s3://pgx-repository/{step_name}_log/` on completion

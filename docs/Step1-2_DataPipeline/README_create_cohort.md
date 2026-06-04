@@ -46,7 +46,7 @@ Following the October 2025 refactor, the pipeline has been fully modularized int
 | Phase | File | Function | Description |
 | :-- | :-- | :-- | :-- |
 | Phase 1 | `phase1_data_preparation.py` | `run_phase1_data_preparation()` | Load and integrate medical + pharmacy data from APCD |
-| Phase 2 | `phase2_event_processing.py` | `run_phase2_event_processing()` | Create unified event fact table and drug exposure |
+| Phase 2 | `phase2_event_processing.py` | `run_phase2_event_processing()` | Create unified claims-event fact table (dated pharmacy/medical lines) |
 | Phase 3 | `phase3_cohort_creation.py` | `run_phase3_step3_final_cohort_fact()` | Build final cohort fact table (target 5:1 control ratio, statistical independence, balanced temporal windows) |
 | Phase 4 | `phase4_finalization.py` | `run_phase4_finalization()` | Validate QA and export to S3 |
 
@@ -207,8 +207,8 @@ WHERE (
 This ensures:
 - **Balanced Comparison:** Both targets and controls have the same temporal window structure
 - **Causality Assessment:** Only drugs prescribed within 30 days before the reference event are considered
-- **Risk Window Analysis:** Supports identification of high-risk drug exposure periods
-- **Temporal Relationships:** Enables analysis of drug exposure timing relative to reference events
+- **Risk Window Analysis:** Supports identification of high-risk medication claims-event periods
+- **Temporal Relationships:** Enables analysis of claims-event timing relative to reference events
 - **Statistical Validity:** Prevents bias from unequal temporal data between targets and controls
 
 ***

@@ -1,8 +1,10 @@
 # Project TODO
 
-_Last updated: 2026-06-02 — completion tracked here; action plans = spec; [`manuscript/docs/cts/cts_peer_review/README_CTS_PEER_REVIEW_INDEX.md`](manuscript/docs/cts/cts_peer_review/README_CTS_PEER_REVIEW_INDEX.md) = index; due-date staging in [`manuscript/docs/cts/due_date/`](manuscript/docs/cts/due_date/README.md)._
+_Last updated: 2026-06-04 — Authors: **R. Jerome Dixon** (corresponding; first review) and **Elvin T. Price, Pharm.D., Ph.D.** (sole co-author). No other authors on CH3–CH5._
 
 Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`, `manuscript/docs/cts/README_CTS.md`.
+
+**Review workflow (all resubmissions):** Jerome proofreads package → sends to Dr. Price → Jerome uploads to Wiley after Price sign-off.
 
 ---
 
@@ -10,29 +12,80 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 | ID | Manuscript | Chapter | Action plan | Status |
 |:---|:-----------|:--------|:------------|:-------|
-| **CH3** | CTS-2026-0196 | CH_3 | [cts_2026_0196_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | 🟡 **Ready** — causality alignment rebuild + marked MS; **Dr. Price** review → Wiley |
-| **CH4** | CTS-2026-0235-T | CH_4 | [cts_0235_t_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) | 🟡 **Ready** — same alignment pass; **co-author review** → upload |
-| **CH5** | CTS-2026-0255-T | CH_5 | [cts_2026_0255_t_revision_action_plan.md](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟡 **Ready for co-author review** — full package built; `ch05_cts_revision_response.qmd` → DOCX |
+| **T0** | **Complete pipeline rerun** | All | See T0 below | 🔴 **Active — EC2 required** |
+| **CH3** | CTS-2026-0196 | CH_3 | [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley |
+| **CH4** | CTS-2026-0235-T | CH_4 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **2026-06-29**) |
+| **CH5** | CTS-2026-0255-T | CH_5 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **~2026-06-30**) |
 | T4 | `nbstripout` git filter (Windows) | pgx-analysis | — | ⬜ Open |
 | T5 | Parent repo local changes (puppeteer) | pgx-analysis | — | ⬜ Open — notebooks committed; `11_testing/puppeteer/*` untracked |
-| T6 | CH1 initial submission (CTS-2026-0197) | CH_1 | `manuscript_status.txt` | 🟡 Halted — title page + supp files |
+| T6 | CH1 systematic review (CTS-2026-0197) | CH_1 | Wiley portal | 🟢 **Under Consideration** (rev 0) — await editorial decision |
+| T8 | CH2 OODA / partition-first (CTS-2026-0230-T) | CH_2 | Wiley portal | 🟢 **Under Consideration** (rev 0) — await editorial decision |
 | T7 | `f31_proposal` folder | pgx-analysis | — | ⬜ Open |
+
+---
+
+## T0 — Complete pipeline rerun (temporal holdout fix + scenario rename)
+
+**Trigger:** Holdout integrity fix (2016-2018 train / 2019 holdout) + `causal` → `scenario` rename requires fresh model artifacts and regenerated dashboard data.  
+**Steps 1–5:** ✅ Keep as-is — `model_events.parquet` intact with `event_year`.  
+**Start from:** Step 6 (`run_final_model.py --force-retrain`) on EC2.
+
+### Phase 3 — Model (Step 6)
+- [ ] `run_final_model.py --cohort opioid_ed --age_band 25-44 --train-mode per_bin --force-retrain` (priority band for CH3)
+- [ ] Repeat for all `opioid_ed` age bands (0-12, 13-24, 45-54, 55-64, 65-74, 75-84, 85-114)
+- [ ] Repeat for all `non_opioid_ed` age bands
+- [ ] Verify `holdout_2019_metrics.json` written per cohort/age_band — update Table 2 in `ch03_cts.qmd`
+
+### Phase 3 — SHAP + FFA (Steps 7–8)
+- [ ] `run_shap_analysis.py` per cohort/age_band (new model → new SHAP parquets)
+- [ ] `run_ffa.py` per cohort/age_band (new model → new FFA rules)
+- [ ] `combine_shap_ffa_results.py` — outputs `dashboard_data.json` with `top_interaction_factors` (no more `top_causal_factors`)
+
+### Phase 4 — Dashboard visuals (Step 9) — DTW queue
+- [ ] Run `create_dtw_trajectories` → `create_dtw_features` → `create_dtw_visuals` per cohort/age_band  
+  (column fix already in place: `candidates = ["first_f1120_date", "first_opioid_ed_date"]`)
+- [ ] Inspect `metrics.charts_not_built` / `9_dtw_log/` for any remaining N3 "not built" partitions
+- [ ] Verify `times_between_sequences` and `time_to_target_sequences` present in `chart_data.json`
+- [ ] Regenerate `fig_trajectories.pdf`, `fig_trajectories_heatmap.pdf`, `fig_dtw_pathways.pdf` (CH_3 supp)
+- [ ] Run BupaR + FP-Growth for all cohorts/age_bands
+- [ ] Upload all visuals to S3 (`visualizations/scenario/`, `visualizations/dtw/`, etc.)
+
+### Phase 5 — Build and deploy
+- [ ] `prepare_models.py` + `prepare_lambda_dir.py` with retrained per-bin models
+- [ ] Rebuild Docker image → push to ECR → update Lambda function
+- [ ] `sync_frontend_to_s3.py` — deploy `frontend/index.html` (scenario rename + N3 messaging)
+- [ ] Sync `pgx_dashboard.html` outputs build → S3
+- [ ] CloudFront invalidation (`/vcu/pgx-risk-calculator/*`)
+- [ ] Smoke-test: Scenario Analysis tab, DTW N3 panels, risk inference per bin
+
+### Post-rerun manuscript updates
+- [ ] Update Table 2 (CH_3) with `holdout_2019_metrics.json` AUROC/PR-AUC values
+- [ ] Rebuild CH_3 PDF/DOCX after figure regeneration → send to Dr. Price
 
 ---
 
 ## CH3 — CTS-2026-0196 (pending upload)
 
-**Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_3](manuscript/docs/cts/README_CTS.md) · **Response:** `ch03_cts_revision_response.qmd`
+**Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_3](manuscript/docs/cts/README_CTS.md) · **Submit:** [due_date submit README](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/submit/README.md)
 
-**Status:** Revision package rebuilt (2026-06-02): association-vs-causation guardrail, title *Temporal Drivers…*, marked MS in `edits/`. **Not uploaded to Wiley**. Awaiting **Dr. Price** review.
+**Status:** `submission/outputs/` package **sent to Dr. Price** for co-author review (with CH4/CH5). **Not on Wiley** until Price sign-off.
 
-### Before upload (after Price sign-off)
+### Done — Jerome (first review)
+
+- [x] **Jerome:** Proofread `edits/CTS-2026-0196_revised_manuscript.docx` (clean) vs QMD intent
+- [x] **Jerome:** Proofread `response/CTS-2026-0196_revision_response.docx`; spot-check page refs vs PDF export
+- [x] **Jerome:** Confirm marked MS reflects latest Methods cites (regenerate if needed — see build note below)
+- [x] **Jerome:** Upload **`submission/outputs/`** to Google Drive for **Dr. Price** (clean + marked MS + response + figures/supp)
+
+### In progress — Dr. Price sign-off
 
 - [ ] Dr. Price review — revised MS, marked MS, point-by-point response
-- [ ] Final proofread: marked vs clean DOCX; page refs in response letter match PDF export
-- [ ] Confirm supplemental figures S1–S3 uploaded as **separate files** (not embedded in main MS) per `manuscript_status.txt`
+- [ ] Final proofread: marked vs clean DOCX; yellow highlights match edits
+- [ ] Confirm supplemental figures S1–S3 as **separate Wiley files** (not embedded in main MS)
 - [ ] Wiley: Remove & Replace Files — response + marked + clean DOCX + figure TIFFs
-- [ ] Deadline: ~4 weeks from May 11, 2026 decision letter (request extension if needed)
+- [ ] Deadline: ~4 weeks from May 11, 2026 decision letter (**request extension if needed**)
+
+**Marked MS note:** After QMD edits, run `mark_revisions.py` on latest `ch03_cts_draft.docx` before sending to Price if marked DOCX predates cite/supplementary pass.
 
 **Do not** re-run `sync_docs_cts.py --chapter 3` without `.\build.ps1 -Submit -Chapter 3` first.
 
@@ -42,9 +95,9 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 ## CH4 — CTS-2026-0235-T (pending upload)
 
-**Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_4](manuscript/docs/cts/README_CTS.md) · **Response:** [ch04_cts_revision_response.qmd](manuscript/docs/cts/ch04_cts_revision_response.qmd)
+**Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_4](manuscript/docs/cts/README_CTS.md) · **Submit:** [due_date submit README](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/submit/README.md)
 
-**Status:** QMD + refs + `-Submit` build + response re-rendered (2026-06-02) with observational/causality alignment; marked MS in `edits/`. **Not uploaded to Wiley**. Awaiting **co-author review**.
+**Status:** Rebuilt 2026-06-03 (claims-event terminology; workflow **19/19**). **`submission/outputs/` sent to Dr. Price** (with CH3/CH5). Not on Wiley until sign-off.
 
 ### Phase 1 — Claims & framing ✅
 
@@ -56,7 +109,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 ### Phase 2 — Science audit ✅
 
-- [x] `n_events` / Figure 1 — density stratification; holdout audit narrative
+- [x] `n_events` / Figure 1 — partitioned GBT training (`n_event_bin_ordinal`, density strata); structural control, not a separate sensitivity model
 - [x] Table 2 — 2019 holdout; leakage controls; Limitations on transportability
 - [x] Triplets — Results § Triplet Interactions; Table 3 + Supplementary Table S1
 - [x] PK/exposure — Methods + Discussion + Limitations
@@ -69,13 +122,17 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 - [x] `.\build.ps1 -Submit -Chapter 4 -Journal cts` → `docs/cts/submission/ch04/`
 - [x] Response DOCX + marked manuscript → `docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/` + `edits/`
 
-### Before upload (after co-author sign-off)
+### Done — Jerome (first review)
 
-- [ ] Co-author review — `CTS-2026-0235-T_revised_manuscript.docx`, `_marked.docx`, `_revision_response.docx`
-- [ ] Open revised DOCX in Word once (refresh footer page fields); spot-check Tables 1–3 on Pages 18–19
-- [ ] Final proofread: response page/line cites vs printed layout
+- [x] **Jerome:** Proofread clean + marked MS + revision response (post-rebuild)
+- [x] **Jerome:** Send `submission/outputs/` to **Dr. Price** (with CH3/CH5)
+
+### In progress — Dr. Price sign-off
+
+- [ ] Dr. Price review — revised MS, marked MS, point-by-point response
+- [ ] Open revised DOCX in Word once (refresh footer page fields); spot-check Tables 1–3 placement
 - [ ] Wiley: Remove & Replace Files — response + marked + clean DOCX + figure TIFFs + supp
-- [ ] Deadline: ~4 weeks from June 1, 2026 decision letter (request extension if needed)
+- [ ] Deadline: **2026-06-29** (request extension if CH3 slips)
 
 **Do not** re-run `sync_docs_cts.py --chapter 4` without `.\build.ps1 -Submit -Chapter 4` first.
 
@@ -86,6 +143,8 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 ## CH5 — CTS-2026-0255-T
 
 **Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) · **Draft response:** [Revision Response for Serverless…](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/Revision%20Response%20for%20Serverless%20Pharmacogenomic%20Dashboard%20Manuscript.md)
+
+**Status:** Rebuilt 2026-06-03 (Model development and validation; workflow **19/19**). **`submission/outputs/` sent to Dr. Price** (with CH3/CH4). Not on Wiley until sign-off.
 
 **Paths:** `due_date/2026-06-29_CTS-2026-0255-T/edits/` · `submission/outputs/` (DOCX + Figure TIFFs) · `submission/inputs/ch05_cts.qmd`
 
@@ -99,7 +158,9 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 ### Phase 2 — Methods (Reviewer 1)
 
 - [x] 573 CPIC concordance cases: logic-verification set from CPIC snapshot (not patient cohort)
-- [x] Justify 84-model ensemble; baselines (pooled XGBoost, rules-only CPIC)
+- [x] Justify 84-model ensemble; partition rationale (cohort best practice + DuckDB pipeline alignment)
+- [x] R1 #2: state pooled XGBoost / CPIC-only baselines not re-run in this feasibility paper
+- [x] R2: **Model development and validation** subsection + response item (SHAP/FFA holdout; imputation robustness; no generic feature-drop ablation)
 - [x] CPIC concordance scoring definition; ambiguous pairs → “review required”
 - [x] Imputation method: Imputation of Normality (age-band medians; vs MICE)
 - [x] Running title — no “draft”
@@ -113,7 +174,17 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 - [x] `.\build.ps1 -Submit -Chapter 5` → `docs/cts/submission/ch05/` + `due_date/.../submission/outputs/`
 - [x] Marked revised MS → `edits/CTS-2026-0255-T_revised_manuscript_marked.docx`
 - [x] Formal `ch05_cts_revision_response.qmd` + DOCX (`CTS-2026-0255-T_revision_response.docx`)
-- [ ] Co-author review → Wiley upload (due ~2026-06-30)
+### Done — Jerome (first review)
+
+- [x] **Jerome:** Proofread clean + marked MS + revision response
+- [x] **Jerome:** Send `submission/outputs/` to **Dr. Price** (with CH3/CH4)
+
+### In progress — Dr. Price sign-off
+
+- [ ] Dr. Price review — revised MS, marked MS, point-by-point response
+- [ ] Final proofread: response page/line cites vs Word layout (esp. new Model development subsection)
+- [ ] Wiley: Remove & Replace Files — response + marked + clean DOCX + figure TIFFs + supp
+- [ ] Deadline: **~2026-06-30** (request extension if needed)
 
 ---
 
@@ -124,9 +195,11 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 | `fix_docx.py` (line/page numbers) | ✅ | ✅ | Apply on submit |
 | `move_titlepage.py` | ✅ | ✅ | Apply |
 | `move_tables_after_references.py` | ⬜ audit on next CH3 rebuild | ✅ | Apply |
-| `mark_revisions.py` | ✅ | ✅ | ✅ (2026-06-02) |
+| `mark_revisions.py` | ⬜ refresh after latest QMD cites | ⬜ refresh after latest QMD cites | ✅ (2026-06-03; 22 paragraphs) |
+| Supplementary CSV + lineage (`data/supplementary/`) | ✅ | ✅ (shared counts file) | — |
+| Cohort/age-binning cites in MS + responses | ✅ | ✅ | — (CH5 uses partition framing in MS) |
 | `sync_docs_cts.py` | ✅ | ✅ | ✅ (ch. 5 MS only) |
-| Response QMD + page/line cites | ✅ | ✅ | ✅ QMD + DOCX (section cites; refresh page/lines after final proofread) |
+| Response QMD + page/line cites | ✅ | ✅ | ✅ QMD + DOCX (page/line cites; 2026-06-03) |
 | Causality guardrail (CH3–CH5) | ✅ | ✅ | ✅ — `LESSONS_LEARNED_CTS_TERMINOLOGY.md` |
 
 ---
@@ -144,19 +217,40 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 ---
 
-## T6 — CH1 — CTS-2026-0197 (initial, not revision)
+## T6 — CH1 — CTS-2026-0197 (systematic review)
 
-From `manuscript/manuscript_status.txt` (April 2026 halted submission):
+**Wiley portal (2026-06-02):** [CTS-2026-0197](https://cts.msubmit.net/cgi-bin/main.plex?form_type=view_ms&j_id=505&ms_id=5308&ms_rev_no=0&ms_id_key=ftdZ64I0otmhiTacLfYp53x9A) — **Under Consideration**, revision **0**, manuscript type *Systematic Review*.
 
-- [ ] Title page: author names and affiliations below title
-- [ ] Upload supplemental Files S1–S5 (separate files; captions inside each)
+**Title:** *Bridging Explainable Artificial Intelligence and Pharmacogenomics for Opioid and Polydrug Risk Prediction: A Systematic Quantitative Literature Review*
 
-**Future response workflow path:** `docs/cts/due_date/TBD_CTS-2026-0197/`
+The April 2026 **halted submission** (title page + missing S1–S5) in `manuscript/manuscript_status.txt` was addressed; the record is no longer halted.
 
-## CH2 — CTS-2026-0230-T (future response placeholder)
+### While Under Consideration (no action required)
 
-- [ ] Create CH2 response package when editorial action arrives
-- [ ] Use combined key workflow folder: `docs/cts/due_date/TBD_CTS-2026-0230-T/`
+- [ ] Monitor Wiley for status change (desk reject, send to review, or revision request)
+- [ ] If **revision requested:** stage response in `docs/cts/due_date/TBD_CTS-2026-0197/` (rename folder to dated due-date when letter arrives)
+
+### If revision is requested (future)
+
+- [ ] Build `.\build.ps1 -Submit -Chapter 1 -Journal cts`
+- [ ] Jerome review → Dr. Price → Wiley upload (same workflow as CH3–CH5)
+
+## CH2 — CTS-2026-0230-T (Under Consideration)
+
+**Title:** *Building the Clinical OODA Loop: A Partition-First Data Architecture for Model-Based Precision Analytics*  
+**Running title:** Building the Clinical OODA Loop for PGx · **Type:** Article · **Rev:** 0 · **Stage:** Under Consideration  
+**Source QMD:** `manuscript/CH_2/ch02_cts.qmd` · **Latest draft:** `output/edits/cts/ch02_cts_draft.docx` (rebuilt 2026-06-02)
+
+### While Under Consideration (no action required)
+
+- [ ] Monitor Wiley for status change (desk reject, send to review, or revision request)
+- [ ] If **revision requested:** stage in `docs/cts/due_date/TBD_CTS-2026-0230-T/` (rename to `YYYY-MM-DD_CTS-2026-0230-T/` when due date known)
+
+### If revision is requested (future)
+
+- [ ] `.\build.ps1 -Submit -Chapter 2 -Journal cts` → sync → Jerome review → Dr. Price → Wiley
+
+**Portal note:** Wiley lists corresponding author as “Mr. Richard Dixon”; manuscript uses **R. Jerome Dixon** (ORCID 0000-0001-8622-0597). Confirm name format only if editorial contacts you.
 
 ---
 
@@ -170,18 +264,27 @@ Recreate folder + README when F31 drafting starts.
 
 ```mermaid
 flowchart LR
-  CH3[CH3 Price review → upload] --> CH4[CH4 co-author review → upload]
-  CH4 --> CH5[CH5 revision]
-  CH1[CH1 halt fix] -.-> parallel
+  P[Dr. Price CH3 CH4 CH5] --> U3[Wiley CH3]
+  P --> U4[Wiley CH4]
+  P --> U5[Wiley CH5]
+  CH1[CH1 Under Consideration] -.-> parallel
+  CH2[CH2 Under Consideration] -.-> parallel
 ```
 
-1. **CH3** — Dr. Price review → proofread → Wiley upload  
-2. **CH4** — co-author review → proofread → Wiley upload  
-3. **CH5** — framing → methods → structure → build → upload  
-4. **CH1** — editorial halt when ready  
+1. **CH3–CH5** — **Dr. Price co-author review** (packages sent 2026-06-03) → Jerome Wiley upload per manuscript  
+2. **CH3** deadline — ~4 weeks from May 11, 2026 letter (extension if needed)  
+3. **CH4** deadline — **2026-06-29**  
+4. **CH5** deadline — **~2026-06-30**  
+4. **CH1** — monitor portal; respond only if Wiley requests revision  
 5. **T4–T7** — as needed  
 
 ---
+
+## Completed (2026-06-03)
+
+- [x] CH3/4/5 full `-Submit` rebuild + `mark_revisions.py` + revision response render; workflow **19/19** each
+- [x] CH3–CH5 packages sent to **Dr. Price** for co-author review
+- [x] CH4 claims-event terminology; CH5 Model development and validation subsection + R1/R2 response items
 
 ## Completed (2026-06-02)
 
@@ -190,6 +293,10 @@ flowchart LR
 - [x] Marked revised manuscripts (CH3/4/5) + CH3/4 revision response DOCX re-rendered
 - [x] CH5 `submission/outputs/` staged under `due_date/2026-06-29_CTS-2026-0255-T/`
 - [x] Revision response QMD resource paths fixed for `due_date/*/response/` renders
+- [x] CH3/4 revision responses: cohort/APCD + age-binning cites; supplementary CSV refs + `SUPPLEMENTARY_LINEAGE.md`
+- [x] CH3/4 manuscripts: `[@Ghosh2019]`, `[@Lo-Ciganic2019]`, `[@Collins2015; @Steyerberg2013]`, `[@Tamargo2022]` in Methods/Limitations
+- [x] Supplementary exports: `consensus_causal_feature_counts_by_cohort_age_band.csv`, CPIC summary/inventory, `export_manuscript_supplementary_csv.py`
+- [x] CH3/4 `-Submit` rebuild after manuscript cite pass → `due_date/*/edits/*_revised_manuscript.docx`
 
 ## Completed (2026-06-01)
 

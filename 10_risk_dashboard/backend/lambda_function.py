@@ -2417,9 +2417,7 @@ def handle_scenario_importance(event: Dict[str, Any]) -> Dict[str, Any]:
             filtered_df = filtered_df[filtered_df['feature'].isin(selected_features)]
         
         # Sort by interaction importance and get top N
-        importance_col = "interaction_importance" if "interaction_importance" in filtered_df.columns else (
-            "importance" if "importance" in filtered_df.columns else "causal_importance"
-        )
+        importance_col = "interaction_importance" if "interaction_importance" in filtered_df.columns else "importance"
         filtered_df = filtered_df.sort_values(importance_col, ascending=False)
         top_df = filtered_df.head(top_n).copy()
         top_df['rank'] = range(1, len(top_df) + 1)
@@ -2543,14 +2541,6 @@ def handle_visualizations_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
         try:
             obj = s3_client.get_object(Bucket=S3_DASHBOARD_BUCKET, Key=scenario_key)
             data = json.loads(obj["Body"].read().decode("utf-8"))
-            # Backward-compat: legacy artifacts may still expose top_causal_factors.
-            # Mirror into top_interaction_factors so frontend/API consumers can rely on
-            # scenario terminology until pipeline outputs are regenerated.
-            if isinstance(data, dict):
-                top_interaction = data.get("top_interaction_factors")
-                top_causal = data.get("top_causal_factors")
-                if (not top_interaction) and isinstance(top_causal, list) and top_causal:
-                    data["top_interaction_factors"] = top_causal
             payload["scenario_data"] = data
         except ClientError as e:
             if e.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404", "403", "AccessDenied"):
@@ -2561,12 +2551,7 @@ def handle_visualizations_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
         # Build chart_data from full-cohort scenario_data.json
         if payload.get("scenario_data"):
             raw = payload["scenario_data"]
-            top = (
-                raw.get("top_interaction_factors")
-                or raw.get("top_causal_factors")
-                or raw.get("feature_importance")
-                or []
-            )
+            top = raw.get("top_interaction_factors") or raw.get("feature_importance") or []
 
             def row_to_factor(r: Dict[str, Any]) -> Dict[str, Any]:
                 feat = r.get("feature") or ""
@@ -2574,7 +2559,7 @@ def handle_visualizations_scenario(event: Dict[str, Any]) -> Dict[str, Any]:
                     "feature": feat,
                     "importance": float(
                         r.get("interaction_score")
-                        or r.get("causal_responsibility")
+                        or r.get("interaction_responsibility")
                         or r.get("importance")
                         or r.get("combined_importance_norm")
                         or r.get("combined_importance")

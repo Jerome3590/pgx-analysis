@@ -138,7 +138,7 @@ IF {antecedent drugs} THEN {consequent drugs}
 
 These rules represent:
 - **Co-occurrence patterns**: Drugs that frequently appear together
-- **Sequential relationships**: Temporal ordering of drug exposures
+- **Sequential relationships**: Temporal ordering of medication claims events
 - **Clinical relevance**: Patterns that may indicate treatment protocols or adverse interactions
 
 ## Feature Importance Visualizations
@@ -310,7 +310,7 @@ create_ageband_heatmap(
 
 ## BupaR Process Mining Visualizations
 
-BupaR process mining visualizations reveal temporal patterns and pathways in patient drug sequences. These visualizations help understand how patients progress through different drug exposure patterns over time.
+BupaR process mining visualizations reveal temporal patterns and pathways in patient drug sequences. These visualizations help understand how patients progress through different medication claims-event patterns over time.
 
 ### 1. Sankey Diagrams
 
@@ -335,7 +335,7 @@ BupaR process mining visualizations reveal temporal patterns and pathways in pat
 - Identify most common drug sequence patterns
 - Compare pathways between target and control groups
 - Discover critical decision points in patient trajectories
-- Understand flow from initial drug exposure to outcomes
+- Understand flow from initial medication claims events to outcomes
 
 **Example Usage:**
 ```r
@@ -537,7 +537,7 @@ results = analyzer.run_analysis(n_clusters=5, create_plots=True)
 - Helps understand trajectory complexity
 
 **Interpretation:**
-- **Long sequences**: Complex drug exposure patterns
+- **Long sequences**: Complex medication claims-event patterns
 - **Short sequences**: Simple or focused drug patterns
 - **Variability**: Different clusters have different complexity levels
 - **Clinical relevance**: Longer sequences may indicate polypharmacy
@@ -929,7 +929,7 @@ Network graphs visualize association rules discovered through FP-Growth pattern 
 ### Pattern Analysis Pitfalls
 - **Confusing correlation with causation**: Association rules show co-occurrence, not causality
 - **Overinterpreting low-support patterns**: Rare patterns may not be generalizable
-- **Ignoring temporal ordering**: Sequence matters in drug exposure analysis
+- **Ignoring temporal ordering**: Sequence matters in medication claims-event analysis
 
 ### Cattail Visualization Pitfalls
 - **Misinterpreting decision rules**: Rules describe patterns, not deterministic outcomes

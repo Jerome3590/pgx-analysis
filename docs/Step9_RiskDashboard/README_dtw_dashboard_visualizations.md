@@ -13,7 +13,7 @@ Dynamic Time Warping (DTW) trajectory visualizations for the risk dashboard. The
 ## Purpose
 
 DTW visualizations help clinicians understand:
-- **Trajectory Similarity**: How similar are patient drug exposure sequences
+- **Trajectory Similarity**: How similar are patient medication claims-event sequences
 - **Patient Clustering**: Which patients follow similar pathways
 - **Temporal Patterns**: Timing relationships in drug sequences
 - **Representative Trajectories**: Typical patterns for different patient groups
@@ -184,7 +184,7 @@ Visualizations are displayed in the **DTW Trajectories** tab of the dashboard:
 
 2. **Event Filtering**: Event-level filtering runs in Step 1b (`1b_apcd_event_filter`). DTW is not used for feature engineering (target leakage); it is used with feature importance for analysis and answering research questions and dashboard display.
 
-3. **Sequence Comparison**: DTW compares patient drug exposure sequences to identify similar trajectories. This helps understand patient groupings but does not directly predict outcomes.
+3. **Sequence Comparison**: DTW compares patient medication claims-event sequences to identify similar trajectories. This helps understand patient groupings but does not directly predict outcomes.
 
 4. **Clustering**: Patient trajectories are analyzed based on DTW distance to prototype sequences. Visualizations show representative trajectories and statistics.
 

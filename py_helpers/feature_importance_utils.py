@@ -371,7 +371,7 @@ def run_cohort_analysis(
         logger.info("Creating patient-level features for training data...")
 
         # Base feature palette for opioid ED and general feature-importance runs:
-        # drug exposure + diagnosis codes + procedures + event_type.
+        # medication claims events + diagnosis codes + procedures + event_type.
         feature_cols = [
             'drug_name',
             'primary_icd_diagnosis_code', 'two_icd_diagnosis_code',
@@ -384,7 +384,7 @@ def run_cohort_analysis(
         ]
 
         # For the polypharmacy cohort (`non_opioid_ed`) in older adults (65+),
-        # we intentionally restrict the feature space to drug exposures only.
+        # we intentionally restrict the feature space to medication claims events only.
         # This focuses the importance rankings on:
         #   - individual drugs,
         #   - combinations of drugs at the patient level,

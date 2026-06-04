@@ -37,8 +37,9 @@ to avoid pandas memory pressure on large cohorts:
        4_model_data/cohort_name={cohort_name}/age_band={age_band}/model_events.parquet
      with an event-level `target` column.
    - **Target leakage removal (Step 4):** For case events, keeps only events strictly before
-     the target date (event_date < first_opioid_ed_date or first_ed_non_opioid_date). Events
-     on or after the target date are dropped here (linear flow: 3b identifies leakage → 4 removes it).
+     the target date (event_date < first_f1120_date or first_o11_p_date / cohort source columns).
+     Events on or after the target date are dropped (3b flags post-target codes → 4 applies
+     temporal filter; controls use full-year gold extract — see README_model_data.md § Case vs control).
 
 This output is then used as input for:
  - FP-Growth (pattern mining on important features plus within-cohort controls)

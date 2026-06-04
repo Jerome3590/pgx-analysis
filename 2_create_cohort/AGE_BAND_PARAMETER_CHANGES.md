@@ -63,16 +63,16 @@ For pediatric and young adult populations:
 
 #### Young Adults (Age 13-24): 28-day window, 9 ED visits
 - **Transitional phase**: Metabolism approaching adult levels but not fully stabilized
-- **Behavioral factors**: May delay seeking care, resulting in longer lag between drug exposure and ED visit
+- **Behavioral factors**: May delay seeking care, resulting in longer lag between medication claims events and ED visit
 - **Moderate relaxation**: Balanced approach between pediatric and adult parameters
 
 #### Adults (Age 25-64): 21-day baseline
-- **Standard**: This window is validated in adult adverse drug event literature
-- **Maintains existing cohort**: No changes to established baseline
+- **Standard**: Matches APCD drug–ED gap calibration (~90.5% of qualifying pairs within 21 days in reference partition 65–74/2019)
+- **External support**: Project FAERS time-to-onset analysis (`1a_apcd_input_data/faers/`) uses positive intervals &lt;30 days for HO/DE outcomes; see `2_create_cohort/README.md` (Drug–ED Temporal Window Justification)
 
 #### Elderly (Age 65-84): 21-day baseline
 - **Polypharmacy**: Multiple medications, but ED visit patterns similar to younger adults
-- **No change**: Maintains existing parameters
+- **No change**: Maintains 21-day `time_window_days` (same APCD calibration as adults 25–64)
 
 #### Geriatric (Age 85-114): 25-day window, 7 ED visits
 - **Slower metabolism**: Age-related decline in hepatic/renal clearance
@@ -233,14 +233,15 @@ If unexpected issues arise:
 
 ## References
 
-### Clinical Literature
-1. Adverse drug events in pediatric populations: [PMC Study Link]
-2. Time-to-event analysis for drug-related ED visits: [Journal Reference]
-3. Age-related pharmacokinetic changes: [Clinical Pharmacology Review]
+### Clinical / pharmacovigilance literature
+1. Hill EW, Almenoff JS, McLean SL, Alcantara O. The impact of duration of treatment on reported time-to-onset in spontaneous reporting systems. *PLoS ONE*. 2013;8(12):e68938. doi:10.1371/journal.pone.0068938 (VigiBase / spontaneous reporting; short median RTTO for many acute ADEs).
+2. Adverse drug events in pediatric populations: [PMC Study Link — expand as needed]
+3. Age-related pharmacokinetic changes: [@Tamargo2022] and related geriatric PK reviews
 
-### Internal Documentation
-- See: `2_create_cohort/README.md` for cohort creation pipeline overview
-- See: `WORKFLOW_EXECUTION_TODO.md` for pipeline execution status
+### Internal documentation
+- **FAERS exploratory analysis:** `1a_apcd_input_data/faers/faers.qmd`, `faers_eda.qmd` (therapy start → ADE onset; HO/DE outcomes; &lt;30-day cleaned window)
+- **APCD window calibration:** `2_create_cohort/README.md` — section *Drug–ED Temporal Window Justification (FAERS + APCD)*
+- **Pipeline overview:** `2_create_cohort/README.md`; execution status: `WORKFLOW_EXECUTION_TODO.md` (if present)
 
 ### Git Commits (This Session)
 1. **75c02f5**: Removed BupaR process_matrix and Gantt chart code (416 lines)
