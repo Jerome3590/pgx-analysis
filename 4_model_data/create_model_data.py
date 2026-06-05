@@ -1312,6 +1312,11 @@ def main() -> None:
         choices=[7, 14, 21, 30, 45],
         help="DEPRECATED: Time window is now handled in Step 2 (2_create_cohort). This argument is ignored.",
     )
+    parser.add_argument(
+        "--force-rebuild",
+        action="store_true",
+        help="Rebuild model_events.parquet locally even if an existing S3 output is available.",
+    )
     args = parser.parse_args()
     
     # Ensure local directories exist (idempotent: we overwrite per file)
@@ -1469,6 +1474,7 @@ def main() -> None:
             local_pharmacy_root=local_pharmacy_root,
             sample_ratio=DEFAULT_SAMPLE_RATIO,
             control_exclusions=control_exclusions,
+            skip_s3_download=args.force_rebuild,
             logger=step4_logger,
         )
 

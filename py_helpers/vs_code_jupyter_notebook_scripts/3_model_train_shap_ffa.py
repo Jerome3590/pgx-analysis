@@ -313,9 +313,13 @@ def _log_model_data_qa(cohort: str, age_band: str) -> None:
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
         print(f"→ Step 4: {cohort} / {age_band} (building model_events.parquet)")
+        force_step4 = FORCE_STEP4_ALL or (FORCE_STEP4_NON_OPIOID and cohort == "non_opioid_ed")
         _backup_existing_model_data_if_forced(cohort, age_band)
+        cmd = [sys.executable, "create_model_data.py", "--cohort", cohort, "--age_band", age_band]
+        if force_step4:
+            cmd.append("--force-rebuild")
         r = subprocess.run(
-            [sys.executable, "create_model_data.py", "--cohort", cohort, "--age_band", age_band],
+            cmd,
             cwd=PROJECT_ROOT / "4_model_data",
             capture_output=False,
         )
