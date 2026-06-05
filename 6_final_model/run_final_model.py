@@ -1691,6 +1691,26 @@ def copy_full_cohort_artifacts_to_bin_directory(
     agg = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
     if not agg.exists():
         raise FileNotFoundError(f"Full-cohort model outputs missing (train aggregate first): {agg}")
+    metadata_path = agg / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+    if metadata_path.exists():
+        try:
+            with open(metadata_path) as f:
+                metadata = json.load(f)
+            temporal_ok = (
+                metadata.get("training_scope") == "temporal_train_2016_2018"
+                and metadata.get("train_years") == "2016-2018"
+                and metadata.get("holdout_year") == 2019
+            )
+            if not temporal_ok:
+                raise RuntimeError(
+                    f"Full-cohort fallback metadata is not temporal-train scoped: {metadata_path}"
+                )
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Could not parse full-cohort fallback metadata: {metadata_path}") from e
+    else:
+        raise FileNotFoundError(
+            f"Full-cohort fallback metadata missing; refusing to mirror aggregate artifacts: {metadata_path}"
+        )
     dest_root = agg / "bin_models" / bin_name
     dest_root.mkdir(parents=True, exist_ok=True)
     for item in agg.iterdir():
@@ -1710,6 +1730,8 @@ def copy_full_cohort_artifacts_to_bin_directory(
     marker = (
         "This folder mirrors full-cohort (aggregate) model artifacts; models were not trained "
         f"only on the «{bin_name}» event-density bin.\n"
+        "Fallback scope: all event-density bins in the temporal training set only (2016-2018); "
+        "2019 holdout patients are not included.\n"
         f"Reason: {reason_line}\n"
         f"Cohort: {cohort} | Age band: {age_band}\n"
     )
@@ -2006,6 +2028,8 @@ def train_and_evaluate(
     xgb_json_path = model_json_dir / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
     cb_cbm_path = model_json_dir / f"{cohort}_{age_band_fname}_best_catboost_model.cbm"
     cb_joblib_path = out_base / "models" / "catboost.joblib"
+    metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+    s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_model_selection_metadata.json"
 
     def _try_load_summary_csv():
         if summary_csv_path.exists():
@@ -2029,6 +2053,27 @@ def train_and_evaluate(
         and xgb_json_path.exists()
         and (has_catboost_artifact if has_catboost_in_summary else True)
     )
+    if skip_retrain:
+        existing_meta = {}
+        if metadata_path.exists():
+            try:
+                with open(metadata_path) as f:
+                    existing_meta = json.load(f)
+            except Exception:
+                existing_meta = {}
+        expected_training_scope = "temporal_train_2016_2018"
+        metadata_matches_current_split = (
+            existing_meta.get("training_scope") == expected_training_scope
+            and existing_meta.get("train_years") == "2016-2018"
+            and existing_meta.get("holdout_year") == 2019
+            and int(existing_meta.get("n_training_patients", -1)) == int(len(df))
+        )
+        if not metadata_matches_current_split:
+            print(
+                "\n[IDEMPOTENT] Existing model artifacts do not have matching temporal-split metadata; "
+                "retraining to avoid evaluating stale all-year models on 2019 holdout."
+            )
+            skip_retrain = False
     if skip_retrain and not force_retrain:
         selected_model, best_xgb_variant, best_pr_auc, best_recall, selection_reason = _recompute_selection_from_summary_df(existing_summary)
         _names = {"xgb": "XGBoost", "xgb_rf": "XGBoost RF", "catboost": "CatBoost", "ensemble": "Ensemble"}
@@ -2042,14 +2087,16 @@ def train_and_evaluate(
             upload_file_to_s3(summary_csv_path, s3_summary_csv, check_exists=False)
         except Exception:
             pass
-        metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
-        s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_model_selection_metadata.json"
         selection_metadata = {
             "selected_model": selected_model,
             "best_xgb_variant": best_xgb_variant,
             "best_pr_auc": best_pr_auc,
             "best_recall": best_recall,
             "selection_reason": selection_reason,
+            "training_scope": "temporal_train_2016_2018",
+            "train_years": "2016-2018",
+            "holdout_year": 2019,
+            "n_training_patients": int(len(df)),
         }
         if metadata_path.exists():
             with open(metadata_path) as f:
@@ -2646,6 +2693,10 @@ def train_and_evaluate(
         "xgb_rf_recall_mean": xgb_rf_recall_mean,
         "xgb_rf_pr_auc_mean": xgb_rf_pr_auc_mean,
         "selection_reason": selection_reason,
+        "training_scope": "temporal_train_2016_2018",
+        "train_years": "2016-2018",
+        "holdout_year": 2019,
+        "n_training_patients": int(len(df)),
     }
     
     # Add CatBoost metrics if available
@@ -2664,16 +2715,13 @@ def train_and_evaluate(
     else:
         selection_metadata["optuna_used"] = False
 
-    metadata_path = out_base / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
-    s3_metadata = f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{_s3_bin_infix}{cohort}_{age_band_fname}_model_selection_metadata.json"
-    
     # Helper function for idempotent model saving with S3 upload
     def save_model_idempotent(local_path: Path, s3_path: str, save_func, *save_args, **save_kwargs):
         """Save model file idempotently: check S3 first, then local, then save and upload."""
         try:
             from py_helpers.checkpoint_utils import check_s3_output_exists, upload_file_to_s3
             # Check S3 first
-            if check_s3_output_exists(s3_path):
+            if not force_retrain and check_s3_output_exists(s3_path):
                 print(f"[INFO] Model already exists in S3: {s3_path}; skipping save.")
                 # Download from S3 if not present locally
                 if not local_path.exists():
@@ -2685,7 +2733,7 @@ def train_and_evaluate(
             pass  # Fallback to local-only if checkpoint_utils not available
         
         # Check local file
-        if local_path.exists():
+        if local_path.exists() and not force_retrain:
             print(f"[INFO] Model already exists locally: {local_path}; skipping save.")
             # Upload to S3 if not present there
             try:
@@ -3699,7 +3747,19 @@ def main() -> None:
                 per_bin_ok = (
                     per_bin_model_files_exist(out_base_check) if args.train_mode == "per_bin" else True
                 )
-                if essential_ok and per_bin_ok:
+                metadata_temporal_ok = False
+                if local_outputs["metadata"].exists():
+                    try:
+                        with open(local_outputs["metadata"]) as f:
+                            _downloaded_meta = json.load(f)
+                        metadata_temporal_ok = (
+                            _downloaded_meta.get("training_scope") == "temporal_train_2016_2018"
+                            and _downloaded_meta.get("train_years") == "2016-2018"
+                            and _downloaded_meta.get("holdout_year") == 2019
+                        )
+                    except Exception as e:
+                        logger.warning("Could not validate downloaded Step 6 metadata: %s", e)
+                if essential_ok and per_bin_ok and metadata_temporal_ok:
                     logger.info(f"Step 6 outputs downloaded from S3; skipping regeneration.")
                     return
                 else:
@@ -3707,6 +3767,11 @@ def main() -> None:
                     if not essential_ok:
                         missing_files = [f for f in essential_files if not f.exists()]
                         logger.warning(f"Missing files: {[str(f) for f in missing_files]}")
+                    if essential_ok and not metadata_temporal_ok:
+                        logger.warning(
+                            "Downloaded Step 6 metadata is missing temporal train/holdout fields; "
+                            "regenerating to avoid stale all-year models."
+                        )
                     if args.train_mode == "per_bin" and not per_bin_ok:
                         logger.warning("Per-bin mode: one or more bin model joblibs missing locally after S3 fetch; will regenerate.")
             except Exception as e:
@@ -3757,7 +3822,9 @@ def main() -> None:
                 len(df), len(df_holdout_2019),
             )
         except Exception as _te:
-            logger.warning("Temporal split failed (%s) — training on all years (no holdout).", _te)
+            raise RuntimeError(
+                "Temporal split failed; refusing to train on all years because that could leak 2019 holdout data."
+            ) from _te
 
         df.to_csv(features_path, index=False)
         logger.info("Saved final features (no leakage) to %s", features_path)
