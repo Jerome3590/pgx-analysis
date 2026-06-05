@@ -1300,6 +1300,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--age-band",
+        "--age_band",
+        dest="age_band",
         type=str,
         help="Process specific age band (e.g., 13-24). Requires --cohort to be specified.",
     )
