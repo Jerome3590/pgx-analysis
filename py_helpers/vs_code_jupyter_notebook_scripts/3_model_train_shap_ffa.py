@@ -72,6 +72,25 @@ print(f"  Project:   {FINAL_MODEL_OUTPUTS}")
 print(f"  NVMe:      {FINAL_MODEL_OUTPUTS_ALT}")
 print(f"  gold/NVMe: {FINAL_MODEL_GOLD}")
 
+# Run scope for this notebook.
+# Set TARGET_COHORTS = ["non_opioid_ed"] to rebuild/retrain only non-opioid cohorts.
+# Set TARGET_AGE_BANDS = None for all configured age bands, or a list like ["75-84"].
+TARGET_COHORTS = ["non_opioid_ed"]
+TARGET_AGE_BANDS = None
+
+def iter_target_cohorts():
+    for cohort, bands in REQUIRED_COHORTS.items():
+        if TARGET_COHORTS is not None and cohort not in TARGET_COHORTS:
+            continue
+        for age_band in bands:
+            if TARGET_AGE_BANDS is not None and age_band not in TARGET_AGE_BANDS:
+                continue
+            yield cohort, age_band
+
+print("\nNotebook run scope:")
+for cohort, age_band in iter_target_cohorts():
+    print(f"  {cohort} / {age_band}")
+
 # %% [markdown]
 # ## Clear all checkpoints and pipeline outputs (optional — for a fresh run)
 #
@@ -237,6 +256,7 @@ import duckdb
 FORCE_STEP4_NON_OPIOID = True
 FORCE_STEP4_ALL = False
 STEP4_BACKUP_ROOT = DATA_ROOT / "backups" / "step4_model_events_pre_rebuild"
+REBUILT_STEP4 = set()
 
 def _model_data_candidates(cohort: str, age_band: str):
     """Canonical location for model_events.parquet (Step 4 writes to MODEL_DATA_ROOT)."""
@@ -310,22 +330,22 @@ def _log_model_data_qa(cohort: str, age_band: str) -> None:
     finally:
         con.close()
 
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        print(f"→ Step 4: {cohort} / {age_band} (building model_events.parquet)")
-        force_step4 = FORCE_STEP4_ALL or (FORCE_STEP4_NON_OPIOID and cohort == "non_opioid_ed")
-        _backup_existing_model_data_if_forced(cohort, age_band)
-        cmd = [sys.executable, "create_model_data.py", "--cohort", cohort, "--age_band", age_band]
-        if force_step4:
-            cmd.append("--force-rebuild")
-        r = subprocess.run(
-            cmd,
-            cwd=PROJECT_ROOT / "4_model_data",
-            capture_output=False,
-        )
-        if r.returncode != 0:
-            raise SystemExit(r.returncode)
-        _log_model_data_qa(cohort, age_band)
+for cohort, age_band in iter_target_cohorts():
+    print(f"→ Step 4: {cohort} / {age_band} (building model_events.parquet)")
+    force_step4 = FORCE_STEP4_ALL or (FORCE_STEP4_NON_OPIOID and cohort == "non_opioid_ed")
+    _backup_existing_model_data_if_forced(cohort, age_band)
+    cmd = [sys.executable, "create_model_data.py", "--cohort", cohort, "--age_band", age_band]
+    if force_step4:
+        cmd.append("--force-rebuild")
+    r = subprocess.run(
+        cmd,
+        cwd=PROJECT_ROOT / "4_model_data",
+        capture_output=False,
+    )
+    if r.returncode != 0:
+        raise SystemExit(r.returncode)
+    REBUILT_STEP4.add((cohort, age_band))
+    _log_model_data_qa(cohort, age_band)
 print("Step 4 complete.")
 
 # %% [markdown]
@@ -337,15 +357,14 @@ print("Step 4 complete.")
 # Pipeline Step 5: run_analysis.py for each REQUIRED_COHORTS (cohort, age_band)
 # Set FORCE_STEP5 = True to re-run even when S3 outputs or checkpoints exist
 FORCE_STEP5 = True
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        print(f"→ Step 5: {cohort} / {age_band}")
-        cmd = [sys.executable, "run_analysis.py", "--cohort-name", cohort, "--age-band", age_band]
-        if FORCE_STEP5:
-            cmd.append("--force")
-        r = subprocess.run(cmd, cwd=PROJECT_ROOT / "5_pgx_analysis")
-        if r.returncode != 0:
-            raise SystemExit(r.returncode)
+for cohort, age_band in iter_target_cohorts():
+    print(f"→ Step 5: {cohort} / {age_band}")
+    cmd = [sys.executable, "run_analysis.py", "--cohort-name", cohort, "--age-band", age_band]
+    if FORCE_STEP5:
+        cmd.append("--force")
+    r = subprocess.run(cmd, cwd=PROJECT_ROOT / "5_pgx_analysis")
+    if r.returncode != 0:
+        raise SystemExit(r.returncode)
 print("Step 5 complete.")
 
 # %% [markdown]
@@ -356,22 +375,23 @@ print("Step 5 complete.")
 # %%
 # Pipeline Step 6: run_final_model.py for each REQUIRED_COHORTS (cohort, age_band)
 # Note: script uses --age_band (underscore). Default --train-mode is per_bin (omit flag).
-FORCE_STEP6 = True
+FORCE_STEP6 = False
+FORCE_STEP6_REBUILT_ONLY = True
 STEP6_TRAIN_MODE = None
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        print(f"→ Step 6: {cohort} / {age_band}")
-        cmd = [sys.executable, "run_final_model.py", "--cohort", cohort, "--age_band", age_band]
-        if STEP6_TRAIN_MODE:
-            cmd.extend(["--train-mode", STEP6_TRAIN_MODE])
-        if FORCE_STEP6:
-            cmd.append("--force-retrain")
-        r = subprocess.run(
-            cmd,
-            cwd=PROJECT_ROOT / "6_final_model",
-        )
-        if r.returncode != 0:
-            raise SystemExit(r.returncode)
+for cohort, age_band in iter_target_cohorts():
+    print(f"→ Step 6: {cohort} / {age_band}")
+    cmd = [sys.executable, "run_final_model.py", "--cohort", cohort, "--age_band", age_band]
+    if STEP6_TRAIN_MODE:
+        cmd.extend(["--train-mode", STEP6_TRAIN_MODE])
+    force_step6 = FORCE_STEP6 or (FORCE_STEP6_REBUILT_ONLY and (cohort, age_band) in REBUILT_STEP4)
+    if force_step6:
+        cmd.append("--force-retrain")
+    r = subprocess.run(
+        cmd,
+        cwd=PROJECT_ROOT / "6_final_model",
+    )
+    if r.returncode != 0:
+        raise SystemExit(r.returncode)
 print("Step 6 complete.")
 
 # %% [markdown]
