@@ -217,7 +217,11 @@ def prepare_train_test_s3(
     if len(train_df) == 0:
         raise ValueError("No patients in training set (2016-2018)")
     if len(test_df) == 0:
-        print("[WARNING] No patients in test set (2019) - only training data will be saved")
+        if feature_table_path.name.endswith("_train_final_features_no_leakage.csv"):
+            print("[INFO] No 2019 rows in loaded feature table; it appears to be the train-only no-leakage export created after the temporal holdout split.")
+            print("[INFO] Only model_train/final_features.parquet will be saved here; 2019 holdout metrics are generated separately by run_final_model.py.")
+        else:
+            print("[WARNING] No patients in test set (2019) after temporal split - only training data will be saved")
     
     # Drop year columns from feature tables (keep only features)
     year_cols = ['max_event_year', 'min_event_year']
