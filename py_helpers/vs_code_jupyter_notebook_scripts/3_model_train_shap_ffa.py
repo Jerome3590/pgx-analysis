@@ -420,6 +420,11 @@ from pathlib import Path
 
 from py_helpers.event_density_utils import DENSITY_BINS as _DENSITY_BINS
 
+# Set to None for all cohorts, or a list like ["non_opioid_ed"] for one/more cohorts.
+METRICS_COHORTS = None
+METRICS_AGE_BANDS = None
+RECALL_QA_THRESHOLD = 0.85
+
 # Resolve outputs base (project or NVMe)
 def _outputs_base():
     for base in (FINAL_MODEL_OUTPUTS, FINAL_MODEL_OUTPUTS_ALT):
@@ -427,62 +432,75 @@ def _outputs_base():
             return base
     return FINAL_MODEL_OUTPUTS
 
+def iter_metrics_cohorts():
+    yield from iter_scope(METRICS_COHORTS, METRICS_AGE_BANDS)
+
 base = _outputs_base()
 print("Final model performance — per density bin (selected model per bin)")
 print("=" * 80)
+print(f"Scope: cohorts={METRICS_COHORTS or 'ALL'}, age_bands={METRICS_AGE_BANDS or 'ALL'}")
 all_metrics = []
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        ab_f = age_band.replace("-", "_")
-        for bin_name in _DENSITY_BINS:
-            path = (
-                base / cohort / ab_f / "bin_models" / bin_name
-                / f"{cohort}_{ab_f}_model_metrics_summary.csv"
-            )
-            if not path.exists():
-                continue
-            df = pd.read_csv(path)
-            selected = df.loc[df["selected"] == True]
-            if selected.empty:
-                selected = df.head(1)
-            for _, row in selected.iterrows():
-                all_metrics.append({
-                    "cohort": cohort,
-                    "age_band": age_band,
-                    "bin": bin_name,
-                    "model": row["model"],
-                    "recall_mean": row["recall_mean"],
-                    "pr_auc_mean": row["pr_auc_mean"],
-                    "auc_mean": row.get("auc_mean", None),
-                    "logloss_mean": row.get("logloss_mean", None),
-                })
+for cohort, age_band in iter_metrics_cohorts():
+    ab_f = age_band.replace("-", "_")
+    for bin_name in _DENSITY_BINS:
+        path = (
+            base / cohort / ab_f / "bin_models" / bin_name
+            / f"{cohort}_{ab_f}_model_metrics_summary.csv"
+        )
+        if not path.exists():
+            continue
+        df = pd.read_csv(path)
+        selected = df.loc[df["selected"] == True] if "selected" in df.columns else pd.DataFrame()
+        if selected.empty:
+            selected = df.head(1)
+        for _, row in selected.iterrows():
+            all_metrics.append({
+                "cohort": cohort,
+                "age_band": age_band,
+                "bin": bin_name,
+                "model": row["model"],
+                "recall_mean": row["recall_mean"],
+                "pr_auc_mean": row["pr_auc_mean"],
+                "auc_mean": row.get("auc_mean", None),
+                "logloss_mean": row.get("logloss_mean", None),
+                "path": str(path),
+            })
 if all_metrics:
     summary = pd.DataFrame(all_metrics)
-    print(summary.to_string(index=False))
+    display_cols = ["cohort", "age_band", "bin", "model", "recall_mean", "pr_auc_mean", "auc_mean", "logloss_mean"]
+    print(summary[display_cols].to_string(index=False))
+    high_recall = summary[pd.to_numeric(summary["recall_mean"], errors="coerce") > RECALL_QA_THRESHOLD].copy()
+    print()
+    print(f"Recall QA — selected models with recall_mean > {RECALL_QA_THRESHOLD:.2f}")
+    print("=" * 80)
+    if high_recall.empty:
+        print("  OK: no selected per-bin model exceeds recall QA threshold.")
+    else:
+        print("  [WARN] High recall may indicate leakage or an overly easy split. Audit these bins:")
+        print(high_recall[display_cols + ["path"]].to_string(index=False))
 else:
     print("  No per-bin metrics CSVs under", base / "<cohort>" / "<age_band>" / "bin_models")
 print()
 print("Top 20 feature importance (XGBoost) — cohort-level CSV (deploy mirror when per-bin mode)")
 print("=" * 80)
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        ab_f = age_band.replace("-", "_")
-        fi_path = base / cohort / ab_f / f"{cohort}_{ab_f}_xgboost_feature_importance.csv"
-        if not fi_path.exists():
-            print(f"  [skip] {cohort} / {age_band}: no cohort-level feature importance CSV")
-            continue
-        fi = pd.read_csv(fi_path).sort_values("importance", ascending=False).head(20)
-        if fi.empty:
-            continue
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.barh(range(len(fi)), fi["importance"].values, align="center")
-        ax.set_yticks(range(len(fi)))
-        ax.set_yticklabels(fi["feature"].values, fontsize=8)
-        ax.invert_yaxis()
-        ax.set_xlabel("Importance (gain)")
-        ax.set_title(f"Top 20 features — {cohort} / {age_band} (cohort-level / deploy snapshot)")
-        plt.tight_layout()
-        plt.show()
+for cohort, age_band in iter_metrics_cohorts():
+    ab_f = age_band.replace("-", "_")
+    fi_path = base / cohort / ab_f / f"{cohort}_{ab_f}_xgboost_feature_importance.csv"
+    if not fi_path.exists():
+        print(f"  [skip] {cohort} / {age_band}: no cohort-level feature importance CSV")
+        continue
+    fi = pd.read_csv(fi_path).sort_values("importance", ascending=False).head(20)
+    if fi.empty:
+        continue
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.barh(range(len(fi)), fi["importance"].values, align="center")
+    ax.set_yticks(range(len(fi)))
+    ax.set_yticklabels(fi["feature"].values, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlabel("Importance (gain)")
+    ax.set_title(f"Top 20 features — {cohort} / {age_band} (cohort-level / deploy snapshot)")
+    plt.tight_layout()
+    plt.show()
 
 # %% [markdown]
 # ### Step 1a: Generate Model Metadata
