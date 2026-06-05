@@ -384,8 +384,9 @@ print("Step 5 complete.")
 # Train final models per cohort/age_band. **Default** is **per-bin** training (`--train-mode per_bin`): separate models under `outputs/.../bin_models/{low|medium|high|extreme}/`, then mirror one bin (prefer `medium`) to the cohort-level `outputs/.../{age_band}/` tree for prepare_models / Lambda. Use `--train-mode aggregate` for a single cohort-wide model only, or `both` for cohort-wide plus per-bin. Reads Step 4 model data and Step 5 PGx features; writes models and feature CSVs to `6_final_model/outputs` (or DATA_ROOT).
 
 # %%
-# Pipeline Step 6: run_final_model.py for each REQUIRED_COHORTS (cohort, age_band)
+# Pipeline Step 6: run_final_model.py for each downstream target (cohort, age_band)
 # Note: script uses --age_band (underscore). Default --train-mode is per_bin (omit flag).
+DOWNSTREAM_COHORTS = ["non_opioid_ed"]
 FORCE_STEP6 = False
 FORCE_STEP6_REBUILT_ONLY = True
 STEP6_TRAIN_MODE = None
