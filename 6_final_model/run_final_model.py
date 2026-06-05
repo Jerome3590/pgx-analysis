@@ -3599,7 +3599,7 @@ def main() -> None:
     else:
         all_local_exist = all(path.exists() for path in local_outputs.values())
 
-    if all_local_exist:
+    if all_local_exist and not args.force_retrain:
         logger.info(f"Step 6 outputs already exist locally for {args.cohort}/{args.age_band}; skipping regeneration.")
         logger.info(f"  Found {len(local_outputs)} output files")
         
@@ -3618,6 +3618,12 @@ def main() -> None:
             pass  # S3 upload is optional
         
         return
+    if all_local_exist and args.force_retrain:
+        logger.info(
+            "Step 6 outputs already exist locally for %s/%s, but --force-retrain was provided; retraining.",
+            args.cohort,
+            args.age_band,
+        )
     
     # Check S3 for existing outputs (fallback if local doesn't exist)
     try:
@@ -3649,7 +3655,7 @@ def main() -> None:
         else:
             should_fetch_s3 = _s3_ok or _checkpoint_ok
 
-        if should_fetch_s3:
+        if should_fetch_s3 and not args.force_retrain:
             logger.info(f"Step 6 outputs exist in S3 for {args.cohort}/{args.age_band}; downloading to local.")
             
             # Download from S3 to local
@@ -3776,6 +3782,12 @@ def main() -> None:
                         logger.warning("Per-bin mode: one or more bin model joblibs missing locally after S3 fetch; will regenerate.")
             except Exception as e:
                 logger.warning(f"Could not download from S3: {e}. Will regenerate outputs.")
+        elif should_fetch_s3 and args.force_retrain:
+            logger.info(
+                "Step 6 outputs/checkpoint exist in S3 for %s/%s, but --force-retrain was provided; retraining.",
+                args.cohort,
+                args.age_band,
+            )
     except ImportError:
         pass  # Fallback to local-only if checkpoint_utils not available
 
