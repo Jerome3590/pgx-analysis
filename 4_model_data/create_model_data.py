@@ -959,15 +959,33 @@ def filter_cohort_events_for_items(
     else:
         desired_controls = min(desired_controls, n_candidate_controls)
 
-    con.execute(
-        f"""
-        CREATE TEMP TABLE control_patients AS
-        SELECT mi_person_key
-        FROM control_candidates
-        ORDER BY random()
-        LIMIT {desired_controls}
-        """
-    )
+    if is_opioid:
+        con.execute(
+            f"""
+            CREATE TEMP TABLE control_patients AS
+            SELECT mi_person_key
+            FROM control_candidates
+            ORDER BY random()
+            LIMIT {desired_controls}
+            """
+        )
+    else:
+        con.execute(
+            f"""
+            CREATE TEMP TABLE control_patients AS
+            SELECT
+                cc.mi_person_key,
+                MAX(CAST(ue.event_date AS DATE)) AS control_index_date
+            FROM control_candidates cc
+            JOIN read_parquet([{all_control_paths_literal}], union_by_name=True) ue
+                ON cc.mi_person_key = ue.mi_person_key
+            WHERE ue.event_date IS NOT NULL
+            GROUP BY cc.mi_person_key
+            HAVING control_index_date IS NOT NULL
+            ORDER BY random()
+            LIMIT {desired_controls}
+            """
+        )
 
     # 4. Construct case and control events and write to Parquet
     # Target leakage removal (Step 4): keep only events strictly before target date for cases.
@@ -979,14 +997,53 @@ def filter_cohort_events_for_items(
             f"CAST(event_date AS DATE) < CAST(\"{source_col}\" AS DATE))"
         )
         print(f"[INFO] Applying target leakage removal: keep only events before {source_col}")
-    case_events_query = f"""
-        SELECT
-            {case_cols_sql},
-            1 AS target
-        FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
-        WHERE
-            is_target_case = 1 AND {item_filter_condition} AND {leakage_condition}
-    """
+    if is_opioid:
+        case_events_query = f"""
+            SELECT
+                {case_cols_sql},
+                1 AS target
+            FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
+            WHERE
+                is_target_case = 1 AND {item_filter_condition} AND {leakage_condition}
+        """
+    else:
+        lookback_days = 365
+        con.execute(
+            f"""
+            CREATE TEMP TABLE case_index_dates AS
+            SELECT
+                CAST(mi_person_key AS VARCHAR) AS mi_person_key,
+                MIN(CAST("{source_col}" AS DATE)) AS case_index_date
+            FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
+            WHERE is_target_case = 1 AND "{source_col}" IS NOT NULL
+            GROUP BY mi_person_key
+            """
+        )
+        case_gold_cols_sql = ", ".join(
+            f'ci.case_index_date AS "{output_col}"' if c == output_col else (f"c.{c}" if c in control_cols else f"NULL AS {c}")
+            for c in output_common_cols
+        )
+        control_gold_cols_sql = ", ".join(
+            f'cp.control_index_date AS "{output_col}"' if c == output_col else (f"c.{c}" if c in control_cols else f"NULL AS {c}")
+            for c in output_common_cols
+        )
+        case_events_query = f"""
+            SELECT
+                {case_gold_cols_sql},
+                1 AS target
+            FROM read_parquet([{all_control_paths_literal}], union_by_name=True) c
+            JOIN case_index_dates ci
+                ON CAST(c.mi_person_key AS VARCHAR) = ci.mi_person_key
+            WHERE
+                {item_filter_condition}
+                AND c.event_date IS NOT NULL
+                AND CAST(c.event_date AS DATE) >= ci.case_index_date - INTERVAL {lookback_days} DAY
+                AND CAST(c.event_date AS DATE) < ci.case_index_date
+        """
+        print(
+            f"[INFO] Applying non_opioid_ed symmetric lookback: cases use gold events in "
+            f"[index-{lookback_days}d, index) before {source_col}"
+        )
 
     # Build control exclusion filter (blacklist approach)
     # Controls keep all features EXCEPT post-target leakage features
@@ -1004,15 +1061,34 @@ def filter_cohort_events_for_items(
         )"""
         print(f"[INFO] Applying control exclusions: excluding {len(control_exclusions)} post-target leakage features")
     
-    control_events_query = f"""
-        SELECT
-            {common_cols_sql_control},
-            0 AS target
-        FROM read_parquet([{all_control_paths_literal}], union_by_name=True) c
-        JOIN control_patients cp
-            ON c.mi_person_key = cp.mi_person_key
-        WHERE {control_exclusion_condition}
-    """
+    if is_opioid:
+        control_events_query = f"""
+            SELECT
+                {common_cols_sql_control},
+                0 AS target
+            FROM read_parquet([{all_control_paths_literal}], union_by_name=True) c
+            JOIN control_patients cp
+                ON c.mi_person_key = cp.mi_person_key
+            WHERE {control_exclusion_condition}
+        """
+    else:
+        control_events_query = f"""
+            SELECT
+                {control_gold_cols_sql},
+                0 AS target
+            FROM read_parquet([{all_control_paths_literal}], union_by_name=True) c
+            JOIN control_patients cp
+                ON c.mi_person_key = cp.mi_person_key
+            WHERE
+                {control_exclusion_condition}
+                AND c.event_date IS NOT NULL
+                AND CAST(c.event_date AS DATE) >= cp.control_index_date - INTERVAL {lookback_days} DAY
+                AND CAST(c.event_date AS DATE) < cp.control_index_date
+        """
+        print(
+            f"[INFO] Applying non_opioid_ed symmetric lookback: controls use gold events in "
+            f"[pseudo-index-{lookback_days}d, pseudo-index) before each patient's latest observed event"
+        )
 
     final_query = f"""
         COPY (
