@@ -3164,7 +3164,7 @@ def train_and_evaluate(
         print(f"Saved native CatBoost binary model to {cb_binary_model_path} (for SHAP)")
         
         def save_cb_joblib():
-            cb_final.save_model(str(cb_joblib_path))
+            joblib.dump(cb_final, cb_joblib_path)
         
         save_model_idempotent(cb_joblib_path, s3_cb_joblib, save_cb_joblib)
         print(f"Saved deployment-ready CatBoost model to {cb_joblib_path}")
@@ -3322,9 +3322,25 @@ def evaluate_temporal_holdout(
         }
 
     cb_joblib = out_base / "models" / "catboost.joblib"
-    if cb_joblib.exists():
+    cb_cbm = out_base / "models" / "catboost_model.cbm"
+    if cb_joblib.exists() or cb_cbm.exists():
         try:
-            cb_model = joblib.load(cb_joblib)
+            cb_model = None
+            if cb_joblib.exists():
+                try:
+                    cb_model = joblib.load(cb_joblib)
+                except Exception as joblib_error:
+                    if not cb_cbm.exists():
+                        raise
+                    print(
+                        f"[HOLDOUT] CatBoost joblib load failed ({joblib_error}); "
+                        f"falling back to native model at {cb_cbm}."
+                    )
+            if cb_model is None:
+                from catboost import CatBoostClassifier  # type: ignore
+
+                cb_model = CatBoostClassifier()
+                cb_model.load_model(str(cb_cbm))
             y_prob_cb = cb_model.predict_proba(X_hold)[:, 1]
             results["catboost"] = {
                 "auroc": round(float(roc_auc_score(y_hold, y_prob_cb)), 4),
