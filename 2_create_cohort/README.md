@@ -1330,6 +1330,13 @@ INNER JOIN sampled_controls sc ON uef.mi_person_key = sc.mi_person_key;
 1. **ED Visit Frequency Filter:** Only includes patients with **<7 ED visits per year**
 2. **Temporal Drug-ED Relationship Filter:** Only includes patients where **most recent drug event is within 21 days of ED event** (excluding 0-day discharge prescriptions)
 
+**Model-data boundary:** Step 2 defines cohort membership and target/index dates. Step 4 (`4_model_data/create_model_data.py`) is responsible for building the event-level modeling table from gold medical/pharmacy events. For `non_opioid_ed`, Step 4 must use symmetric pre-index windows for both cases and controls so model features do not encode case/control construction artifacts:
+
+- Cases use gold events in `[first_ed_non_opioid_date - 365 days, first_ed_non_opioid_date)`.
+- Controls use gold events in `[control_index_date - 365 days, control_index_date)`.
+- Cases must not be represented only by sparse cohort rows while controls retain broad event histories.
+- QA should verify that per-patient event counts and drug counts overlap between cases and controls before model training.
+
 The filtering uses a sequential CTE approach for clarity and maintainability. Each step builds on the previous one:
 
 ```sql
@@ -1519,6 +1526,7 @@ WHERE (tc.mi_person_key IS NOT NULL OR sc.mi_person_key IS NOT NULL)
 - **Balanced Temporal Windows:** Both targets and controls use 30-day lookback window
   - Targets: Reference date = first ED_NON_OPIOID event
   - Controls: Reference date = first non-ED medical event
+- **Model data reconstruction:** Downstream Step 4 rebuilds `model_events.parquet` from gold medical/pharmacy events using symmetric 365-day pre-index windows for cases and controls to avoid utilization-count proxy leakage.
 - **Temporal Fields:**
   - `first_ed_non_opioid_date`: Populated for targets only (NULL for controls)
   - `days_to_target_event`: Calculated for both (days to reference date)
