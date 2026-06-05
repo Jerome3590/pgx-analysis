@@ -2,22 +2,25 @@
 
 This document captures critical lessons learned from production issues, debugging sessions, and QA discoveries that should inform future development.
 
+June 2026 cohort QA identified two separate leakage classes: `opioid_ed` had a temporal holdout isolation issue where 2019 data could leak into training artifacts, while `non_opioid_ed` had a cohort-construction issue where cases and controls were not represented with symmetric pre-index event windows and row-inclusion filters.
+
 ## Table of Contents
 
 **Production bugs & QA:**
 1. [INT32 Overflow in COUNT Queries (January 2026)](#int32-overflow-in-count-queries-january-2026)
 2. [Cartesian Product in CTEs with UNION ALL (January 2026)](#cartesian-product-in-ctes-with-union-all-january-2026)
 3. [Row Explosion from Multiple Time Windows (January 2026)](#row-explosion-from-multiple-time-windows-january-2026)
-4. [Case/Control Event-Window Asymmetry Can Create Proxy Leakage (June 2026)](#casecontrol-event-window-asymmetry-can-create-proxy-leakage-june-2026)
-5. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
-6. [QA Check Methodology](#qa-check-methodology)
+4. [Temporal Holdout Leakage Can Inflate Cohort Metrics (June 2026)](#temporal-holdout-leakage-can-inflate-cohort-metrics-june-2026)
+5. [Case/Control Event-Window Asymmetry Can Create Proxy Leakage (June 2026)](#casecontrol-event-window-asymmetry-can-create-proxy-leakage-june-2026)
+6. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
+7. [QA Check Methodology](#qa-check-methodology)
 
 **Architecture & design decisions (final production workflow):**
-7. [Feature Engineering Simplification](#feature-engineering-simplification)
-8. [Model Selection Philosophy](#model-selection-philosophy) — PR-AUC primary, Ensemble eligible, per-bin models, SHAP/FFA fixed models
-9. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
-10. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
-11. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
+8. [Feature Engineering Simplification](#feature-engineering-simplification)
+9. [Model Selection Philosophy](#model-selection-philosophy) — PR-AUC primary, Ensemble eligible, per-bin models, SHAP/FFA fixed models
+10. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
+11. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
+12. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
 
 ---
 
@@ -257,6 +260,55 @@ Row explosion in `ed_non_opioid_cohort` from:
 - VIEWs that are repeatedly queried during QA
 - Multiple time windows without QUALIFY deduplication
 - Row counts that are 100x+ larger than patient counts
+
+---
+
+## Temporal Holdout Leakage Can Inflate Cohort Metrics (June 2026)
+
+### Problem Discovery
+
+**Symptom:**
+- `opioid_ed` model metrics were suspiciously strong and inconsistent with expected temporal generalization.
+- Investigation showed 2019 holdout data could be included in model training/checkpointed outputs instead of being reserved strictly for evaluation.
+
+**Location:** Step 6 final-model training and any upstream/downstream checkpoint logic that decides whether to reuse or retrain model artifacts.
+
+### Root Cause Analysis
+
+The issue was **temporal leakage**: records from the 2019 holdout period were not always isolated from training. This is distinct from event-window leakage. The model could effectively learn from data it was later evaluated on, inflating holdout performance and invalidating cohort-level conclusions.
+
+For production modeling, temporal splits must be treated as an invariant:
+
+```text
+training years = 2016, 2017, 2018
+holdout year   = 2019
+excluded year  = 2020
+```
+
+### Solution
+
+Step 6 training must enforce the temporal split at the patient/event data boundary and must not rely on stale checkpoints or cached model artifacts created before the split was corrected.
+
+When retraining after temporal-split fixes:
+- Force retrain affected cohort/age-band outputs.
+- Verify the training set contains only 2016-2018 records.
+- Verify the 2019 records are only used for holdout evaluation.
+- Refresh or clear checkpoints that could point to pre-fix model artifacts.
+
+### Prevention
+
+**Required QA before trusting holdout metrics:**
+- [ ] Log train/holdout year distributions before fitting any model.
+- [ ] Assert that no 2019 rows appear in the training split.
+- [ ] Assert that 2020 rows are excluded unless explicitly running a COVID-era analysis.
+- [ ] Treat unusually high holdout recall/AUC/PR-AUC as a leakage signal until audited.
+- [ ] When changing split logic, force retrain affected models instead of relying on checkpoints.
+
+**Red flags:**
+- Holdout metrics improve dramatically without a clinically plausible explanation.
+- Final-model checkpoints predate a temporal-split fix.
+- Train and holdout row counts are logged only after feature engineering rather than before fitting.
+- Evaluation code reads from the same materialized dataset used for training without an explicit year filter.
 
 ---
 
