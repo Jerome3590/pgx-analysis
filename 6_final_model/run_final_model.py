@@ -1721,12 +1721,12 @@ def copy_full_cohort_artifacts_to_bin_directory(
 
 
 def per_bin_model_files_exist(out_base: Path) -> bool:
-    """True if every density bin has XGBoost + CatBoost deployment joblibs under bin_models/{bin}/models/."""
+    """True if every density bin has XGBoost + CatBoost deployment joblibs under bin_models/{bin}/."""
     for b in _DENSITY_BINS:
-        mdir = out_base / "bin_models" / b / "models"
-        if not (mdir / "xgboost.joblib").exists():
+        bdir = out_base / "bin_models" / b
+        if not (bdir / "xgboost.joblib").exists():
             return False
-        if not (mdir / "catboost.joblib").exists():
+        if not (bdir / "catboost.joblib").exists():
             return False
     return True
 
@@ -1756,9 +1756,9 @@ def repair_per_bin_fallbacks_from_aggregate(
         return
 
     for bin_name in _DENSITY_BINS:
-        mdir = agg / "bin_models" / bin_name / "models"
-        has_xgb = mdir.exists() and (mdir / "xgboost.joblib").exists()
-        has_cb = mdir.exists() and (mdir / "catboost.joblib").exists()
+        bdir = agg / "bin_models" / bin_name
+        has_xgb = bdir.exists() and (bdir / "xgboost.joblib").exists()
+        has_cb = bdir.exists() and (bdir / "catboost.joblib").exists()
         if has_xgb and has_cb:
             continue
         msg = (
@@ -1841,8 +1841,8 @@ def save_complete_per_bin_checkpoint(cohort: str, age_band: str, logger=None) ->
     output_paths = []
     for bin_name in _DENSITY_BINS:
         for rel in (
-            f"bin_models/{bin_name}/models/xgboost.joblib",
-            f"bin_models/{bin_name}/models/catboost.joblib",
+            f"bin_models/{bin_name}/xgboost.joblib",
+            f"bin_models/{bin_name}/catboost.joblib",
         ):
             output_paths.append(f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{rel}")
 
