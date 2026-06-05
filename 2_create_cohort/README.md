@@ -701,6 +701,54 @@ python 2_create_cohort/qa_index_date_uniqueness.py --path /path/to/cohort.parque
 
 Expect **0** patients with more than one distinct index date; multiple patients may share the same calendar index date.
 
+### Verify pharmacy preservation into Step 4 model data
+
+For drug-dependent downstream models, especially `non_opioid_ed`, Step 4 must preserve pharmacy events from the Step 2 cohort/raw pharmacy sources into `model_events.parquet`.
+
+Run after Step 4:
+
+```sql
+SELECT
+  COUNT(*) FILTER (WHERE drug_name IS NOT NULL)::BIGINT AS drug_rows,
+  COUNT(DISTINCT CASE WHEN drug_name IS NOT NULL THEN mi_person_key END)::BIGINT AS drug_patients,
+  COUNT(*) FILTER (WHERE target = 1 AND drug_name IS NOT NULL)::BIGINT AS case_drug_rows,
+  COUNT(*) FILTER (WHERE target = 0 AND drug_name IS NOT NULL)::BIGINT AS control_drug_rows
+FROM read_parquet('model_events.parquet');
+```
+
+June 2026 QA found that `non_opioid_ed / 0-12` Step 2 and raw pharmacy were valid, but pre-fix Step 4 dropped all pharmacy rows because pharmacy uses `incurred_date` while the symmetric lookback filter required `event_date`.
+
+`non_opioid_ed / 0-12` source audit:
+
+| Check | Result |
+|-------|--------|
+| Step 2 cohort pharmacy rows | 219,540 |
+| Step 2 cohort drug patients | 52,686 in 2016; 48,230 in 2017; 50,257 in 2018; 49,611 in 2019 |
+| Raw pharmacy rows among model cohort cases | 378,769 |
+| Raw pharmacy rows among model cohort controls | 2,538,729 |
+| Raw pharmacy case patients | 42,286 |
+| Raw pharmacy control patients | 144,925 |
+| Step 4 pre-fix drug rows | 0 |
+
+The source fix is to normalize mixed gold medical/pharmacy dates before Step 4 lookback filters:
+
+```sql
+COALESCE(CAST(event_date AS TIMESTAMP), TRY_CAST(incurred_date AS TIMESTAMP)) AS event_date
+```
+
+Validation showed this was isolated to the `non_opioid_ed` Step 4 rebuild path. Existing `opioid_ed` model data preserved drug rows across all age bands:
+
+| Age band | Step 4 event rows | Step 4 drug rows | Case drug rows | Control drug rows |
+|----------|------------------:|-----------------:|---------------:|------------------:|
+| 0-12 | 11,902 | 1,512 | 67 | 1,445 |
+| 13-24 | 1,117,099 | 226,809 | 5,753 | 221,056 |
+| 25-44 | 12,672,773 | 2,869,569 | 102,054 | 2,767,515 |
+| 45-54 | 7,396,491 | 2,023,661 | 86,522 | 1,937,139 |
+| 55-64 | 9,590,321 | 2,621,990 | 98,791 | 2,523,199 |
+| 65-74 | 11,970,493 | 2,353,494 | 69,834 | 2,283,660 |
+| 75-84 | 5,638,894 | 1,033,103 | 24,121 | 1,008,982 |
+| 85-114 | 1,502,416 | 272,896 | 5,766 | 267,130 |
+
 
 ***
 

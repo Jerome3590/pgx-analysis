@@ -12,15 +12,16 @@ June 2026 cohort QA identified two separate leakage classes: `opioid_ed` had a t
 3. [Row Explosion from Multiple Time Windows (January 2026)](#row-explosion-from-multiple-time-windows-january-2026)
 4. [Temporal Holdout Leakage Can Inflate Cohort Metrics (June 2026)](#temporal-holdout-leakage-can-inflate-cohort-metrics-june-2026)
 5. [Case/Control Event-Window Asymmetry Can Create Proxy Leakage (June 2026)](#casecontrol-event-window-asymmetry-can-create-proxy-leakage-june-2026)
-6. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
-7. [QA Check Methodology](#qa-check-methodology)
+6. [Pharmacy Date Normalization Can Drop Drug Features at Step 4 (June 2026)](#pharmacy-date-normalization-can-drop-drug-features-at-step-4-june-2026)
+7. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
+8. [QA Check Methodology](#qa-check-methodology)
 
 **Architecture & design decisions (final production workflow):**
-8. [Feature Engineering Simplification](#feature-engineering-simplification)
-9. [Model Selection Philosophy](#model-selection-philosophy) — PR-AUC primary, Ensemble eligible, per-bin models, SHAP/FFA fixed models
-10. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
-11. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
-12. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
+9. [Feature Engineering Simplification](#feature-engineering-simplification)
+10. [Model Selection Philosophy](#model-selection-philosophy) — PR-AUC primary, Ensemble eligible, per-bin models, SHAP/FFA fixed models
+11. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
+12. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
+13. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
 
 ---
 
@@ -390,6 +391,111 @@ ORDER BY target;
 - A simple count threshold can recover nearly all cases.
 - A forced rebuild moves local output but then downloads from S3 instead of rebuilding locally.
 - A target-date output column exists but has zero non-null case rows after aliasing from the Step 2 cohort source column.
+
+---
+
+## Pharmacy Date Normalization Can Drop Drug Features at Step 4 (June 2026)
+
+### Problem Discovery
+
+**Symptom:**
+- `non_opioid_ed / 0-12` Step 6 had balanced target classes but CatBoost failed repeatedly with:
+  ```text
+  catboost/libs/data/quantization.cpp:2420: All features are either constant or ignored.
+  ```
+- Final-model feature construction was expected to include drug `item_*` features plus aggregate event-count features, but Step 4 `model_events.parquet` had zero non-null `drug_name` rows.
+
+**Location:** `4_model_data/create_model_data.py`, in the `non_opioid_ed` symmetric pre-index lookback path.
+
+### Root Cause Analysis
+
+Raw Step 2 cohort data and raw pharmacy data were correct:
+
+| Source | Finding for `non_opioid_ed / 0-12` |
+|--------|------------------------------------|
+| Step 2 cohort parquet | 219,540 pharmacy rows with non-null `drug_name` across 2016-2019 target cases |
+| Raw pharmacy `age_band=0-12` | 2,538,729 control pharmacy rows and 378,769 case pharmacy rows among model cohort patients |
+| Step 4 model_events before fix | 0 drug rows; only medical/procedure/ICD rows survived |
+
+The bug was a schema/date normalization issue:
+
+- Gold medical rows use `event_date`.
+- Gold pharmacy rows use `incurred_date`.
+- Step 4 rebuilt `non_opioid_ed` cases and controls from gold medical/pharmacy and then required `c.event_date IS NOT NULL`.
+- Pharmacy rows entered the union with `event_date = NULL`, failed the pre-index lookback filter, and were dropped.
+
+This did not affect existing `opioid_ed` Step 4 outputs: all `opioid_ed` age bands retained drug rows in `model_events.parquet`.
+
+### Solution
+
+Normalize gold medical/pharmacy date columns before applying pre-index filters:
+
+```sql
+CREATE TEMP VIEW all_gold_events AS
+SELECT
+    * REPLACE (
+        COALESCE(
+            CAST(event_date AS TIMESTAMP),
+            TRY_CAST(incurred_date AS TIMESTAMP)
+        ) AS event_date
+    )
+FROM read_parquet([...], union_by_name=True)
+```
+
+Then build `non_opioid_ed` case/control events from `all_gold_events`, not directly from raw mixed medical/pharmacy parquet paths.
+
+### QA Results Added During Fix
+
+`non_opioid_ed / 0-12` source audit:
+
+| Check | Result |
+|-------|--------|
+| Step 2 cohort pharmacy rows | 219,540 |
+| Step 2 cohort drug patients | 52,686 in 2016; 48,230 in 2017; 50,257 in 2018; 49,611 in 2019 |
+| Raw pharmacy rows among model cohort cases | 378,769 |
+| Raw pharmacy rows among model cohort controls | 2,538,729 |
+| Raw pharmacy case patients | 42,286 |
+| Raw pharmacy control patients | 144,925 |
+| Step 4 pre-fix drug rows | 0 |
+
+`opioid_ed` validation:
+
+| Age band | Step 4 event rows | Step 4 drug rows | Case drug rows | Control drug rows |
+|----------|------------------:|-----------------:|---------------:|------------------:|
+| 0-12 | 11,902 | 1,512 | 67 | 1,445 |
+| 13-24 | 1,117,099 | 226,809 | 5,753 | 221,056 |
+| 25-44 | 12,672,773 | 2,869,569 | 102,054 | 2,767,515 |
+| 45-54 | 7,396,491 | 2,023,661 | 86,522 | 1,937,139 |
+| 55-64 | 9,590,321 | 2,621,990 | 98,791 | 2,523,199 |
+| 65-74 | 11,970,493 | 2,353,494 | 69,834 | 2,283,660 |
+| 75-84 | 5,638,894 | 1,033,103 | 24,121 | 1,008,982 |
+| 85-114 | 1,502,416 | 272,896 | 5,766 | 267,130 |
+
+### Prevention
+
+**Required QA after Step 4 for drug-dependent cohorts:**
+
+```sql
+SELECT
+  COUNT(*) FILTER (WHERE drug_name IS NOT NULL)::BIGINT AS drug_rows,
+  COUNT(DISTINCT CASE WHEN drug_name IS NOT NULL THEN mi_person_key END)::BIGINT AS drug_patients,
+  COUNT(*) FILTER (WHERE target = 1 AND drug_name IS NOT NULL)::BIGINT AS case_drug_rows,
+  COUNT(*) FILTER (WHERE target = 0 AND drug_name IS NOT NULL)::BIGINT AS control_drug_rows
+FROM read_parquet('model_events.parquet');
+```
+
+**Code review checklist:**
+- [ ] Mixed medical/pharmacy unions normalize `event_date` from both `event_date` and pharmacy `incurred_date`.
+- [ ] Step 4 logs non-opioid pharmacy output counts after writing `model_events.parquet`.
+- [ ] Non-opioid Step 4 raises if `drug_name` rows are zero.
+- [ ] Step 6 logs feature variance and CatBoost failure diagnostics, but source fixes happen in Step 4.
+- [ ] Existing unaffected cohorts are validated before broad fixes are assumed necessary.
+
+**Red flags:**
+- Raw pharmacy has rows for cohort patients, but Step 4 `model_events.parquet` has zero `drug_name`.
+- CatBoost reports all features constant/ignored while target classes are present.
+- Drug-only downstream features are all zero/constant.
+- A mixed-source query filters on `event_date` without confirming pharmacy rows populate that column.
 
 ---
 
