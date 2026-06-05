@@ -96,7 +96,7 @@ STEP3B_OUTPUTS_DIR = PROJECT_ROOT / "3b_feature_importance_eda" / "outputs"
 # Opioid-ED: F11.20 = opioid use disorder ICD-10
 # Polypharmacy: O11_P = canonical ED identifier (includes P51b, O11, P33), 21-day drug window
 TARGET_DATE_COL_OPIOID = "first_f1120_date"
-TARGET_DATE_COL_NON_OPIOID = "first_ed_non_opioid_date"
+TARGET_DATE_COL_NON_OPIOID = "first_o11_p_date"
 # Cohort (Step 2) column names we read from
 COHORT_SOURCE_COL_OPIOID = "first_opioid_ed_date"
 COHORT_SOURCE_COL_NON_OPIOID = "first_ed_non_opioid_date"
