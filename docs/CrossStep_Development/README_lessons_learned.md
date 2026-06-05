@@ -8,15 +8,16 @@ This document captures critical lessons learned from production issues, debuggin
 1. [INT32 Overflow in COUNT Queries (January 2026)](#int32-overflow-in-count-queries-january-2026)
 2. [Cartesian Product in CTEs with UNION ALL (January 2026)](#cartesian-product-in-ctes-with-union-all-january-2026)
 3. [Row Explosion from Multiple Time Windows (January 2026)](#row-explosion-from-multiple-time-windows-january-2026)
-4. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
-5. [QA Check Methodology](#qa-check-methodology)
+4. [Case/Control Event-Window Asymmetry Can Create Proxy Leakage (June 2026)](#casecontrol-event-window-asymmetry-can-create-proxy-leakage-june-2026)
+5. [Cohort Pipeline Execution Strategy](#cohort-pipeline-execution-strategy)
+6. [QA Check Methodology](#qa-check-methodology)
 
 **Architecture & design decisions (final production workflow):**
-6. [Feature Engineering Simplification](#feature-engineering-simplification)
-7. [Model Selection Philosophy](#model-selection-philosophy) — PR-AUC primary, Ensemble eligible, per-bin models, SHAP/FFA fixed models
-8. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
-9. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
-10. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
+7. [Feature Engineering Simplification](#feature-engineering-simplification)
+8. [Model Selection Philosophy](#model-selection-philosophy) — PR-AUC primary, Ensemble eligible, per-bin models, SHAP/FFA fixed models
+9. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
+10. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
+11. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
 
 ---
 
@@ -256,6 +257,82 @@ Row explosion in `ed_non_opioid_cohort` from:
 - VIEWs that are repeatedly queried during QA
 - Multiple time windows without QUALIFY deduplication
 - Row counts that are 100x+ larger than patient counts
+
+---
+
+## Case/Control Event-Window Asymmetry Can Create Proxy Leakage (June 2026)
+
+### Problem Discovery
+
+**Symptom:**
+- `non_opioid_ed / 75-84` showed extremely high model performance after temporal retraining.
+- 2019 holdout recall was 1.0000 for XGBoost and Ensemble.
+- Monte-Carlo CV metrics were also unusually high: AUC near 0.99, PR-AUC near 0.95, recall near 0.98.
+
+**Location:** `4_model_data/create_model_data.py` and downstream Step 6 feature construction.
+
+### Root Cause Analysis
+
+The issue was not 2019 data being used in training. The temporal split was correct after Step 6 safeguards. The issue was **case/control event-window asymmetry** in the event-level modeling dataset:
+
+- Cases were effectively represented by sparse pre-target/cohort rows.
+- Controls retained broad gold medical/pharmacy event histories.
+- Patient-level utilization features then encoded the construction artifact.
+
+Diagnostic evidence for `non_opioid_ed / 75-84` before the fix:
+
+| Group | Median `n_events` | Mean `n_events` | Median `pgx_num_drugs` |
+|-------|-------------------|-----------------|-------------------------|
+| Train controls | 256 | 411 | 7 |
+| Train cases | 1 | 1.07 | 1 |
+| 2019 controls | 409.5 | 573.97 | 12 |
+| 2019 cases | 1 | 1.00 | 1 |
+
+All training cases were in `n_event_bin_ordinal = 0`, while controls occupied all density bins. XGBoost feature importance was dominated by `n_event_bin_ordinal`, followed by PGx drug-count features.
+
+### Solution
+
+For `non_opioid_ed`, Step 4 now rebuilds `model_events.parquet` from gold medical/pharmacy events with symmetric pre-index windows:
+
+```text
+case events    = gold events in [first_ed_non_opioid_date - 365 days, first_ed_non_opioid_date)
+control events = gold events in [control_index_date - 365 days, control_index_date)
+```
+
+Cases and controls therefore use the same source event tables and comparable observation windows before patient-level features are computed.
+
+### Prevention
+
+**Required QA before trusting final-model metrics:**
+
+```sql
+SELECT
+  target,
+  COUNT(DISTINCT mi_person_key) AS patients,
+  AVG(n_events) AS mean_events,
+  MEDIAN(n_events) AS median_events,
+  MIN(n_events) AS min_events,
+  MAX(n_events) AS max_events
+FROM (
+  SELECT mi_person_key, target, COUNT(*) AS n_events
+  FROM read_parquet('model_events.parquet')
+  GROUP BY mi_person_key, target
+)
+GROUP BY target
+ORDER BY target;
+```
+
+**Code review checklist:**
+- [ ] Cases and controls are sourced from comparable event tables.
+- [ ] Cases and controls use the same pre-index lookback length when final-model features include event counts or drug counts.
+- [ ] `n_events`, `n_event_bin_ordinal`, `pgx_num_drugs`, and `pgx_num_cpic_drugs` distributions overlap by target class.
+- [ ] Any recall/AUC/PR-AUC above 0.85 is audited for construction artifacts before being accepted.
+
+**Red flags:**
+- Cases have median `n_events` near 1 while controls have hundreds of events.
+- All cases fall into one density bin.
+- Top feature importance is a utilization-count proxy rather than a clinically interpretable item.
+- A simple count threshold can recover nearly all cases.
 
 ---
 
