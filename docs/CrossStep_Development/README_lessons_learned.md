@@ -420,9 +420,10 @@ Raw Step 2 cohort data and raw pharmacy data were correct:
 The bug was a schema/date normalization issue:
 
 - Gold medical rows use `event_date`.
-- Gold pharmacy rows use `incurred_date`.
+- Gold pharmacy rows use `incurred_date`, stored as compact `YYYYMMDD` strings.
 - Step 4 rebuilt `non_opioid_ed` cases and controls from gold medical/pharmacy and then required `c.event_date IS NOT NULL`.
 - Pharmacy rows entered the union with `event_date = NULL`, failed the pre-index lookback filter, and were dropped.
+- `TRY_CAST(incurred_date AS TIMESTAMP)` is not sufficient for compact `YYYYMMDD`; local validation parsed 0 of 3,080,335 sampled pharmacy rows with `TRY_CAST`, while `TRY_STRPTIME(..., '%Y%m%d')` parsed all sampled rows.
 
 This did not affect existing `opioid_ed` Step 4 outputs: all `opioid_ed` age bands retained drug rows in `model_events.parquet`.
 
@@ -435,14 +436,16 @@ CREATE TEMP VIEW all_gold_events AS
 SELECT
     * REPLACE (
         COALESCE(
-            CAST(event_date AS TIMESTAMP),
-            TRY_CAST(incurred_date AS TIMESTAMP)
+            TRY_CAST(event_date AS TIMESTAMP),
+            TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')
         ) AS event_date
     )
 FROM read_parquet([...], union_by_name=True)
 ```
 
 Then build `non_opioid_ed` case/control events from `all_gold_events`, not directly from raw mixed medical/pharmacy parquet paths.
+
+This matches the established Step 2 pattern in `2_create_cohort/phases/phase1_data_preparation.py` and `2_create_cohort/phases/common.py`, where pharmacy `event_date` is built with `TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')`. DuckDB's current date-format documentation states that `strptime(text, format)` converts strings to timestamps according to a specified pattern and `try_strptime` returns `NULL` on failure rather than throwing.
 
 ### QA Results Added During Fix
 
@@ -457,6 +460,7 @@ Then build `non_opioid_ed` case/control events from `all_gold_events`, not direc
 | Raw pharmacy case patients | 42,286 |
 | Raw pharmacy control patients | 144,925 |
 | Step 4 pre-fix drug rows | 0 |
+| Local parse validation | `TRY_CAST(incurred_date AS TIMESTAMP)` parsed 0 rows; `TRY_STRPTIME(..., '%Y%m%d')` parsed 3,080,335 of 3,080,335 sampled rows |
 
 `opioid_ed` validation:
 
@@ -486,6 +490,7 @@ FROM read_parquet('model_events.parquet');
 
 **Code review checklist:**
 - [ ] Mixed medical/pharmacy unions normalize `event_date` from both `event_date` and pharmacy `incurred_date`.
+- [ ] Compact `YYYYMMDD` date strings use `TRY_STRPTIME(CAST(col AS VARCHAR), '%Y%m%d')`, not plain `TRY_CAST(col AS TIMESTAMP)`.
 - [ ] Step 4 logs non-opioid pharmacy output counts after writing `model_events.parquet`.
 - [ ] Non-opioid Step 4 raises if `drug_name` rows are zero.
 - [ ] Step 6 logs feature variance and CatBoost failure diagnostics, but source fixes happen in Step 4.

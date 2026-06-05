@@ -720,8 +720,8 @@ def filter_cohort_events_for_items(
         SELECT
             * REPLACE (
                 COALESCE(
-                    CAST(event_date AS TIMESTAMP),
-                    TRY_CAST(incurred_date AS TIMESTAMP)
+                    TRY_CAST(event_date AS TIMESTAMP),
+                    TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')
                 ) AS event_date
             )
         FROM read_parquet([{all_control_paths_literal}], union_by_name=True)
