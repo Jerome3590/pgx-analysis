@@ -2206,7 +2206,7 @@ def train_and_evaluate(
                 try:
                     clf.fit(X_tr, y_tr)
                 except Exception:
-                    if hasattr(clf, "set_params"):
+                    if model_type in ("xgb", "xgb_rf") and hasattr(clf, "set_params"):
                         clf.set_params(tree_method="hist")
                         if "device" in clf.get_params():
                             clf.set_params(device="cpu")
