@@ -72,23 +72,34 @@ print(f"  Project:   {FINAL_MODEL_OUTPUTS}")
 print(f"  NVMe:      {FINAL_MODEL_OUTPUTS_ALT}")
 print(f"  gold/NVMe: {FINAL_MODEL_GOLD}")
 
-# Run scope for this notebook.
-# Set TARGET_COHORTS = ["non_opioid_ed"] to rebuild/retrain only non-opioid cohorts.
-# Set TARGET_AGE_BANDS = None for all configured age bands, or a list like ["75-84"].
-TARGET_COHORTS = ["non_opioid_ed"]
-TARGET_AGE_BANDS = None
+# Run scopes for this notebook.
+# Step 4 builds model_events.parquet. Downstream controls Step 5 and later.
+# Set age bands to None for all configured age bands, or a list like ["75-84"].
+STEP4_COHORTS = ["opioid_ed", "non_opioid_ed"]
+STEP4_AGE_BANDS = None
+DOWNSTREAM_COHORTS = ["opioid_ed", "non_opioid_ed"]
+DOWNSTREAM_AGE_BANDS = None
 
-def iter_target_cohorts():
+def iter_scope(cohorts=None, age_bands=None):
     for cohort, bands in REQUIRED_COHORTS.items():
-        if TARGET_COHORTS is not None and cohort not in TARGET_COHORTS:
+        if cohorts is not None and cohort not in cohorts:
             continue
         for age_band in bands:
-            if TARGET_AGE_BANDS is not None and age_band not in TARGET_AGE_BANDS:
+            if age_bands is not None and age_band not in age_bands:
                 continue
             yield cohort, age_band
 
-print("\nNotebook run scope:")
-for cohort, age_band in iter_target_cohorts():
+def iter_step4_cohorts():
+    yield from iter_scope(STEP4_COHORTS, STEP4_AGE_BANDS)
+
+def iter_downstream_cohorts():
+    yield from iter_scope(DOWNSTREAM_COHORTS, DOWNSTREAM_AGE_BANDS)
+
+print("\nStep 4 model-data build scope:")
+for cohort, age_band in iter_step4_cohorts():
+    print(f"  {cohort} / {age_band}")
+print("\nDownstream Step 5+ scope:")
+for cohort, age_band in iter_downstream_cohorts():
     print(f"  {cohort} / {age_band}")
 
 # %% [markdown]
@@ -330,7 +341,7 @@ def _log_model_data_qa(cohort: str, age_band: str) -> None:
     finally:
         con.close()
 
-for cohort, age_band in iter_target_cohorts():
+for cohort, age_band in iter_step4_cohorts():
     print(f"→ Step 4: {cohort} / {age_band} (building model_events.parquet)")
     force_step4 = FORCE_STEP4_ALL or (FORCE_STEP4_NON_OPIOID and cohort == "non_opioid_ed")
     _backup_existing_model_data_if_forced(cohort, age_band)
@@ -357,7 +368,7 @@ print("Step 4 complete.")
 # Pipeline Step 5: run_analysis.py for each REQUIRED_COHORTS (cohort, age_band)
 # Set FORCE_STEP5 = True to re-run even when S3 outputs or checkpoints exist
 FORCE_STEP5 = True
-for cohort, age_band in iter_target_cohorts():
+for cohort, age_band in iter_downstream_cohorts():
     print(f"→ Step 5: {cohort} / {age_band}")
     cmd = [sys.executable, "run_analysis.py", "--cohort-name", cohort, "--age-band", age_band]
     if FORCE_STEP5:
@@ -378,7 +389,7 @@ print("Step 5 complete.")
 FORCE_STEP6 = False
 FORCE_STEP6_REBUILT_ONLY = True
 STEP6_TRAIN_MODE = None
-for cohort, age_band in iter_target_cohorts():
+for cohort, age_band in iter_downstream_cohorts():
     print(f"→ Step 6: {cohort} / {age_band}")
     cmd = [sys.executable, "run_final_model.py", "--cohort", cohort, "--age_band", age_band]
     if STEP6_TRAIN_MODE:
