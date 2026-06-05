@@ -531,7 +531,7 @@ All documented S3 paths match the actual idempotency checks in the code:
 
 ## 🏁 Final Notes
 
-All PGx pipelines now operate under one unified **Partition-First, Modular, Checkpoint-Enabled** framework.
+All PGx pipelines operate under one unified **Partition-First, Modular, Checkpoint-Enabled** framework.
 Every component — from data ingestion through cohort generation — runs as independent, fault-tolerant partition operations, fully integrated with DuckDB optimization and automatic S3 scaling.
 
 **Parquet optimization is now standard** across Steps 4b, 6, 7, and 8, providing 10-100x storage reduction and 2-5x I/O performance improvements.
