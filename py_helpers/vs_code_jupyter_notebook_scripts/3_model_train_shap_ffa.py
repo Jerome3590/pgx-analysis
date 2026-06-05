@@ -390,6 +390,7 @@ DOWNSTREAM_COHORTS = ["non_opioid_ed"]
 FORCE_STEP6 = False
 FORCE_STEP6_REBUILT_ONLY = True
 STEP6_TRAIN_MODE = None
+REBUILT_STEP4 = globals().get("REBUILT_STEP4", set())
 for cohort, age_band in iter_downstream_cohorts():
     print(f"→ Step 6: {cohort} / {age_band}")
     cmd = [sys.executable, "run_final_model.py", "--cohort", cohort, "--age_band", age_band]
