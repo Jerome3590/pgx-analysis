@@ -1783,6 +1783,88 @@ def repair_per_bin_fallbacks_from_aggregate(
                 print(f"[WARN] Repair copy failed for bin={bin_name}: {e}")
 
 
+def _s3_key_for_final_model_local_path(cohort: str, age_band: str, local_path: Path) -> Optional[str]:
+    age_band_fname = age_band_to_fname(age_band)
+    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    try:
+        rel = local_path.relative_to(out_base).as_posix()
+    except ValueError:
+        return None
+    return f"gold/final_model/{cohort}/{age_band}/{rel}"
+
+
+def upload_complete_per_bin_tree_to_s3(cohort: str, age_band: str, logger=None) -> List[str]:
+    age_band_fname = age_band_to_fname(age_band)
+    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    bin_root = out_base / "bin_models"
+    uploaded_paths: List[str] = []
+    if not bin_root.exists():
+        return uploaded_paths
+
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+    except ImportError:
+        return uploaded_paths
+
+    for bin_name in _DENSITY_BINS:
+        bin_dir = bin_root / bin_name
+        if not bin_dir.exists():
+            continue
+        for local_path in bin_dir.rglob("*"):
+            if not local_path.is_file():
+                continue
+            s3_key = _s3_key_for_final_model_local_path(cohort, age_band, local_path)
+            if not s3_key:
+                continue
+            s3_path = f"s3://pgxdatalake/{s3_key}"
+            try:
+                upload_file_to_s3(local_path, s3_path, check_exists=False)
+                uploaded_paths.append(s3_path)
+            except Exception as e:
+                if logger:
+                    logger.warning("Could not upload repaired per-bin artifact %s: %s", local_path, e)
+                else:
+                    print(f"[WARN] Could not upload repaired per-bin artifact {local_path}: {e}")
+    return uploaded_paths
+
+
+def save_complete_per_bin_checkpoint(cohort: str, age_band: str, logger=None) -> None:
+    age_band_fname = age_band_to_fname(age_band)
+    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+    if not per_bin_model_files_exist(out_base):
+        if logger:
+            logger.warning("Per-bin checkpoint not saved: one or more deployment joblibs are still missing.")
+        else:
+            print("[WARN] Per-bin checkpoint not saved: one or more deployment joblibs are still missing.")
+        return
+
+    output_paths = []
+    for bin_name in _DENSITY_BINS:
+        for rel in (
+            f"bin_models/{bin_name}/models/xgboost.joblib",
+            f"bin_models/{bin_name}/models/catboost.joblib",
+        ):
+            output_paths.append(f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{rel}")
+
+    try:
+        from py_helpers.checkpoint_utils import save_step_checkpoint
+        save_step_checkpoint(
+            step_name="6_final_model",
+            cohort=cohort,
+            age_band=age_band,
+            metadata={
+                "train_mode": "per_bin_complete",
+                "required_bins": list(_DENSITY_BINS),
+            },
+            output_paths=output_paths,
+        )
+    except Exception as e:
+        if logger:
+            logger.warning("Could not save complete per-bin checkpoint: %s", e)
+        else:
+            print(f"[WARN] Could not save complete per-bin checkpoint: {e}")
+
+
 def train_and_evaluate(
     df: pd.DataFrame,
     cohort: str,
@@ -3683,8 +3765,12 @@ def main() -> None:
             with step_block("final_model", "train_per_bin", logger=logger):
                 train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs, force_retrain=args.force_retrain)
 
-        if args.train_mode == "per_bin":
+        if args.train_mode in ("per_bin", "both"):
             mirror_bin_artifacts_to_aggregate_root(args.cohort, args.age_band)
+            repair_per_bin_fallbacks_from_aggregate(args.cohort, args.age_band, logger=logger)
+            uploaded_bin_paths = upload_complete_per_bin_tree_to_s3(args.cohort, args.age_band, logger=logger)
+            logger.info("Uploaded/refreshed %d per-bin artifact files to S3.", len(uploaded_bin_paths))
+            save_complete_per_bin_checkpoint(args.cohort, args.age_band, logger=logger)
 
         # --- Evaluate on 2019 temporal holdout (true out-of-time validation) ---
         if not df_holdout_2019.empty:
