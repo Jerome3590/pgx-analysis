@@ -77,7 +77,7 @@ print(f"  gold/NVMe: {FINAL_MODEL_GOLD}")
 # Set age bands to None for all configured age bands, or a list like ["75-84"].
 STEP4_COHORTS = ["opioid_ed", "non_opioid_ed"]
 STEP4_AGE_BANDS = None
-DOWNSTREAM_COHORTS = ["opioid_ed", "non_opioid_ed"]
+DOWNSTREAM_COHORTS = ["non_opioid_ed"]
 DOWNSTREAM_AGE_BANDS = None
 
 def iter_scope(cohorts=None, age_bands=None):
