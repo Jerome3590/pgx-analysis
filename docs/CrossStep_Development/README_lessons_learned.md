@@ -327,12 +327,16 @@ ORDER BY target;
 - [ ] Cases and controls use the same pre-index lookback length when final-model features include event counts or drug counts.
 - [ ] `n_events`, `n_event_bin_ordinal`, `pgx_num_drugs`, and `pgx_num_cpic_drugs` distributions overlap by target class.
 - [ ] Any recall/AUC/PR-AUC above 0.85 is audited for construction artifacts before being accepted.
+- [ ] Step 4 logs the source-to-output target-date mapping (for example, `first_ed_non_opioid_date` → `first_o11_p_date`) and non-null counts before and after writing `model_events.parquet`.
+- [ ] Step 4 logs patient-level survival through each stage: case index-date creation, gold-event join, item filtering, and pre-index lookback filtering.
 
 **Red flags:**
 - Cases have median `n_events` near 1 while controls have hundreds of events.
 - All cases fall into one density bin.
 - Top feature importance is a utilization-count proxy rather than a clinically interpretable item.
 - A simple count threshold can recover nearly all cases.
+- A forced rebuild moves local output but then downloads from S3 instead of rebuilding locally.
+- A target-date output column exists but has zero non-null case rows after aliasing from the Step 2 cohort source column.
 
 ---
 

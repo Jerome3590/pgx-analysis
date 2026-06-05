@@ -1050,6 +1050,73 @@ def filter_cohort_events_for_items(
             GROUP BY mi_person_key
             """
         )
+        case_index_stats = con.execute(
+            """
+            SELECT
+                COUNT(*)::BIGINT AS case_patients_with_index,
+                MIN(case_index_date) AS min_case_index_date,
+                MAX(case_index_date) AS max_case_index_date
+            FROM case_index_dates
+            """
+        ).fetchone()
+        case_index_msg = (
+            f"[INFO] Case index-date QA for {cohort_name}/{age_band}: "
+            f"patients={int(case_index_stats[0] or 0):,}, "
+            f"min={case_index_stats[1]}, max={case_index_stats[2]}"
+        )
+        print(case_index_msg)
+        if logger:
+            logger.info(case_index_msg)
+        case_gold_join_stats = con.execute(
+            f"""
+            WITH joined AS (
+                SELECT
+                    c.mi_person_key,
+                    c.event_date,
+                    ci.case_index_date,
+                    CASE WHEN {item_filter_condition} THEN 1 ELSE 0 END AS passes_item_filter,
+                    CASE
+                        WHEN c.event_date IS NOT NULL
+                         AND CAST(c.event_date AS DATE) >= ci.case_index_date - INTERVAL {lookback_days} DAY
+                         AND CAST(c.event_date AS DATE) < ci.case_index_date
+                        THEN 1 ELSE 0
+                    END AS in_lookback
+                FROM read_parquet([{all_control_paths_literal}], union_by_name=True) c
+                JOIN case_index_dates ci
+                    ON CAST(c.mi_person_key AS VARCHAR) = ci.mi_person_key
+            )
+            SELECT
+                COUNT(DISTINCT mi_person_key)::BIGINT AS joined_case_patients,
+                COUNT(*)::BIGINT AS joined_rows,
+                SUM(passes_item_filter)::BIGINT AS item_filter_rows,
+                SUM(in_lookback)::BIGINT AS lookback_rows,
+                SUM(CASE WHEN passes_item_filter = 1 AND in_lookback = 1 THEN 1 ELSE 0 END)::BIGINT AS final_case_rows,
+                COUNT(DISTINCT CASE WHEN passes_item_filter = 1 AND in_lookback = 1 THEN mi_person_key END)::BIGINT AS final_case_patients
+            FROM joined
+            """
+        ).fetchone()
+        case_gold_join_msg = (
+            f"[INFO] Case gold-event survival QA for {cohort_name}/{age_band}: "
+            f"joined_patients={int(case_gold_join_stats[0] or 0):,}, "
+            f"joined_rows={int(case_gold_join_stats[1] or 0):,}, "
+            f"item_filter_rows={int(case_gold_join_stats[2] or 0):,}, "
+            f"lookback_rows={int(case_gold_join_stats[3] or 0):,}, "
+            f"final_case_rows={int(case_gold_join_stats[4] or 0):,}, "
+            f"final_case_patients={int(case_gold_join_stats[5] or 0):,}"
+        )
+        print(case_gold_join_msg)
+        if logger:
+            logger.info(case_gold_join_msg)
+        if int(case_gold_join_stats[4] or 0) == 0:
+            msg = (
+                f"[ERROR] No non_opioid_ed case gold events survive item filtering and {lookback_days}-day pre-index lookback "
+                f"for {cohort_name}/{age_band}. Check gold event coverage, item_filter_condition, and index-date alignment."
+            )
+            print(msg)
+            if logger:
+                logger.error(msg)
+            con.close()
+            sys.exit(1)
         case_gold_cols_sql = ", ".join(
             f'ci.case_index_date AS "{output_col}"' if c == output_col else (f"c.{c}" if c in control_cols else f"NULL AS {c}")
             for c in output_common_cols
