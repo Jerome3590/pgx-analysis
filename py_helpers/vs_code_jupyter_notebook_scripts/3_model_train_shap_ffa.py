@@ -17,6 +17,7 @@
 import sys
 import os
 import subprocess
+import shutil
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -233,6 +234,10 @@ if fi_ok_all:
 # It WRITES: MODEL_DATA_ROOT/cohort_name={cohort}/age_band={age_band}/model_events.parquet
 import duckdb
 
+FORCE_STEP4_NON_OPIOID = True
+FORCE_STEP4_ALL = False
+STEP4_BACKUP_ROOT = DATA_ROOT / "backups" / "step4_model_events_pre_rebuild"
+
 def _model_data_candidates(cohort: str, age_band: str):
     """Canonical location for model_events.parquet (Step 4 writes to MODEL_DATA_ROOT)."""
     return [MODEL_DATA_ROOT]
@@ -244,6 +249,21 @@ def _model_data_path(cohort: str, age_band: str) -> Path:
         if p.exists():
             return p
     return None
+
+def _backup_existing_model_data_if_forced(cohort: str, age_band: str) -> None:
+    force = FORCE_STEP4_ALL or (FORCE_STEP4_NON_OPIOID and cohort == "non_opioid_ed")
+    if not force:
+        return
+    path = _model_data_path(cohort, age_band)
+    if not path:
+        return
+    backup_dir = STEP4_BACKUP_ROOT / f"cohort_name={cohort}" / f"age_band={age_band}"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / "model_events.parquet"
+    if backup_path.exists():
+        backup_path.unlink()
+    shutil.move(str(path), str(backup_path))
+    print(f"  [FORCE] Moved existing model_events.parquet to {backup_path}")
 
 def _log_model_data_qa(cohort: str, age_band: str) -> None:
     """Log location, target distribution, and control:case ratio for model_events.parquet."""
@@ -266,14 +286,36 @@ def _log_model_data_qa(cohort: str, age_band: str) -> None:
         ratio = (n_controls / n_cases) if n_cases else 0
         print(f"  Target distribution: {by_target} (total rows: {total:,})")
         print(f"  Control:case ratio: {n_controls:,}:{n_cases:,} = {ratio:.2f}:1")
+        event_counts = con.execute(
+            """
+            SELECT
+              target,
+              COUNT(DISTINCT mi_person_key)::BIGINT AS patients,
+              AVG(n_events) AS mean_events,
+              MEDIAN(n_events) AS median_events,
+              MIN(n_events) AS min_events,
+              MAX(n_events) AS max_events
+            FROM (
+              SELECT mi_person_key, target, COUNT(*) AS n_events
+              FROM read_parquet(?)
+              GROUP BY mi_person_key, target
+            )
+            GROUP BY target
+            ORDER BY target
+            """,
+            [str(path)],
+        ).df()
+        print("  Patient-level event-count QA:")
+        print(event_counts.to_string(index=False))
     finally:
         con.close()
 
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
         print(f"→ Step 4: {cohort} / {age_band} (building model_events.parquet)")
+        _backup_existing_model_data_if_forced(cohort, age_band)
         r = subprocess.run(
-            [sys.executable, "create_model_data.py", "--cohort", cohort, "--age-band", age_band],
+            [sys.executable, "create_model_data.py", "--cohort", cohort, "--age_band", age_band],
             cwd=PROJECT_ROOT / "4_model_data",
             capture_output=False,
         )
@@ -310,11 +352,18 @@ print("Step 5 complete.")
 # %%
 # Pipeline Step 6: run_final_model.py for each REQUIRED_COHORTS (cohort, age_band)
 # Note: script uses --age_band (underscore). Default --train-mode is per_bin (omit flag).
+FORCE_STEP6 = True
+STEP6_TRAIN_MODE = None
 for cohort, bands in REQUIRED_COHORTS.items():
     for age_band in bands:
         print(f"→ Step 6: {cohort} / {age_band}")
+        cmd = [sys.executable, "run_final_model.py", "--cohort", cohort, "--age_band", age_band]
+        if STEP6_TRAIN_MODE:
+            cmd.extend(["--train-mode", STEP6_TRAIN_MODE])
+        if FORCE_STEP6:
+            cmd.append("--force-retrain")
         r = subprocess.run(
-            [sys.executable, "run_final_model.py", "--cohort", cohort, "--age_band", age_band],
+            cmd,
             cwd=PROJECT_ROOT / "6_final_model",
         )
         if r.returncode != 0:
