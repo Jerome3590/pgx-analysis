@@ -1018,6 +1018,22 @@ def filter_cohort_events_for_items(
             """
         )
 
+    # Build control exclusion filter (blacklist approach)
+    # Controls keep all features EXCEPT post-target leakage features
+    control_exclusion_condition = "TRUE"  # Default: no exclusions
+    if control_exclusions and len(control_exclusions) > 0:
+        exclusion_list_literal = ", ".join(f"'{v}'" for v in control_exclusions)
+        # Build exclusion conditions for all item-bearing columns
+        exclusion_icd_conditions = " OR ".join(
+            f"{col} IN ({exclusion_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
+        )
+        control_exclusion_condition = f"""NOT (
+            drug_name IN ({exclusion_list_literal}) OR
+            {exclusion_icd_conditions} OR
+            procedure_code IN ({exclusion_list_literal})
+        )"""
+        print(f"[INFO] Applying control exclusions: excluding {len(control_exclusions)} post-target leakage features")
+
     # 4. Construct case and control events and write to Parquet
     # Target leakage removal (Step 4): keep only events strictly before target date for cases.
     # Use source_col (cohort column name) for the filter since we read from cohort.
@@ -1074,7 +1090,7 @@ def filter_cohort_events_for_items(
                     c.mi_person_key,
                     c.event_date,
                     ci.case_index_date,
-                    CASE WHEN {item_filter_condition} THEN 1 ELSE 0 END AS passes_item_filter,
+                    CASE WHEN {control_exclusion_condition} THEN 1 ELSE 0 END AS passes_exclusion_filter,
                     CASE
                         WHEN c.event_date IS NOT NULL
                          AND CAST(c.event_date AS DATE) >= ci.case_index_date - INTERVAL {lookback_days} DAY
@@ -1088,10 +1104,10 @@ def filter_cohort_events_for_items(
             SELECT
                 COUNT(DISTINCT mi_person_key)::BIGINT AS joined_case_patients,
                 COUNT(*)::BIGINT AS joined_rows,
-                SUM(passes_item_filter)::BIGINT AS item_filter_rows,
+                SUM(passes_exclusion_filter)::BIGINT AS exclusion_filter_rows,
                 SUM(in_lookback)::BIGINT AS lookback_rows,
-                SUM(CASE WHEN passes_item_filter = 1 AND in_lookback = 1 THEN 1 ELSE 0 END)::BIGINT AS final_case_rows,
-                COUNT(DISTINCT CASE WHEN passes_item_filter = 1 AND in_lookback = 1 THEN mi_person_key END)::BIGINT AS final_case_patients
+                SUM(CASE WHEN passes_exclusion_filter = 1 AND in_lookback = 1 THEN 1 ELSE 0 END)::BIGINT AS final_case_rows,
+                COUNT(DISTINCT CASE WHEN passes_exclusion_filter = 1 AND in_lookback = 1 THEN mi_person_key END)::BIGINT AS final_case_patients
             FROM joined
             """
         ).fetchone()
@@ -1099,7 +1115,7 @@ def filter_cohort_events_for_items(
             f"[INFO] Case gold-event survival QA for {cohort_name}/{age_band}: "
             f"joined_patients={int(case_gold_join_stats[0] or 0):,}, "
             f"joined_rows={int(case_gold_join_stats[1] or 0):,}, "
-            f"item_filter_rows={int(case_gold_join_stats[2] or 0):,}, "
+            f"exclusion_filter_rows={int(case_gold_join_stats[2] or 0):,}, "
             f"lookback_rows={int(case_gold_join_stats[3] or 0):,}, "
             f"final_case_rows={int(case_gold_join_stats[4] or 0):,}, "
             f"final_case_patients={int(case_gold_join_stats[5] or 0):,}"
@@ -1109,8 +1125,8 @@ def filter_cohort_events_for_items(
             logger.info(case_gold_join_msg)
         if int(case_gold_join_stats[4] or 0) == 0:
             msg = (
-                f"[ERROR] No non_opioid_ed case gold events survive item filtering and {lookback_days}-day pre-index lookback "
-                f"for {cohort_name}/{age_band}. Check gold event coverage, item_filter_condition, and index-date alignment."
+                f"[ERROR] No non_opioid_ed case gold events survive post-target exclusions and {lookback_days}-day pre-index lookback "
+                f"for {cohort_name}/{age_band}. Check gold event coverage, exclusion filters, and index-date alignment."
             )
             print(msg)
             if logger:
@@ -1133,7 +1149,7 @@ def filter_cohort_events_for_items(
             JOIN case_index_dates ci
                 ON CAST(c.mi_person_key AS VARCHAR) = ci.mi_person_key
             WHERE
-                {item_filter_condition}
+                {control_exclusion_condition}
                 AND c.event_date IS NOT NULL
                 AND CAST(c.event_date AS DATE) >= ci.case_index_date - INTERVAL {lookback_days} DAY
                 AND CAST(c.event_date AS DATE) < ci.case_index_date
@@ -1143,22 +1159,6 @@ def filter_cohort_events_for_items(
             f"[index-{lookback_days}d, index) before {source_col}"
         )
 
-    # Build control exclusion filter (blacklist approach)
-    # Controls keep all features EXCEPT post-target leakage features
-    control_exclusion_condition = "TRUE"  # Default: no exclusions
-    if control_exclusions and len(control_exclusions) > 0:
-        exclusion_list_literal = ", ".join(f"'{v}'" for v in control_exclusions)
-        # Build exclusion conditions for all item-bearing columns
-        exclusion_icd_conditions = " OR ".join(
-            f"{col} IN ({exclusion_list_literal})" for col in ALL_ICD_DIAGNOSIS_COLUMNS
-        )
-        control_exclusion_condition = f"""NOT (
-            drug_name IN ({exclusion_list_literal}) OR
-            {exclusion_icd_conditions} OR
-            procedure_code IN ({exclusion_list_literal})
-        )"""
-        print(f"[INFO] Applying control exclusions: excluding {len(control_exclusions)} post-target leakage features")
-    
     if is_opioid:
         control_events_query = f"""
             SELECT

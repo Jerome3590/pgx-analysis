@@ -325,6 +325,7 @@ ORDER BY target;
 **Code review checklist:**
 - [ ] Cases and controls are sourced from comparable event tables.
 - [ ] Cases and controls use the same pre-index lookback length when final-model features include event counts or drug counts.
+- [ ] Cases and controls use symmetric row-inclusion filters in Step 4; do not apply Step 3b important-item inclusion only to cases while controls retain broad gold histories.
 - [ ] `n_events`, `n_event_bin_ordinal`, `pgx_num_drugs`, and `pgx_num_cpic_drugs` distributions overlap by target class.
 - [ ] Any recall/AUC/PR-AUC above 0.85 is audited for construction artifacts before being accepted.
 - [ ] Step 4 logs the source-to-output target-date mapping (for example, `first_ed_non_opioid_date` → `first_o11_p_date`) and non-null counts before and after writing `model_events.parquet`.
