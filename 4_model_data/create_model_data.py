@@ -734,6 +734,13 @@ def filter_cohort_events_for_items(
     is_opioid = _is_opioid_cohort(cohort_name)
     output_col = TARGET_DATE_COL_OPIOID if is_opioid else TARGET_DATE_COL_NON_OPIOID
     source_col = COHORT_SOURCE_COL_OPIOID if is_opioid else COHORT_SOURCE_COL_NON_OPIOID
+    target_col_msg = (
+        f"[INFO] Target date column mapping for {cohort_name}/{age_band}: "
+        f"cohort source '{source_col}' -> model_events output '{output_col}'"
+    )
+    print(target_col_msg)
+    if logger:
+        logger.info(target_col_msg)
     # non_opioid_ed: allow first_opioid_ed_date as fallback if first_ed_non_opioid_date missing (legacy schema)
     if not is_opioid and source_col not in cohort_cols and COHORT_SOURCE_COL_OPIOID in cohort_cols:
         source_col = COHORT_SOURCE_COL_OPIOID
@@ -749,6 +756,30 @@ def filter_cohort_events_for_items(
             logger.error(msg)
         con.close()
         return
+    source_non_null = con.execute(
+        f"""
+        SELECT COUNT(*)::BIGINT
+        FROM read_parquet([{cohort_paths_literal}], union_by_name=True)
+        WHERE is_target_case = 1 AND "{source_col}" IS NOT NULL
+        """
+    ).fetchone()[0]
+    source_count_msg = (
+        f"[INFO] Target date source check for {cohort_name}/{age_band}: "
+        f"{source_non_null} target-case rows have non-null '{source_col}'"
+    )
+    print(source_count_msg)
+    if logger:
+        logger.info(source_count_msg)
+    if int(source_non_null or 0) == 0:
+        msg = (
+            f"[ERROR] Cohort target cases have no non-null '{source_col}' for {cohort_name}/{age_band}. "
+            f"Cannot populate '{output_col}' in model_events."
+        )
+        print(msg)
+        if logger:
+            logger.error(msg)
+        con.close()
+        sys.exit(1)
     if source_col not in common_cols:
         common_cols = list(common_cols) + [source_col]
         print(f"[INFO] Including cohort-only column in model_events for target date (output: {output_col}).")
@@ -1106,6 +1137,36 @@ def filter_cohort_events_for_items(
     print(write_msg)
     if logger:
         logger.info(write_msg)
+    output_col = TARGET_DATE_COL_OPIOID if _is_opioid_cohort(cohort_name) else TARGET_DATE_COL_NON_OPIOID
+    path_str = str(out_path).replace("'", "''")
+    out_col_check = duckdb.connect()
+    try:
+        output_schema = out_col_check.execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{path_str}')"
+        ).fetchall()
+        output_cols = [row[0] for row in output_schema]
+        if output_col in output_cols:
+            output_non_null = out_col_check.execute(
+                f"""
+                SELECT COUNT(*)::BIGINT
+                FROM read_parquet('{path_str}')
+                WHERE target = 1 AND "{output_col}" IS NOT NULL
+                """
+            ).fetchone()[0]
+            output_col_msg = (
+                f"[INFO] Target date output check for {cohort_name}/{age_band}: "
+                f"{output_non_null} target-case rows have non-null '{output_col}'"
+            )
+        else:
+            output_col_msg = (
+                f"[ERROR] Target date output check for {cohort_name}/{age_band}: "
+                f"model_events schema missing '{output_col}'. Columns: {output_cols[:20]}{'...' if len(output_cols) > 20 else ''}"
+            )
+        print(output_col_msg)
+        if logger:
+            logger.info(output_col_msg)
+    finally:
+        out_col_check.close()
     
     # Validate that controls are present and ratio is approximately correct
     validation_result = _validate_model_events_has_controls(out_path)
