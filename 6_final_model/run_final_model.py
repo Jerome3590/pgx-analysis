@@ -1982,6 +1982,52 @@ def train_and_evaluate(
     if cat_feature_indices:
         print(f"Marking {len(cat_feature_indices)} binary features (item_*) as categorical for CatBoost")
 
+    nonconstant_feature_count = int((X.nunique(dropna=False) > 1).sum())
+    nonconstant_cat_feature_count = 0
+    constant_feature_names = sorted(X.columns[X.nunique(dropna=False) <= 1].tolist())
+    nonconstant_feature_names = sorted(X.columns[X.nunique(dropna=False) > 1].tolist())
+    constant_cat_feature_names = []
+    nonconstant_cat_feature_names = []
+    if cat_feature_indices:
+        cat_cols = [numeric_feature_cols[i] for i in cat_feature_indices]
+        cat_nunique = X[cat_cols].nunique(dropna=False)
+        nonconstant_cat_feature_count = int((cat_nunique > 1).sum())
+        constant_cat_feature_names = sorted(cat_nunique[cat_nunique <= 1].index.tolist())
+        nonconstant_cat_feature_names = sorted(cat_nunique[cat_nunique > 1].index.tolist())
+
+    print(
+        "[QA][FEATURE_VARIANCE] "
+        f"cohort={cohort}, age_band={age_band}, bin={bin_name or 'aggregate'}, "
+        f"features={X.shape[1]}, nonconstant={nonconstant_feature_count}, "
+        f"constant={len(constant_feature_names)}, cat_features={len(cat_feature_indices)}, "
+        f"nonconstant_cat={nonconstant_cat_feature_count}, "
+        f"constant_cat={len(constant_cat_feature_names)}"
+    )
+    if constant_feature_names:
+        print(
+            "[QA][CONSTANT_FEATURES_SAMPLE] "
+            + ", ".join(constant_feature_names[:50])
+            + (" ..." if len(constant_feature_names) > 50 else "")
+        )
+    if nonconstant_feature_names:
+        print(
+            "[QA][NONCONSTANT_FEATURES_SAMPLE] "
+            + ", ".join(nonconstant_feature_names[:50])
+            + (" ..." if len(nonconstant_feature_names) > 50 else "")
+        )
+    if constant_cat_feature_names:
+        print(
+            "[QA][CONSTANT_CAT_FEATURES_SAMPLE] "
+            + ", ".join(constant_cat_feature_names[:50])
+            + (" ..." if len(constant_cat_feature_names) > 50 else "")
+        )
+    if nonconstant_cat_feature_names:
+        print(
+            "[QA][NONCONSTANT_CAT_FEATURES_SAMPLE] "
+            + ", ".join(nonconstant_cat_feature_names[:50])
+            + (" ..." if len(nonconstant_cat_feature_names) > 50 else "")
+        )
+
     # ------------------------------------------------------------------
     # Class distribution diagnostics
     # ------------------------------------------------------------------
@@ -2146,7 +2192,18 @@ def train_and_evaluate(
         from catboost import CatBoostClassifier  # type: ignore
 
         have_catboost = True
-        print(f"[INFO] CatBoost is available - will run for all {n_runs} MC CV splits")
+        if cat_feature_indices and nonconstant_cat_feature_count == 0:
+            have_catboost = False
+            print(
+                "[QA][CATBOOST_DISABLED] CatBoost is installed, but all item_* "
+                "categorical features are constant in this training subset. "
+                f"cohort={cohort}, age_band={age_band}, bin={bin_name or 'aggregate'}, "
+                f"total_nonconstant_features={nonconstant_feature_count}, "
+                f"nonconstant_cat_features={nonconstant_cat_feature_count}. "
+                "Running XGBoost models only."
+            )
+        else:
+            print(f"[INFO] CatBoost is available - will run for all {n_runs} MC CV splits")
     except Exception:
         have_catboost = False
         print(f"[INFO] CatBoost not available - only running XGBoost models for {n_runs} MC CV splits")
@@ -2242,6 +2299,7 @@ def train_and_evaluate(
                 else:
                     best_xgb_variant = "xgb"
             # Run full n_runs MCCV with selected model (Optuna params) and others (defaults) to fill metrics
+            catboost_runtime_disabled = False
             for run_idx in range(n_runs):
                 X_train, X_test, y_train, y_test = train_test_split(
                     X, y, test_size=0.3, stratify=y, random_state=RANDOM_STATE + run_idx
@@ -2276,7 +2334,7 @@ def train_and_evaluate(
                 metrics["xgb_rf"]["logloss"].append(log_loss(y_test, y_proba_xgb_rf))
                 metrics["xgb_rf"]["recall"].append(recall_score(y_test, (y_proba_xgb_rf >= 0.5).astype(int)))
                 y_proba_cb = None
-                if have_catboost:
+                if have_catboost and not catboost_runtime_disabled:
                     cb_params = optuna_best_params if selected_model == "cat" else _default_cat_params()
                     cb_clf = _build_model_from_params(cb_params, "cat", device, nthread, cat_feature_indices)
                     cb_train_dir = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname / "catboost_info"
@@ -2290,7 +2348,33 @@ def train_and_evaluate(
                         metrics["catboost"]["logloss"].append(log_loss(y_test, y_proba_cb))
                         metrics["catboost"]["recall"].append(recall_score(y_test, (y_proba_cb >= 0.5).astype(int)))
                     except Exception as e:
-                        print(f"[WARN] CatBoost run {run_idx + 1} failed: {e}")
+                        catboost_runtime_disabled = True
+                        train_nunique = X_train.nunique(dropna=False)
+                        train_constant = sorted(train_nunique[train_nunique <= 1].index.tolist())
+                        train_nonconstant = sorted(train_nunique[train_nunique > 1].index.tolist())
+                        train_cat_cols = [numeric_feature_cols[i] for i in cat_feature_indices]
+                        train_cat_nunique = X_train[train_cat_cols].nunique(dropna=False) if train_cat_cols else pd.Series(dtype=int)
+                        train_constant_cat = sorted(train_cat_nunique[train_cat_nunique <= 1].index.tolist())
+                        train_nonconstant_cat = sorted(train_cat_nunique[train_cat_nunique > 1].index.tolist())
+                        print(
+                            f"[QA][CATBOOST_DISABLED] CatBoost failed on MC run {run_idx + 1}; "
+                            "skipping CatBoost for remaining runs in this training subset and "
+                            f"using XGBoost/ensemble fallback. Error: {e}"
+                        )
+                        print(
+                            "[QA][CATBOOST_FAIL_FEATURE_VARIANCE] "
+                            f"train_features={X_train.shape[1]}, nonconstant={len(train_nonconstant)}, "
+                            f"constant={len(train_constant)}, nonconstant_cat={len(train_nonconstant_cat)}, "
+                            f"constant_cat={len(train_constant_cat)}"
+                        )
+                        if train_constant:
+                            print("[QA][CATBOOST_FAIL_CONSTANT_FEATURES_SAMPLE] " + ", ".join(train_constant[:50]) + (" ..." if len(train_constant) > 50 else ""))
+                        if train_nonconstant:
+                            print("[QA][CATBOOST_FAIL_NONCONSTANT_FEATURES_SAMPLE] " + ", ".join(train_nonconstant[:50]) + (" ..." if len(train_nonconstant) > 50 else ""))
+                        if train_constant_cat:
+                            print("[QA][CATBOOST_FAIL_CONSTANT_CAT_FEATURES_SAMPLE] " + ", ".join(train_constant_cat[:50]) + (" ..." if len(train_constant_cat) > 50 else ""))
+                        if train_nonconstant_cat:
+                            print("[QA][CATBOOST_FAIL_NONCONSTANT_CAT_FEATURES_SAMPLE] " + ", ".join(train_nonconstant_cat[:50]) + (" ..." if len(train_nonconstant_cat) > 50 else ""))
                 # Ensemble
                 if y_proba_cb is not None:
                     y_proba_xgb_best = y_proba_xgb if metrics["xgb"]["recall"][-1] >= metrics["xgb_rf"]["recall"][-1] else y_proba_xgb_rf
@@ -2324,6 +2408,7 @@ def train_and_evaluate(
 
     if not optuna_used:
         # Legacy path: fixed hyperparameters, select by AUC-PR then Recall
+        catboost_runtime_disabled = False
         for run_idx in range(n_runs):
             # MC split
             X_train, X_test, y_train, y_test = train_test_split(
@@ -2417,7 +2502,7 @@ def train_and_evaluate(
             metrics["xgb_rf"]["recall"].append(recall_score(y_test, y_pred_xgb_rf))
 
             y_proba_cb = None
-            if have_catboost:
+            if have_catboost and not catboost_runtime_disabled:
                 # Scope CatBoost's internal training artifacts (catboost_info) to a
                 # cohort/age-band specific directory under 6_final_model outputs,
                 # instead of writing to the project root.
@@ -2460,7 +2545,33 @@ def train_and_evaluate(
                         recall_score(y_test, y_pred_cb)
                     )
                 except Exception as e:
-                    print(f"\nCatBoost training failed in run {run_idx + 1}; skipping. {e}")
+                    catboost_runtime_disabled = True
+                    train_nunique = X_train.nunique(dropna=False)
+                    train_constant = sorted(train_nunique[train_nunique <= 1].index.tolist())
+                    train_nonconstant = sorted(train_nunique[train_nunique > 1].index.tolist())
+                    train_cat_cols = [numeric_feature_cols[i] for i in cat_feature_indices]
+                    train_cat_nunique = X_train[train_cat_cols].nunique(dropna=False) if train_cat_cols else pd.Series(dtype=int)
+                    train_constant_cat = sorted(train_cat_nunique[train_cat_nunique <= 1].index.tolist())
+                    train_nonconstant_cat = sorted(train_cat_nunique[train_cat_nunique > 1].index.tolist())
+                    print(
+                        f"\n[QA][CATBOOST_DISABLED] CatBoost failed on MC run {run_idx + 1}; "
+                        "skipping CatBoost for remaining runs in this training subset and "
+                        f"using XGBoost/ensemble fallback. Error: {e}"
+                    )
+                    print(
+                        "[QA][CATBOOST_FAIL_FEATURE_VARIANCE] "
+                        f"train_features={X_train.shape[1]}, nonconstant={len(train_nonconstant)}, "
+                        f"constant={len(train_constant)}, nonconstant_cat={len(train_nonconstant_cat)}, "
+                        f"constant_cat={len(train_constant_cat)}"
+                    )
+                    if train_constant:
+                        print("[QA][CATBOOST_FAIL_CONSTANT_FEATURES_SAMPLE] " + ", ".join(train_constant[:50]) + (" ..." if len(train_constant) > 50 else ""))
+                    if train_nonconstant:
+                        print("[QA][CATBOOST_FAIL_NONCONSTANT_FEATURES_SAMPLE] " + ", ".join(train_nonconstant[:50]) + (" ..." if len(train_nonconstant) > 50 else ""))
+                    if train_constant_cat:
+                        print("[QA][CATBOOST_FAIL_CONSTANT_CAT_FEATURES_SAMPLE] " + ", ".join(train_constant_cat[:50]) + (" ..." if len(train_constant_cat) > 50 else ""))
+                    if train_nonconstant_cat:
+                        print("[QA][CATBOOST_FAIL_NONCONSTANT_CAT_FEATURES_SAMPLE] " + ", ".join(train_nonconstant_cat[:50]) + (" ..." if len(train_nonconstant_cat) > 50 else ""))
 
             # Ensemble: Use best XGBoost variant (will be selected after MC-CV) + CatBoost
             # For now, use XGBoost (will be replaced by best variant after selection)
