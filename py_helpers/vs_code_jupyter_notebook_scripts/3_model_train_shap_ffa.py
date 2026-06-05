@@ -390,7 +390,29 @@ DOWNSTREAM_COHORTS = ["non_opioid_ed"]
 FORCE_STEP6 = False
 FORCE_STEP6_REBUILT_ONLY = True
 STEP6_TRAIN_MODE = None
+CLEAN_STEP6_DOWNSTREAM_ARTIFACTS = True
 REBUILT_STEP4 = globals().get("REBUILT_STEP4", set())
+
+downstream_cohorts_to_clean = sorted({cohort for cohort, _ in iter_downstream_cohorts()})
+if CLEAN_STEP6_DOWNSTREAM_ARTIFACTS:
+    print(f"[CLEAN] Removing existing Step 6 model artifacts for downstream cohorts: {downstream_cohorts_to_clean}")
+    _aws = shutil.which("aws") or "aws"
+    _profile = ["--profile", AWS_PROFILE] if AWS_PROFILE else []
+    for clean_cohort in downstream_cohorts_to_clean:
+        s3_uri = f"s3://{S3_BUCKET}/gold/final_model/{clean_cohort}/"
+        r = subprocess.run([_aws, "s3", "rm", s3_uri, "--recursive"] + _profile, capture_output=True, text=True)
+        if r.returncode == 0:
+            print(f"[CLEAN] Removed S3 artifacts: {s3_uri}")
+        else:
+            print(f"[WARN] S3 cleanup failed for {s3_uri}: {r.stderr or r.stdout or ''}")
+        for base in (FINAL_MODEL_OUTPUTS, FINAL_MODEL_OUTPUTS_ALT, FINAL_MODEL_GOLD):
+            path = Path(base) / clean_cohort
+            if path.exists():
+                shutil.rmtree(path)
+                print(f"[CLEAN] Removed local artifacts: {path}")
+            else:
+                print(f"[CLEAN] Local path not present: {path}")
+
 for cohort, age_band in iter_downstream_cohorts():
     print(f"→ Step 6: {cohort} / {age_band}")
     cmd = [sys.executable, "run_final_model.py", "--cohort", cohort, "--age_band", age_band]

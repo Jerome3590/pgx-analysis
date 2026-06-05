@@ -2205,7 +2205,10 @@ def train_and_evaluate(
                 clf = _build_model_from_trial(trial, model_type, device, nthread, cat_feature_indices)
                 try:
                     clf.fit(X_tr, y_tr)
-                except Exception:
+                except Exception as e:
+                    if model_type == "cat":
+                        trial.set_user_attr("catboost_failed_reason", str(e))
+                        return (0.0, 0.0)
                     if model_type in ("xgb", "xgb_rf") and hasattr(clf, "set_params"):
                         clf.set_params(tree_method="hist")
                         if "device" in clf.get_params():
@@ -3481,6 +3484,58 @@ def train_per_bin(
     print(f"  Full dataset: {len(df)} patients")
     print(f"  Bin distribution: {df['n_event_bin'].value_counts().to_dict()}")
     print(f"{'='*60}")
+
+    bin_qa = []
+    for bin_name in _DENSITY_BINS:
+        bin_df = df[df["n_event_bin"] == bin_name]
+        n_total = len(bin_df)
+        n_cases = int((bin_df["target"] == 1).sum())
+        n_controls = int((bin_df["target"] == 0).sum())
+        fallback_needed = (
+            n_total < min_total or n_cases < min_per_class or n_controls < min_per_class
+        )
+        bin_qa.append(
+            {
+                "bin": bin_name,
+                "n_total": n_total,
+                "n_cases": n_cases,
+                "n_controls": n_controls,
+                "fallback_needed": fallback_needed,
+            }
+        )
+
+    qa_df = pd.DataFrame(bin_qa)
+    print("\nPer-bin class-support QA:")
+    print(qa_df.to_string(index=False))
+    fallback_bins = [row["bin"] for row in bin_qa if row["fallback_needed"]]
+    if fallback_bins:
+        print(
+            "\n[QA][FALLBACK_REQUIRED] One or more density bins do not have enough "
+            "case/control support for independent per-bin training. These bins will use "
+            f"full-cohort pooled fallback artifacts: {fallback_bins}"
+        )
+        age_band_fname = age_band_to_fname(age_band)
+        aggregate_metadata = (
+            PROJECT_ROOT
+            / "6_final_model"
+            / "outputs"
+            / cohort
+            / age_band_fname
+            / f"{cohort}_{age_band_fname}_model_selection_metadata.json"
+        )
+        if force_retrain or not aggregate_metadata.exists():
+            print(
+                "[QA][FALLBACK_SOURCE] Training full-cohort aggregate model before "
+                "per-bin fallbacks so pooled fallback artifacts are current."
+            )
+            train_and_evaluate(
+                df,
+                cohort,
+                age_band,
+                n_runs=n_runs,
+                bin_name=None,
+                force_retrain=force_retrain,
+            )
 
     for bin_name in _DENSITY_BINS:
         bin_df = df[df["n_event_bin"] == bin_name].copy()
