@@ -158,6 +158,9 @@ The winner is chosen by sorting candidates on **PR-AUC mean** (primary), then **
 | `model` | XGBoost \| XGBoost_RF \| CatBoost \| Ensemble |
 | `recall_mean` | Mean recall across MC-CV splits at threshold 0.5 |
 | `pr_auc_mean` | Mean Precision-Recall AUC across splits |
+| `event_prevalence` | Positive-class prevalence in the training/evaluation matrix; random-classifier PR-AUC baseline |
+| `pr_auc_random_baseline` | Same as prevalence; included for manuscript/reporting clarity |
+| `pr_auc_lift_over_prevalence` | `pr_auc_mean / event_prevalence`; primary strength interpretation for imbalanced cohorts |
 | `auc_mean` | Mean ROC-AUC (informational only, not used for selection) |
 | `logloss_mean` | Mean log loss |
 | `n_runs` | Number of MC-CV splits contributing |
@@ -418,7 +421,8 @@ Identical metrics across `low`, `medium`, `high`, and `extreme` should therefore
 ### Metric interpretation for attribution
 
 - **AUC**: Used as evidence that the model ranks cases above controls better than chance. AUC values around `0.73-0.84` indicate meaningful signal for attribution.
-- **PR-AUC**: More informative than ROC-AUC under class imbalance and used as the primary model-selection metric.
+- **PR-AUC / AUPRC**: More informative than ROC-AUC under class imbalance and used as the primary model-selection metric. Interpret absolute PR-AUC relative to event prevalence because a random classifier has expected PR-AUC approximately equal to the positive-class prevalence.
+- **PR lift over prevalence**: Report `PR-AUC / prevalence` for manuscript-facing model strength. Suggested labels: `<1.5x` weak, `1.5-2x` modest, `2-3x` moderate, `3-5x` strong, and `>5x` very strong.
 - **Recall at 0.5**: Useful operationally, but lower priority for feature attribution. Low recall with reasonable AUC/PR-AUC often reflects conservative thresholding rather than absence of signal.
 - **Feature variance QA**: CatBoost and SHAP require nonconstant model features. Step 6 logs feature-variance summaries and disables CatBoost when all categorical `item_*` features are constant.
 
@@ -454,6 +458,8 @@ When rerun completes, summarize `opioid_ed` with the same fields as `non_opioid_
 - **Selected model by age band**
 - **Recall mean**
 - **PR-AUC mean**
+- **Event prevalence / random PR-AUC baseline**
+- **PR-AUC lift over prevalence**
 - **AUC mean**
 - **Logloss mean**
 - **Whether bins are independently trained or aggregate/pool-derived fallback artifacts**
