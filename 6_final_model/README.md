@@ -397,6 +397,64 @@ plot_files = create_feature_importance_plots(
 
 **Case vs control `n_events`:** Counts rows in `model_events.parquet`—cases are pre-target and FI-filtered; controls use the full partition-year extract (see `4_model_data/README_model_data.md`). Full checklist: [`docs/CrossStep_Development/README_target_leakage.md`](../docs/CrossStep_Development/README_target_leakage.md).
 
+## Cohort-Level Performance Interpretation for Feature Attribution
+
+The primary Step 6 objective is to produce stable tree-model artifacts for feature importance, SHAP, and formal feature attribution. Risk classification performance is still monitored, but the key requirement is that models learn non-random structure with enough feature variance to support interpretable attribution.
+
+### Density-bin fallback interpretation
+
+Per-density-bin outputs may intentionally share identical metrics within an age band. This happens when one or more bins do not have enough patients or class support for independent training. In that case, `train_per_bin()` mirrors the full-cohort aggregate artifact into `bin_models/{bin}/` and writes `INFERENCE_SOURCE.txt`.
+
+Identical metrics across `low`, `medium`, `high`, and `extreme` should therefore be interpreted as:
+
+- **Artifact scope**: Age-band-level aggregate or pooled model, routed through each density-bin artifact path.
+- **Attribution scope**: Global attribution for the trained artifact, not independent causal effects by density bin.
+- **Rationale**: Pooling sparse bins improves SHAP and feature-importance stability by increasing case/control support and preserving nonconstant drug/code features.
+
+### Metric interpretation for attribution
+
+- **AUC**: Used as evidence that the model ranks cases above controls better than chance. AUC values around `0.73-0.84` indicate meaningful signal for attribution.
+- **PR-AUC**: More informative than ROC-AUC under class imbalance and used as the primary model-selection metric.
+- **Recall at 0.5**: Useful operationally, but lower priority for feature attribution. Low recall with reasonable AUC/PR-AUC often reflects conservative thresholding rather than absence of signal.
+- **Feature variance QA**: CatBoost and SHAP require nonconstant model features. Step 6 logs feature-variance summaries and disables CatBoost when all categorical `item_*` features are constant.
+
+### Cohort: `non_opioid_ed`
+
+Current per-density-bin report shows identical metrics within each age band, consistent with aggregate/pool-derived artifacts being mirrored to bin paths where independent bin training is underpowered.
+
+| Age band | Selected model | Recall mean | PR-AUC mean | AUC mean | Logloss mean | Attribution strength |
+|----------|----------------|------------:|------------:|---------:|-------------:|----------------------|
+| `0-12` | XGBoost | 0.806503 | 0.623946 | 0.832602 | 0.420852 | Strongest; good recall and good PR-AUC |
+| `13-24` | XGBoost_RF | 0.403432 | 0.545988 | 0.803704 | 0.481149 | Good ranking signal, moderate recall |
+| `25-44` | Ensemble | 0.049091 | 0.361344 | 0.767801 | 0.394463 | Usable ranking signal; low threshold recall |
+| `45-54` | Ensemble | 0.027568 | 0.288278 | 0.745115 | 0.370865 | Modest signal; attribution should emphasize stability/plausibility |
+| `55-64` | CatBoost | 0.057561 | 0.351639 | 0.784849 | 0.371035 | Decent ranking signal; low threshold recall |
+| `65-74` | XGBoost_RF | 0.268889 | 0.403436 | 0.837711 | 0.337352 | Good AUC; useful for attribution |
+| `75-84` | XGBoost_RF | 0.156000 | 0.484997 | 0.796083 | 0.395208 | Good PR-AUC relative to recall; useful for attribution |
+| `85-114` | XGBoost | 0.171429 | 0.394233 | 0.725831 | 0.489415 | Modest but non-random signal |
+
+Summary: `non_opioid_ed` models are suitable for feature importance and SHAP work, especially because most age bands show meaningful discrimination even where fixed-threshold recall is low. For publication or clinical interpretation, emphasize PR-AUC/AUC, top-feature stability, feature plausibility, and leakage controls rather than default-threshold recall alone.
+
+### Cohort: `opioid_ed`
+
+Current recovery check found no local Step 6 final-model artifacts under `6_final_model/outputs/opioid_ed/` and no current S3 objects under:
+
+```text
+s3://pgxdatalake/gold/final_model/opioid_ed/
+```
+
+`list-object-versions` also returned no object versions or delete markers for that prefix, so S3 version-based recovery does not appear available from the final-model prefix. Unless another backup location exists, `opioid_ed` Step 6 artifacts likely need to be regenerated.
+
+When rerun completes, summarize `opioid_ed` with the same fields as `non_opioid_ed`:
+
+- **Selected model by age band**
+- **Recall mean**
+- **PR-AUC mean**
+- **AUC mean**
+- **Logloss mean**
+- **Whether bins are independently trained or aggregate/pool-derived fallback artifacts**
+- **Attribution readiness**, based on discrimination, feature variance, and clinical plausibility of top features
+
 ### Optional exploratory script (`analyze_trigger_features.py`)
 
 Analyzes distributions on **leakage-filtered** `final_features` parquet (production columns only). Use for percentile thresholds on `item_*` or binned utilization—not for legacy trajectory/`pre_n_*` columns unless reintroduced in a non-production branch.
