@@ -73,6 +73,13 @@ Feature engineering for the final model **does not produce** trajectory, sequenc
 
 ## Step 6 Pipeline Overview
 
+The authoritative production entry point is `3_model_train_shap_ffa.ipynb`. In the final workflow:
+
+- Step 4 runs both `opioid_ed` and `non_opioid_ed`, but skips existing `model_events.parquet` when force flags are off.
+- Step 5 runs both cohorts with checkpoint-aware behavior when `FORCE_STEP5 = False`.
+- Step 6 invokes `6_final_model/run_final_model.py` for both cohorts. With cleanup and force-retrain flags off, complete local/S3 model artifacts are not retrained; missing or incomplete artifacts regenerate.
+- Step 7 SHAP, Step 8 FFA, and Combine run for `DOWNSTREAM_ANALYSIS_COHORTS`, currently both `opioid_ed` and `non_opioid_ed`, after Step 6 artifacts are available.
+
 Step 6 for each `(cohort, age_band)` now has two main sub-steps:
 
 1. **6a – Feature encoding artifacts (per cohort)**
@@ -88,7 +95,7 @@ Step 6 for each `(cohort, age_band)` now has two main sub-steps:
          - For FP-Growth itemsets: `itemset_type` and `itemset_items` (actual drug/ICD/CPT/medical codes).
      - `6_final_model/create_drug_codebook.py`
        - Produces `{cohort}_{age_band_fname}_drug_codebook.csv` under the same locations.
-       - One row per distinct `drug_name` observed in `4a_model_data`, including:
+       - One row per distinct `drug_name` observed in Step 4 model data, including:
          - `drug_id`, `drug_name_raw`, `drug_name_normalized`
          - Full numeric encoding vector from `encode_drug_name_series` (length, phonetic, positional, entropy/run metrics, etc.).
    - These artifacts are **per cohort and age band**, matching FP-Growth frequency statistics and event distributions. They are used by:
@@ -96,10 +103,12 @@ Step 6 for each `(cohort, age_band)` now has two main sub-steps:
      - FFA and symbolic rule extraction (to map feature indices and itemsets back to human-readable codes and drugs).
 
 2. **6b – Final feature assembly and model selection**
-   - Implemented in `6b_final_model_selection/run_final_model.py`:
-     - Load event-level model data from `4a_model_data`, including protocol-filtered variants.
+   - Implemented in `6_final_model/run_final_model.py`:
+     - Load event-level model data from `4_model_data`.
      - Build final feature table (n_events, item_*, PGx, etc.; no trajectory/sequence/itemset—feature engineering never produces these).
      - Apply target-leakage removal rules (post-event features, time-to-target, DTW-derived features; defensive removal of any trajectory/sequence/itemset if ever present).
+     - Split temporally: train on 2016–2018 patients and evaluate 2019 as a true holdout.
+     - Default to `--train-mode per_bin`, with sparse density bins receiving full-cohort pooled fallback artifacts and `INFERENCE_SOURCE.txt`.
      - Restrict to numeric features and run Monte-Carlo CV for:
        - XGBoost (GPU if available).
        - CatBoost with `grow_policy="SymmetricTree"` (oblivious trees).
@@ -188,16 +197,11 @@ When Ensemble is selected, all three component models are loaded and their calib
   - Uses a **much larger number of MC-CV splits (target \~`N_SPLITS = 1000`)** on the selected feature set to obtain **highly stable performance estimates and uncertainty bounds** for publication-grade reporting.
   - The temporal structure is identical: each split trains on an 80% sample of **2016–2018** and is evaluated on **2019**, but now with **no permutation importance overhead**, focusing purely on predictive performance and calibration.
 
-See `final_model.ipynb` for the full Python workflow:
-
-- MC-CV performance comparison and model selection by **PR-AUC then Recall** (Ensemble eligible)
-- Optuna hyperparameter tuning on 2016–2018
-- Platt calibration on MC-CV OOF predictions (supersedes earlier temporal hold-out approach)
-- Final model export (joblib + native formats) locally and to S3 `gold/final_model/.../event_year=train/models/`
+The production workflow is driven by `3_model_train_shap_ffa.ipynb` calling `6_final_model/run_final_model.py`.
 
 ## Notebooks and Scripts
 
-- `final_model.ipynb`: MC-CV comparison, Optuna tuning, OOF Platt calibration, and final model export.
+- `run_final_model.py`: Production Step 6 entry point for feature assembly, model training/selection, per-bin artifacts, temporal holdout evaluation, and S3 upload.
 - `build_final_cohort_model_features.py`: Builds the final feature table (n_events, item_*, PGx, etc.). Feature engineering never generates trajectory/sequence/itemset.
   - For `non_opioid_ed` cohort: Filters to drug-only item features (excludes ICD/CPT codes for polypharmacy analysis)
 - `remove_target_leakage.py`: Removes target leakage features; DTW and any trajectory/sequence/itemset removed defensively (we do not produce those columns).
@@ -271,7 +275,7 @@ The final model uses the same visualization plots as the feature importance anal
 
 ### Creating Visualizations
 
-After extracting feature importances with `extract_final_feature_importance.py`, create visualizations:
+The current notebook metrics/visualization cell reads per-bin Step 6 metrics and the mirrored cohort-level XGBoost feature-importance CSV directly from `6_final_model/outputs/{cohort}/{age_band_fname}/`. Legacy plot scripts may still be useful for exploratory figures, but they are not the authoritative Step 6 workflow.
 
 ```bash
 # Create all visualization plots
@@ -489,14 +493,6 @@ python 6_final_model/analyze_trigger_features.py --cohort-name non_opioid_ed --a
      - Includes only drug features (`item_drug_*`)
      - Rationale: Polypharmacy analysis focuses on drug interactions and medication patterns
    - **opioid_ed Cohort**: Includes all event types (drugs, ICD codes, CPT codes)
-
-## TODOs
-
-- [ ] Implement feature engineering pipeline script
-- [ ] Create feature extraction utilities for FPGrowth, BupaR, DTW
-- [ ] Feature importance exploration: identify which features most strongly predict target outcomes
-- [ ] Use model-based importance and SHAP summaries to filter to manageable feature set
-- [ ] Post-model: revisit ICD/CPT/Drug heatmaps with top features only
 
 ## References
 

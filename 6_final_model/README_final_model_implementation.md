@@ -4,6 +4,22 @@ This step trains the final prediction models for each `(cohort, age_band)`, usin
 the leakage-filtered feature tables built from event-level model data and upstream
 feature engineering (PGx; BupaR/DTW/FP-Growth are dashboard-only).
 
+### Current notebook workflow
+
+The production entry point is `3_model_train_shap_ffa.ipynb`.
+
+- Step 4 runs for both `opioid_ed` and `non_opioid_ed`, but skips existing
+  `model_events.parquet` unless `FORCE_STEP4_ALL` or `FORCE_STEP4_NON_OPIOID`
+  is explicitly enabled.
+- Step 5 runs for both cohorts and should normally use `FORCE_STEP5 = False`
+  so checkpoint-aware logic can skip completed PGx outputs.
+- Step 6 invokes `run_final_model.py` for both cohorts. With
+  `CLEAN_STEP6_DOWNSTREAM_ARTIFACTS = False`, `FORCE_STEP6 = False`, and
+  `FORCE_STEP6_REBUILT_ONLY = False`, existing complete model artifacts are not
+  retrained. Missing or incomplete cohort/age-band artifacts regenerate.
+- Downstream SHAP, FFA, and combine use `DOWNSTREAM_ANALYSIS_COHORTS` and run
+  for both cohorts after Step 6 artifacts are available.
+
 ### Implementation
 
 The core implementation resides in this step:
@@ -13,8 +29,11 @@ The core implementation resides in this step:
   - Loads event-level model data from `4_model_data/.../model_events.parquet`.
   - Uses aggregated feature importances (Step 3a) and PGx patient-level features (Step 5).
   - Applies target-leakage removal (post-event, time-to-target, etc.).
+  - Performs a temporal split: training rows are restricted to patients with max event year `2016-2018`; `2019` is reserved for holdout evaluation.
+  - In `per_bin` mode, checks class support per density bin. Sparse bins receive full-cohort pooled fallback artifacts and an `INFERENCE_SOURCE.txt` marker instead of independently trained bin models.
+  - Includes CatBoost preflight/runtime guards so all-constant categorical features or CatBoost failures do not abort the full pipeline.
   - Restricts to numeric features and runs Monte-Carlo CV for:
-    - XGBoost and XGBoost RF (selects best by recall/AUC-PR).
+    - XGBoost and XGBoost RF (selects best by PR-AUC, then recall).
     - CatBoost with `grow_policy="SymmetricTree"` (oblivious trees).
   - **Platt calibration (OOF):** accumulates out-of-fold predictions across all MC-CV splits, then fits a `LogisticRegression(C=1)` calibrator per model type on the concatenated OOF probabilities vs actual outcomes. This corrects systematic over/under-prediction so dashboard risk scores match observed event rates. Saved as `models/calibration_{model_type}.joblib`. **Re-running model training regenerates calibration files.**
   - Exports:
@@ -36,6 +55,9 @@ Outputs are written under:
   - `models/calibration_catboost.joblib` — Platt calibrator for CatBoost
   - `models/calibration_diagnostics.json` — calibration diagnostics (raw→calibrated→observed rate per model)
   - `n_event_bin_thresholds.json` — P25/P50/P95 cut-points for event density binning
+- `6_final_model/outputs/{cohort}/{age_band_fname}/bin_models/{low|medium|high|extreme}/`
+  - Per-bin or fallback model artifacts and metrics.
+  - Fallback bins include `INFERENCE_SOURCE.txt`.
 
 > **⚠️ Calibration files require a training run.** If `models/calibration_*.joblib` is missing for a cohort/age_band (e.g. the model was trained before this feature was added), run `run_final_model.py` for that cohort/age_band. The Lambda falls back to raw probabilities when calibration files are absent — functional but uncalibrated.
 
