@@ -7,6 +7,7 @@ Harvests data missing from PIPELINE_RESULTS.md:
   2. DTW trajectory summary (total, target_1/0, trajectory_length stats)
   3. SHAP top-10 features per cohort/age_band (aggregate + per-bin)
   4. PGx feature coverage % (patients with >=1 PGx feature vs total)
+  5. Step 6 final-model metrics with AUPRC baseline and lift over prevalence
 
 Sources (local first, S3 fallback):
   FP-Growth : 10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{ab_fname}/{item_type}_rules.json
@@ -479,7 +480,114 @@ def extract_shap_features(
 
 
 # ---------------------------------------------------------------------------
-# 4. PGx feature coverage
+# 4. Final model metrics
+# ---------------------------------------------------------------------------
+
+def _pr_lift_label(lift: Optional[float]) -> str:
+    if lift is None:
+        return "unavailable"
+    if lift < 1.5:
+        return "weak"
+    if lift < 2.0:
+        return "modest"
+    if lift < 3.0:
+        return "moderate"
+    if lift < 5.0:
+        return "strong"
+    return "very strong"
+
+
+def extract_model_metrics(
+    use_s3: bool = True,
+    issues: Optional[List[Dict]] = None,
+) -> Dict[str, Any]:
+    """
+    For each (cohort, age_band), read Step 6 model_metrics_summary.csv and
+    report the selected model with prevalence baseline and PR-AUC lift.
+    """
+    if issues is None:
+        issues = []
+    results: Dict[str, Any] = {}
+
+    for cohort in COHORTS:
+        results[cohort] = {}
+        for ab in AGE_BANDS:
+            ab_fname = ab.replace("-", "_")
+            s3_uri = f"{S3_GOLD}/{cohort}/{ab}/{cohort}_{ab_fname}_model_metrics_summary.csv"
+            if not use_s3:
+                results[cohort][ab] = {"status": "skipped_no_s3"}
+                continue
+
+            df, err = _s3_read_csv(s3_uri)
+            if df is None:
+                sev = "error" if ab in _PRIMARY_BANDS else "warning"
+                _issue(
+                    issues,
+                    "model_metrics",
+                    cohort,
+                    ab,
+                    sev,
+                    f"Step 6 model metrics summary not found on S3 ({err})",
+                    "Rerun or sync Step 6 final model artifacts for this cohort/age_band",
+                    s3_uri=s3_uri,
+                )
+                results[cohort][ab] = {"status": "not_found", "s3_uri": s3_uri}
+                continue
+            if df.empty:
+                _issue(
+                    issues,
+                    "model_metrics",
+                    cohort,
+                    ab,
+                    "error",
+                    "Step 6 model metrics summary is empty",
+                    "Rerun Step 6 for this cohort/age_band",
+                    s3_uri=s3_uri,
+                )
+                results[cohort][ab] = {"status": "empty", "s3_uri": s3_uri}
+                continue
+
+            selected = df[df.get("selected", False) == True]
+            if selected.empty:
+                selected = df.sort_values(["pr_auc_mean", "recall_mean"], ascending=[False, False]).head(1)
+            row = selected.iloc[0]
+            pr_auc = float(row.get("pr_auc_mean", 0.0) or 0.0)
+            prevalence = row.get("event_prevalence", row.get("pr_auc_random_baseline", None))
+            prevalence = float(prevalence) if pd.notna(prevalence) else None
+            lift = row.get("pr_auc_lift_over_prevalence", None)
+            if lift is None or pd.isna(lift):
+                lift = (pr_auc / prevalence) if prevalence and prevalence > 0 else None
+            else:
+                lift = float(lift)
+
+            results[cohort][ab] = {
+                "status": "ok",
+                "selected_model": row.get("model"),
+                "recall_at_0_5_mean": float(row.get("recall_mean", 0.0) or 0.0),
+                "pr_auc_mean": pr_auc,
+                "event_prevalence": prevalence,
+                "pr_auc_random_baseline": prevalence,
+                "pr_auc_lift_over_prevalence": lift,
+                "pr_lift_label": _pr_lift_label(lift),
+                "auc_mean": float(row.get("auc_mean")) if pd.notna(row.get("auc_mean", None)) else None,
+                "logloss_mean": float(row.get("logloss_mean")) if pd.notna(row.get("logloss_mean", None)) else None,
+                "n_runs": int(row.get("n_runs", 0) or 0),
+                "s3_uri": s3_uri,
+            }
+            log.info(
+                "Model metrics %s/%s: %s PR-AUC=%.4f prevalence=%s lift=%s",
+                cohort,
+                ab,
+                row.get("model"),
+                pr_auc,
+                f"{prevalence:.4f}" if prevalence is not None else "NA",
+                f"{lift:.2f}x" if lift is not None else "NA",
+            )
+    return results
+
+
+# ---------------------------------------------------------------------------
+# 5. PGx feature coverage
 # ---------------------------------------------------------------------------
 
 def extract_pgx_coverage(
@@ -683,6 +791,42 @@ def _md_issues(issues: List[Dict]) -> str:
     return "\n".join(lines)
 
 
+def _md_model_metrics(model_metrics: Dict) -> str:
+    def _fmt_float(value: Any, digits: int = 4, suffix: str = "") -> str:
+        if value is None or pd.isna(value):
+            return "—"
+        return f"{float(value):.{digits}f}{suffix}"
+
+    lines = [
+        "## Step 6 Final Model Metrics\n",
+        "AUPRC/PR-AUC is interpreted relative to event prevalence. The expected PR-AUC of a random classifier is approximately the positive-class prevalence; `PR lift` is `PR-AUC / prevalence`.\n",
+        "| Cohort | Age Band | Selected Model | AUPRC | Prevalence | PR Lift | Strength | ROC-AUC | Recall@0.5 | LogLoss |",
+        "|:-------|:---------|:---------------|------:|-----------:|--------:|:---------|--------:|-----------:|--------:|",
+    ]
+    for cohort in COHORTS:
+        for ab in AGE_BANDS:
+            d = model_metrics.get(cohort, {}).get(ab, {})
+            if d.get("status") != "ok":
+                lines.append(f"| {cohort} | {ab} | — | — | — | — | missing | — | — | — |")
+                continue
+            prevalence = d.get("event_prevalence")
+            lift = d.get("pr_auc_lift_over_prevalence")
+            auc = d.get("auc_mean")
+            logloss = d.get("logloss_mean")
+            lines.append(
+                f"| {cohort} | {ab} | {d.get('selected_model', '—')} "
+                f"| {_fmt_float(d.get('pr_auc_mean'))} "
+                f"| {_fmt_float(prevalence)} "
+                f"| {_fmt_float(lift, digits=2, suffix='x')} "
+                f"| {d.get('pr_lift_label', '—')} "
+                f"| {_fmt_float(auc)} "
+                f"| {_fmt_float(d.get('recall_at_0_5_mean'))} "
+                f"| {_fmt_float(logloss)} |"
+            )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def _md_pgx(pgx: Dict) -> str:
     lines = ["## PGx Feature Coverage\n"]
     for cohort in COHORTS:
@@ -714,6 +858,7 @@ def main() -> None:
     ap.add_argument("--skip-fpgrowth", action="store_true")
     ap.add_argument("--skip-dtw", action="store_true")
     ap.add_argument("--skip-shap", action="store_true")
+    ap.add_argument("--skip-model-metrics", action="store_true")
     ap.add_argument("--skip-pgx", action="store_true")
     args = ap.parse_args()
 
@@ -756,7 +901,14 @@ def main() -> None:
     else:
         log.info("--- SHAP: skipped ---")
 
-    # 4. PGx coverage
+    # 4. Final model metrics
+    if not args.skip_model_metrics:
+        log.info("--- Step 6 final model metrics ---")
+        output["model_metrics"] = extract_model_metrics(use_s3=use_s3, issues=issues)
+    else:
+        log.info("--- Model metrics: skipped ---")
+
+    # 5. PGx coverage
     if not args.skip_pgx:
         log.info("--- PGx feature coverage ---")
         output["pgx_coverage"] = extract_pgx_coverage(use_s3=use_s3, issues=issues)
@@ -771,7 +923,7 @@ def main() -> None:
         "warnings": sum(1 for i in issues if i["severity"] == "warning"),
         "by_section": {
             sec: sum(1 for i in issues if i["section"] == sec)
-            for sec in ("fpgrowth", "dtw", "shap", "pgx")
+            for sec in ("fpgrowth", "dtw", "shap", "model_metrics", "pgx")
         },
     }
 
@@ -809,6 +961,8 @@ def main() -> None:
         md_sections.append(_md_dtw(output["dtw"]))
     if "shap" in output:
         md_sections.append(_md_shap(output["shap"], args.top_n_shap))
+    if "model_metrics" in output:
+        md_sections.append(_md_model_metrics(output["model_metrics"]))
     if "pgx_coverage" in output:
         md_sections.append(_md_pgx(output["pgx_coverage"]))
 

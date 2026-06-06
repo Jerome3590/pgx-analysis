@@ -38,6 +38,30 @@ Recall at threshold `0.5` is treated as an operating-point metric. Low recall at
 
 For feature attribution, the key requirement is that the model captures non-random predictive structure with stable feature variance. SHAP and model-based feature importance explain the fitted model's predictions; they are not causal effects by themselves. Causal interpretation requires additional assumptions, study design, and attention to confounding.
 
+### Manuscript metric reporting
+
+For each cohort/age band, manuscript-facing model metrics should report:
+
+- **Selected model**
+- **AUPRC / PR-AUC**
+- **Event prevalence**, which is the random-classifier PR-AUC baseline
+- **PR lift**, computed as `PR-AUC / event prevalence`
+- **ROC-AUC**
+- **Recall at threshold 0.5**
+- **Log loss**
+
+Suggested PR-lift interpretation:
+
+| PR lift over prevalence | Interpretation |
+|------------------------:|----------------|
+| `<1.5x` | Weak / limited attribution confidence |
+| `1.5-2x` | Modest signal |
+| `2-3x` | Moderate signal |
+| `3-5x` | Strong signal |
+| `>5x` | Very strong signal |
+
+Absolute AUPRC should not be interpreted without prevalence. For example, `AUPRC = 0.35` is strong when prevalence is `0.10` (`3.5x` lift), but weak when prevalence is `0.32` (`1.1x` lift).
+
 ## Suggested README wording
 
 ```markdown
