@@ -102,6 +102,18 @@ def build_step6_gold_upload_pairs(
         f"{s3_root}/{cohort}_{abf}_xgboost_feature_importance.csv",
     )
     add(
+        out_base / f"{cohort}_{abf}_model_metrics_summary.csv",
+        f"{s3_root}/{cohort}_{abf}_model_metrics_summary.csv",
+    )
+    add(
+        out_base / f"{cohort}_{abf}_mc_cv_results.csv",
+        f"{s3_root}/{cohort}_{abf}_mc_cv_results.csv",
+    )
+    add(
+        out_base / f"{cohort}_{abf}_holdout_2019_metrics.json",
+        f"{s3_root}/{cohort}_{abf}_holdout_2019_metrics.json",
+    )
+    add(
         out_base / f"{cohort}_{abf}_train_final_features_no_leakage.csv",
         f"{s3_root}/{cohort}_{abf}_train_final_features_no_leakage.csv",
     )
@@ -116,6 +128,27 @@ def build_step6_gold_upload_pairs(
             add(mdir / "catboost.joblib", f"{s3_root}/bin_models/{b}/catboost.joblib")
             add(mdir / "xgboost_model.ubj", f"{s3_root}/bin_models/{b}/xgboost_model.ubj")
             add(mdir / "catboost_model.cbm", f"{s3_root}/bin_models/{b}/catboost_model.cbm")
+            bdir = out_base / "bin_models" / b
+            add(
+                bdir / f"{cohort}_{abf}_model_metrics_summary.csv",
+                f"{s3_root}/bin_models/{b}/{cohort}_{abf}_model_metrics_summary.csv",
+            )
+            add(
+                bdir / f"{cohort}_{abf}_mc_cv_results.csv",
+                f"{s3_root}/bin_models/{b}/{cohort}_{abf}_mc_cv_results.csv",
+            )
+            add(
+                bdir / f"{cohort}_{abf}_xgboost_feature_importance.csv",
+                f"{s3_root}/bin_models/{b}/{cohort}_{abf}_xgboost_feature_importance.csv",
+            )
+            add(
+                bdir / f"{cohort}_{abf}_model_selection_metadata.json",
+                f"{s3_root}/bin_models/{b}/{cohort}_{abf}_model_selection_metadata.json",
+            )
+            add(
+                bdir / "INFERENCE_SOURCE.txt",
+                f"{s3_root}/bin_models/{b}/INFERENCE_SOURCE.txt",
+            )
 
     return pairs
 

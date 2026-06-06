@@ -19,6 +19,7 @@ Sources (local first, S3 fallback):
 Output:
   manuscript/PIPELINE_RESULTS_AUTO.json   (machine-readable, all cohorts/bands)
   manuscript/PIPELINE_RESULTS_AUTO.md     (human-readable tables for copy-paste into manuscript)
+  s3://pgxdatalake/gold/manuscript/PIPELINE_RESULTS_AUTO.{json,md}
 
 Usage:
   python 9_dashboard_visuals/extract_manuscript_metrics.py
@@ -54,6 +55,7 @@ MODELS = ["xgboost", "catboost"]
 
 S3_GOLD = "s3://pgxdatalake/gold/final_model"
 S3_PGX_CHECKPOINT = "s3://pgx-repository/5_pgx_analysis_checkpoint"
+S3_MANUSCRIPT = "s3://pgxdatalake/gold/manuscript"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger("extract_manuscript_metrics")
@@ -111,6 +113,16 @@ def _s3_read_bytes(s3_uri: str) -> Optional[bytes]:
     except Exception as e:
         log.debug("S3 read failed %s: %s", s3_uri, e)
         return None
+
+
+def _s3_upload_file(local_path: Path, s3_uri: str) -> bool:
+    try:
+        from py_helpers.checkpoint_utils import upload_file_to_s3
+
+        return upload_file_to_s3(local_path, s3_uri, logger=log, check_exists=False)
+    except Exception as e:
+        log.warning("S3 upload failed %s -> %s: %s", local_path, s3_uri, e)
+        return False
 
 
 def _s3_read_csv(s3_uri: str) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
@@ -947,6 +959,8 @@ def main() -> None:
     with open(json_out, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2, default=str)
     log.info("Wrote %s", json_out)
+    if use_s3:
+        _s3_upload_file(json_out, f"{S3_MANUSCRIPT}/PIPELINE_RESULTS_AUTO.json")
 
     # Write Markdown
     md_sections = [
@@ -970,6 +984,8 @@ def main() -> None:
     with open(md_out, "w", encoding="utf-8") as f:
         f.write("\n".join(md_sections))
     log.info("Wrote %s", md_out)
+    if use_s3:
+        _s3_upload_file(md_out, f"{S3_MANUSCRIPT}/PIPELINE_RESULTS_AUTO.md")
 
     log.info("Done.")
 
