@@ -286,6 +286,7 @@ def compute_global_shap_signal_catboost(
     """
     from catboost import Pool  # type: ignore
     
+    X = _align_for_catboost_model(model, X)
     feature_names = list(X.columns)
     print(f"Computing global SHAP signal for {len(feature_names)} features using {len(X)} rows...")
     
@@ -337,6 +338,29 @@ def compute_global_shap_signal_catboost(
     return out
 
 
+def _catboost_feature_names(model, X: pd.DataFrame) -> list[str]:
+    names = None
+    try:
+        names = model.feature_names_
+    except Exception:
+        names = None
+    if not names:
+        try:
+            names = model.get_feature_names()
+        except Exception:
+            names = None
+    return list(names) if names else list(X.columns)
+
+
+def _align_for_catboost_model(model, X: pd.DataFrame) -> pd.DataFrame:
+    expected = _catboost_feature_names(model, X)
+    X_aligned = X.apply(pd.to_numeric, errors="coerce").fillna(0)
+    missing = [c for c in expected if c not in X_aligned.columns]
+    if missing:
+        print(f"[INFO] Adding {len(missing)} missing CatBoost feature columns as 0 for SHAP alignment.")
+    return X_aligned.reindex(columns=expected, fill_value=0)
+
+
 def write_row_shap_for_selected_features_catboost(
     model,  # CatBoostClassifier
     X: pd.DataFrame,
@@ -362,6 +386,7 @@ def write_row_shap_for_selected_features_catboost(
     """
     from catboost import Pool  # type: ignore
     
+    X = _align_for_catboost_model(model, X)
     feature_names = list(X.columns)
     
     # Column indices for selected features
@@ -865,10 +890,10 @@ def run_shap_analysis(
             # Map row_ids to indices in X_full
             row_id_to_idx = {rid: idx for idx, rid in enumerate(row_id)}
             row_indices = [row_id_to_idx.get(rid, i) for i, rid in enumerate(row_ids_plot)]
-            X_plot = X_full[shap_cols].iloc[row_indices].reset_index(drop=True)
+            X_plot = X_full.reindex(columns=shap_cols, fill_value=0).iloc[row_indices].reset_index(drop=True)
         else:
             # Use first plot_sample_size rows
-            X_plot = X_full[shap_cols].iloc[:plot_sample_size].reset_index(drop=True)
+            X_plot = X_full.reindex(columns=shap_cols, fill_value=0).iloc[:plot_sample_size].reset_index(drop=True)
         
         plt.figure(figsize=(10, 8))
         shap.summary_plot(
@@ -1007,10 +1032,10 @@ def run_shap_analysis(
                 # Map row_ids to indices in X_full
                 row_id_to_idx_cb = {rid: idx for idx, rid in enumerate(row_id)}
                 row_indices_cb = [row_id_to_idx_cb.get(rid, i) for i, rid in enumerate(row_ids_plot_cb)]
-                X_plot_cb = X_full[shap_cols_cb].iloc[row_indices_cb].reset_index(drop=True)
+                X_plot_cb = X_full.reindex(columns=shap_cols_cb, fill_value=0).iloc[row_indices_cb].reset_index(drop=True)
             else:
                 # Use first plot_sample_size_cb rows
-                X_plot_cb = X_full[shap_cols_cb].iloc[:plot_sample_size_cb].reset_index(drop=True)
+                X_plot_cb = X_full.reindex(columns=shap_cols_cb, fill_value=0).iloc[:plot_sample_size_cb].reset_index(drop=True)
             
             plt.figure(figsize=(10, 8))
             shap.summary_plot(
