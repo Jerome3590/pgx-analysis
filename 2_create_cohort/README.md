@@ -716,7 +716,7 @@ SELECT
 FROM read_parquet('model_events.parquet');
 ```
 
-June 2026 QA found that `non_opioid_ed / 0-12` Step 2 and raw pharmacy were valid, but pre-fix Step 4 dropped all pharmacy rows because pharmacy uses `incurred_date` while the symmetric lookback filter required `event_date`.
+June 2026 QA found that `non_opioid_ed / 0-12` Step 2 and raw pharmacy were valid, but pre-fix Step 4 dropped all pharmacy rows because pharmacy uses compact `YYYYMMDD` `incurred_date` strings while the symmetric lookback filter required `event_date`.
 
 `non_opioid_ed / 0-12` source audit:
 
@@ -733,8 +733,26 @@ June 2026 QA found that `non_opioid_ed / 0-12` Step 2 and raw pharmacy were vali
 The source fix is to normalize mixed gold medical/pharmacy dates before Step 4 lookback filters:
 
 ```sql
-COALESCE(CAST(event_date AS TIMESTAMP), TRY_CAST(incurred_date AS TIMESTAMP)) AS event_date
+COALESCE(
+  TRY_CAST(event_date AS TIMESTAMP),
+  TRY_STRPTIME(CAST(incurred_date AS VARCHAR), '%Y%m%d')
+) AS event_date
 ```
+
+Do not rely on plain `TRY_CAST(incurred_date AS TIMESTAMP)` for pharmacy dates. Local validation on the 2016 `0-12` pharmacy parquet showed `TRY_CAST` parsed 0 rows, while `TRY_STRPTIME(..., '%Y%m%d')` parsed all 3,080,335 sampled rows. This matches the existing Step 2 cohort pattern.
+
+Post-fix S3 QA passed for all regenerated `non_opioid_ed` age bands:
+
+| Age band | Event rows | Patients | Drug rows | Drug patients | Case drug rows | Control drug rows | Null event dates |
+|----------|-----------:|---------:|----------:|--------------:|---------------:|------------------:|-----------------:|
+| 0-12 | 9,291,409 | 257,233 | 1,343,479 | 174,943 | 132,662 | 1,210,817 | 0 |
+| 13-24 | 6,389,068 | 153,148 | 1,392,874 | 120,037 | 99,960 | 1,292,914 | 0 |
+| 25-44 | 6,657,690 | 117,020 | 1,610,536 | 98,734 | 77,292 | 1,533,244 | 0 |
+| 45-54 | 3,812,162 | 47,704 | 1,056,988 | 41,981 | 33,716 | 1,023,272 | 0 |
+| 55-64 | 3,756,619 | 36,555 | 1,025,485 | 32,154 | 28,145 | 997,340 | 0 |
+| 65-74 | 1,865,944 | 12,568 | 340,324 | 9,814 | 12,849 | 327,475 | 0 |
+| 75-84 | 697,538 | 3,525 | 111,922 | 2,726 | 7,796 | 104,126 | 0 |
+| 85-114 | 668,146 | 2,791 | 115,248 | 2,067 | 13,460 | 101,788 | 0 |
 
 Validation showed this was isolated to the `non_opioid_ed` Step 4 rebuild path. Existing `opioid_ed` model data preserved drug rows across all age bands:
 
