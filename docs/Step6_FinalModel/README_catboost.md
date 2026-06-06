@@ -1,5 +1,7 @@
 # CatBoost Feature Engineering Documentation
 
+> **Legacy exploratory note:** This document describes an older exploratory CatBoost feature-engineering concept based on FP-Growth-derived encoded drug features. It is **not** the current production Step 6 workflow. The production workflow is `3_model_train_shap_ffa.ipynb` → `6_final_model/run_final_model.py`; final model features are built from Step 4 model data, Step 3 feature importance, PGx counts, demographics, and allowed schema features. FPGrowth/BupaR/DTW outputs are dashboard/protocol-filtering inputs, not final model feature columns. See `6_final_model/README.md` for the authoritative workflow.
+
 ## Overview
 This document describes how to use the outputs of the FP-Growth global pipeline as input features for CatBoost machine learning models.
 
