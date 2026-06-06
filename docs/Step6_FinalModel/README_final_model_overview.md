@@ -18,6 +18,7 @@ This folder contains documentation for final model training, evaluation, and Cat
 ## Documentation
 
 - **[README_final_model.md](README_final_model.md)** - Final model training and evaluation
+- **[README_experiment_setup_and_references.md](README_experiment_setup_and_references.md)** - Experiment setup, metric rationale, and references for AUPRC/recall, SHAP, and causal attribution caveats
 - **[README_catboost.md](README_catboost.md)** - CatBoost model details
 
 ## Related Documentation
