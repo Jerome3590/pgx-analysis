@@ -442,9 +442,11 @@ RECONCILE_STEP6_ARTIFACTS = True
 RECONCILE_DELETE_LOCAL_STALE = True
 RECONCILE_UPLOAD = True
 RECONCILE_DELETE_S3_STALE = True
+REFRESH_LOCAL_STEP6_FROM_S3 = True
 
 if RECONCILE_STEP6_ARTIFACTS:
-    for cohort in sorted({cohort for cohort, _ in iter_downstream_cohorts()}):
+    downstream_reconcile_cohorts = sorted({cohort for cohort, _ in iter_downstream_cohorts()})
+    for cohort in downstream_reconcile_cohorts:
         print(f"→ Reconcile Step 6 artifacts: {cohort}")
         cmd = [
             sys.executable,
@@ -464,6 +466,16 @@ if RECONCILE_STEP6_ARTIFACTS:
         if r.returncode != 0:
             raise SystemExit(r.returncode)
     sync_s3_to_local(f"s3://{S3_BUCKET}/gold/final_model/", FINAL_MODEL_GOLD, profile=AWS_PROFILE)
+    if REFRESH_LOCAL_STEP6_FROM_S3:
+        for cohort in downstream_reconcile_cohorts:
+            for local_base in (FINAL_MODEL_OUTPUTS, FINAL_MODEL_OUTPUTS_ALT):
+                local_path = Path(local_base) / cohort
+                if local_path.exists():
+                    shutil.rmtree(local_path)
+                    print(f"[REFRESH] Removed stale local Step 6 artifacts: {local_path}")
+            s3_uri = f"s3://{S3_BUCKET}/gold/final_model/{cohort}/"
+            sync_s3_to_local(s3_uri, FINAL_MODEL_OUTPUTS / cohort, profile=AWS_PROFILE)
+            print(f"[REFRESH] Synced reconciled S3 artifacts to {FINAL_MODEL_OUTPUTS / cohort}")
     print("Step 6 artifact reconciliation complete.")
 else:
     print("Step 6 artifact reconciliation skipped.")
