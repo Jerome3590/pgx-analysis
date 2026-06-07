@@ -621,6 +621,7 @@ for cohort, age_band in iter_downstream_cohorts():
                     age_band,
                     "--bin",
                     bin_name,
+                    "--skip-empty-bin",
                 ],
                 cwd=PROJECT_ROOT,
                 capture_output=False,
