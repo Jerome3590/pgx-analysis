@@ -77,7 +77,7 @@ print(f"  gold/NVMe: {FINAL_MODEL_GOLD}")
 # Set age bands to None for all configured age bands, or a list like ["75-84"].
 STEP4_COHORTS = ["opioid_ed", "non_opioid_ed"]
 STEP4_AGE_BANDS = None
-DOWNSTREAM_COHORTS = ["non_opioid_ed"]
+DOWNSTREAM_COHORTS = ["opioid_ed", "non_opioid_ed"]
 DOWNSTREAM_AGE_BANDS = None
 
 def iter_scope(cohorts=None, age_bands=None):
@@ -386,11 +386,10 @@ print("Step 5 complete.")
 # %%
 # Pipeline Step 6: run_final_model.py for each downstream target (cohort, age_band)
 # Note: script uses --age_band (underscore). Default --train-mode is per_bin (omit flag).
-DOWNSTREAM_COHORTS = ["non_opioid_ed"]
 FORCE_STEP6 = False
 FORCE_STEP6_REBUILT_ONLY = True
 STEP6_TRAIN_MODE = None
-CLEAN_STEP6_DOWNSTREAM_ARTIFACTS = True
+CLEAN_STEP6_DOWNSTREAM_ARTIFACTS = False
 REBUILT_STEP4 = globals().get("REBUILT_STEP4", set())
 
 downstream_cohorts_to_clean = sorted({cohort for cohort, _ in iter_downstream_cohorts()})
@@ -430,6 +429,46 @@ for cohort, age_band in iter_downstream_cohorts():
 print("Step 6 complete.")
 
 # %% [markdown]
+# ### Reconcile Step 6 per-bin artifacts before downstream analysis
+#
+# Normalizes existing Step 6 per-bin artifacts without retraining:
+# - moves/copies legacy bin-root model files into `bin_models/{bin}/models/`
+# - writes `PER_BIN_TRAINING_SOURCE.json` fallback/source markers
+# - uploads reconciled artifacts to S3 and removes stale S3 bin-root binaries
+# Run this after Step 6 has completed on EC2, and before Step 7/8/Combine/Lambda.
+
+# %%
+RECONCILE_STEP6_ARTIFACTS = True
+RECONCILE_DELETE_LOCAL_STALE = True
+RECONCILE_UPLOAD = True
+RECONCILE_DELETE_S3_STALE = True
+
+if RECONCILE_STEP6_ARTIFACTS:
+    for cohort in sorted({cohort for cohort, _ in iter_downstream_cohorts()}):
+        print(f"→ Reconcile Step 6 artifacts: {cohort}")
+        cmd = [
+            sys.executable,
+            "-m",
+            "py_helpers.final_model_reconcile_artifacts",
+            "--cohort",
+            cohort,
+            "--apply",
+        ]
+        if RECONCILE_DELETE_LOCAL_STALE:
+            cmd.append("--delete-local-stale")
+        if RECONCILE_UPLOAD:
+            cmd.append("--upload")
+        if RECONCILE_DELETE_S3_STALE:
+            cmd.append("--delete-s3-stale")
+        r = subprocess.run(cmd, cwd=PROJECT_ROOT, capture_output=False)
+        if r.returncode != 0:
+            raise SystemExit(r.returncode)
+    sync_s3_to_local(f"s3://{S3_BUCKET}/gold/final_model/", FINAL_MODEL_GOLD, profile=AWS_PROFILE)
+    print("Step 6 artifact reconciliation complete.")
+else:
+    print("Step 6 artifact reconciliation skipped.")
+
+# %% [markdown]
 # ### Model performance per density bin and Top 20 XGBoost importance (cohort-level snapshot)
 #
 # Metrics are read from `bin_models/{bin}/` (default Step 6). The cohort-level `.../{age_band}/` XGBoost FI CSV is the **mirrored deploy snapshot** (preferred bin, usually `medium`) when using `--train-mode per_bin`.
@@ -442,7 +481,7 @@ from pathlib import Path
 
 from py_helpers.event_density_utils import DENSITY_BINS as _DENSITY_BINS
 
-# Set to None for all cohorts, or a list like ["non_opioid_ed"] for one/more cohorts.
+# Set to None to follow DOWNSTREAM_COHORTS / DOWNSTREAM_AGE_BANDS, or override with lists.
 METRICS_COHORTS = None
 METRICS_AGE_BANDS = None
 RECALL_QA_THRESHOLD = 0.85
@@ -455,7 +494,7 @@ def _outputs_base():
     return FINAL_MODEL_OUTPUTS
 
 def iter_metrics_cohorts():
-    yield from iter_scope(METRICS_COHORTS, METRICS_AGE_BANDS)
+    yield from iter_scope(METRICS_COHORTS or DOWNSTREAM_COHORTS, METRICS_AGE_BANDS or DOWNSTREAM_AGE_BANDS)
 
 base = _outputs_base()
 print("Final model performance — per density bin (selected model per bin)")
@@ -555,39 +594,38 @@ from py_helpers.event_density_utils import (
 )
 
 SHAP_SCRIPT = PROJECT_ROOT / "7_shap_analysis" / "run_shap_analysis.py"
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
-        if trained:
-            for bin_name in trained:
-                print(f"→ Step 7 (SHAP bin={bin_name}): {cohort} / {age_band}")
-                r = subprocess.run(
-                    [
-                        sys.executable,
-                        str(SHAP_SCRIPT),
-                        "--cohort",
-                        cohort,
-                        "--age_band",
-                        age_band,
-                        "--bin",
-                        bin_name,
-                    ],
-                    cwd=PROJECT_ROOT,
-                    capture_output=False,
-                )
-                if r.returncode != 0:
-                    raise SystemExit(r.returncode)
-        elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
-            print(f"→ Step 7 (SHAP cohort-level): {cohort} / {age_band}")
+for cohort, age_band in iter_downstream_cohorts():
+    trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
+    if trained:
+        for bin_name in trained:
+            print(f"→ Step 7 (SHAP bin={bin_name}): {cohort} / {age_band}")
             r = subprocess.run(
-                [sys.executable, str(SHAP_SCRIPT), "--cohort", cohort, "--age_band", age_band],
+                [
+                    sys.executable,
+                    str(SHAP_SCRIPT),
+                    "--cohort",
+                    cohort,
+                    "--age_band",
+                    age_band,
+                    "--bin",
+                    bin_name,
+                ],
                 cwd=PROJECT_ROOT,
                 capture_output=False,
             )
             if r.returncode != 0:
                 raise SystemExit(r.returncode)
-        else:
-            print(f"[skip] Step 7: no Step 6 models for {cohort} / {age_band}")
+    elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
+        print(f"→ Step 7 (SHAP cohort-level): {cohort} / {age_band}")
+        r = subprocess.run(
+            [sys.executable, str(SHAP_SCRIPT), "--cohort", cohort, "--age_band", age_band],
+            cwd=PROJECT_ROOT,
+            capture_output=False,
+        )
+        if r.returncode != 0:
+            raise SystemExit(r.returncode)
+    else:
+        print(f"[skip] Step 7: no Step 6 models for {cohort} / {age_band}")
 print("Step 7 (SHAP) complete.")
 
 # %% [markdown]
@@ -602,32 +640,11 @@ from py_helpers.event_density_utils import (
     list_trained_density_bins,
 )
 
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
-        if trained:
-            for bin_name in trained:
-                print(f"→ Step 8 (FFA bin={bin_name}): {cohort} / {age_band}")
-                r = subprocess.run(
-                    [
-                        sys.executable,
-                        "run_shap_ffa_workflow.py",
-                        "--cohort",
-                        cohort,
-                        "--age-band",
-                        age_band,
-                        "--bin",
-                        bin_name,
-                        "--skip-shap",
-                        "--skip-combine",
-                    ],
-                    cwd=DATA_PREP_DIR,
-                    capture_output=False,
-                )
-                if r.returncode != 0:
-                    raise SystemExit(r.returncode)
-        elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
-            print(f"→ Step 8 (FFA cohort-level): {cohort} / {age_band}")
+for cohort, age_band in iter_downstream_cohorts():
+    trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
+    if trained:
+        for bin_name in trained:
+            print(f"→ Step 8 (FFA bin={bin_name}): {cohort} / {age_band}")
             r = subprocess.run(
                 [
                     sys.executable,
@@ -636,6 +653,8 @@ for cohort, bands in REQUIRED_COHORTS.items():
                     cohort,
                     "--age-band",
                     age_band,
+                    "--bin",
+                    bin_name,
                     "--skip-shap",
                     "--skip-combine",
                 ],
@@ -644,8 +663,26 @@ for cohort, bands in REQUIRED_COHORTS.items():
             )
             if r.returncode != 0:
                 raise SystemExit(r.returncode)
-        else:
-            print(f"[skip] Step 8: no Step 6 models for {cohort} / {age_band}")
+    elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
+        print(f"→ Step 8 (FFA cohort-level): {cohort} / {age_band}")
+        r = subprocess.run(
+            [
+                sys.executable,
+                "run_shap_ffa_workflow.py",
+                "--cohort",
+                cohort,
+                "--age-band",
+                age_band,
+                "--skip-shap",
+                "--skip-combine",
+            ],
+            cwd=DATA_PREP_DIR,
+            capture_output=False,
+        )
+        if r.returncode != 0:
+            raise SystemExit(r.returncode)
+    else:
+        print(f"[skip] Step 8: no Step 6 models for {cohort} / {age_band}")
 print("Step 8 (FFA) complete.")
 
 # %% [markdown]
@@ -662,34 +699,11 @@ from py_helpers.event_density_utils import (
 
 CAUSAL_VISUALS = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
 COMBINE_SCRIPT = DATA_PREP_DIR / "combine_shap_ffa_results.py"
-for cohort, bands in REQUIRED_COHORTS.items():
-    for age_band in bands:
-        trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
-        if trained:
-            for bin_name in trained:
-                print(f"→ Combine (bin={bin_name}): {cohort} / {age_band}")
-                r = subprocess.run(
-                    [
-                        sys.executable,
-                        str(COMBINE_SCRIPT),
-                        "--cohort",
-                        cohort,
-                        "--age-band",
-                        age_band,
-                        "--bin",
-                        bin_name,
-                        "--output-dir",
-                        str(CAUSAL_VISUALS),
-                        "--workers",
-                        "0",
-                    ],
-                    cwd=DATA_PREP_DIR,
-                    capture_output=False,
-                )
-                if r.returncode != 0:
-                    raise SystemExit(r.returncode)
-        elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
-            print(f"→ Combine (cohort-level): {cohort} / {age_band}")
+for cohort, age_band in iter_downstream_cohorts():
+    trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
+    if trained:
+        for bin_name in trained:
+            print(f"→ Combine (bin={bin_name}): {cohort} / {age_band}")
             r = subprocess.run(
                 [
                     sys.executable,
@@ -698,6 +712,8 @@ for cohort, bands in REQUIRED_COHORTS.items():
                     cohort,
                     "--age-band",
                     age_band,
+                    "--bin",
+                    bin_name,
                     "--output-dir",
                     str(CAUSAL_VISUALS),
                     "--workers",
@@ -708,8 +724,28 @@ for cohort, bands in REQUIRED_COHORTS.items():
             )
             if r.returncode != 0:
                 raise SystemExit(r.returncode)
-        else:
-            print(f"[skip] Combine: no Step 6 / trained bins for {cohort} / {age_band}")
+    elif cohort_aggregate_final_model_has_artifacts(PROJECT_ROOT, cohort, age_band):
+        print(f"→ Combine (cohort-level): {cohort} / {age_band}")
+        r = subprocess.run(
+            [
+                sys.executable,
+                str(COMBINE_SCRIPT),
+                "--cohort",
+                cohort,
+                "--age-band",
+                age_band,
+                "--output-dir",
+                str(CAUSAL_VISUALS),
+                "--workers",
+                "0",
+            ],
+            cwd=DATA_PREP_DIR,
+            capture_output=False,
+        )
+        if r.returncode != 0:
+            raise SystemExit(r.returncode)
+    else:
+        print(f"[skip] Combine: no Step 6 / trained bins for {cohort} / {age_band}")
 print("Combine complete.")
 
 # %% [markdown]
