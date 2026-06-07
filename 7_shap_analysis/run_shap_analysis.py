@@ -286,8 +286,14 @@ def compute_global_shap_signal_catboost(
     """
     from catboost import Pool  # type: ignore
     
+    original_columns = list(X.columns)
     X = _align_for_catboost_model(model, X)
     feature_names = list(X.columns)
+    aligned_cat_feature_indices = _cat_feature_indices_after_alignment(
+        original_columns,
+        feature_names,
+        cat_feature_indices,
+    )
     print(f"Computing global SHAP signal for {len(feature_names)} features using {len(X)} rows...")
     
     abs_sum = np.zeros(len(feature_names), dtype=np.float64)
@@ -300,8 +306,8 @@ def compute_global_shap_signal_catboost(
         y_chunk = y.iloc[start:stop]
         
         # Create Pool for this chunk
-        if cat_feature_indices:
-            pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
+        if aligned_cat_feature_indices:
+            pool_chunk = Pool(X_chunk, y_chunk, cat_features=aligned_cat_feature_indices)
         else:
             pool_chunk = Pool(X_chunk, y_chunk)
         
@@ -361,6 +367,32 @@ def _align_for_catboost_model(model, X: pd.DataFrame) -> pd.DataFrame:
     return X_aligned.reindex(columns=expected, fill_value=0)
 
 
+def _cat_feature_indices_after_alignment(
+    original_columns: list[str],
+    aligned_columns: list[str],
+    cat_feature_indices: list[int] | None,
+) -> list[int] | None:
+    if cat_feature_indices:
+        cat_feature_names = {
+            original_columns[i]
+            for i in cat_feature_indices
+            if 0 <= i < len(original_columns)
+        }
+    else:
+        cat_feature_names = {c for c in original_columns if c.startswith("item_")}
+    aligned_indices = [
+        i for i, name in enumerate(aligned_columns)
+        if name in cat_feature_names and i < len(aligned_columns)
+    ]
+    dropped = len(cat_feature_names) - len(aligned_indices)
+    if dropped > 0:
+        print(
+            f"[INFO] Dropped {dropped} CatBoost categorical feature markers not present "
+            "after model feature alignment."
+        )
+    return aligned_indices or None
+
+
 def write_row_shap_for_selected_features_catboost(
     model,  # CatBoostClassifier
     X: pd.DataFrame,
@@ -386,8 +418,14 @@ def write_row_shap_for_selected_features_catboost(
     """
     from catboost import Pool  # type: ignore
     
+    original_columns = list(X.columns)
     X = _align_for_catboost_model(model, X)
     feature_names = list(X.columns)
+    aligned_cat_feature_indices = _cat_feature_indices_after_alignment(
+        original_columns,
+        feature_names,
+        cat_feature_indices,
+    )
     
     # Column indices for selected features
     sel = [f for f in selected_features if f in feature_names]
@@ -414,8 +452,8 @@ def write_row_shap_for_selected_features_catboost(
             stop = min(start + chunk_rows, len(X))
             X_chunk = X.iloc[start:stop]
             y_chunk = y.iloc[start:stop]
-            if cat_feature_indices:
-                pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
+            if aligned_cat_feature_indices:
+                pool_chunk = Pool(X_chunk, y_chunk, cat_features=aligned_cat_feature_indices)
             else:
                 pool_chunk = Pool(X_chunk, y_chunk)
             shap_chunk = model.get_feature_importance(type="ShapValues", data=pool_chunk)
@@ -449,8 +487,8 @@ def write_row_shap_for_selected_features_catboost(
             stop = min(start + chunk_rows, len(X))
             X_chunk = X.iloc[start:stop]
             y_chunk = y.iloc[start:stop]
-            if cat_feature_indices:
-                pool_chunk = Pool(X_chunk, y_chunk, cat_features=cat_feature_indices)
+            if aligned_cat_feature_indices:
+                pool_chunk = Pool(X_chunk, y_chunk, cat_features=aligned_cat_feature_indices)
             else:
                 pool_chunk = Pool(X_chunk, y_chunk)
             shap_chunk = model.get_feature_importance(type="ShapValues", data=pool_chunk)
