@@ -367,6 +367,20 @@ def _align_for_catboost_model(model, X: pd.DataFrame) -> pd.DataFrame:
     return X_aligned.reindex(columns=expected, fill_value=0)
 
 
+def _shap_s3_prefix(cohort: str, age_band: str, bin_name: str | None = None) -> str:
+    prefix = f"s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}"
+    if bin_name:
+        prefix = f"{prefix}/bin_models/{bin_name}"
+    return prefix
+
+
+def _shap_s3_key_prefix(cohort: str, age_band: str, bin_name: str | None = None) -> str:
+    prefix = f"gold/shap_analysis/{cohort}/{age_band}"
+    if bin_name:
+        prefix = f"{prefix}/bin_models/{bin_name}"
+    return prefix
+
+
 def _cat_feature_indices_after_alignment(
     original_columns: list[str],
     aligned_columns: list[str],
@@ -973,11 +987,11 @@ def run_shap_analysis(
         try:
             from py_helpers.checkpoint_utils import upload_file_to_s3
             if xgb_imp_path.exists():
-                s3_xgb_imp = f"s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
+                s3_xgb_imp = f"{_shap_s3_prefix(cohort, age_band, bin_name)}/{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
                 if upload_file_to_s3(xgb_imp_path, s3_xgb_imp):
                     s3_outputs.append(s3_xgb_imp)
             if xgb_shap_sample_path.exists():
-                s3_xgb_sample = f"s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet"
+                s3_xgb_sample = f"{_shap_s3_prefix(cohort, age_band, bin_name)}/{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet"
                 if upload_file_to_s3(xgb_shap_sample_path, s3_xgb_sample):
                     s3_outputs.append(s3_xgb_sample)
         except ImportError:
@@ -1117,11 +1131,11 @@ def run_shap_analysis(
                 from py_helpers.checkpoint_utils import upload_file_to_s3
 
                 if cb_imp_path.exists():
-                    s3_cb_imp = f"s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_global_importance_catboost.csv"
+                    s3_cb_imp = f"{_shap_s3_prefix(cohort, age_band, bin_name)}/{cohort}_{age_band_fname}_shap_global_importance_catboost.csv"
                     if upload_file_to_s3(cb_imp_path, s3_cb_imp):
                         s3_outputs.append(s3_cb_imp)
                 if cb_shap_sample_path.exists():
-                    s3_cb_sample = f"s3://pgxdatalake/gold/shap_analysis/{cohort}/{age_band}/{cohort}_{age_band_fname}_shap_sample_values_catboost.parquet"
+                    s3_cb_sample = f"{_shap_s3_prefix(cohort, age_band, bin_name)}/{cohort}_{age_band_fname}_shap_sample_values_catboost.parquet"
                     if upload_file_to_s3(cb_shap_sample_path, s3_cb_sample):
                         s3_outputs.append(s3_cb_sample)
             except ImportError:
@@ -1167,6 +1181,11 @@ def main() -> None:
         "--skip-missing-bin",
         action="store_true",
         help="If --bin is set but Step 6 did not train that bin (no artifacts), exit 0 with a message instead of failing.",
+    )
+    parser.add_argument(
+        "--skip-empty-bin",
+        action="store_true",
+        help="If --bin has Step 6 artifacts but no matching training rows, exit 0 instead of failing batch runs.",
     )
     parser.add_argument(
         "--n_background",
@@ -1284,9 +1303,9 @@ def main() -> None:
                 local_path = out_dir / fname
                 if local_path.exists():
                     if fname.endswith('.csv'):
-                        s3_path = f"s3://pgxdatalake/gold/shap_analysis/{args.cohort}/{args.age_band}/{fname}"
+                        s3_path = f"{_shap_s3_prefix(args.cohort, args.age_band, args.bin)}/{fname}"
                     elif fname.endswith('.parquet'):
-                        s3_path = f"s3://pgxdatalake/gold/shap_analysis/{args.cohort}/{args.age_band}/{fname}"
+                        s3_path = f"{_shap_s3_prefix(args.cohort, args.age_band, args.bin)}/{fname}"
                     else:
                         continue  # Skip PNG files for S3 upload (they're large and optional)
                     
@@ -1311,9 +1330,11 @@ def main() -> None:
     try:
         from py_helpers.checkpoint_utils import check_step_outputs_exist, check_step_checkpoint_exists
 
+        s3_prefix = _shap_s3_prefix(args.cohort, args.age_band, args.bin)
+        s3_key_prefix = _shap_s3_key_prefix(args.cohort, args.age_band, args.bin)
         s3_output_paths = [
-            f"s3://pgxdatalake/gold/shap_analysis/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_shap_global_importance_xgboost.csv",
-            f"s3://pgxdatalake/gold/shap_analysis/{args.cohort}/{args.age_band}/{args.cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
+            f"{s3_prefix}/{args.cohort}_{age_band_fname}_shap_global_importance_xgboost.csv",
+            f"{s3_prefix}/{args.cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
         ]
 
         # Only skip if outputs actually exist (not just checkpoint)
@@ -1334,7 +1355,7 @@ def main() -> None:
                 downloaded_files = []
                 # Download XGBoost outputs (required)
                 for fname in expected_outputs:
-                    s3_key = f"gold/shap_analysis/{args.cohort}/{args.age_band}/{fname}"
+                    s3_key = f"{s3_key_prefix}/{fname}"
                     local_path = out_dir / fname
                     try:
                         s3_client.download_file(S3_BUCKET, s3_key, str(local_path))
@@ -1345,7 +1366,7 @@ def main() -> None:
                 
                 # Try to download CatBoost outputs (optional)
                 for fname in optional_outputs:
-                    s3_key = f"gold/shap_analysis/{args.cohort}/{args.age_band}/{fname}"
+                    s3_key = f"{s3_key_prefix}/{fname}"
                     local_path = out_dir / fname
                     try:
                         s3_client.download_file(S3_BUCKET, s3_key, str(local_path))
@@ -1378,6 +1399,12 @@ def main() -> None:
         bin_name=args.bin,
     )  
     if not success:
+        if args.bin and args.skip_empty_bin:
+            print(
+                f"[SKIP] Step 7 produced no SHAP outputs for {args.cohort}/{args.age_band} "
+                f"bin={args.bin!r}; continuing because --skip-empty-bin was set."
+            )
+            sys.exit(0)
         _logger.error("No models were successfully analyzed.")
         print("\n[ERROR] No models were successfully analyzed.")
         print("This step cannot complete without at least one model being analyzed.")
