@@ -124,10 +124,10 @@ def build_step6_gold_upload_pairs(
     if upload_bins and (out_base / "bin_models").is_dir():
         for b in DENSITY_BINS:
             mdir = out_base / "bin_models" / b / "models"
-            add(mdir / "xgboost.joblib", f"{s3_root}/bin_models/{b}/xgboost.joblib")
-            add(mdir / "catboost.joblib", f"{s3_root}/bin_models/{b}/catboost.joblib")
-            add(mdir / "xgboost_model.ubj", f"{s3_root}/bin_models/{b}/xgboost_model.ubj")
-            add(mdir / "catboost_model.cbm", f"{s3_root}/bin_models/{b}/catboost_model.cbm")
+            add(mdir / "xgboost.joblib", f"{s3_root}/bin_models/{b}/models/xgboost.joblib")
+            add(mdir / "catboost.joblib", f"{s3_root}/bin_models/{b}/models/catboost.joblib")
+            add(mdir / "xgboost_model.ubj", f"{s3_root}/bin_models/{b}/models/xgboost_model.ubj")
+            add(mdir / "catboost_model.cbm", f"{s3_root}/bin_models/{b}/models/catboost_model.cbm")
             bdir = out_base / "bin_models" / b
             add(
                 bdir / f"{cohort}_{abf}_model_metrics_summary.csv",
@@ -144,6 +144,14 @@ def build_step6_gold_upload_pairs(
             add(
                 bdir / f"{cohort}_{abf}_model_selection_metadata.json",
                 f"{s3_root}/bin_models/{b}/{cohort}_{abf}_model_selection_metadata.json",
+            )
+            add(
+                bdir / f"{cohort}_{abf}_holdout_2019_metrics.json",
+                f"{s3_root}/bin_models/{b}/{cohort}_{abf}_holdout_2019_metrics.json",
+            )
+            add(
+                bdir / "PER_BIN_TRAINING_SOURCE.json",
+                f"{s3_root}/bin_models/{b}/PER_BIN_TRAINING_SOURCE.json",
             )
             add(
                 bdir / "INFERENCE_SOURCE.txt",

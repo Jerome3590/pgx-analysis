@@ -1819,18 +1819,12 @@ def copy_full_cohort_artifacts_to_bin_directory(
     dest_root = agg / "bin_models" / bin_name
     dest_root.mkdir(parents=True, exist_ok=True)
     for item in agg.iterdir():
-        if item.name == "bin_models":
+        if item.name == "bin_models" or not item.is_dir():
             continue
         dest = dest_root / item.name
         if dest.exists():
-            if dest.is_dir():
-                shutil.rmtree(dest)
-            else:
-                dest.unlink()
-        if item.is_dir():
-            shutil.copytree(item, dest)
-        else:
-            shutil.copy2(item, dest)
+            shutil.rmtree(dest)
+        shutil.copytree(item, dest)
     reason_line = (reason or "unknown").strip()
     marker = (
         "This folder mirrors full-cohort (aggregate) model artifacts; models were not trained "
@@ -1841,16 +1835,91 @@ def copy_full_cohort_artifacts_to_bin_directory(
         f"Cohort: {cohort} | Age band: {age_band}\n"
     )
     (dest_root / "INFERENCE_SOURCE.txt").write_text(marker, encoding="utf-8")
+    source_payload = {
+        "cohort": cohort,
+        "age_band": age_band,
+        "n_event_bin": bin_name,
+        "model_source": "aggregate_fallback",
+        "fallback_used": True,
+        "fallback_reason": reason_line,
+        "fallback_scope": "all event-density bins in temporal training set only",
+        "train_years": "2016-2018",
+        "holdout_year": 2019,
+    }
+    with open(dest_root / "PER_BIN_TRAINING_SOURCE.json", "w") as f:
+        json.dump(source_payload, f, indent=2)
     print(
         f"[INFO] Fallback: copied full-cohort artifacts from {agg} -> {dest_root} "
         f"(bin={bin_name})"
     )
 
 
+def write_per_bin_training_source(
+    cohort: str,
+    age_band: str,
+    bin_name: str,
+    *,
+    model_source: str,
+    fallback_used: bool,
+    fallback_reason: Optional[str] = None,
+    n_total: Optional[int] = None,
+    n_cases: Optional[int] = None,
+    n_controls: Optional[int] = None,
+) -> None:
+    age_band_fname = age_band_to_fname(age_band)
+    bin_root = (
+        PROJECT_ROOT
+        / "6_final_model"
+        / "outputs"
+        / cohort
+        / age_band_fname
+        / "bin_models"
+        / bin_name
+    )
+    bin_root.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "cohort": cohort,
+        "age_band": age_band,
+        "n_event_bin": bin_name,
+        "model_source": model_source,
+        "fallback_used": bool(fallback_used),
+        "fallback_reason": fallback_reason,
+        "train_years": "2016-2018",
+        "holdout_year": 2019,
+        "n_train_total": n_total,
+        "n_train_cases": n_cases,
+        "n_train_controls": n_controls,
+    }
+    with open(bin_root / "PER_BIN_TRAINING_SOURCE.json", "w") as f:
+        json.dump(payload, f, indent=2)
+
+
+def read_per_bin_training_source(
+    out_base: Path,
+    bin_name: str,
+) -> dict:
+    source_path = out_base / "bin_models" / bin_name / "PER_BIN_TRAINING_SOURCE.json"
+    if not source_path.exists():
+        return {
+            "model_source": "unknown",
+            "fallback_used": None,
+            "fallback_reason": None,
+        }
+    try:
+        with open(source_path) as f:
+            return json.load(f)
+    except Exception:
+        return {
+            "model_source": "unknown",
+            "fallback_used": None,
+            "fallback_reason": "could not parse PER_BIN_TRAINING_SOURCE.json",
+        }
+
+
 def per_bin_model_files_exist(out_base: Path) -> bool:
-    """True if every density bin has XGBoost + CatBoost deployment joblibs under bin_models/{bin}/."""
+    """True if every density bin has XGBoost + CatBoost deployment joblibs under bin_models/{bin}/models/."""
     for b in _DENSITY_BINS:
-        bdir = out_base / "bin_models" / b
+        bdir = out_base / "bin_models" / b / "models"
         if not (bdir / "xgboost.joblib").exists():
             return False
         if not (bdir / "catboost.joblib").exists():
@@ -1883,7 +1952,7 @@ def repair_per_bin_fallbacks_from_aggregate(
         return
 
     for bin_name in _DENSITY_BINS:
-        bdir = agg / "bin_models" / bin_name
+        bdir = agg / "bin_models" / bin_name / "models"
         has_xgb = bdir.exists() and (bdir / "xgboost.joblib").exists()
         has_cb = bdir.exists() and (bdir / "catboost.joblib").exists()
         if has_xgb and has_cb:
@@ -1968,8 +2037,8 @@ def save_complete_per_bin_checkpoint(cohort: str, age_band: str, logger=None) ->
     output_paths = []
     for bin_name in _DENSITY_BINS:
         for rel in (
-            f"bin_models/{bin_name}/xgboost.joblib",
-            f"bin_models/{bin_name}/catboost.joblib",
+            f"bin_models/{bin_name}/models/xgboost.joblib",
+            f"bin_models/{bin_name}/models/catboost.joblib",
         ):
             output_paths.append(f"s3://pgxdatalake/gold/final_model/{cohort}/{age_band}/{rel}")
 
@@ -3711,6 +3780,165 @@ def evaluate_temporal_holdout(
         print(f"  [HOLDOUT] S3 upload skipped: {_e}")
 
 
+def evaluate_temporal_holdout_per_bin(
+    df_holdout: pd.DataFrame,
+    cohort: str,
+    age_band: str,
+) -> None:
+    from sklearn.metrics import (
+        roc_auc_score,
+        average_precision_score,
+        recall_score,
+        log_loss,
+    )
+
+    if "n_event_bin" not in df_holdout.columns:
+        print("[HOLDOUT][PER_BIN] n_event_bin not found; skipping per-bin holdout evaluation.")
+        return
+
+    age_band_fname = age_band_to_fname(age_band)
+    out_base = PROJECT_ROOT / "6_final_model" / "outputs" / cohort / age_band_fname
+
+    for bin_name in _DENSITY_BINS:
+        bin_holdout = df_holdout[df_holdout["n_event_bin"] == bin_name].copy()
+        if bin_holdout.empty:
+            print(f"[HOLDOUT][PER_BIN] {bin_name}: no 2019 holdout rows; skipping.")
+            continue
+        y_hold = bin_holdout["target"].astype(int)
+        if y_hold.nunique() < 2:
+            print(f"[HOLDOUT][PER_BIN] {bin_name}: only one class present; skipping.")
+            continue
+
+        bin_base = out_base / "bin_models" / bin_name
+        source_info = read_per_bin_training_source(out_base, bin_name)
+        xgb_json_path = (
+            bin_base / "final_model_json" / f"{cohort}_{age_band_fname}_best_xgboost_model.json"
+        )
+        if not xgb_json_path.exists():
+            print(f"[HOLDOUT][PER_BIN] {bin_name}: XGB JSON not found at {xgb_json_path}; skipping.")
+            continue
+
+        with open(xgb_json_path) as f:
+            xgb_meta = json.load(f)
+        feature_names = xgb_meta.get("feature_names", [])
+        if not feature_names:
+            print(f"[HOLDOUT][PER_BIN] {bin_name}: no feature_names in XGB JSON; skipping.")
+            continue
+
+        X_hold = (
+            bin_holdout.reindex(columns=feature_names, fill_value=0)
+            .replace([float("inf"), float("-inf")], pd.NA)
+            .fillna(0)
+        )
+        holdout_prevalence = float(y_hold.mean()) if len(y_hold) else 0.0
+
+        def _holdout_pr_lift(pr_auc_value) -> float | None:
+            if pr_auc_value is None or holdout_prevalence <= 0:
+                return None
+            return float(pr_auc_value) / holdout_prevalence
+
+        results: dict = {}
+        y_prob_xgb: np.ndarray | None = None
+        y_prob_cb: np.ndarray | None = None
+
+        xgb_joblib = bin_base / "models" / "xgboost.joblib"
+        if xgb_joblib.exists():
+            xgb_model = joblib.load(xgb_joblib)
+            y_prob_xgb = xgb_model.predict_proba(X_hold)[:, 1]
+            xgb_pr_auc = round(float(average_precision_score(y_hold, y_prob_xgb)), 4)
+            results["xgboost"] = {
+                "auroc": round(float(roc_auc_score(y_hold, y_prob_xgb)), 4),
+                "pr_auc": xgb_pr_auc,
+                "event_prevalence": round(holdout_prevalence, 4),
+                "pr_auc_random_baseline": round(holdout_prevalence, 4),
+                "pr_auc_lift_over_prevalence": round(float(_holdout_pr_lift(xgb_pr_auc)), 4) if _holdout_pr_lift(xgb_pr_auc) is not None else None,
+                "recall_at_0.5": round(float(recall_score(y_hold, (y_prob_xgb >= 0.5).astype(int))), 4),
+                "logloss": round(float(log_loss(y_hold, y_prob_xgb)), 4),
+                "n_holdout": int(len(y_hold)),
+                "n_cases": int(y_hold.sum()),
+            }
+
+        cb_joblib = bin_base / "models" / "catboost.joblib"
+        cb_cbm = bin_base / "models" / "catboost_model.cbm"
+        if cb_joblib.exists() or cb_cbm.exists():
+            try:
+                cb_model = None
+                if cb_joblib.exists():
+                    try:
+                        cb_model = joblib.load(cb_joblib)
+                    except Exception:
+                        if not cb_cbm.exists():
+                            raise
+                if cb_model is None:
+                    from catboost import CatBoostClassifier  # type: ignore
+                    cb_model = CatBoostClassifier()
+                    cb_model.load_model(str(cb_cbm))
+                y_prob_cb = cb_model.predict_proba(X_hold)[:, 1]
+                cb_pr_auc = round(float(average_precision_score(y_hold, y_prob_cb)), 4)
+                results["catboost"] = {
+                    "auroc": round(float(roc_auc_score(y_hold, y_prob_cb)), 4),
+                    "pr_auc": cb_pr_auc,
+                    "event_prevalence": round(holdout_prevalence, 4),
+                    "pr_auc_random_baseline": round(holdout_prevalence, 4),
+                    "pr_auc_lift_over_prevalence": round(float(_holdout_pr_lift(cb_pr_auc)), 4) if _holdout_pr_lift(cb_pr_auc) is not None else None,
+                    "recall_at_0.5": round(float(recall_score(y_hold, (y_prob_cb >= 0.5).astype(int))), 4),
+                    "logloss": round(float(log_loss(y_hold, y_prob_cb)), 4),
+                    "n_holdout": int(len(y_hold)),
+                    "n_cases": int(y_hold.sum()),
+                }
+            except Exception as e:
+                print(f"[HOLDOUT][PER_BIN] {bin_name}: CatBoost load/predict failed: {e}")
+
+        if y_prob_xgb is not None and y_prob_cb is not None:
+            y_prob_ens = (y_prob_xgb + y_prob_cb) / 2
+            ens_pr_auc = round(float(average_precision_score(y_hold, y_prob_ens)), 4)
+            results["ensemble"] = {
+                "auroc": round(float(roc_auc_score(y_hold, y_prob_ens)), 4),
+                "pr_auc": ens_pr_auc,
+                "event_prevalence": round(holdout_prevalence, 4),
+                "pr_auc_random_baseline": round(holdout_prevalence, 4),
+                "pr_auc_lift_over_prevalence": round(float(_holdout_pr_lift(ens_pr_auc)), 4) if _holdout_pr_lift(ens_pr_auc) is not None else None,
+                "recall_at_0.5": round(float(recall_score(y_hold, (y_prob_ens >= 0.5).astype(int))), 4),
+                "logloss": round(float(log_loss(y_hold, y_prob_ens)), 4),
+                "n_holdout": int(len(y_hold)),
+                "n_cases": int(y_hold.sum()),
+            }
+
+        if not results:
+            print(f"[HOLDOUT][PER_BIN] {bin_name}: no trained model joblibs found; skipping.")
+            continue
+
+        holdout_path = bin_base / f"{cohort}_{age_band_fname}_holdout_2019_metrics.json"
+        payload = {
+            "cohort": cohort,
+            "age_band": age_band,
+            "n_event_bin": bin_name,
+            "model_source": source_info.get("model_source"),
+            "fallback_used": source_info.get("fallback_used"),
+            "fallback_reason": source_info.get("fallback_reason"),
+            "n_train_total": source_info.get("n_train_total"),
+            "n_train_cases": source_info.get("n_train_cases"),
+            "n_train_controls": source_info.get("n_train_controls"),
+            "holdout_year": 2019,
+            "train_years": "2016-2018",
+            "event_prevalence": round(holdout_prevalence, 4),
+            "pr_auc_random_baseline": round(holdout_prevalence, 4),
+            "metrics": results,
+        }
+        with open(holdout_path, "w") as f:
+            json.dump(payload, f, indent=2)
+
+        print(f"[HOLDOUT 2019][PER_BIN] {cohort} / {age_band} / {bin_name} (n={len(y_hold)}, cases={int(y_hold.sum())})")
+        try:
+            import boto3 as _boto3
+            _s3 = _boto3.client("s3")
+            _key = f"gold/final_model/{cohort}/{age_band}/bin_models/{bin_name}/{cohort}_{age_band_fname}_holdout_2019_metrics.json"
+            _s3.upload_file(str(holdout_path), "pgxdatalake", _key)
+            print(f"  Uploaded → s3://pgxdatalake/{_key}")
+        except Exception as _e:
+            print(f"  [HOLDOUT][PER_BIN] S3 upload skipped: {_e}")
+
+
 def train_per_bin(
     df: pd.DataFrame,
     cohort: str,
@@ -3820,11 +4048,33 @@ def train_per_bin(
                     bin_name,
                     reason="insufficient patients per class for per-bin training",
                 )
+                write_per_bin_training_source(
+                    cohort,
+                    age_band,
+                    bin_name,
+                    model_source="aggregate_fallback",
+                    fallback_used=True,
+                    fallback_reason="insufficient patients per class for per-bin training",
+                    n_total=n_total,
+                    n_cases=n_cases,
+                    n_controls=n_controls,
+                )
             except Exception as e:
                 print(f"  [ERROR] Fallback copy failed for bin={bin_name}: {e}")
             continue
 
         train_and_evaluate(bin_df, cohort, age_band, n_runs=n_runs, bin_name=bin_name, force_retrain=force_retrain)
+        write_per_bin_training_source(
+            cohort,
+            age_band,
+            bin_name,
+            model_source="bin_specific",
+            fallback_used=False,
+            fallback_reason=None,
+            n_total=n_total,
+            n_cases=n_cases,
+            n_controls=n_controls,
+        )
 
     print(f"\n{'='*60}")
     print(f"Per-bin training complete: {cohort} / {age_band}")
@@ -3948,14 +4198,13 @@ def main() -> None:
         
         if args.train_mode == "per_bin":
             from py_helpers.event_density_utils import DENSITY_BINS as _CHECK_DENSITY_BINS
-            # S3 keys match train_and_evaluate upload: .../bin_models/{bin}/xgboost.joblib (no extra models/ segment)
             s3_output_paths = []
             for b in _CHECK_DENSITY_BINS:
                 s3_output_paths.append(
-                    f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/xgboost.joblib"
+                    f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/models/xgboost.joblib"
                 )
                 s3_output_paths.append(
-                    f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/catboost.joblib"
+                    f"s3://pgxdatalake/gold/final_model/{args.cohort}/{args.age_band}/bin_models/{b}/models/catboost.joblib"
                 )
         else:
             s3_output_paths = [
@@ -4048,7 +4297,7 @@ def main() -> None:
                         mdir = out_base_check / "bin_models" / b / "models"
                         mdir.mkdir(parents=True, exist_ok=True)
                         for fname in ("xgboost.joblib", "catboost.joblib"):
-                            s3_key_bin = f"{s3_base_key}/bin_models/{b}/{fname}"
+                            s3_key_bin = f"{s3_base_key}/bin_models/{b}/models/{fname}"
                             dest = mdir / fname
                             try:
                                 s3_client.download_file(S3_BUCKET, s3_key_bin, str(dest))
@@ -4177,17 +4426,21 @@ def main() -> None:
             with step_block("final_model", "train_per_bin", logger=logger):
                 train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs, force_retrain=args.force_retrain)
 
+        # --- Evaluate on 2019 temporal holdout (true out-of-time validation) ---
+        if not df_holdout_2019.empty:
+            if args.train_mode in ("aggregate", "both"):
+                with step_block("final_model", "evaluate_temporal_holdout", logger=logger):
+                    evaluate_temporal_holdout(df_holdout_2019, args.cohort, args.age_band)
+            if args.train_mode in ("per_bin", "both"):
+                with step_block("final_model", "evaluate_temporal_holdout_per_bin", logger=logger):
+                    evaluate_temporal_holdout_per_bin(df_holdout_2019, args.cohort, args.age_band)
+
         if args.train_mode in ("per_bin", "both"):
             mirror_bin_artifacts_to_aggregate_root(args.cohort, args.age_band)
             repair_per_bin_fallbacks_from_aggregate(args.cohort, args.age_band, logger=logger)
             uploaded_bin_paths = upload_complete_per_bin_tree_to_s3(args.cohort, args.age_band, logger=logger)
             logger.info("Uploaded/refreshed %d per-bin artifact files to S3.", len(uploaded_bin_paths))
             save_complete_per_bin_checkpoint(args.cohort, args.age_band, logger=logger)
-
-        # --- Evaluate on 2019 temporal holdout (true out-of-time validation) ---
-        if not df_holdout_2019.empty:
-            with step_block("final_model", "evaluate_temporal_holdout", logger=logger):
-                evaluate_temporal_holdout(df_holdout_2019, args.cohort, args.age_band)
 
         # Upload train/test to S3 (required for SHAP and FFA analysis; not optional)
         prepare_script = PROJECT_ROOT / "6_final_model" / "prepare_train_test_s3.py"
