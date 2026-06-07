@@ -441,6 +441,14 @@ def _cat_feature_indices_after_alignment(
     return aligned_indices or None
 
 
+def _required_shap_models(model_selection_metadata: dict | None) -> set[str]:
+    required = {"xgboost"}
+    selected = str((model_selection_metadata or {}).get("selected_model", "")).lower()
+    if selected == "catboost":
+        required.add("catboost")
+    return required
+
+
 def write_row_shap_for_selected_features_catboost(
     model,  # CatBoostClassifier
     X: pd.DataFrame,
@@ -826,7 +834,7 @@ def _fit_models_for_shap(X: pd.DataFrame, y: pd.Series, cohort: str, age_band: s
                 xgb_model.set_params(device="cpu")
             xgb_model.fit(X, y)
 
-    return xgb_model, cb_model
+    return xgb_model, cb_model, model_selection_metadata
 
 
 def run_shap_analysis(
@@ -905,7 +913,7 @@ def run_shap_analysis(
     print(f"Final feature matrix: {X_full.shape[0]} rows, {X_full.shape[1]} features.")
 
     print("Loading best models for SHAP...")
-    xgb_clf, cb_clf = _fit_models_for_shap(X_full, y, cohort, age_band, bin_name=bin_name)
+    xgb_clf, cb_clf, model_selection_metadata = _fit_models_for_shap(X_full, y, cohort, age_band, bin_name=bin_name)
 
     s3_outputs = []  # Track S3 uploads for checkpointing
     
@@ -1185,23 +1193,28 @@ def run_shap_analysis(
             import traceback
             traceback.print_exc()
 
-    # Save checkpoint after all SHAP analysis completes (only if at least one model was analyzed)
-    if models_analyzed:
-        try:
-            from py_helpers.checkpoint_utils import save_step_checkpoint
+    required_models = _required_shap_models(model_selection_metadata)
+    missing_models = required_models.difference(models_analyzed)
+    if missing_models:
+        raise RuntimeError(
+            "Step 7 SHAP did not produce all required model outputs. "
+            f"Completed: {sorted(models_analyzed)}; missing: {sorted(missing_models)}"
+        )
 
-            save_step_checkpoint(
-                step_name="7_shap_analysis",
-                cohort=cohort,
-                age_band=age_band,
-                metadata={"n_background": n_background, "n_eval": n_eval, "models_analyzed": models_analyzed},
-                output_paths=s3_outputs,
-            )
-        except ImportError:
-            pass  # Checkpoint saving is optional
-    
-    # Return True if at least one model was analyzed
-    return len(models_analyzed) > 0
+    try:
+        from py_helpers.checkpoint_utils import save_step_checkpoint
+
+        save_step_checkpoint(
+            step_name="7_shap_analysis",
+            cohort=cohort,
+            age_band=age_band,
+            metadata={"n_background": n_background, "n_eval": n_eval, "models_analyzed": models_analyzed},
+            output_paths=s3_outputs,
+        )
+    except ImportError:
+        pass  # Checkpoint saving is optional
+
+    return True
 
 
 def main() -> None:
@@ -1311,20 +1324,37 @@ def main() -> None:
             PROJECT_ROOT / "7_shap_analysis" / "outputs" / args.cohort / age_band_fname
         )
 
+    model_base = resolve_step6_cohort_age_dir(PROJECT_ROOT, args.cohort, args.age_band)
+    metadata_probe_path = model_base / f"{args.cohort}_{age_band_fname}_model_selection_metadata.json"
+    if args.bin:
+        bin_metadata_probe_path = model_base / "bin_models" / args.bin / f"{args.cohort}_{age_band_fname}_model_selection_metadata.json"
+        if bin_metadata_probe_path.exists():
+            metadata_probe_path = bin_metadata_probe_path
+    try:
+        with open(metadata_probe_path) as f:
+            metadata_probe = json.load(f)
+    except Exception:
+        metadata_probe = {}
+    required_model_outputs = _required_shap_models(metadata_probe)
+
     # Check for existing local outputs (idempotency - check local first)
-    # SHAP generates outputs for both XGBoost and CatBoost (if available)
+    # SHAP always needs XGBoost for FFA, plus the best-overall model when it differs.
     _pfx = f"{args.cohort}_{age_band_fname}"
     expected_outputs = [
         f"{_pfx}_shap_global_importance_xgboost.csv",
         f"{_pfx}_shap_sample_values_xgboost.parquet",
+    ]
+    if "catboost" in required_model_outputs:
+        expected_outputs.extend(
+            [
+                f"{_pfx}_shap_global_importance_catboost.csv",
+                f"{_pfx}_shap_sample_values_catboost.parquet",
+            ]
+        )
+    
+    optional_outputs = [
         f"{_pfx}_shap_summary_bar_xgboost.png",
         f"{_pfx}_shap_summary_beeswarm_xgboost.png",
-    ]
-    
-    # CatBoost outputs are optional (model might not be available)
-    optional_outputs = [
-        f"{_pfx}_shap_global_importance_catboost.csv",
-        f"{_pfx}_shap_sample_values_catboost.parquet",
         f"{_pfx}_shap_summary_bar_catboost.png",
         f"{_pfx}_shap_summary_beeswarm_catboost.png",
     ]
@@ -1358,7 +1388,7 @@ def main() -> None:
                     step_name="7_shap_analysis",
                     cohort=args.cohort,
                     age_band=args.age_band,
-                    metadata={"n_background": args.n_background, "n_eval": args.n_eval, "models_analyzed": ["xgboost"]},
+                    metadata={"n_background": args.n_background, "n_eval": args.n_eval, "models_analyzed": ["xgboost", "catboost"]},
                     output_paths=s3_outputs,
                 )
         except ImportError:
@@ -1373,8 +1403,10 @@ def main() -> None:
         s3_prefix = _shap_s3_prefix(args.cohort, args.age_band, args.bin)
         s3_key_prefix = _shap_s3_key_prefix(args.cohort, args.age_band, args.bin)
         s3_output_paths = [
-            f"{s3_prefix}/{args.cohort}_{age_band_fname}_shap_global_importance_xgboost.csv",
-            f"{s3_prefix}/{args.cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet",
+            *[
+                f"{s3_prefix}/{fname}"
+                for fname in expected_outputs
+            ],
         ]
 
         # Only skip if outputs actually exist (not just checkpoint)
@@ -1393,7 +1425,7 @@ def main() -> None:
                 out_dir.mkdir(parents=True, exist_ok=True)
                 
                 downloaded_files = []
-                # Download XGBoost outputs (required)
+                # Download required XGBoost and CatBoost outputs
                 for fname in expected_outputs:
                     s3_key = f"{s3_key_prefix}/{fname}"
                     local_path = out_dir / fname
@@ -1404,7 +1436,7 @@ def main() -> None:
                     except Exception as e:
                         print(f"Warning: Could not download {s3_key}: {e}")
                 
-                # Try to download CatBoost outputs (optional)
+                # Try to download plot outputs (optional)
                 for fname in optional_outputs:
                     s3_key = f"{s3_key_prefix}/{fname}"
                     local_path = out_dir / fname
@@ -1413,7 +1445,7 @@ def main() -> None:
                         print(f"Downloaded {local_path} from S3")
                         downloaded_files.append(local_path)
                     except Exception:
-                        pass  # CatBoost outputs are optional
+                        pass
                 
                 # Verify that required files actually exist before skipping
                 all_required_exist = all((out_dir / fname).exists() for fname in expected_outputs)
