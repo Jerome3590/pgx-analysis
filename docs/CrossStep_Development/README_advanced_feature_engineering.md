@@ -184,3 +184,44 @@ Key files:
 - `consensus_summary_by_bin.csv`
 
 Use these artifacts when updating manuscript claims or deciding whether a historical rule remains supported by regenerated outputs.
+
+## Multi-drug profile regeneration
+
+The current regenerated scenario outputs do not include the older full `interaction_analysis.parquet` artifacts used by CH4 to claim explicit pair/triplet interaction effects. To support manuscript and dashboard review, the model-training notebook now includes a lightweight regeneration step:
+
+```text
+8_ffa_analysis/regenerate_multidrug_interactions_from_scenario.py
+```
+
+This script reads the regenerated scenario folders and creates explicit multi-drug profile tables from:
+
+- top combined SHAP/FFA drug features per cohort/age/bin,
+- patient-level FFA rule profiles,
+- strict rule support where multiple drug conditions appear in the same explanation text.
+
+Outputs are written to:
+
+```text
+reports/scenario_audit/multidrug_interactions/
+```
+
+Key files:
+
+- `multidrug_scenario_profiles.csv`
+- `recurrent_multidrug_profiles.csv`
+- `recurrent_multidrug_profiles_opioid_ed.csv`
+- `recurrent_multidrug_profiles_non_opioid_ed.csv`
+- `top_drug_features_by_bin.csv`
+- `summary.json`
+
+These tables show recurring pair and triplet medication profiles, including combinations such as gabapentin plus benzodiazepines in `opioid_ed` and antibiotic/corticosteroid profiles in `non_opioid_ed`.
+
+Important limitation:
+
+> These regenerated tables identify co-occurring top SHAP/FFA drug profiles and rule-supported medication sets. They are not a substitute for full multi-feature causal-synergy estimation unless `interaction_analysis.parquet` is regenerated with explicit `combined_causal_importance`, `sum_individual_effects`, and `interaction_effect` columns.
+
+The notebook syncs these outputs to:
+
+```text
+s3://pgxdatalake/gold/dashboard/visualizations/scenario_multidrug_profiles/
+```

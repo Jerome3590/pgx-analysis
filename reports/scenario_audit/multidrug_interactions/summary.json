@@ -1,0 +1,13 @@
+{
+  "total_profiles": 41802,
+  "total_bins": 50,
+  "top_k": 20,
+  "max_size": 3,
+  "outputs": [
+    "multidrug_scenario_profiles.csv",
+    "recurrent_multidrug_profiles.csv",
+    "recurrent_multidrug_profiles_non_opioid_ed.csv",
+    "recurrent_multidrug_profiles_opioid_ed.csv",
+    "top_drug_features_by_bin.csv"
+  ]
+}
