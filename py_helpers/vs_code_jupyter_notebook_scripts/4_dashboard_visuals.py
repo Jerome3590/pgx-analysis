@@ -309,25 +309,66 @@ print("  Sources: Step 3b/3a feature importance or combined_importance.csv (gene
 
 # %%
 # Prerequisite: n_event_bin_thresholds.json (written by Step 6 run_final_model.py in notebook 3).
-# DTW and FP-Growth load these thresholds to apply the same low/medium/high/extreme bin cuts as
-# the trained model.  Model training (notebook 3) MUST run before this notebook.
+# DTW, BupaR, FP-Growth, and risk inference load these thresholds to apply the same
+# low/medium/high/extreme bin cuts as the trained model. If EC2 local files are missing,
+# pull the deployed copies from S3 before failing.
+import json
+
 FINAL_MODEL_OUTPUTS = REPO_ROOT / "6_final_model" / "outputs"
+MODEL_THRESHOLDS_S3_PREFIX = "gold/dashboard/models"
+
+def _valid_threshold_json(path: Path) -> bool:
+    try:
+        data = json.loads(path.read_text())
+        return all(k in data for k in ("p25", "p50", "p95"))
+    except Exception:
+        return False
+
+try:
+    import boto3
+    _threshold_s3 = boto3.client("s3", region_name="us-east-1")
+except Exception as exc:
+    _threshold_s3 = None
+    print(f"[WARN] boto3 unavailable; cannot pull missing n_event_bin_thresholds.json from S3: {exc}")
+
 _thresh_missing = []
+_thresh_downloaded = 0
 for cohort_name, age_band in combinations:
     age_band_fname = age_band.replace("-", "_")
     thresh_path = FINAL_MODEL_OUTPUTS / cohort_name / age_band_fname / "n_event_bin_thresholds.json"
-    if not thresh_path.exists():
-        _thresh_missing.append(f"{cohort_name}/{age_band} ({thresh_path})")
+    if thresh_path.exists() and _valid_threshold_json(thresh_path):
+        continue
+
+    s3_key = f"{MODEL_THRESHOLDS_S3_PREFIX}/{cohort_name}/{age_band_fname}/n_event_bin_thresholds.json"
+    if _threshold_s3 is not None:
+        try:
+            thresh_path.parent.mkdir(parents=True, exist_ok=True)
+            obj = _threshold_s3.get_object(Bucket=S3_BUCKET, Key=s3_key)
+            data = json.loads(obj["Body"].read().decode("utf-8"))
+            if all(k in data for k in ("p25", "p50", "p95")):
+                thresh_path.write_text(json.dumps(data, indent=2))
+                _thresh_downloaded += 1
+                continue
+            _thresh_missing.append(f"{cohort_name}/{age_band} invalid S3 JSON: s3://{S3_BUCKET}/{s3_key}")
+            continue
+        except Exception as exc:
+            _thresh_missing.append(f"{cohort_name}/{age_band} ({thresh_path}; S3 s3://{S3_BUCKET}/{s3_key}: {exc})")
+            continue
+
+    _thresh_missing.append(f"{cohort_name}/{age_band} ({thresh_path}; S3 not checked)")
 
 if _thresh_missing:
     msg = (
-        "n_event_bin_thresholds.json not found for some cohorts/age-bands.\n"
-        "These files are written by Step 6 (run_final_model.py) in notebook 3.\n"
-        "Run notebook 3 (3_model_train_shap_ffa.ipynb) first, then re-run this notebook.\n"
+        "n_event_bin_thresholds.json not found for some cohorts/age-bands locally or in S3.\n"
+        "These files are written by Step 6 (run_final_model.py) and deployed with prepare_models.py.\n"
+        "Run notebook 3, or sync/deploy model artifacts to s3://{bucket}/{prefix}/.\n"
         "Missing:\n" + "\n".join(f"  {m}" for m in _thresh_missing)
-    )
+    ).format(bucket=S3_BUCKET, prefix=MODEL_THRESHOLDS_S3_PREFIX)
     raise RuntimeError(msg)
-print(f"Prerequisite check passed: n_event_bin_thresholds.json present for all {len(combinations)} cohort/age-band combinations.")
+print(
+    f"Prerequisite check passed: n_event_bin_thresholds.json present for all {len(combinations)} "
+    f"cohort/age-band combinations ({_thresh_downloaded} downloaded from S3)."
+)
 
 # %%
 # (Prerequisite checks run in the Config cell above.)
