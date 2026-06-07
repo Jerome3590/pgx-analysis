@@ -113,7 +113,7 @@ Check `__init__.py` for the current export list; not all utilities are re-export
 | `0_config_and_pipeline.py` | `0_config_and_pipeline.ipynb` |
 | `1_cohort_workflow.py` | `1_cohort_workflow.ipynb` |
 | `2_feature_importance.py` | `2_feature_importance.ipynb` |
-| `3_model_train_shap_ffa.py` | `3_model_train_shap_ffa.ipynb` |
+| `3_model_train_shap_ffa_windows_local_test.py` | Windows/local intermittent testing equivalent of `3_model_train_shap_ffa.ipynb`; EC2 uses the root notebook directly |
 | `4_dashboard_visuals.py` | `4_dashboard_visuals.ipynb` |
 | `5_build_and_deploy.py` | `5_build_and_deploy.ipynb` |
 
