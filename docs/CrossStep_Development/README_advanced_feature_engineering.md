@@ -2,6 +2,54 @@
 
 This document records feature-engineering lessons from the regenerated density-bin SHAP/FFA scenario outputs and CH3 manuscript trace.
 
+## What we added and why
+
+The recent pipeline update expanded the model feature space beyond raw clinical-code indicators. The goal was to separate specific clinical signals from general utilization intensity, temporal care-seeking patterns, and pharmacogenomic medication burden.
+
+Added or emphasized feature groups:
+
+- `n_event_bin_ordinal`: event-density stratum encoded as an ordinal utilization-intensity signal.
+- `pgx_num_drugs`: total PGx-relevant medication burden.
+- `pgx_num_cpic_drugs`: CPIC-actionable medication burden.
+- `pgx_cpic_fraction`: proportion of PGx-relevant drugs that are CPIC-actionable.
+- `pgx_non_cpic_drugs`: PGx-relevant medication burden outside CPIC-actionable subset.
+- `event_span_days`: longitudinal span of pre-target events.
+- `event_rate_per30`: average event rate per 30 days.
+- `early_event_rate_per30`: early-window utilization rate.
+- `late_event_rate_per30`: late-window utilization rate.
+- `event_rate_delta_per30`: acceleration or deceleration in utilization rate.
+- `event_rate_ratio_late_vs_early`: late-vs-early utilization ratio.
+- `event_burstiness`: clustering/irregularity of event timing.
+- `mean_inter_event_days`: average gap between events.
+- `median_inter_event_days`: median gap between events.
+- `std_inter_event_days`: variability in event gaps.
+- `recent30_event_count`: event count near the end of the pre-target window.
+- `recent90_event_count`: 90-day recent event count.
+- `recent30_event_fraction`: share of events occurring in the recent 30-day window.
+- `recent90_event_fraction`: share of events occurring in the recent 90-day window.
+
+Why these were added:
+
+1. To reduce overinterpretation of high-frequency CPT/ICD/drug codes as purely clinical effects when they may partly reflect high healthcare utilization.
+2. To let the model distinguish stable chronic utilization from rapidly escalating or burst-like care patterns.
+3. To expose PGx medication burden as an interpretable model signal rather than relying only on individual drug names.
+4. To make downstream SHAP/FFA scenario outputs more clinically contextual and more defensible for manuscript interpretation.
+5. To support density-bin modeling where low-, medium-, high-, and extreme-utilization patients can have different predictors and explanation profiles.
+
+## How this improved the analysis
+
+The regenerated scenario audit showed that the added contextual features improved interpretation in several ways:
+
+- `pgx_num_drugs` appeared in the top-20 combined SHAP/FFA features in 60 of 63 bins.
+- `pgx_num_cpic_drugs` appeared in the top-20 combined SHAP/FFA features in 58 of 63 bins.
+- `non_opioid_ed` outputs were cleanly drug/PGx-driven, matching the intended drug-only design.
+- `opioid_ed` outputs retained drug, ICD, CPT, PGx, and utilization/temporal context, matching the broader opioid feature design.
+- Consensus rates were high after the XGBoost-aligned combine hardening: mean top-20 consensus was approximately 96.7% for `non_opioid_ed` and 91.6% for `opioid_ed`.
+- CPT/procedure-heavy findings can now be interpreted with better utilization context, because event density and temporal dynamics are explicit model features.
+- Historical rules can now be audited more rigorously: if a prior rule disappears, we can determine whether it disappeared entirely, shifted to certain bins, became SHAP-only, became weak in FFA, or requires explicit absence/delay/count features.
+
+The main interpretive improvement is that top scenario features are no longer just a list of clinical codes. They are a combined view of medication burden, PGx burden, chronic pain/encounter context, and temporal utilization dynamics.
+
 ## Why explicit absence features matter
 
 The current model matrix primarily represents clinical-code presence:
