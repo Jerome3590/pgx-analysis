@@ -113,42 +113,50 @@ import shutil
 import subprocess
 from py_helpers.workflow_sync_checkpoint import clear_step_checkpoints, delete_step_checkpoint
 
-# 1) S3 checkpoint metadata (pgx-repository) so steps don't think they're done
-for step in ("4_model_data", "6_final_model"):
-    for cohort, bands in REQUIRED_COHORTS.items():
-        n = clear_step_checkpoints(step, cohort, bands, logger=None)
-        print(f"Cleared {n} checkpoint(s) for {step} / {cohort}")
-delete_step_checkpoint("9_dashboard_metadata", "all", "all", logger=None)
-print("Cleared checkpoint 9_dashboard_metadata (all/all)")
+CONFIRM_CLEAR_CHECKPOINTS_AND_OUTPUTS = "CLEAR NOTEBOOK 3 OUTPUTS"
+_response = input(
+    "This will delete notebook 3 S3 checkpoints, S3 model/model-data outputs, and local outputs. "
+    f"Type {CONFIRM_CLEAR_CHECKPOINTS_AND_OUTPUTS!r} to continue: "
+).strip()
+if _response != CONFIRM_CLEAR_CHECKPOINTS_AND_OUTPUTS:
+    print("Clear aborted; no checkpoints or outputs were deleted.")
+else:
+    # 1) S3 checkpoint metadata (pgx-repository) so steps don't think they're done
+    for step in ("4_model_data", "6_final_model"):
+        for cohort, bands in REQUIRED_COHORTS.items():
+            n = clear_step_checkpoints(step, cohort, bands, logger=None)
+            print(f"Cleared {n} checkpoint(s) for {step} / {cohort}")
+    delete_step_checkpoint("9_dashboard_metadata", "all", "all", logger=None)
+    print("Cleared checkpoint 9_dashboard_metadata (all/all)")
 
-# 2) S3 pipeline outputs (pgxdatalake) so Step 4 and Step 6 re-run instead of re-downloading
-_aws = shutil.which("aws") or "aws"
-_profile = ["--profile", AWS_PROFILE] if AWS_PROFILE else []
-for prefix in ("gold/cohorts_model_data/", "gold/final_model/"):
-    uri = f"s3://{S3_BUCKET}/{prefix}"
-    r = subprocess.run([_aws, "s3", "rm", uri, "--recursive"] + _profile, capture_output=True, text=True)
-    if r.returncode == 0:
-        print(f"Cleared S3 {uri}")
-    else:
-        print(f"S3 rm {uri}: exit {r.returncode} (check credentials); {r.stderr or r.stdout or ''}")
+    # 2) S3 pipeline outputs (pgxdatalake) so Step 4 and Step 6 re-run instead of re-downloading
+    _aws = shutil.which("aws") or "aws"
+    _profile = ["--profile", AWS_PROFILE] if AWS_PROFILE else []
+    for prefix in ("gold/cohorts_model_data/", "gold/final_model/"):
+        uri = f"s3://{S3_BUCKET}/{prefix}"
+        r = subprocess.run([_aws, "s3", "rm", uri, "--recursive"] + _profile, capture_output=True, text=True)
+        if r.returncode == 0:
+            print(f"Cleared S3 {uri}")
+        else:
+            print(f"S3 rm {uri}: exit {r.returncode} (check credentials); {r.stderr or r.stdout or ''}")
 
-# 3) Local output directories
-dirs_to_clear = [
-    MODEL_DATA_ROOT,
-    FINAL_MODEL_OUTPUTS,
-    FINAL_MODEL_OUTPUTS_ALT,
-    PROJECT_ROOT / "7_shap_analysis" / "outputs",
-    PROJECT_ROOT / "8_ffa_analysis" / "outputs",
-    PROJECT_ROOT / "10_risk_dashboard" / "outputs",
-]
-for d in dirs_to_clear:
-    d = Path(d)
-    if d.exists():
-        shutil.rmtree(d)
-        print(f"Removed {d}")
-    else:
-        print(f"(skip, not present) {d}")
-print("Done. Re-run Sync and then Steps 4 → 5 → 6 → 1a → Step 7 → Step 8 → Combine for a fresh model and SHAP/FFA outputs.")
+    # 3) Local output directories
+    dirs_to_clear = [
+        MODEL_DATA_ROOT,
+        FINAL_MODEL_OUTPUTS,
+        FINAL_MODEL_OUTPUTS_ALT,
+        PROJECT_ROOT / "7_shap_analysis" / "outputs",
+        PROJECT_ROOT / "8_ffa_analysis" / "outputs",
+        PROJECT_ROOT / "10_risk_dashboard" / "outputs",
+    ]
+    for d in dirs_to_clear:
+        d = Path(d)
+        if d.exists():
+            shutil.rmtree(d)
+            print(f"Removed {d}")
+        else:
+            print(f"(skip, not present) {d}")
+    print("Done. Re-run Sync and then Steps 4 → 5 → 6 → 1a → Step 7 → Step 8 → Combine for a fresh model and SHAP/FFA outputs.")
 
 # %% [markdown]
 # ## Sync required inputs from S3 to NVMe (idempotent)
