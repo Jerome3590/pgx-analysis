@@ -930,6 +930,7 @@ def build_feature_vector(
     code count rather than the population median.
     """
     features = {}
+    explicitly_set = set()
     
     # Initialize all features to 0
     for feature in feature_schema.get('features', []):
@@ -938,6 +939,7 @@ def build_feature_vector(
     # Set age
     if 'age' in features:
         features['age'] = float(age)
+        explicitly_set.add('age')
 
     def _set_item_feature(code: str, code_type: str) -> None:
         """Set an item_* feature to 1.0 if it exists in the schema."""
@@ -981,6 +983,7 @@ def build_feature_vector(
     # These override schema defaults so the user can see how predictions change.
     if n_drugs is not None and "n_drugs" in features:
         features["n_drugs"] = float(n_drugs)
+        explicitly_set.add("n_drugs")
 
     # Auto-derive pgx_num_drugs / pgx_num_cpic_drugs from submitted drug count
     # when auto_pgx_num_drugs=True and no explicit values were provided.
@@ -995,9 +998,31 @@ def build_feature_vector(
             pgx_num_cpic_drugs = pgx_num_drugs
 
     if pgx_num_drugs is not None and "pgx_num_drugs" in features:
-        features["pgx_num_drugs"] = float(pgx_num_drugs)
+        pgx_num_drugs = max(float(pgx_num_drugs), 0.0)
+        features["pgx_num_drugs"] = pgx_num_drugs
+        explicitly_set.add("pgx_num_drugs")
     if pgx_num_cpic_drugs is not None and "pgx_num_cpic_drugs" in features:
-        features["pgx_num_cpic_drugs"] = float(pgx_num_cpic_drugs)
+        pgx_num_cpic_drugs = max(float(pgx_num_cpic_drugs), 0.0)
+        features["pgx_num_cpic_drugs"] = pgx_num_cpic_drugs
+        explicitly_set.add("pgx_num_cpic_drugs")
+
+    if pgx_num_drugs is not None or pgx_num_cpic_drugs is not None:
+        pgx_drug_count = max(float(pgx_num_drugs or 0.0), 0.0)
+        pgx_cpic_count = max(float(pgx_num_cpic_drugs or 0.0), 0.0)
+        pgx_non_cpic_count = max(pgx_drug_count - pgx_cpic_count, 0.0)
+        pgx_cpic_fraction = pgx_cpic_count / pgx_drug_count if pgx_drug_count > 0 else 0.0
+        derived_pgx = {
+            "pgx_non_cpic_drugs": pgx_non_cpic_count,
+            "pgx_has_any_drug": 1.0 if pgx_drug_count > 0 else 0.0,
+            "pgx_has_cpic_drug": 1.0 if pgx_cpic_count > 0 else 0.0,
+            "pgx_cpic_fraction": pgx_cpic_fraction,
+            "pgx_num_drugs_log1p": float(np.log1p(pgx_drug_count)),
+            "pgx_num_cpic_drugs_log1p": float(np.log1p(pgx_cpic_count)),
+        }
+        for feature, value in derived_pgx.items():
+            if feature in features:
+                features[feature] = value
+                explicitly_set.add(feature)
 
     # Apply schema defaults for any feature not yet set by the request.
     # Uses == 0.0 as "unset" sentinel — must run BEFORE n_event_bin_ordinal
@@ -1005,7 +1030,7 @@ def build_feature_vector(
     # by the training-median default (1.0 / medium).
     defaults = feature_schema.get('defaults', {})
     for feature in features:
-        if features[feature] == 0.0 and feature in defaults:
+        if feature not in explicitly_set and features[feature] == 0.0 and feature in defaults:
             features[feature] = defaults[feature]
 
     # Set n_event_bin_ordinal AFTER defaults so low-bin (0.0) is not

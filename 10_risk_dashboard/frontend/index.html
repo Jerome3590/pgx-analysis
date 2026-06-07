@@ -1359,6 +1359,62 @@
     updateNeventBinIndicator();
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function densityLabel(bin) {
+    const map = {
+      low: "Low activity",
+      medium: "Moderate activity",
+      high: "High activity",
+      extreme: "Extreme activity"
+    };
+    return map[bin] || "Low activity";
+  }
+
+  function pgxBurdenLabel(nDrugs, nCpic) {
+    const d = Number(nDrugs || 0);
+    const c = Number(nCpic || 0);
+    if (d <= 0) return "No medication burden supplied";
+    const frac = d > 0 ? c / d : 0;
+    if (d >= 10 || c >= 5 || frac >= 0.75) return "High PGx/medication burden";
+    if (d >= 4 || c >= 2 || frac >= 0.4) return "Moderate PGx/medication burden";
+    return "Low PGx/medication burden";
+  }
+
+  function renderModelInputLabels(data) {
+    const el = document.getElementById("risk-model-input-labels");
+    if (!el) return;
+    const bin = data && data.n_event_bin ? data.n_event_bin : "low";
+    const mi = data && data.model_inputs ? data.model_inputs : {};
+    const nDrugs = mi && mi.pgx_num_drugs != null ? mi.pgx_num_drugs : data.n_pgx_drugs;
+    const nCpic = mi && mi.pgx_num_cpic_drugs != null ? mi.pgx_num_cpic_drugs : data.pgx_num_cpic_drugs;
+    const nEvents = data && data.n_events_for_bin != null ? data.n_events_for_bin : null;
+    const densityText = nEvents != null ? `${densityLabel(bin)} (${bin}, n=${nEvents})` : `${densityLabel(bin)} (${bin}; default when total events not supplied)`;
+    const pgxText = pgxBurdenLabel(nDrugs, nCpic);
+    const temporalDefaultNote = "Schema-default temporal profile";
+    const temporalDetail = "Patient-specific velocity, acceleration, burstiness, and recent-activity labels require dated event history.";
+    el.innerHTML = `
+      <div style="font-weight:700;color:#334155;margin-bottom:0.45rem;">Model input context shown as dashboard labels</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:0.45rem;">
+        <div><strong>Event density:</strong> ${escapeHtml(densityText)}</div>
+        <div><strong>Event velocity:</strong> ${escapeHtml(temporalDefaultNote)}</div>
+        <div><strong>Trajectory:</strong> ${escapeHtml(temporalDefaultNote)}</div>
+        <div><strong>Event timing:</strong> ${escapeHtml(temporalDefaultNote)}</div>
+        <div><strong>Recent activity:</strong> ${escapeHtml(temporalDefaultNote)}</div>
+        <div><strong>Medication / PGx burden:</strong> ${escapeHtml(pgxText)}${nDrugs != null ? ` (${Number(nDrugs)} drugs, ${Number(nCpic || 0)} CPIC)` : ""}</div>
+      </div>
+      <div style="margin-top:0.45rem;color:#64748b;font-size:0.76rem;">${escapeHtml(temporalDetail)}</div>
+    `;
+    el.style.display = "block";
+  }
+
   function displayRiskResults(data, cohort, ageBand) {
     const riskScore = (data.risk_score * 100).toFixed(1);
     const riskBand = data.risk_band;
@@ -1368,6 +1424,7 @@
     
     riskBandEl.textContent = riskBand.toUpperCase();
     riskBandEl.className = `risk-band ${riskBand}`;
+    renderModelInputLabels(data);
 
     const nEventBinBadge = document.getElementById("n-event-bin-badge");
     if (nEventBinBadge) {
