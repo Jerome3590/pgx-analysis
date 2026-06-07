@@ -288,7 +288,8 @@ def compute_global_shap_signal_catboost(
     
     original_columns = list(X.columns)
     feature_names_expected = _catboost_feature_names(model, X)
-    cat_feature_names = _cat_feature_names_from_indices(
+    cat_feature_names = _cat_feature_names_for_model(
+        model,
         original_columns,
         feature_names_expected,
         cat_feature_indices,
@@ -296,9 +297,8 @@ def compute_global_shap_signal_catboost(
     X = _align_for_catboost_model(model, X, cat_feature_names)
     feature_names = list(X.columns)
     aligned_cat_feature_indices = _cat_feature_indices_after_alignment(
-        original_columns,
         feature_names,
-        cat_feature_indices,
+        cat_feature_names,
     )
     print(f"Computing global SHAP signal for {len(feature_names)} features using {len(X)} rows...")
     
@@ -364,18 +364,28 @@ def _catboost_feature_names(model, X: pd.DataFrame) -> list[str]:
     return list(names) if names else list(X.columns)
 
 
-def _cat_feature_names_from_indices(
+def _cat_feature_names_for_model(
+    model,
     original_columns: list[str],
     expected_columns: list[str],
     cat_feature_indices: list[int] | None,
 ) -> set[str]:
+    names: set[str] = set()
+    try:
+        for i in model.get_cat_feature_indices():
+            if 0 <= i < len(expected_columns):
+                names.add(expected_columns[i])
+    except Exception:
+        pass
     if cat_feature_indices:
-        return {
+        names.update({
             original_columns[i]
             for i in cat_feature_indices
             if 0 <= i < len(original_columns)
-        }
-    return {c for c in expected_columns if c.startswith("item_")}
+        })
+    if not names:
+        names.update(c for c in expected_columns if c.startswith("item_"))
+    return names
 
 
 def _align_for_catboost_model(
@@ -415,18 +425,9 @@ def _shap_s3_key_prefix(cohort: str, age_band: str, bin_name: str | None = None)
 
 
 def _cat_feature_indices_after_alignment(
-    original_columns: list[str],
     aligned_columns: list[str],
-    cat_feature_indices: list[int] | None,
+    cat_feature_names: set[str],
 ) -> list[int] | None:
-    if cat_feature_indices:
-        cat_feature_names = {
-            original_columns[i]
-            for i in cat_feature_indices
-            if 0 <= i < len(original_columns)
-        }
-    else:
-        cat_feature_names = {c for c in original_columns if c.startswith("item_")}
     aligned_indices = [
         i for i, name in enumerate(aligned_columns)
         if name in cat_feature_names and i < len(aligned_columns)
@@ -467,7 +468,8 @@ def write_row_shap_for_selected_features_catboost(
     
     original_columns = list(X.columns)
     feature_names_expected = _catboost_feature_names(model, X)
-    cat_feature_names = _cat_feature_names_from_indices(
+    cat_feature_names = _cat_feature_names_for_model(
+        model,
         original_columns,
         feature_names_expected,
         cat_feature_indices,
@@ -475,9 +477,8 @@ def write_row_shap_for_selected_features_catboost(
     X = _align_for_catboost_model(model, X, cat_feature_names)
     feature_names = list(X.columns)
     aligned_cat_feature_indices = _cat_feature_indices_after_alignment(
-        original_columns,
         feature_names,
-        cat_feature_indices,
+        cat_feature_names,
     )
     
     # Column indices for selected features
