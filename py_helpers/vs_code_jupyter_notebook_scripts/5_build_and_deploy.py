@@ -848,11 +848,11 @@ if frontend_dir.exists() and frontend_dir.is_dir():
                             for line in result_scenario.stdout.strip().split("\n"):
                                 print(f"  {line}")
                         elif result_scenario.returncode != 0 and result_scenario.stderr:
-                            print(f"  ⚠ Causal upload: {result_scenario.stderr.strip() or 'failed'}")
+                            print(f"  ⚠ Scenario upload: {result_scenario.stderr.strip() or 'failed'}")
                     except Exception as e:
-                        print(f"  ⚠ Causal upload failed: {e}")
+                        print(f"  ⚠ Scenario upload failed: {e}")
                 else:
-                    print("  ⚠ Causal upload script not found; Scenario Analysis tab may have no data until dashboard_data.json is uploaded to S3.")
+                    print("  ⚠ Scenario upload script not found; Scenario Analysis tab may have no data until dashboard_data.json is uploaded to S3.")
 
                 # Manifest-driven upload: only upload static_files listed in dashboard_visual_objects.json.
                 # This prevents debug artifacts (trajectory_status_*.json, dtw_model_events_diagnostics_*.json,
