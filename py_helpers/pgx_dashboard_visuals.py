@@ -209,7 +209,7 @@ for cohort_name, age_band in combinations:
 # The dashboard frontend calls these endpoints. Ensure API Gateway has proxy
 # to Lambda and Lambda has access to S3 paths below.
 #
-# GET /visualizations/causal?cohort=...&age_band=...[&drugs=...&icds=...&cpts=...]
+# GET /visualizations/scenario?cohort=...&age_band=...[&drugs=...&icds=...&cpts=...]
 #   -> Causal + SHAP importance (filtered by codes or top SHAP/FFA when no selection)
 #
 # GET /visualizations/bupar?cohort=...&age_band=...
@@ -346,15 +346,15 @@ if not SKIP_DEPLOY_FRONTEND and frontend_dir.exists():
             print(f"  Feature importance: {uploaded_fi} heatmap(s) uploaded.")
         elif fi_base.exists():
             print("  No feature importance heatmaps found under 10_risk_dashboard/visualizations/feature_importance (run notebook 4 FI heatmaps + copy).")
-        # Upload causal dashboard JSON (Causal Analysis tab): visualizations/causal -> S3 visualizations/causal/
-        causal_script = DASHBOARD_DIR / "data_preparation" / "upload_causal_outputs_to_s3.py"
-        if causal_script.exists():
-            r_causal = subprocess.run([str(get_workflow_python_bin()), str(causal_script)], cwd=str(REPO_ROOT), capture_output=True, text=True)
-            if r_causal.returncode == 0 and r_causal.stdout:
-                for line in r_causal.stdout.strip().split("\n"):
+        # Upload scenario dashboard JSON (Scenario Analysis tab): visualizations/scenario -> S3 visualizations/scenario/
+        scenario_script = DASHBOARD_DIR / "data_preparation" / "upload_scenario_outputs_to_s3.py"
+        if scenario_script.exists():
+            r_scenario = subprocess.run([str(get_workflow_python_bin()), str(scenario_script)], cwd=str(REPO_ROOT), capture_output=True, text=True)
+            if r_scenario.returncode == 0 and r_scenario.stdout:
+                for line in r_scenario.stdout.strip().split("\n"):
                     print(f"  {line}")
-            elif r_causal.returncode != 0 and r_causal.stderr:
-                print("  Causal upload:", r_causal.stderr.strip() or "failed")
+            elif r_scenario.returncode != 0 and r_scenario.stderr:
+                print("  Causal upload:", r_scenario.stderr.strip() or "failed")
     else:
         print("S3 sync failed.")
 elif not SKIP_DEPLOY_FRONTEND:

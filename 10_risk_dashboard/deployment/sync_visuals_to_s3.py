@@ -10,7 +10,7 @@ intermediate files such as trajectory_status_*.json, dtw_model_events_diagnostic
 *.csv, *.parquet, Rplots.pdf, and other pipeline artifacts the dashboard never reads.
 
 NOTE: Scenario Analysis artifacts (dashboard_data.json → scenario_data.json rename-on-upload)
-are handled separately by upload_causal_outputs_to_s3.py, which is still called by
+are handled separately by upload_scenario_outputs_to_s3.py, which is still called by
 5_build_and_deploy.py before this script.
 
 Usage:

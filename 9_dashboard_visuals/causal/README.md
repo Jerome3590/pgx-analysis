@@ -1,4 +1,4 @@
-# Causal Analysis (dashboard tab)
+# Scenario Analysis (dashboard tab)
 
 ## Research questions this visual answers
 
@@ -14,12 +14,12 @@
 
 This folder exists so **9_dashboard_visuals** has one folder per dashboard visualization type, matching **10_risk_dashboard/visualizations**.
 
-The **Causal Analysis** tab data is **not produced here**. It is produced by:
+The **Scenario Analysis** tab data is **not produced here**. It is produced by:
 
 - **Script:** `10_risk_dashboard/data_preparation/combine_shap_ffa_results.py` (SHAP + FFA combined importance)
-- **Output:** `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json`
-- **Upload:** `10_risk_dashboard/data_preparation/upload_causal_outputs_to_s3.py` (or notebook 5 Step 6) uploads as `visualizations/causal/{cohort}/{age_band}/causal_data.json`
+- **Output:** `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json`
+- **Upload:** `10_risk_dashboard/data_preparation/upload_scenario_outputs_to_s3.py` (or notebook 5 Step 6) uploads as `visualizations/scenario/{cohort}/{age_band}/scenario_data.json`
 
-Notebook **4_dashboard_visuals** runs the combine step and upload; the dashboard frontend loads `causal_data.json` (static-first) or the Lambda API.
+Notebook **4_dashboard_visuals** runs the combine step and upload; the dashboard frontend loads `scenario_data.json` (static-first) or the Lambda API.
 
-**See also:** [README_dashboard_visual_artifact_paths.md](../../10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md) (Causal Analysis row).
+**See also:** [README_dashboard_visual_artifact_paths.md](../../10_risk_dashboard/docs/README_dashboard_visual_artifact_paths.md) (Scenario Analysis row).

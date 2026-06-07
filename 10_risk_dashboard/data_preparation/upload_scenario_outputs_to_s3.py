@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CAUSAL_VISUALS_DIR = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "scenario"
+SCENARIO_VISUALS_DIR = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "scenario"
 
 
 def main() -> int:
@@ -33,14 +33,14 @@ def main() -> int:
         print("boto3 not available; install with: pip install boto3", file=sys.stderr)
         return 1
 
-    if not CAUSAL_VISUALS_DIR.exists():
-        print(f"No outputs dir: {CAUSAL_VISUALS_DIR}; nothing to upload.")
+    if not SCENARIO_VISUALS_DIR.exists():
+        print(f"No outputs dir: {SCENARIO_VISUALS_DIR}; nothing to upload.")
         return 0
 
     _BINS = ("low", "medium", "high", "extreme")
     uploaded = 0
     s3 = boto3.client("s3")
-    for cohort_dir in CAUSAL_VISUALS_DIR.iterdir():
+    for cohort_dir in SCENARIO_VISUALS_DIR.iterdir():
         if not cohort_dir.is_dir() or cohort_dir.name.startswith("."):
             continue
         cohort = cohort_dir.name

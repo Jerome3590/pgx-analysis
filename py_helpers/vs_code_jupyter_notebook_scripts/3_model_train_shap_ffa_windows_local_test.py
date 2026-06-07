@@ -4,7 +4,7 @@
 # %% [markdown]
 # # 3. Model train + SHAP/FFA analysis
 #
-# **Purpose:** Run pipeline (model data → PGx → final model), then SHAP and FFA analysis and combine results for the Causal tab. No build or deploy here.
+# **Purpose:** Run pipeline (model data → PGx → final model), then SHAP and FFA analysis and combine results for the Scenario tab. No build or deploy here.
 #
 # **Flow:** Run this notebook first. Then [4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb) (BupaR, DTW, FP-Growth). Then [5_build_and_deploy.ipynb](5_build_and_deploy.ipynb).
 #
@@ -511,7 +511,7 @@ if FORCE_RERUN_DOWNSTREAM_ANALYSIS:
         s3_prefixes = [
             f"s3://{S3_BUCKET}/gold/shap_analysis/{cohort}/",
             f"s3://{S3_BUCKET}/gold/ffa_analysis/{cohort}/",
-            f"s3://{S3_BUCKET}/visualizations/causal/{cohort}/",
+            f"s3://{S3_BUCKET}/visualizations/scenario/{cohort}/",
             f"s3://{S3_BUCKET}/visualizations/scenario/{cohort}/",
         ]
         for uri in s3_prefixes:
@@ -809,7 +809,7 @@ print("Combine complete.")
 # ### Review combined SHAP/FFA and metadata
 #
 # **Code set by design:**
-# - **opioid_ed**: Drug + ICD + CPT (all three used for Causal tab dropdowns).
+# - **opioid_ed**: Drug + ICD + CPT (all three used for Scenario tab dropdowns).
 # - **non_opioid_ed**: Drug only (no ICD/CPT).
 #
 # **How this aligns to output:** The pipeline enforces this before model and dashboard outputs.
