@@ -3584,12 +3584,8 @@ def evaluate_temporal_holdout(
         print("[HOLDOUT] No feature_names in XGB JSON; skipping holdout evaluation.")
         return
 
-    # Align holdout columns to training feature space
-    for c in feature_names:
-        if c not in df_holdout.columns:
-            df_holdout[c] = 0
     X_hold = (
-        df_holdout[feature_names]
+        df_holdout.reindex(columns=feature_names, fill_value=0)
         .replace([float("inf"), float("-inf")], pd.NA)
         .fillna(0)
     )
