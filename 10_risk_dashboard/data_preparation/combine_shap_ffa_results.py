@@ -42,7 +42,7 @@ from py_helpers.event_density_utils import DENSITY_BINS
 
 
 def find_shap_results(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Optional[Path]:
-    """Find SHAP results from Step 7 (7_shap_analysis). Prefer global importance CSV for combine."""
+    """Find XGBoost SHAP results from Step 7 (7_shap_analysis)."""
     age_band_fname = age_band.replace("-", "_")
     base = f"{cohort}_{age_band_fname}"
     shap_base = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
@@ -52,7 +52,6 @@ def find_shap_results(cohort: str, age_band: str, project_root: Path, bin_name: 
         shap_dir = shap_base
     possible_paths = [
         shap_dir / f"{base}_shap_global_importance_xgboost.csv",
-        shap_dir / f"{base}_shap_global_importance_catboost.csv",
         # Legacy / other layouts
         project_root / "8_final_model" / "outputs" / cohort / age_band_fname / "shap_values.npy",
         project_root / "8_final_model" / "outputs" / cohort / age_band_fname / "shap_feature_importance.csv",
@@ -66,20 +65,17 @@ def find_shap_results(cohort: str, age_band: str, project_root: Path, bin_name: 
 
 
 def find_shap_sample_parquet(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Optional[Path]:
-    """Find SHAP sample values parquet from Step 7 (same layout as global importance). Used for row-level SHAP in patient explanations."""
+    """Find XGBoost SHAP sample values parquet from Step 7."""
     age_band_fname = age_band.replace("-", "_")
     base = f"{cohort}_{age_band_fname}"
     shap_base = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     shap_dir = shap_base / "bin_models" / bin_name if bin_name else shap_base
-    for name in (f"{base}_shap_sample_values_xgboost.parquet", f"{base}_shap_sample_values_catboost.parquet"):
-        p = shap_dir / name
-        if p.exists():
-            return p
-    return None
+    p = shap_dir / f"{base}_shap_sample_values_xgboost.parquet"
+    return p if p.exists() else None
 
 
 def find_ffa_results(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Tuple[Optional[Path], Optional[Path]]:
-    """Find FFA results from Step 8 (8_ffa_analysis). PGx uses parquet under xgboost/ or catboost/.
+    """Find XGBoost FFA results from Step 8 (8_ffa_analysis). PGx uses parquet under xgboost/.
     Tries both age_band dir names: underscore (65_74) and hyphen (65-74) for cohort naming consistency."""
     age_band_fname = age_band.replace("-", "_")
     # Try underscore first (what run_shap_ffa_workflow uses), then hyphen (some S3/other scripts use it)
@@ -91,25 +87,23 @@ def find_ffa_results(cohort: str, age_band: str, project_root: Path, bin_name: s
     for age_dir in candidates:
         _age_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
         ffa_base = _age_base / "bin_models" / bin_name if bin_name else _age_base
-        for model in ("xgboost", "catboost"):
-            model_dir = ffa_base / model
-            exp_p = model_dir / "axp_explanations.parquet"
-            if not exp_p.exists():
-                exp_p = model_dir / "axp_explanations.csv"
-            imp_p = model_dir / "feature_importance_axp.parquet"
-            if not imp_p.exists():
-                imp_p = model_dir / "feature_importance_axp.csv"
-            if exp_p.exists():
-                explanations_path = exp_p
-                logger.info(f"Found FFA explanations: {explanations_path}")
-                break
-            if imp_p.exists() and importance_path is None:
-                importance_path = imp_p
+        model_dir = ffa_base / "xgboost"
+        exp_p = model_dir / "axp_explanations.parquet"
+        if not exp_p.exists():
+            exp_p = model_dir / "axp_explanations.csv"
+        imp_p = model_dir / "feature_importance_axp.parquet"
+        if not imp_p.exists():
+            imp_p = model_dir / "feature_importance_axp.csv"
+        if exp_p.exists():
+            explanations_path = exp_p
+            logger.info(f"Found FFA explanations: {explanations_path}")
+        if imp_p.exists() and importance_path is None:
+            importance_path = imp_p
         if explanations_path is not None:
             break
     if explanations_path is None:
         logger.warning(
-            "FFA explanations not found (looked under 8_ffa_analysis/outputs/%s/{%s|%s}/xgboost|catboost/axp_explanations.*). "
+            "FFA explanations not found (looked under 8_ffa_analysis/outputs/%s/{%s|%s}/xgboost/axp_explanations.*). "
             "Patient explanations will be skipped. Run Step 1b (SHAP+FFA workflow) or full 8_ffa_analysis for this cohort/age_band to generate them.",
             cohort, age_band_fname, age_band,
         )
@@ -117,14 +111,13 @@ def find_ffa_results(cohort: str, age_band: str, project_root: Path, bin_name: s
         for age_dir in candidates:
             _age_base = project_root / "8_ffa_analysis" / "outputs" / cohort / age_dir
             ffa_base = _age_base / "bin_models" / bin_name if bin_name else _age_base
-            for model in ("xgboost", "catboost"):
-                imp_p = ffa_base / model / "feature_importance_axp.parquet"
-                if not imp_p.exists():
-                    imp_p = ffa_base / model / "feature_importance_axp.csv"
-                if imp_p.exists():
-                    importance_path = imp_p
-                    logger.info(f"Found FFA importance: {importance_path}")
-                    break
+            imp_p = ffa_base / "xgboost" / "feature_importance_axp.parquet"
+            if not imp_p.exists():
+                imp_p = ffa_base / "xgboost" / "feature_importance_axp.csv"
+            if imp_p.exists():
+                importance_path = imp_p
+                logger.info(f"Found FFA importance: {importance_path}")
+                break
             if importance_path is not None:
                 break
     if importance_path is None:
