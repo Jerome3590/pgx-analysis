@@ -420,12 +420,19 @@ def _prepare_one_age_band(cohort: str, age_band: str) -> Tuple[str, str, bool]:
             save_model(model, model_path, model_type)
     # Copy n_event_bin_thresholds.json (written by run_final_model.py; Lambda uses it to assign bin labels)
     thresholds_src = FINAL_MODEL_DIR / cohort / age_band_fname / "n_event_bin_thresholds.json"
+    import shutil as _shutil
+    _DENSITY_BINS = ("low", "medium", "high", "extreme")
+    if not thresholds_src.exists():
+        for _bin in _DENSITY_BINS:
+            _bin_thresholds_src = FINAL_MODEL_DIR / cohort / age_band_fname / "bin_models" / _bin / "n_event_bin_thresholds.json"
+            if _bin_thresholds_src.exists():
+                thresholds_src = _bin_thresholds_src
+                break
     if thresholds_src.exists():
-        import shutil as _shutil
         _shutil.copy2(thresholds_src, output_dir / "n_event_bin_thresholds.json")
-        print(f"  Copied n_event_bin_thresholds.json -> {output_dir}")
+        print(f"  Copied n_event_bin_thresholds.json -> {output_dir} from {thresholds_src}")
     else:
-        print(f"  [WARN] n_event_bin_thresholds.json not found at {thresholds_src}; skipping (run run_final_model.py first)")
+        print(f"  [WARN] n_event_bin_thresholds.json not found at {FINAL_MODEL_DIR / cohort / age_band_fname} or bin_models/*; skipping (run run_final_model.py first)")
     # Copy Platt calibration models (calibration_{model_type}.joblib + diagnostics JSON)
     # These are written to models/ subdir by run_final_model.py Platt calibration block.
     import shutil as _shutil2
@@ -441,7 +448,6 @@ def _prepare_one_age_band(cohort: str, age_band: str) -> Tuple[str, str, bool]:
     # Copy per-bin models: bin_models/{bin_name}/models/ → output_dir/bin_models/{bin_name}/
     # Lambda routes inference to these when the patient's n_event_bin is known (falls back to full-cohort if absent).
     import shutil as _shutil3
-    _DENSITY_BINS = ("low", "medium", "high", "extreme")
     for _bin in _DENSITY_BINS:
         _bin_src_models = FINAL_MODEL_DIR / cohort / age_band_fname / "bin_models" / _bin / "models"
         if not _bin_src_models.exists():

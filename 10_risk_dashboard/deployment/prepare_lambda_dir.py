@@ -131,6 +131,12 @@ def _prepare_models_one_cohort_age(
     got_schema = False
     for model_file in model_files:
         local_fallback = (local_src / model_file) if local_src else None
+        if model_file == "n_event_bin_thresholds.json" and local_src:
+            for _bin in _DENSITY_BINS:
+                per_bin_thresholds = local_src / "bin_models" / _bin / "n_event_bin_thresholds.json"
+                if per_bin_thresholds.exists():
+                    local_fallback = per_bin_thresholds
+                    break
         ok = _get(f"{s3_prefix}/{model_file}", dest_dir / model_file, local_fallback)
         if model_file == "feature_schema.json" and ok:
             got_schema = True
