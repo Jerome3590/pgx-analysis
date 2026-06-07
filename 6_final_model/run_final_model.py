@@ -3947,6 +3947,7 @@ def train_per_bin(
     min_total: int = 50,
     min_per_class: int = 10,
     force_retrain: bool = False,
+    logger=None,
 ) -> None:
     """
     Train a separate model for each n_event_bin (low / medium / high / extreme).
@@ -3974,6 +3975,10 @@ def train_per_bin(
     print(f"  Full dataset: {len(df)} patients")
     print(f"  Bin distribution: {df['n_event_bin'].value_counts().to_dict()}")
     print(f"{'='*60}")
+    if logger:
+        logger.info("Per-bin model training: %s / %s", cohort, age_band)
+        logger.info("Per-bin full dataset: %d patients", len(df))
+        logger.info("Per-bin distribution: %s", df["n_event_bin"].value_counts().to_dict())
 
     bin_qa = []
     for bin_name in _DENSITY_BINS:
@@ -3997,6 +4002,8 @@ def train_per_bin(
     qa_df = pd.DataFrame(bin_qa)
     print("\nPer-bin class-support QA:")
     print(qa_df.to_string(index=False))
+    if logger:
+        logger.info("Per-bin class-support QA:\n%s", qa_df.to_string(index=False))
     fallback_bins = [row["bin"] for row in bin_qa if row["fallback_needed"]]
     if fallback_bins:
         print(
@@ -4004,6 +4011,15 @@ def train_per_bin(
             "case/control support for independent per-bin training. These bins will use "
             f"full-cohort pooled fallback artifacts: {fallback_bins}"
         )
+        if logger:
+            logger.warning(
+                "Per-bin fallback required for %s/%s: bins=%s; thresholds min_total=%d min_per_class=%d",
+                cohort,
+                age_band,
+                fallback_bins,
+                min_total,
+                min_per_class,
+            )
         age_band_fname = age_band_to_fname(age_band)
         aggregate_metadata = (
             PROJECT_ROOT
@@ -4034,6 +4050,16 @@ def train_per_bin(
         n_controls = int((bin_df["target"] == 0).sum())
 
         print(f"\n--- Bin: {bin_name} | {n_total} patients ({n_cases} cases, {n_controls} controls) ---")
+        if logger:
+            logger.info(
+                "Per-bin support %s/%s/%s: n_total=%d n_cases=%d n_controls=%d",
+                cohort,
+                age_band,
+                bin_name,
+                n_total,
+                n_cases,
+                n_controls,
+            )
 
         if n_total < min_total or n_cases < min_per_class or n_controls < min_per_class:
             print(
@@ -4041,6 +4067,19 @@ def train_per_bin(
                 f"(need >={min_total} total, >={min_per_class} per class); "
                 f"copying full-cohort artifacts to bin_models/{bin_name}/."
             )
+            if logger:
+                logger.warning(
+                    "Per-bin fallback used for %s/%s/%s: insufficient support "
+                    "(n_total=%d, n_cases=%d, n_controls=%d; required min_total=%d, min_per_class=%d)",
+                    cohort,
+                    age_band,
+                    bin_name,
+                    n_total,
+                    n_cases,
+                    n_controls,
+                    min_total,
+                    min_per_class,
+                )
             try:
                 copy_full_cohort_artifacts_to_bin_directory(
                     cohort,
@@ -4064,6 +4103,16 @@ def train_per_bin(
             continue
 
         train_and_evaluate(bin_df, cohort, age_band, n_runs=n_runs, bin_name=bin_name, force_retrain=force_retrain)
+        if logger:
+            logger.info(
+                "Per-bin model trained without fallback for %s/%s/%s: n_total=%d n_cases=%d n_controls=%d",
+                cohort,
+                age_band,
+                bin_name,
+                n_total,
+                n_cases,
+                n_controls,
+            )
         write_per_bin_training_source(
             cohort,
             age_band,
@@ -4424,7 +4473,7 @@ def main() -> None:
 
         if args.train_mode in ("per_bin", "both"):
             with step_block("final_model", "train_per_bin", logger=logger):
-                train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs, force_retrain=args.force_retrain)
+                train_per_bin(df, args.cohort, args.age_band, n_runs=n_runs, force_retrain=args.force_retrain, logger=logger)
 
         # --- Evaluate on 2019 temporal holdout (true out-of-time validation) ---
         if not df_holdout_2019.empty:
