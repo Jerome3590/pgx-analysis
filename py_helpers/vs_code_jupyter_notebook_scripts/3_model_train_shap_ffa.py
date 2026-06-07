@@ -481,6 +481,46 @@ else:
     print("Step 6 artifact reconciliation skipped.")
 
 # %% [markdown]
+# ### Force-clean stale SHAP/FFA/combine artifacts before downstream rerun
+#
+# Use this when Step 6 artifacts were reconciled or SHAP/FFA logic changed. It removes local and S3 downstream analysis outputs for the configured downstream cohorts so Step 7/8/Combine regenerate fresh artifacts.
+
+# %%
+FORCE_RERUN_DOWNSTREAM_ANALYSIS = True
+
+if FORCE_RERUN_DOWNSTREAM_ANALYSIS:
+    _aws = shutil.which("aws") or "aws"
+    _profile = ["--profile", AWS_PROFILE] if AWS_PROFILE else []
+    downstream_cleanup_cohorts = sorted({cohort for cohort, _ in iter_downstream_cohorts()})
+    for cohort in downstream_cleanup_cohorts:
+        print(f"[CLEAN] Removing stale downstream analysis artifacts for {cohort}")
+        local_paths = [
+            PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort,
+            PROJECT_ROOT / "8_ffa_analysis" / "outputs" / cohort,
+            PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal" / cohort,
+            PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "scenario" / cohort,
+        ]
+        for path in local_paths:
+            if path.exists():
+                shutil.rmtree(path)
+                print(f"[CLEAN] Removed local: {path}")
+        s3_prefixes = [
+            f"s3://{S3_BUCKET}/gold/shap_analysis/{cohort}/",
+            f"s3://{S3_BUCKET}/gold/ffa_analysis/{cohort}/",
+            f"s3://{S3_BUCKET}/visualizations/causal/{cohort}/",
+            f"s3://{S3_BUCKET}/visualizations/scenario/{cohort}/",
+        ]
+        for uri in s3_prefixes:
+            r = subprocess.run([_aws, "s3", "rm", uri, "--recursive"] + _profile, capture_output=True, text=True)
+            if r.returncode == 0:
+                print(f"[CLEAN] Removed S3: {uri}")
+            else:
+                print(f"[WARN] S3 cleanup failed for {uri}: {r.stderr or r.stdout or ''}")
+    print("Downstream SHAP/FFA/combine cleanup complete.")
+else:
+    print("Downstream SHAP/FFA/combine cleanup skipped.")
+
+# %% [markdown]
 # ### Model performance per density bin and Top 20 XGBoost importance (cohort-level snapshot)
 #
 # Metrics are read from `bin_models/{bin}/` (default Step 6). The cohort-level `.../{age_band}/` XGBoost FI CSV is the **mirrored deploy snapshot** (preferred bin, usually `medium`) when using `--train-mode per_bin`.
