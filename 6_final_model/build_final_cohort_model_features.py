@@ -19,6 +19,7 @@ import argparse
 from pathlib import Path
 
 import duckdb
+import numpy as np
 import pandas as pd
 
 from py_helpers.constants import DRUG_NAMES_EXCLUDED_MODEL_TRAINING, FEATURE_SUBSTRINGS_EXCLUDED
@@ -30,6 +31,101 @@ from py_helpers.event_density_utils import (
     save_thresholds as _save_thresholds,
     default_threshold_cache_path as _threshold_cache_path,
 )
+
+
+def _harden_pgx_exposure_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for col in ("pgx_num_drugs", "pgx_num_cpic_drugs"):
+        if col not in df.columns:
+            df[col] = 0
+        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).clip(lower=0)
+    df["pgx_non_cpic_drugs"] = (df["pgx_num_drugs"] - df["pgx_num_cpic_drugs"]).clip(lower=0)
+    df["pgx_has_any_drug"] = (df["pgx_num_drugs"] > 0).astype(int)
+    df["pgx_has_cpic_drug"] = (df["pgx_num_cpic_drugs"] > 0).astype(int)
+    df["pgx_cpic_fraction"] = np.where(
+        df["pgx_num_drugs"] > 0,
+        df["pgx_num_cpic_drugs"] / df["pgx_num_drugs"],
+        0.0,
+    )
+    df["pgx_num_drugs_log1p"] = np.log1p(df["pgx_num_drugs"])
+    df["pgx_num_cpic_drugs_log1p"] = np.log1p(df["pgx_num_cpic_drugs"])
+    return df
+
+
+def _compute_temporal_event_dynamics(model_events_path: Path) -> pd.DataFrame:
+    con = duckdb.connect()
+    try:
+        path_str = str(model_events_path).replace("\\", "/")
+        cols = [
+            row[0]
+            for row in con.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{path_str}')"
+            ).fetchall()
+        ]
+        if "event_date" not in cols:
+            return pd.DataFrame()
+        target_filter = "target IN (0, 1)" if "target" in cols else "TRUE"
+        events = con.execute(
+            f"""
+            SELECT
+                CAST(mi_person_key AS VARCHAR) AS mi_person_key,
+                TRY_CAST(event_date AS TIMESTAMP) AS event_ts
+            FROM read_parquet('{path_str}')
+            WHERE {target_filter}
+              AND TRY_CAST(event_date AS TIMESTAMP) IS NOT NULL
+            """
+        ).df()
+    finally:
+        con.close()
+
+    if events.empty:
+        return pd.DataFrame()
+
+    rows = []
+    for mi_person_key, g in events.groupby("mi_person_key", sort=False):
+        ts = pd.to_datetime(g["event_ts"], errors="coerce").dropna().sort_values()
+        n = int(len(ts))
+        if n == 0:
+            continue
+        span_days = float(max((ts.iloc[-1] - ts.iloc[0]).total_seconds() / 86400.0, 0.0))
+        denom_days = max(span_days, 1.0)
+        gaps = ts.diff().dt.total_seconds().dropna() / 86400.0
+        mean_gap = float(gaps.mean()) if len(gaps) else denom_days
+        median_gap = float(gaps.median()) if len(gaps) else denom_days
+        std_gap = float(gaps.std(ddof=0)) if len(gaps) else 0.0
+        burstiness = std_gap / mean_gap if mean_gap > 0 else 0.0
+        early_count = int(np.ceil(n / 2.0))
+        late_count = n - early_count
+        half_span = max(denom_days / 2.0, 1.0)
+        early_rate = early_count / half_span * 30.0
+        late_rate = late_count / half_span * 30.0
+        rate = n / denom_days * 30.0
+        rate_delta = late_rate - early_rate
+        rate_ratio = late_rate / early_rate if early_rate > 0 else 0.0
+        last_ts = ts.iloc[-1]
+        days_from_last = (last_ts - ts).dt.total_seconds() / 86400.0
+        recent_30 = int((days_from_last <= 30.0).sum())
+        recent_90 = int((days_from_last <= 90.0).sum())
+        rows.append(
+            {
+                "mi_person_key": str(mi_person_key),
+                "event_span_days": span_days,
+                "event_rate_per_30d": rate,
+                "mean_inter_event_days": mean_gap,
+                "median_inter_event_days": median_gap,
+                "std_inter_event_days": std_gap,
+                "event_burstiness": burstiness,
+                "early_event_rate_per_30d": early_rate,
+                "late_event_rate_per_30d": late_rate,
+                "event_rate_delta_per_30d": rate_delta,
+                "event_rate_ratio_late_vs_early": rate_ratio,
+                "recent30_event_count": recent_30,
+                "recent90_event_count": recent_90,
+                "recent30_event_fraction": recent_30 / n,
+                "recent90_event_fraction": recent_90 / n,
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def build_final_features(project_root: Path, cohort_name: str, age_band: str) -> None:
@@ -92,6 +188,15 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
     _save_thresholds({**_thresholds, 'cohort': cohort_name, 'age_band': age_band}, _tcache)
     print(f"[INFO] n_event_bin thresholds saved: {_tcache}")
     print(f"[INFO] n_event_bin distribution: {base_df['n_event_bin'].value_counts().to_dict()}")
+
+    temporal_features = _compute_temporal_event_dynamics(model_data_path)
+    if not temporal_features.empty:
+        base_df = base_df.merge(temporal_features, on="mi_person_key", how="left")
+        temporal_cols = [c for c in temporal_features.columns if c != "mi_person_key"]
+        base_df[temporal_cols] = base_df[temporal_cols].fillna(0)
+        print(f"[INFO] Added temporal utilization dynamics features: {len(temporal_cols)}")
+    else:
+        print("[INFO] No event_date column available; temporal utilization dynamics features skipped.")
 
     n_target = len(base_df[base_df['target'] == 1])
     n_control = len(base_df[base_df['target'] == 0])
@@ -347,6 +452,7 @@ def build_final_features(project_root: Path, cohort_name: str, age_band: str) ->
         pgx_df = pgx_df.drop(columns=['target'])
     
     merged = merged.merge(pgx_df, on="mi_person_key", how="left")
+    merged = _harden_pgx_exposure_features(merged)
     
     # Clean up any duplicate target columns (from merges with suffixes)
     if 'target_x' in merged.columns:

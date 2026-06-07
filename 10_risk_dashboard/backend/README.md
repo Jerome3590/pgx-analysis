@@ -21,7 +21,7 @@ Lambda receives **user input** (cohort, age_band, model/feature selections) and 
 
 - **`POST /risk`** - Risk score from best model per cohort/age_band (or 2019 baseline when no codes)
   - Body: `{cohort, age_band, drugs[], icds[], cpts[]}` (optional: `age`)
-  - **Optional body fields:** `n_events`, `n_drugs` — used for **risk bucket** (low/medium/high). `pgx_num_drugs`, `pgx_num_cpic_drugs` are **separate inputs** (for model/display only, not used for risk bucket). When not provided, schema defaults are used for the model.
+  - **Optional body fields:** `n_events`, `n_drugs` — used for **risk bucket** (low/medium/high). `pgx_num_drugs`, `pgx_num_cpic_drugs` are **separate inputs** (for model/display only, not used for risk bucket). When PGx counts are provided or auto-derived, Lambda also derives PGx burden features (`pgx_non_cpic_drugs`, `pgx_has_any_drug`, `pgx_has_cpic_drug`, `pgx_cpic_fraction`, `pgx_num_drugs_log1p`, `pgx_num_cpic_drugs_log1p`) so training and inference stay aligned. Other omitted non-item features use schema defaults.
   - When no Drug/ICD/CPT codes: returns **baseline_risk** (actual 2019 outcome rate). When any code is provided: returns the **best model’s** predicted probability (MC-CV best per cohort/age_band).
   - Returns: `risk_score`, `risk_band`, `is_baseline`, `patient_bucket`, `patient_bucket_detail` (n_events_bucket, n_drugs_bucket), `n_pgx_drugs`, `pgx_num_cpic_drugs`, `model_breakdown`, `dist` (2019 histogram when available)
 
@@ -35,6 +35,30 @@ The displayed `risk_band` uses **absolute probability thresholds** (not cohort-r
 | **High**   | score ≥ 0.50 (≥ 50%)                   |
 
 Thresholds are fixed in the backend (`DEFAULT_RISK_BAND_THRESHOLDS`: `low_medium` = 0.2, `medium_high` = 0.5). The 2019 distribution file’s `risk_band_thresholds` (33rd/67th percentiles) are **not** used for the band label; they remain in `dist` for the histogram and reference only.
+
+### Model input features mapped to dashboard labels
+
+The trained Step 6 model uses numeric features, while the dashboard should present interpretable labels. These labels are display summaries of model inputs; they are not separate model columns unless listed in `feature_schema.json`.
+
+| Dashboard label family | Model input feature(s) | User-facing interpretation |
+|------------------------|------------------------|----------------------------|
+| **Event density** | `n_event_bin_ordinal` (`low=0`, `medium=1`, `high=2`, `extreme=3`) | Overall event/claim density stratum used for model routing and as a retained density feature. |
+| **Event velocity** | `event_rate_per30`, `early_event_rate_per30`, `late_event_rate_per30` | How quickly events accumulate over the observed pre-target history. |
+| **Event acceleration / trajectory** | `event_rate_delta_per30`, `event_rate_ratio_late_vs_early` | Whether utilization is decreasing, stable, accelerating, or rapidly accelerating. |
+| **Event timing regularity** | `mean_inter_event_days`, `median_inter_event_days`, `std_inter_event_days`, `event_burstiness` | Whether events are evenly spaced, variable, bursty, or highly bursty. |
+| **Recent activity** | `recent30_event_count`, `recent90_event_count`, `recent30_event_fraction`, `recent90_event_fraction` | Whether recent pre-index activity is low, moderate, high, or spiking. |
+| **Medication / PGx burden** | `pgx_num_drugs`, `pgx_num_cpic_drugs`, `pgx_non_cpic_drugs`, `pgx_cpic_fraction`, `pgx_has_any_drug`, `pgx_has_cpic_drug`, log-count variants | Medication burden and CPIC-relevant exposure context for model adjustment and display. |
+| **Specific clinical codes** | `item_*` drug, ICD, and CPT indicators | The user-selected medications, diagnoses, and procedures that directly affect the score when present in the model schema. |
+
+Recommended dashboard text examples:
+
+- **Event density:** Low / Moderate / High / Extreme activity
+- **Event velocity:** Slow / Moderate / Fast / Very fast accumulation
+- **Trajectory:** Decelerating / Stable / Accelerating / Rapidly accelerating
+- **Event timing:** Regular / Variable / Bursty / Highly bursty
+- **Recent activity:** Low recent activity / Moderate recent activity / High recent activity / Recent spike
+
+Temporal dynamics are engineered during Step 6 from pre-target `event_date` values. For manual `/risk` requests without dated events, these temporal features are taken from `feature_schema.json` defaults; patient-specific temporal labels require a dated event history or precomputed patient-history context.
 
 - **`POST /risk/comparison`** - Compare risk for user-provided scenarios (filter by selection)
   - Body: `{base: {...}, scenarios: [...]}`
