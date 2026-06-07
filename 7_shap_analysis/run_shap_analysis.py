@@ -287,7 +287,13 @@ def compute_global_shap_signal_catboost(
     from catboost import Pool  # type: ignore
     
     original_columns = list(X.columns)
-    X = _align_for_catboost_model(model, X)
+    feature_names_expected = _catboost_feature_names(model, X)
+    cat_feature_names = _cat_feature_names_from_indices(
+        original_columns,
+        feature_names_expected,
+        cat_feature_indices,
+    )
+    X = _align_for_catboost_model(model, X, cat_feature_names)
     feature_names = list(X.columns)
     aligned_cat_feature_indices = _cat_feature_indices_after_alignment(
         original_columns,
@@ -358,13 +364,40 @@ def _catboost_feature_names(model, X: pd.DataFrame) -> list[str]:
     return list(names) if names else list(X.columns)
 
 
-def _align_for_catboost_model(model, X: pd.DataFrame) -> pd.DataFrame:
+def _cat_feature_names_from_indices(
+    original_columns: list[str],
+    expected_columns: list[str],
+    cat_feature_indices: list[int] | None,
+) -> set[str]:
+    if cat_feature_indices:
+        return {
+            original_columns[i]
+            for i in cat_feature_indices
+            if 0 <= i < len(original_columns)
+        }
+    return {c for c in expected_columns if c.startswith("item_")}
+
+
+def _align_for_catboost_model(
+    model,
+    X: pd.DataFrame,
+    cat_feature_names: set[str] | None = None,
+) -> pd.DataFrame:
     expected = _catboost_feature_names(model, X)
-    X_aligned = X.apply(pd.to_numeric, errors="coerce").fillna(0)
+    cat_feature_names = cat_feature_names or set()
+    X_aligned = X.copy()
+    for col in X_aligned.columns:
+        if col in cat_feature_names:
+            X_aligned[col] = X_aligned[col].fillna("__MISSING__").astype(str)
+        else:
+            X_aligned[col] = pd.to_numeric(X_aligned[col], errors="coerce").fillna(0)
     missing = [c for c in expected if c not in X_aligned.columns]
     if missing:
         print(f"[INFO] Adding {len(missing)} missing CatBoost feature columns as 0 for SHAP alignment.")
-    return X_aligned.reindex(columns=expected, fill_value=0)
+    X_aligned = X_aligned.reindex(columns=expected, fill_value=0)
+    for col in cat_feature_names.intersection(expected):
+        X_aligned[col] = X_aligned[col].fillna("__MISSING__").astype(str)
+    return X_aligned
 
 
 def _shap_s3_prefix(cohort: str, age_band: str, bin_name: str | None = None) -> str:
@@ -433,7 +466,13 @@ def write_row_shap_for_selected_features_catboost(
     from catboost import Pool  # type: ignore
     
     original_columns = list(X.columns)
-    X = _align_for_catboost_model(model, X)
+    feature_names_expected = _catboost_feature_names(model, X)
+    cat_feature_names = _cat_feature_names_from_indices(
+        original_columns,
+        feature_names_expected,
+        cat_feature_indices,
+    )
+    X = _align_for_catboost_model(model, X, cat_feature_names)
     feature_names = list(X.columns)
     aligned_cat_feature_indices = _cat_feature_indices_after_alignment(
         original_columns,
