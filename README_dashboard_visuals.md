@@ -15,7 +15,7 @@ All dashboard visualization data lives under the **`visualizations/`** prefix on
 | Step | Notebook | What it does | S3 result |
 |------|----------|--------------|-----------|
 | **Build** | **4_dashboard_visuals** | Runs BupaR, DTW, FP-Growth, Cohort PGx; optional FI upload. All go to **builds** when `S3_VISUALIZATIONS_BUILDS=1`. | `visualizations/bupar/builds/`, `visualizations/dtw/builds/`, `visualizations/fpgrowth/builds/`, `visualizations/cohort_pgx/builds/`, `visualizations/feature_importance/builds/` |
-| **Deploy** | **5_build_and_deploy (Step 6)** | Syncs frontend, metadata; uploads FI from local; runs causal + Cohort PGx sync; **promotes** all builds → final. | Final: `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/feature_importance/`, `visualizations/causal/` |
+| **Deploy** | **5_build_and_deploy (Step 6)** | Syncs frontend, metadata; uploads FI from local; runs causal + Cohort PGx sync; **promotes** all builds → final. | Final: `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/feature_importance/`, `visualizations/scenario/` |
 
 ### Step 1: Build and upload to builds (notebook 4)
 
@@ -25,7 +25,7 @@ All dashboard visualization data lives under the **`visualizations/`** prefix on
    - `visualizations/dtw/builds/{cohort}/{age_band}/` (chart_data.json, sequence_heatmap.json, plots/)
    - `visualizations/fpgrowth/builds/{cohort}/{age_band}/plots/` (and data/)
    - `visualizations/cohort_pgx/builds/networks/{cohort}/{age_band}/`
-3. **Causal** – Run the “Upload Causal dashboard JSON to S3” cell (or `upload_causal_outputs_to_s3.py`). This writes directly to **final** `visualizations/causal/{cohort}/{age_band}/causal_data.json` (no builds path).
+3. **Scenario** – Run the “Upload Scenario dashboard JSON to S3” cell (or `upload_scenario_outputs_to_s3.py`). This writes directly to **final** `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` (no builds path).
 4. **Feature importance** – Heatmaps are produced by Step 3a / 2_feature_importance and live under `3a_feature_importance/outputs/`. They follow the same pattern: with `S3_VISUALIZATIONS_BUILDS=1`, uploads go to `visualizations/feature_importance/builds/` (e.g. from `pgx_dashboard_visuals.py` or a notebook 4 cell). Step 6 promotes from builds to final and also uploads from local `3a_feature_importance/outputs/` to final if present.
 
 **Environment:** Set `S3_DASHBOARD_BUCKET` and `S3_DASHBOARD_PREFIX` if not using defaults (e.g. `jerome-dixon.io`, `vcu/pgx-risk-calculator`). With `S3_VISUALIZATIONS_BUILDS=1` (set in notebook 4), scripts upload to the builds paths above.
@@ -38,16 +38,16 @@ All dashboard visualization data lives under the **`visualizations/`** prefix on
    - Uploads **metadata** (`metadata/opioid_ed.json`, `metadata/non_opioid_ed.json`, `metadata/model_performance_metrics.json`).
    - Uploads **feature importance** heatmaps (PNG + JSON) to `visualizations/feature_importance/{cohort}/` and `visualizations/feature_importance/combined/`.
    - Runs **sync_cohort_pgx_to_s3.py** (from local `10_risk_dashboard/visualizations/cohort_pgx/`) to final `visualizations/cohort_pgx/networks/`.
-   - Runs **upload_causal_outputs_to_s3.py** to final `visualizations/causal/`.
+   - Runs **upload_scenario_outputs_to_s3.py** to final `visualizations/scenario/`.
    - **Promotes builds → final:** For each of `bupar`, `dtw`, `fpgrowth`, `cohort_pgx`, `feature_importance`, runs `aws s3 sync` from `visualizations/{name}/builds/` to `visualizations/{name}/`, so the dashboard and Lambda read from the final paths.
 
 **Do not** set `S3_VISUALIZATIONS_BUILDS` when running notebook 5; Step 6 expects notebook 4 to have already uploaded to builds and then promotes those to final.
 
 ### Manual one-off uploads (optional)
 
-- **Causal only:**  
-  `python 10_risk_dashboard/data_preparation/upload_causal_outputs_to_s3.py`  
-  (reads `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json`, uploads to `visualizations/causal/{cohort}/{age_band}/causal_data.json`.)
+- **Scenario only:**  
+  `python 10_risk_dashboard/data_preparation/upload_scenario_outputs_to_s3.py`  
+  (reads `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json`, uploads to `visualizations/scenario/{cohort}/{age_band}/scenario_data.json`.)
 
 - **Cohort PGx only:**  
   `python 10_risk_dashboard/deployment/sync_cohort_pgx_to_s3.py`  
@@ -69,7 +69,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 |------------|--------------------------|--------|
 | 2026-04-21 | README sync              | Corrected primary tab order (Documentation now first); added missing h2 sections (Dashboard visual artifacts from manifest, Event density bins) to Documentation tab checklist; updated tabs list to reflect actual primary + visualization tab order. |
 | 2026-03-31 | Full production workflow | Notebook 4 final production workflow: BupaR → DTW → FP-Growth → Causal → Cohort PGx (VIP reports + PubMed citations + network topology, full cohort + per-bin) → PGx patient card → manifest → time-between-events histogram → manuscript checkpoint writer (416 checkpoints, 0 errors). Checkpoint fields now include `[BupaR/bin]` (n_activities + top activity), `[CohortPGx/bin]` (network_html), and `[SHAP/bin]` (top feature name). Documented in `9_dashboard_visuals/README.md` and `README_execution_workflow.md`. |
-| 2025-02-25 | Production finalization  | Removed legacy orphaned "Feature Interactions" tab (`#interactions-tab`). Interactions remain only as panel inside Causal Analysis tab. |
+| 2025-02-25 | Production finalization  | Removed legacy orphaned "Feature Interactions" tab (`#interactions-tab`). Interactions remain only as panel inside Scenario Analysis tab. |
 | 2025-02-25 | Validation README        | Added per-tab and main-page sections; this updates log for tracking. |
 | 2025-02-25 | CORS & static paths      | Documented same-origin path URLs (metadata, doc metrics); added CORS checklist and S3_CORS_SETUP reference; fixed s3-cors-config.json to CORSRules format for put-bucket-cors. |
 | 2025-02-25 | S3 & validation README   | All visuals under `visualizations/`; notebook 4 → builds, notebook 5 Step 6 → final + promote. Added "How to load visuals to S3"; FI matches same builds/final pattern; Feature Importance tab checklist includes same-origin path and Lambda S3 key. |
@@ -81,7 +81,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Title:** `<h1>` is "PGx Risk Assessment Dashboard"; `<title>` matches.
 - [ ] **Cohort tabs:** Two buttons—Opioid ED (`data-cohort="opioid_ed"`, `id="cohort-tab-opioid-ed"`) and Polypharmacy (`data-cohort="non_opioid_ed"`, `id="cohort-tab-polypharmacy"`). Values match partition names. Only one active at a time.
 - [ ] **Primary tab bar:** Documentation, Risk Assessment, Drugs, ICD Codes, CPT Codes, PGx Card. `data-tab` values: `documentation`, `risk-assessment`, `drugs`, `icd-codes`, `cpt-codes`, `pgx-card`. Default active: `risk-assessment`.
-- [ ] **Secondary tab bar (visualizations):** Feature Importance, Causal Analysis, BupaR Process Mining, DTW Trajectories, FP-Growth Patterns, PGx Cohort. `data-tab` values: `feature-importance-visualizations`, `causal-analysis`, `bupar-visualizations`, `dtw-visualizations`, `fpgrowth-visualizations`, `cohort-pgx-visualizations`.
+- [ ] **Secondary tab bar (visualizations):** Feature Importance, Scenario Analysis, BupaR Process Mining, DTW Trajectories, FP-Growth Patterns, PGx Cohort. `data-tab` values: `feature-importance-visualizations`, `causal-analysis`, `bupar-visualizations`, `dtw-visualizations`, `fpgrowth-visualizations`, `cohort-pgx-visualizations`.
 - [ ] **Tab content IDs:** Each tab content div has `id="{data-tab}-tab"` and class `tab-content`; `switchTab()` receives the same string as `data-tab`.
 - [ ] **API_BASE:** Config (and optional `?apiBase=` override) points to correct Lambda/API Gateway URL for the environment.
 - [ ] **CDN scripts:** Plotly and Chart.js (or other) script tags present and versioned as expected.
@@ -140,7 +140,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Subtitle:** "How to use the PGx Risk Assessment Dashboard. All content stays on this page."
 - [ ] **Sections (h2):** Overview, Tabs, Research questions and visualizations, Workflow, Model performance and at-risk identification, Dashboard visual artifacts (from manifest), Feature importance sources for visuals, Event density bins — what #events means and how bins work, Technical notes.
 - [ ] **Overview:** F1120 Opioid ED and Polypharmacy; age bands 13–114; cohort switch and age band selection.
-- [ ] **Tabs list:** Matches actual tab order and names — Primary: Documentation | Risk Assessment | Drugs | ICD Codes | CPT Codes | PGx Card; Visualization: Feature Importance | Causal Analysis | BupaR Process Mining | DTW Trajectories | FP-Growth Patterns | PGx Cohort.
+- [ ] **Tabs list:** Matches actual tab order and names — Primary: Documentation | Risk Assessment | Drugs | ICD Codes | CPT Codes | PGx Card; Visualization: Feature Importance | Scenario Analysis | BupaR Process Mining | DTW Trajectories | FP-Growth Patterns | PGx Cohort.
 - [ ] **RQ table:** N1–N6 and RQ1/RQ2 with correct tab and visual names; N5 includes Feature Importance and Causal; N4 drug-only; N3 DTW; etc.
 - [ ] **Model metrics container:** `#doc-metrics-container`; loads `model_performance_metrics.json` (path-style S3 or API).
 - [ ] **Feature importance sources:** BupaR/DTW use SHAP/FFA combined; FP-Growth uses final feature importance list. Copy matches RESEARCH_QUESTIONS_ARTIFACTS.
@@ -160,12 +160,12 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 ---
 
-## Causal Analysis tab (`causal-analysis-tab`)
+## Scenario Analysis tab (`causal-analysis-tab`)
 
 - [ ] **Subtitle:** Research focus (features drive outcome; drug combinations); uses same cohort, age, and code selections as Risk Assessment.
-- [ ] **Controls:** What-if scenario input (`#causal-whatif-codes`), Load Causal Analysis, Clear filters. Cohort/age from Risk Assessment context.
-- [ ] **Headings (path README):** Top Causal Factors (FFA), SHAP Feature Importance, **Feature Interactions** (panel within this tab, not a separate tab), Effect on outcome (by feature). Interactions come from Lambda `chart_data.feature_interactions` (causal_data.json).
-- [ ] **API:** `GET /visualizations/causal?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). S3 path: `visualizations/causal/{cohort}/{age_band}/causal_data.json` (age_band hyphen).
+- [ ] **Controls:** What-if scenario input (`#causal-whatif-codes`), Load Scenario Analysis, Clear filters. Cohort/age from Risk Assessment context.
+- [ ] **Headings (path README):** Top Causal Factors (FFA), SHAP Feature Importance, **Feature Interactions** (panel within this tab, not a separate tab), Effect on outcome (by feature). Interactions come from Lambda `chart_data.feature_interactions` (scenario_data.json).
+- [ ] **API:** `GET /visualizations/scenario?cohort=&age_band=`; response `chart_data` (causal_factors, shap_importance, feature_interactions, radar/whatif). S3 path: `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` (age_band hyphen).
 - [ ] **Element IDs / chart containers:** Match script (e.g. causal factors chart, SHAP chart, `#interactions-chart` for Feature Interactions, radar).
 
 ---
@@ -215,7 +215,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 - [ ] **Path-style S3 only:** All iframe/image URLs for S3 use path-style:  
   `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. No virtual-hosted style.
-- [ ] **Visualizations under one prefix:** All dashboard viz data lives under `{prefix}/visualizations/` (e.g. `visualizations/feature_importance/`, `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/causal/`). Lambda and frontend read from these **final** paths; notebook 4 uploads to `.../builds/`, notebook 5 Step 6 promotes to final.
+- [ ] **Visualizations under one prefix:** All dashboard viz data lives under `{prefix}/visualizations/` (e.g. `visualizations/feature_importance/`, `visualizations/bupar/`, `visualizations/dtw/`, `visualizations/fpgrowth/`, `visualizations/cohort_pgx/`, `visualizations/scenario/`). Lambda and frontend read from these **final** paths; notebook 4 uploads to `.../builds/`, notebook 5 Step 6 promotes to final.
 - [ ] **Same-origin (path) URLs:** Metadata and doc metrics use **path URLs only** (no full S3 URL). Frontend uses `staticJsonPath(relativePath)` so requests go to same origin (e.g. `https://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/opioid_ed.json`). No CORS needed for those.
 - [ ] **Metadata endpoints:** References to `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json`, `metadata/model_performance_metrics.json` match backend and path README. Deploy uploads local `metadata_opioid_ed.json` → S3 key `metadata/opioid_ed.json` (and non_opioid_ed) so same-origin fetch works.
 - [ ] **Visualization API keys:** BupaR and other handlers request only RQ artifact keys; no archived keys (e.g. trace_explorer_image, process_matrix_image, frequency_map_image).
@@ -241,10 +241,10 @@ When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 UR
 
 ---
 
-## Causal Analysis artifact locations (validate with code)
+## Scenario Analysis artifact locations (validate with code)
 
-- **EC2:** `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json`. Written by `combine_shap_ffa_results.py` (default `--output-dir 10_risk_dashboard/visualizations/causal`). Checked by `check_dashboard_artifact_paths.py`.
-- **S3:** `visualizations/causal/{cohort}/{age_band}/causal_data.json` (hyphen in age_band). Uploaded by `upload_causal_outputs_to_s3.py` or `combine_shap_ffa_results.py --upload-to-dashboard`. Lambda reads from this S3 key.
+- **EC2:** `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json`. Written by `combine_shap_ffa_results.py` (default `--output-dir 10_risk_dashboard/visualizations/scenario`). Checked by `check_dashboard_artifact_paths.py`.
+- **S3:** `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` (hyphen in age_band). Uploaded by `upload_scenario_outputs_to_s3.py` or `combine_shap_ffa_results.py --upload-to-dashboard`. Lambda reads from this S3 key.
 
 ## After frontend changes
 
@@ -259,7 +259,7 @@ When the frontend at **origin `https://jerome-dixon.io`** fetches **direct S3 UR
 | Data visual | Tab | EC2 path | S3 path (final) | Data visual type | File extension | Plot type |
 |-------------|-----|----------|------------------|------------------|----------------|----------|
 | Feature Importance by Age Band | Feature Importance | `3a_feature_importance/outputs/{cohort}/` or `.../plots/combined_cohorts_*` | `visualizations/feature_importance/{cohort}/`, `.../combined/` (notebook 4 → builds; Step 6 → final + upload from local) | image or JSON | `.png`, `.json` | heatmap |
-| Causal (FFA, SHAP, interactions, radar) | Causal Analysis | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `visualizations/causal/{cohort}/{age_band}/causal_data.json` | JSON (Lambda) | `.json` | bar, radar, interactions |
+| Causal (FFA, SHAP, interactions, radar) | Scenario Analysis | `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` | `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` | JSON (Lambda) | `.json` | bar, radar, interactions |
 | BupaR sequences, frequency, trace explorer, process matrix | BupaR Process Mining | `10_risk_dashboard/visualizations/bupar/outputs/{cohort}/{age_band_fname}/plots/` | `visualizations/bupar/{cohort}/{age_band}/plots/` (notebook 4 → builds; Step 6 → final) | image, JSON, HTML | `.png`, `.json`, `.html` | sequence, frequency, matrix, iframe |
 | DTW chart_data, sequence_heatmap, plots | DTW Trajectories | `10_risk_dashboard/visualizations/dtw/outputs/{cohort}/{age_band_fname}/` | `visualizations/dtw/{cohort}/{age_band}/` (notebook 4 → builds; Step 6 → final) | JSON, image | `.json`, `.png` | trajectory, heatmap, Plotly |
 | FP-Growth itemsets, network | FP-Growth Patterns | `10_risk_dashboard/visualizations/fpgrowth/outputs/{cohort}/{age_band_fname}/plots/`, `.../data/` | `visualizations/fpgrowth/{cohort}/{age_band}/plots/`, `.../data/` (notebook 4 → builds; Step 6 → final) | image, JSON, HTML | `.png`, `.json`, `.html` | itemsets, network (iframe) |

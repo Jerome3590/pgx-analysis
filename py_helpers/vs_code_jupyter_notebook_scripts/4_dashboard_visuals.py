@@ -4,7 +4,7 @@
 # %% [markdown]
 # # 4. Dashboard visuals (pipeline step 9)
 #
-# This notebook runs **pipeline step 9** (`9_dashboard_visuals`). It **prebuilds all dashboard visualization artifacts** (**Causal Analysis** (SHAP+FFA combined), BupaR, DTW, FP-Growth, **Cohort PGx** for the PGx Cohort tab, and **PGx Card** for the patient card tab) on **EC2** and **saves them to the final local destination** that notebook 5 Step 6 syncs to S3 (`10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,cohort_pgx,causal}/`). The dashboard loads these prebuilt assets **static-first** from S3 using the **manifest** (`10_risk_dashboard/visualizations/dashboard_visual_objects.json`) as the single source of truth for tab → S3 paths and static files; **JSON-first** for visuals (e.g. DTW: chart_data, sequence_heatmap, trajectory_overview_plot from static, then PNG/HTML fallbacks; API only when static fails). The API returns URLs to prebuilt S3 assets; no computation at request time. Visuals are **SHAP/FFA-driven**: model data and feature lists come from Step 3b / 7 / 8 so process mining and itemset mining use only important features.
+# This notebook runs **pipeline step 9** (`9_dashboard_visuals`). It **prebuilds all dashboard visualization artifacts** (**Scenario Analysis** (SHAP+FFA combined), BupaR, DTW, FP-Growth, **Cohort PGx** for the PGx Cohort tab, and **PGx Card** for the patient card tab) on **EC2** and **saves them to the final local destination** that notebook 5 Step 6 syncs to S3 (`10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,cohort_pgx,causal}/`). The dashboard loads these prebuilt assets **static-first** from S3 using the **manifest** (`10_risk_dashboard/visualizations/dashboard_visual_objects.json`) as the single source of truth for tab → S3 paths and static files; **JSON-first** for visuals (e.g. DTW: chart_data, sequence_heatmap, trajectory_overview_plot from static, then PNG/HTML fallbacks; API only when static fails). The API returns URLs to prebuilt S3 assets; no computation at request time. Visuals are **SHAP/FFA-driven**: model data and feature lists come from Step 3b / 7 / 8 so process mining and itemset mining use only important features.
 #
 # **Flow:** Run after [3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb). Then run [5_build_and_deploy.ipynb](5_build_and_deploy.ipynb) once to build and deploy.
 #
@@ -21,7 +21,7 @@
 #
 # 5. **FP-Growth** – Itemsets, rules, **Plotly network HTML**, and PNGs; **saved locally** to `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/` and `.../data/` (notebook 5 Step 6 syncs to S3 `visualizations/fpgrowth/{cohort}/{age_band}/`). The dashboard loads the **network plot by cohort** from these URLs.
 #
-# **Causal (Causal Analysis tab)** – Combined SHAP+FFA produces `dashboard_data.json` per cohort/age_band (via `combine_shap_ffa_results.py`); saved under `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/`. Run **Upload Causal dashboard JSON to S3** (cell below) to push to the dashboard bucket as `visualizations/causal/{cohort}/{age_band}/causal_data.json`. The Causal Analysis tab loads from S3; notebook 5 Step 6 also runs this during deploy.
+# **Causal (Scenario Analysis tab)** – Combined SHAP+FFA produces `dashboard_data.json` per cohort/age_band (via `combine_shap_ffa_results.py`); saved under `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/`. Run **Upload Scenario dashboard JSON to S3** (cell below) to push to the dashboard bucket as `visualizations/scenario/{cohort}/{age_band}/scenario_data.json`. The Scenario Analysis tab loads from S3; notebook 5 Step 6 also runs this during deploy.
 #
 # Idempotent. Run from repo root. Prerequisites: `4_model_data`, `7_shap_analysis`, `8_ffa_analysis`; R and bupaR for BupaR. Then run notebook 5 to deploy (syncs all visuals including Causal, Cohort PGx, and others to S3).
 #
@@ -32,7 +32,7 @@
 #
 # 8. **Model performance metrics and cohort metadata** – Prebuilt via `generate_metrics.py` and `generate_metadata.py` (no recomputation). Deploy (5_build_and_deploy) uploads to the dashboard bucket: `metadata/model_performance_metrics.json` (Documentation tab) and `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json` (dropdowns). Frontend loads these same-origin; Lambda GET /metrics and GET /metadata are fallbacks.
 #
-# 9. **API** – Returns URLs to prebuilt S3 assets only (no server-side computation for visuals). Lambda GET /visualizations/causal serves the Causal Analysis tab; GET /visualizations/cohort-pgx serves the PGx Cohort tab; Lambda POST /pgx/card serves the PGx Card tab.
+# 9. **API** – Returns URLs to prebuilt S3 assets only (no server-side computation for visuals). Lambda GET /visualizations/scenario serves the Scenario Analysis tab; GET /visualizations/cohort-pgx serves the PGx Cohort tab; Lambda POST /pgx/card serves the PGx Card tab.
 
 # %%
 # Setup: paths (outputs under 10_risk_dashboard/visualizations/)
@@ -80,14 +80,14 @@ print(f"Plots (PNG/HTML) appear under: {VISUAL_ROOT}/bupar/<cohort>/<age_band>/p
 # Defaults match **run_dashboard_visuals.py**: all cohorts and all age bands (from REQUIRED_COHORTS), one worker per (cohort, age_band) combo (capped by CPU), no dry run. Leave `COHORTS_TO_RUN` and `AGE_BANDS_TO_RUN` empty for full pipeline; set either to limit scope.
 
 # %% [markdown]
-# ### Upload Causal dashboard JSON to S3 (Causal Analysis tab)
+# ### Upload Scenario dashboard JSON to S3 (Scenario Analysis tab)
 #
-# Run `upload_causal_outputs_to_s3.py` to upload **causal visualizations** from `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` (produced by `combine_shap_ffa_results.py`) to the dashboard bucket as `visualizations/causal/{cohort}/{age_band}/causal_data.json`. The Causal Analysis tab loads from S3; notebook 5 Step 6 also runs this during deploy. Running here lets the tab have data after building visuals in this notebook.
+# Run `upload_scenario_outputs_to_s3.py` to upload **scenario visualizations** from `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` (produced by `combine_shap_ffa_results.py`) to the dashboard bucket as `visualizations/scenario/{cohort}/{age_band}/scenario_data.json`. The Scenario Analysis tab loads from S3; notebook 5 Step 6 also runs this during deploy. Running here lets the tab have data after building visuals in this notebook.
 
 # %%
-# Upload causal dashboard JSON to S3 (Causal Analysis tab)
-# Script reads 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json
-upload_causal_script = REPO_ROOT / "10_risk_dashboard" / "data_preparation" / "upload_causal_outputs_to_s3.py"
+# Upload scenario dashboard JSON to S3 (Scenario Analysis tab)
+# Script reads 10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json
+upload_causal_script = REPO_ROOT / "10_risk_dashboard" / "data_preparation" / "upload_scenario_outputs_to_s3.py"
 if upload_causal_script.exists():
     r = subprocess.run(
         [str(PYTHON_BIN), str(upload_causal_script)],
@@ -96,11 +96,11 @@ if upload_causal_script.exists():
         text=True,
     )
     if r.returncode == 0:
-        print(r.stdout if r.stdout else "✓ Causal dashboard JSON uploaded to S3 (visualizations/causal/{cohort}/{age_band}/causal_data.json)")
+        print(r.stdout if r.stdout else "✓ Scenario dashboard JSON uploaded to S3 (visualizations/scenario/{cohort}/{age_band}/scenario_data.json)")
     else:
-        print("⚠ Upload causal to S3:", r.stderr or r.stdout or "non-zero exit")
+        print("⚠ Upload scenario to S3:", r.stderr or r.stdout or "non-zero exit")
 else:
-    print("  upload_causal_outputs_to_s3.py not found; Step 6 in notebook 5 will upload causal during deploy.")
+    print("  upload_scenario_outputs_to_s3.py not found; Step 6 in notebook 5 will upload scenario outputs during deploy.")
 
 # %%
 from py_helpers.constants import COHORT_NAMES, AGE_BANDS
@@ -209,7 +209,7 @@ print(f"Data root: {DATA_ROOT}")
 print(f"Looking for:")
 print(f"  - Step 3b: 3b_feature_importance_eda/outputs/{{cohort}}/{{age_band}}/*cohort_feature_importance*.csv")
 print(f"  - Step 3a: 3a_feature_importance/{{cohort}}/{{age_band}}/cohort_feature_importance.csv")
-print(f"  - Combined: 10_risk_dashboard/visualizations/causal/{{cohort}}/{{age_band}}/ or outputs/ (combined_importance.csv)")
+print(f"  - Combined: 10_risk_dashboard/visualizations/scenario/{{cohort}}/{{age_band}}/ or outputs/ (combined_importance.csv)")
 print()
 
 generated = 0
@@ -1495,7 +1495,7 @@ print(f"  S3 path: {{S3_DASHBOARD_PREFIX}}/cohort_pgx/networks/{{cohort}}/{{age_
 # %% [markdown]
 # ## API (reference)
 #
-# Lambda receives **user input** (cohort, age_band, model/feature selections) and **filters** only—it does not process or generate visualization data. All BupaR, DTW, and FP-Growth visuals are **prebuilt on EC2** and **saved to S3**; the API returns **URLs** to those prebuilt assets (filtered by cohort/age_band). Endpoints: `GET /visualizations/causal`, `/visualizations/bupar`, `/visualizations/dtw`, `/visualizations/fpgrowth`. See `10_risk_dashboard/backend/README.md`.
+# Lambda receives **user input** (cohort, age_band, model/feature selections) and **filters** only—it does not process or generate visualization data. All BupaR, DTW, and FP-Growth visuals are **prebuilt on EC2** and **saved to S3**; the API returns **URLs** to those prebuilt assets (filtered by cohort/age_band). Endpoints: `GET /visualizations/scenario`, `/visualizations/bupar`, `/visualizations/dtw`, `/visualizations/fpgrowth`. See `10_risk_dashboard/backend/README.md`.
 
 # %%
 print("Dashboard endpoints: 10_risk_dashboard/backend/README.md")
@@ -1612,15 +1612,15 @@ dashboard_visual_objects = [
         "notes": "EC2 age_band_fname; Step 6 sync_visuals_to_s3 → S3 hyphen.",
         "static_files": ["network_topology.html"],
     },
-    # Causal Analysis tab — rename-on-upload (dashboard_data.json → causal_data.json) handled by upload_causal_outputs_to_s3.py
+    # Scenario Analysis tab — rename-on-upload (dashboard_data.json → scenario_data.json) handled by upload_scenario_outputs_to_s3.py
     {
-        "visual_name": "Causal dashboard JSON",
-        "dashboard_tab": "Causal Analysis",
-        "path": "10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json",
+        "visual_name": "Scenario dashboard JSON",
+        "dashboard_tab": "Scenario Analysis",
+        "path": "10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json",
         "path_type": "file_pattern",
-        "s3_path": _s3_prefix + "/visualizations/causal/{cohort}/{age_band}/causal_data.json",
-        "notes": "upload_causal_outputs_to_s3 → visualizations/causal/ (S3 hyphen). One file per cohort/age_band.",
-        "static_files": ["causal_data.json"],
+        "s3_path": _s3_prefix + "/visualizations/scenario/{cohort}/{age_band}/scenario_data.json",
+        "notes": "upload_scenario_outputs_to_s3 → visualizations/scenario/ (S3 hyphen). One file per cohort/age_band.",
+        "static_files": ["scenario_data.json"],
     },
 ]
 

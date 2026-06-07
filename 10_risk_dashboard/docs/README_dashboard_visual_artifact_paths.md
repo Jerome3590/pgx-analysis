@@ -25,7 +25,7 @@ All paths below are relative to **repo root** (`project_root`). If outputs are n
 | **create_dtw_visuals.py** | Reads from `.../dtw/feature_engineering/`; writes `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/chart_data.json`, `sequence_heatmap.json`, `plots/*` |
 | **create_bupar_visuals.py** | `10_risk_dashboard/visualizations/bupar/{cohort}/{age_band_fname}/plots/*` |
 | **create_plots.py** (FP-Growth) | `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/`, `.../data/` |
-| **upload_causal_outputs_to_s3.py** (source) | Reads from `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` (written by combine_shap_ffa_results / causal pipeline) |
+| **upload_scenario_outputs_to_s3.py** (source) | Reads from `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` (written by combine_shap_ffa_results / scenario pipeline) |
 | **build_network_topology.py** (Cohort PGx) | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` |
 
 **DTW:** Notebook 4 must pass `--project-root str(REPO_ROOT)` to all three DTW steps (trajectories, features, visuals) so they use the same root. The check script expects `chart_data.json` and `sequence_heatmap.json` under `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/`.
@@ -38,7 +38,7 @@ All visualization artifacts use the **same S3 location** and are **mapped consis
 
 | Visualization | EC2 location (underscore age band) | Upload/sync script | S3 key under prefix (hyphen age band) | Lambda (same key) |
 |---------------|------------------------------------|--------------------|----------------------------------------|-------------------|
-| **Causal** | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `upload_causal_outputs_to_s3.py` | `visualizations/causal/{cohort}/{age_band}/causal_data.json` | ✓ `handle_visualizations_causal` |
+| **Scenario** | `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` | `upload_scenario_outputs_to_s3.py` | `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` | ✓ `handle_visualizations_scenario` |
 | **DTW** | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/` (chart_data.json, sequence_heatmap.json, plots/) | `create_dtw_visuals.py` (upload helpers) | `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json`, `visualizations/dtw/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_dtw` |
 | **FP-Growth** | `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/` (and data/) | `create_plots.py` → `create_all_fpgrowth_plots` (s3_prefix = prefix/visualizations/fpgrowth) | `visualizations/fpgrowth/{cohort}/{age_band}/plots/*`, `visualizations/fpgrowth/{cohort}/{age_band}/data/*` | ✓ `handle_visualizations_fpgrowth` |
 | **BupaR** | `10_risk_dashboard/visualizations/bupar/{cohort}/{age_band_fname}/plots/` | `create_bupar_visuals.py` → `upload_bupar_plots_to_dashboard_s3` | `visualizations/bupar/{cohort}/{age_band}/plots/*` | ✓ `handle_visualizations_bupar` |
@@ -61,7 +61,7 @@ After notebook 5 **Step 6** (or `pgx_dashboard_visuals.py` with deploy), the fol
 | **Manifest** | `visualizations/dashboard_visual_objects.json` |
 | **Metadata** | `metadata/model_performance_metrics.json`, `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json` |
 | **Feature importance** | `visualizations/feature_importance/opioid_ed/aggregated_fi_heatmap.png`, `.json`; `visualizations/feature_importance/non_opioid_ed/aggregated_fi_heatmap.png`, `.json`; `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png`; `visualizations/feature_importance/combined/aggregated_fi_heatmap.json` |
-| **Causal** | `visualizations/causal/{cohort}/{age_band}/causal_data.json` (e.g. `opioid_ed/0-12`, `non_opioid_ed/25-44`) |
+| **Scenario** | `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` (e.g. `opioid_ed/0-12`, `non_opioid_ed/25-44`) |
 | **BupaR** | `visualizations/bupar/{cohort}/{age_band}/plots/*` — e.g. `{base}_activity_frequency.json`, `{base}_pre_target_activity_frequency.json`, `{base}_post_target_activity_frequency.json`, `{base}_trace_explorer_plot.json`, `{base}_process_matrix_drug_drug.json`, `{base}_process_matrix_drug_drug.png`, `{base}_activity_sequence_top.json`, `{base}_activity_sequence_top.png`, `{base}_overall_activity_frequency.png`, trace explorer PNGs, etc. (`{base}` = `{cohort}_{age_band}` with underscore, e.g. `opioid_ed_25_44`) |
 | **DTW** | `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json`; `visualizations/dtw/{cohort}/{age_band}/plots/trajectory_overview_plot.json`, `*.html` |
 | **FP-Growth** | `visualizations/fpgrowth/{cohort}/{age_band}/drug_name_itemsets.json`, `drug_name_rules.json`, `drug_name_encoding_map.json`, `drug_name_metrics.json`, etc.; `visualizations/fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band}_combined_rules_network.html`, `{cohort}_{age_band}_drug_name_combined_top_itemsets.png` |
@@ -86,14 +86,14 @@ These paths match what the **frontend** expects when using **static-first** load
 
 ---
 
-## Causal Analysis
+## Scenario Analysis
 
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
-| Causal Analysis | Top Causal Factors (FFA) | `dashboard_data.json` → Lambda `chart_data.causal_factors` | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `visualizations/causal/{cohort}/{age_band}/causal_data.json` |
-| Causal Analysis | SHAP Feature Importance | `dashboard_data.json` → Lambda `chart_data.shap_importance` | (same) | (same) |
-| Causal Analysis | Feature Interactions | `dashboard_data.json` → Lambda `chart_data.feature_interactions` | (same) | (same) |
-| Causal Analysis | Effect on outcome (by feature) | `dashboard_data.json` → Lambda `chart_data` (radar) | (same) | (same) |
+| Scenario Analysis | Top Scenario Factors (FFA) | `dashboard_data.json` → Lambda `chart_data.causal_factors` | `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` | `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` |
+| Scenario Analysis | SHAP Feature Importance | `dashboard_data.json` → Lambda `chart_data.shap_importance` | (same) | (same) |
+| Scenario Analysis | Feature Interactions | `dashboard_data.json` → Lambda `chart_data.feature_interactions` | (same) | (same) |
+| Scenario Analysis | Effect on outcome (by feature) | `dashboard_data.json` → Lambda `chart_data` (radar) | (same) | (same) |
 
 ---
 

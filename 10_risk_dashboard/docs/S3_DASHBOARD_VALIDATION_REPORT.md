@@ -18,8 +18,8 @@
 | `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json` | ✓ | Drugs/ICD/CPT dropdowns (same-origin) |
 | **visualizations/** | | |
 | `visualizations/dashboard_visual_objects.json` | ✓ | Manifest for checklist |
-| **visualizations/causal/** | | |
-| `visualizations/causal/{cohort}/{age_band}/causal_data.json` | ✓ | Both cohorts, all 8 age bands (hyphen: 0-12 … 85-114) |
+| **visualizations/scenario/** | | |
+| `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` | ✓ | Both cohorts, all 8 age bands (hyphen: 0-12 … 85-114) |
 | **visualizations/cohort_pgx/** | | |
 | `visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` | ✓ | Both cohorts, all age bands; supporting files (CSV, JSON) also present |
 | **visualizations/feature_importance/** | | |
@@ -42,14 +42,14 @@
 
 Per **README_dashboard_visual_artifact_paths.md**:
 
-- **Causal:** EC2 → `upload_causal_outputs_to_s3.py` → S3 `visualizations/causal/{cohort}/{age_band}/causal_data.json` (hyphen). **Match:** S3 has these keys.
+- **Scenario:** EC2 → `upload_scenario_outputs_to_s3.py` → S3 `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` (hyphen). **Match:** S3 has these keys.
 - **Cohort PGx:** EC2 → `sync_cohort_pgx_to_s3.py` → S3 `visualizations/cohort_pgx/networks/{cohort}/{age_band}/*`. **Match:** S3 has these keys.
 - **Feature importance:** Notebook 5 Step 6 → S3 `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png|.json` and `.../combined/...`. **Match:** S3 has these keys.
 - **BupaR:** Step 6 sync from local `.../bupar/{cohort}/{age_band}/plots/` → S3 `visualizations/bupar/{cohort}/{age_band}/plots/*`. **Mismatch:** No `visualizations/bupar/` in S3.
 - **DTW:** Step 6 sync from local `.../dtw/{cohort}/{age_band}/` (skip `feature_engineering/`) → S3 `visualizations/dtw/{cohort}/{age_band}/`. **Mismatch:** No `visualizations/dtw/` in S3.
 - **FP-Growth:** Step 6 sync from local `.../fpgrowth/{cohort}/{age_band}/` → S3 `visualizations/fpgrowth/{cohort}/{age_band}/plots/`, `data/`. **Mismatch:** No `visualizations/fpgrowth/` in S3.
 
-**Age band format:** Mapping requires hyphen in S3 (e.g. `25-44`). Causal and cohort_pgx keys in S3 use hyphen. BupaR/DTW/FP-Growth are absent so not applicable.
+**Age band format:** Mapping requires hyphen in S3 (e.g. `25-44`). Scenario and cohort_pgx keys in S3 use hyphen. BupaR/DTW/FP-Growth are absent so not applicable.
 
 ---
 
@@ -60,7 +60,7 @@ Per **README_dashboard_visual_artifact_paths.md**:
 | **Metadata (Drugs, ICD, CPT)** | `staticJsonPath('metadata/${cohort}.json')` then fallback `GET /metadata?cohort=` | Same-origin `metadata/*.json` or API | ✓ S3 has `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json` |
 | **Documentation (metrics)** | `fetch('metadata/model_performance_metrics.json')` then fallback `GET /metrics` | Same-origin `metadata/model_performance_metrics.json` | ✓ S3 has it |
 | **Feature importance** | `staticJsonPath('visualizations/feature_importance/...')` then fallback `GET /visualizations/feature_importance?cohort=` | Same-origin under prefix or API (Lambda returns S3 URLs) | ✓ S3 has `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.json` and combined |
-| **Causal analysis** | `GET /visualizations/causal?cohort=&age_band=` then `fetch(data.causal_data_url)` | Lambda returns `causal_data_url` → S3 `visualizations/causal/{cohort}/{age_band}/causal_data.json` | ✓ S3 has these objects; Lambda uses hyphen in key |
+| **Scenario analysis** | `GET /visualizations/scenario?cohort=&age_band=` then `fetch(data.causal_data_url)` | Lambda returns `causal_data_url` → S3 `visualizations/scenario/{cohort}/{age_band}/scenario_data.json` | ✓ S3 has these objects; Lambda uses hyphen in key |
 | **DTW** | `GET /visualizations/dtw?cohort=&age_band=` then `fetch(chart_data_url)`, `fetch(sequence_heatmap_url)` | Lambda returns URLs to S3 `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json` | ✗ S3 has no `visualizations/dtw/` → API will return empty or 404-style behavior for those URLs |
 | **FP-Growth** | `GET /visualizations/fpgrowth?cohort=&age_band=&item_type=drug_name`; network via `GET /visualizations/fpgrowth/network_html?cohort=&age_band=` | Lambda returns URLs to S3 `visualizations/fpgrowth/{cohort}/{age_band}/plots/`, `data/` | ✗ S3 has no `visualizations/fpgrowth/` → same as DTW |
 | **BupaR** | `GET /visualizations/bupar?cohort=&age_band=` and `GET /visualizations/bupar/activity_frequency?cohort=&age_band=` | Lambda returns URLs to S3 `visualizations/bupar/{cohort}/{age_band}/plots/*` | ✗ S3 has no `visualizations/bupar/` → same as DTW |
@@ -72,7 +72,7 @@ Per **README_dashboard_visual_artifact_paths.md**:
 ## 4. Summary
 
 - **Aligned with mapping and frontend:**  
-  Top-level (index, README, template), `metadata/`, `visualizations/causal/`, `visualizations/cohort_pgx/`, `visualizations/feature_importance/`, and `visualizations/dashboard_visual_objects.json` are present and match the mapping doc and how the frontend (and Lambda) use them.
+  Top-level (index, README, template), `metadata/`, `visualizations/scenario/`, `visualizations/cohort_pgx/`, `visualizations/feature_importance/`, and `visualizations/dashboard_visual_objects.json` are present and match the mapping doc and how the frontend (and Lambda) use them.
 
 - **Missing in S3 (mapping and API expect them):**  
   - `visualizations/bupar/{cohort}/{age_band}/plots/*`  
@@ -96,7 +96,7 @@ Notebook 4 sets `SKIP_DASHBOARD_S3_UPLOAD=1`, so it **writes local only**; noteb
 | **DTW** | `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/` (chart_data.json, sequence_heatmap.json, plots/) | `create_dtw_trajectories.py` → `create_dtw_features.py` → `create_dtw_visuals.py` (notebook 4 DTW cell) |
 | **FP-Growth** | `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/`, `.../data/` | `9_dashboard_visuals/fpgrowth/create_plots.py` via create_fpgrowth_visuals (notebook 4 FP-Growth cell) |
 | **Cohort PGx** | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` | `build_network_topology.py` (notebook 4 Cohort PGx) |
-| **Causal** | `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` | `combine_shap_ffa_results.py`; upload via `upload_causal_outputs_to_s3.py` (or Step 6) |
+| **Scenario** | `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` | `combine_shap_ffa_results.py`; upload via `upload_scenario_outputs_to_s3.py` (or Step 6) |
 | **Feature importance** | `3a_feature_importance/outputs/{cohort}/plots/{cohort}_aggregated_fi_heatmap.png`, `3a_feature_importance/outputs/plots/combined_cohorts_feature_importance_heatmap.png` | Notebook 4 FI heatmaps cell; Step 6 uploads from these paths |
 
 **Age band in paths:** Local/EC2 uses **underscore** (e.g. `25_44`); S3 uses **hyphen** (e.g. `25-44`). Step 6 sync maps `age_band_fname` → `age_band` when building S3 keys.

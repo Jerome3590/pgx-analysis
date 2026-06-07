@@ -6,7 +6,7 @@
 #
 #
 #
-# **Purpose:** Prepare Lambda directory, build Docker image, push to ECR, update Lambda, and sync dashboard assets to S3 (frontend, metadata, feature importance, Cohort PGx, and causal dashboard JSON for the Causal Analysis tab). Run once after [3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb) and [4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb).
+# **Purpose:** Prepare Lambda directory, build Docker image, push to ECR, update Lambda, and sync dashboard assets to S3 (frontend, metadata, feature importance, Cohort PGx, and scenario dashboard JSON for the Scenario Analysis tab). Run once after [3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb) and [4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb).
 #
 #
 #
@@ -418,7 +418,7 @@ print(f"\n{'=' * 80}")
 # %% [markdown]
 # ### Check dashboard artifact paths (before Lambda / Step 6)
 #
-# Verify that EC2 paths and artifacts from **README_dashboard_visual_artifact_paths.md** (and RESEARCH_QUESTIONS_ARTIFACTS.md) are present before **updating Lambda** or **syncing S3**. Run the cell below; it checks Feature Importance, Causal, BupaR, DTW, FP-Growth, PGx Cohort, and metadata/frontend. This single check covers frontend, metadata, FI, Causal, BupaR, DTW, FP-Growth, and PGx (replacing the former "Dashboard requirement check"). See **TEST_PLAN_FINAL_DASHBOARD.md** Section 1.3 & 7. **Step 6** uploads causal JSON from `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json` (generate via notebook 3 or combine_shap_ffa_results). Use `--strict` so the notebook fails if any required path is missing.
+# Verify that EC2 paths and artifacts from **README_dashboard_visual_artifact_paths.md** (and RESEARCH_QUESTIONS_ARTIFACTS.md) are present before **updating Lambda** or **syncing S3**. Run the cell below; it checks Feature Importance, Causal, BupaR, DTW, FP-Growth, PGx Cohort, and metadata/frontend. This single check covers frontend, metadata, FI, Causal, BupaR, DTW, FP-Growth, and PGx (replacing the former "Dashboard requirement check"). See **TEST_PLAN_FINAL_DASHBOARD.md** Section 1.3 & 7. **Step 6** uploads causal JSON from `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` (generate via notebook 3 or combine_shap_ffa_results). Use `--strict` so the notebook fails if any required path is missing.
 
 # %%
 # Check dashboard artifact paths before Lambda update / Step 6 sync
@@ -628,7 +628,7 @@ print(f"\n{'=' * 80}")
 # - **Metadata:** model_performance_metrics.json, cohort metadata (Documentation and dropdowns)
 # - **Feature importance:** aggregated heatmaps (PNG) and JSON (aggregated_fi_heatmap.json per cohort and combined) for Feature Importance tab
 # - **Cohort PGx:** network topology HTML (PGx Cohort tab)
-# - **Causal data:** dashboard_data.json from 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/ → S3 visualizations/causal/{cohort}/{age_band}/causal_data.json (Causal Analysis tab; upload_causal_outputs_to_s3.py)
+# - **Scenario data:** dashboard_data.json from 10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/ → S3 visualizations/scenario/{cohort}/{age_band}/scenario_data.json (Scenario Analysis tab; upload_scenario_outputs_to_s3.py)
 #
 # **Dashboard tabs ↔ data sources (S3 prefix = `vcu/pgx-risk-calculator/`).** EC2 paths are relative to repo root (e.g. `/home/pgx3874/pgx-analysis`).
 #
@@ -639,7 +639,7 @@ print(f"\n{'=' * 80}")
 # | PGx Card | 10_risk_dashboard/outputs/cpic/ (→ Lambda) | POST /pgx/card | — (Lambda + CPIC) | — |
 # | Documentation | 10_risk_dashboard/outputs/metadata/model_performance_metrics.json | Same-origin JSON | metadata/model_performance_metrics.json | ✓ metrics |
 # | **Feature Importance** | 3a_feature_importance/outputs/{cohort}/plots/, outputs/plots/ | GET /visualizations/feature_importance?cohort= | visualizations/feature_importance/{cohort}/, .../combined_* | ✓ FI heatmaps |
-# | **Causal Analysis** | 10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/dashboard_data.json | GET /visualizations/causal?cohort=&age_band= | visualizations/causal/{cohort}/{age_band}/causal_data.json (S3: hyphen) | ✓ upload_causal_outputs_to_s3 |
+# | **Scenario Analysis** | 10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json | GET /visualizations/scenario?cohort=&age_band= | visualizations/scenario/{cohort}/{age_band}/scenario_data.json (S3: hyphen) | ✓ upload_scenario_outputs_to_s3 |
 # | **BupaR Process Mining** | (notebook 4 → S3 builds) | GET /visualizations/bupar, ... | visualizations/bupar/{cohort}/{age_band}/plots/ | ✓ Step 6 promotes builds→final |
 # | **DTW Trajectories** | (notebook 4 → S3 builds) | GET /visualizations/dtw?cohort=&age_band= | visualizations/dtw/{cohort}/{age_band}/chart_data.json, sequence_heatmap.json, plots/ | ✓ Step 6 promotes builds→final |
 # | **FP-Growth Patterns** | (notebook 4 → S3 builds) | GET /visualizations/fpgrowth, /fpgrowth/network_html | visualizations/fpgrowth/{cohort}/{age_band}/plots/, data/ | ✓ Step 6 promotes builds→final |
@@ -834,31 +834,31 @@ if frontend_dir.exists() and frontend_dir.is_dir():
                 else:
                     print("  ⚠ Cohort PGx not found (run 4_dashboard_visuals Cohort PGx); PGx Cohort tab will 404 until synced.")
 
-                # Upload causal dashboard JSON (Causal Analysis tab): 10_risk_dashboard/visualizations/causal/ -> S3 visualizations/causal/
-                upload_causal_script = risk_dashboard_dir / "data_preparation" / "upload_causal_outputs_to_s3.py"
-                if upload_causal_script.exists():
+                # Upload scenario dashboard JSON (Scenario Analysis tab): 10_risk_dashboard/visualizations/scenario/ -> S3 visualizations/scenario/
+                upload_scenario_script = risk_dashboard_dir / "data_preparation" / "upload_scenario_outputs_to_s3.py"
+                if upload_scenario_script.exists():
                     try:
-                        result_causal = subprocess.run(
-                            [str(PYTHON_BIN), str(upload_causal_script)],
+                        result_scenario = subprocess.run(
+                            [str(PYTHON_BIN), str(upload_scenario_script)],
                             cwd=str(PROJECT_ROOT),
                             capture_output=True,
                             text=True,
                         )
-                        if result_causal.returncode == 0 and result_causal.stdout:
-                            for line in result_causal.stdout.strip().split("\n"):
+                        if result_scenario.returncode == 0 and result_scenario.stdout:
+                            for line in result_scenario.stdout.strip().split("\n"):
                                 print(f"  {line}")
-                        elif result_causal.returncode != 0 and result_causal.stderr:
-                            print(f"  ⚠ Causal upload: {result_causal.stderr.strip() or 'failed'}")
+                        elif result_scenario.returncode != 0 and result_scenario.stderr:
+                            print(f"  ⚠ Causal upload: {result_scenario.stderr.strip() or 'failed'}")
                     except Exception as e:
                         print(f"  ⚠ Causal upload failed: {e}")
                 else:
-                    print("  ⚠ Causal upload script not found; Causal Analysis tab may have no data until dashboard_data.json is uploaded to S3.")
+                    print("  ⚠ Causal upload script not found; Scenario Analysis tab may have no data until dashboard_data.json is uploaded to S3.")
 
                 # Manifest-driven upload: only upload static_files listed in dashboard_visual_objects.json.
                 # This prevents debug artifacts (trajectory_status_*.json, dtw_model_events_diagnostics_*.json,
                 # *.csv, *.parquet, Rplots.pdf, feature_engineering/, etc.) from polluting S3.
                 # Covers: BupaR, DTW, FP-Growth, Feature Importance, Cohort PGx.
-                # Causal Analysis is handled above by upload_causal_outputs_to_s3.py (rename-on-upload).
+                # Scenario Analysis is handled above by upload_scenario_outputs_to_s3.py (rename-on-upload).
                 sync_visuals_script = risk_dashboard_dir / "deployment" / "sync_visuals_to_s3.py"
                 if sync_visuals_script.exists():
                     try:
