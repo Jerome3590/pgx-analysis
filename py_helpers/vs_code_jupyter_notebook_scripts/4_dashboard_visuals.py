@@ -339,6 +339,18 @@ for cohort_name, age_band in combinations:
     if thresh_path.exists() and _valid_threshold_json(thresh_path):
         continue
 
+    # Some Step 6/per-bin runs write the same thresholds only under bin_models/{bin}/.
+    # Promote the first valid per-bin copy to the canonical cohort/age root path.
+    for bin_name in ("low", "medium", "high", "extreme"):
+        bin_thresh_path = FINAL_MODEL_OUTPUTS / cohort_name / age_band_fname / "bin_models" / bin_name / "n_event_bin_thresholds.json"
+        if bin_thresh_path.exists() and _valid_threshold_json(bin_thresh_path):
+            thresh_path.parent.mkdir(parents=True, exist_ok=True)
+            thresh_path.write_text(bin_thresh_path.read_text())
+            _thresh_downloaded += 1
+            break
+    if thresh_path.exists() and _valid_threshold_json(thresh_path):
+        continue
+
     s3_key = f"{MODEL_THRESHOLDS_S3_PREFIX}/{cohort_name}/{age_band_fname}/n_event_bin_thresholds.json"
     if _threshold_s3 is not None:
         try:
