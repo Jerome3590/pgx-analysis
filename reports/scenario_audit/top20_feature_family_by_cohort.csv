@@ -1,0 +1,8 @@
+cohort,feature_type,top20_count
+non_opioid_ed,drug,568
+non_opioid_ed,pgx,64
+opioid_ed,cpt,197
+opioid_ed,drug,254
+opioid_ed,icd,69
+opioid_ed,pgx,62
+opioid_ed,utilization_temporal,38
