@@ -73,10 +73,10 @@ Run by `3_model_train_shap_ffa.ipynb` (Phase 3) after Steps 7 and 8 complete.
 Per-bin: same paths under `bin_models/{bin_name}/`.
 
 **Outputs:**
-- `10_risk_dashboard/visualizations/causal/{cohort}/{ab}/dashboard_data.json` — merged SHAP + FFA importance, patient-level explanations, consensus features
-- S3 (with `--upload-to-dashboard`): `visualizations/causal/{cohort}/{age_band}/causal_data.json`
+- `10_risk_dashboard/visualizations/scenario/{cohort}/{ab}/dashboard_data.json` — merged SHAP + FFA importance, patient-level explanations, consensus features
+- S3 (with `--upload-to-dashboard`): `visualizations/scenario/{cohort}/{age_band}/scenario_data.json`
 
-Served by Lambda `GET /visualizations/causal` endpoint. Also read by `run_dashboard_visuals.py` to build the `allowed_codes_shap_ffa_{cohort}_{ab}.json` that gates BupaR, DTW, and FP-Growth event filtering.
+Served by Lambda `GET /visualizations/scenario` endpoint. Also read by `run_dashboard_visuals.py` to build the `allowed_codes_shap_ffa_{cohort}_{ab}.json` that gates BupaR, DTW, and FP-Growth event filtering.
 
 **Note:** FFA consensus is already baked into `feature_importance_axp` scores (SHAP-prioritized rules feed FFA weighting). The combine step merges the two importance lists and adds row-level patient explanations; it does not recompute consensus.
 
@@ -157,7 +157,7 @@ python combine_shap_ffa_results.py --cohort opioid_ed --age-band 25-44
 **Outputs:**
 - `dashboard_data.json` (PHTS-style) and CSV under `--output-dir/{cohort}/{age_band_fname}/` (EC2: underscore; default output-dir = `10_risk_dashboard/outputs`)
 
-**Dashboard S3 (optional):** Use `--upload-to-dashboard` to upload `dashboard_data.json` as `causal_data.json` to the dashboard bucket (`S3_DASHBOARD_BUCKET` / `S3_DASHBOARD_PREFIX`). The Causal Analysis tab then loads it via `GET /visualizations/causal` (prebuilt JSON pattern, same as DTW).
+**Dashboard S3 (optional):** Use `--upload-to-dashboard` to upload `dashboard_data.json` as `scenario_data.json` to the dashboard bucket (`S3_DASHBOARD_BUCKET` / `S3_DASHBOARD_PREFIX`). The Scenario Analysis tab then loads it via `GET /visualizations/scenario` (prebuilt JSON pattern, same as DTW).
 
 ## Input Sources
 

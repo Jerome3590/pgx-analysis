@@ -520,8 +520,7 @@ if FORCE_RERUN_DOWNSTREAM_ANALYSIS:
             f"s3://{S3_BUCKET}/gold/shap_analysis/{cohort}/",
             f"s3://{S3_BUCKET}/gold/ffa_analysis/{cohort}/",
             f"s3://{S3_BUCKET}/visualizations/scenario/{cohort}/",
-            f"s3://{S3_BUCKET}/visualizations/scenario/{cohort}/",
-        ]
+                    ]
         for uri in s3_prefixes:
             r = subprocess.run([_aws, "s3", "rm", uri, "--recursive"] + _profile, capture_output=True, text=True)
             if r.returncode == 0:
@@ -753,7 +752,7 @@ print("Step 8 (FFA) complete.")
 # %% [markdown]
 # ### Combine: SHAP + FFA → dashboard outputs
 #
-# **combine_shap_ffa_results.py** — per trained bin (under `.../causal/{cohort}/{age_band}/{bin}/`), or cohort-level output under `.../causal/{cohort}/{age_band}/` when Step 7/8 used aggregate paths. Use `--workers 0` for auto worker count or `--workers 1` for sequential.
+# **combine_shap_ffa_results.py** — per trained bin (under `.../scenario/{cohort}/{age_band}/{bin}/`), or cohort-level output under `.../scenario/{cohort}/{age_band}/` when Step 7/8 used aggregate paths. Use `--workers 0` for auto worker count or `--workers 1` for sequential.
 
 # %%
 # Combine: Merge SHAP + FFA per trained bin, else cohort-level.
@@ -762,7 +761,7 @@ from py_helpers.event_density_utils import (
     list_trained_density_bins,
 )
 
-CAUSAL_VISUALS = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
+SCENARIO_VISUALS = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
 COMBINE_SCRIPT = DATA_PREP_DIR / "combine_shap_ffa_results.py"
 for cohort, age_band in iter_downstream_cohorts():
     trained = list_trained_density_bins(PROJECT_ROOT, cohort, age_band)
@@ -780,7 +779,7 @@ for cohort, age_band in iter_downstream_cohorts():
                     "--bin",
                     bin_name,
                     "--output-dir",
-                    str(CAUSAL_VISUALS),
+                    str(SCENARIO_VISUALS),
                     "--workers",
                     "0",
                 ],
@@ -800,7 +799,7 @@ for cohort, age_band in iter_downstream_cohorts():
                 "--age-band",
                 age_band,
                 "--output-dir",
-                str(CAUSAL_VISUALS),
+                str(SCENARIO_VISUALS),
                 "--workers",
                 "0",
             ],
@@ -834,7 +833,7 @@ import pandas as pd
 from pathlib import Path
 
 DASHBOARD_OUT = PROJECT_ROOT / "10_risk_dashboard" / "outputs"
-CAUSAL_VISUALS = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
+SCENARIO_VISUALS = PROJECT_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
 META_DIR = DASHBOARD_OUT / "metadata"
 
 DRUG_PREFIX = "item_drug_"
@@ -897,7 +896,7 @@ for cohort, bands in REQUIRED_COHORTS.items():
         n_cpts  = len(codes.get("cpts", []) or [])
 
         for bin_name in _DENSITY_BINS:
-            combined_path = CAUSAL_VISUALS / cohort / ab / bin_name / "combined_importance.csv"
+            combined_path = SCENARIO_VISUALS / cohort / ab / bin_name / "combined_importance.csv"
             combined_exists = combined_path.exists()
 
             n_features = 0

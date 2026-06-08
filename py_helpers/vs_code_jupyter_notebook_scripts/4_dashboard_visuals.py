@@ -4,7 +4,7 @@
 # %% [markdown]
 # # 4. Dashboard visuals (pipeline step 9)
 #
-# This notebook runs **pipeline step 9** (`9_dashboard_visuals`). It **prebuilds all dashboard visualization artifacts** (**Scenario Analysis** (SHAP+FFA combined), BupaR, DTW, FP-Growth, **Cohort PGx** for the PGx Cohort tab, and **PGx Card** for the patient card tab) on **EC2** and **saves them to the final local destination** that notebook 5 Step 6 syncs to S3 (`10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,cohort_pgx,causal}/`). The dashboard loads these prebuilt assets **static-first** from S3 using the **manifest** (`10_risk_dashboard/visualizations/dashboard_visual_objects.json`) as the single source of truth for tab → S3 paths and static files; **JSON-first** for visuals (e.g. DTW: chart_data, sequence_heatmap, trajectory_overview_plot from static, then PNG/HTML fallbacks; API only when static fails). The API returns URLs to prebuilt S3 assets; no computation at request time. Visuals are **SHAP/FFA-driven**: model data and feature lists come from Step 3b / 7 / 8 so process mining and itemset mining use only important features.
+# This notebook runs **pipeline step 9** (`9_dashboard_visuals`). It **prebuilds all dashboard visualization artifacts** (**Scenario Analysis** (SHAP+FFA combined), BupaR, DTW, FP-Growth, **Cohort PGx** for the PGx Cohort tab, and **PGx Card** for the patient card tab) on **EC2** and **saves them to the final local destination** that notebook 5 Step 6 syncs to S3 (`10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,cohort_pgx,scenario}/`). The dashboard loads these prebuilt assets **static-first** from S3 using the **manifest** (`10_risk_dashboard/visualizations/dashboard_visual_objects.json`) as the single source of truth for tab → S3 paths and static files; **JSON-first** for visuals (e.g. DTW: chart_data, sequence_heatmap, trajectory_overview_plot from static, then PNG/HTML fallbacks; API only when static fails). The API returns URLs to prebuilt S3 assets; no computation at request time. Visuals are **SHAP/FFA-driven**: model data and feature lists come from Step 3b / 7 / 8 so process mining and itemset mining use only important features.
 #
 # **Flow:** Run after [3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb). Then run [5_build_and_deploy.ipynb](5_build_and_deploy.ipynb) once to build and deploy.
 #
@@ -14,14 +14,14 @@
 #
 # ## Steps
 #
-# 1. **Setup** – Resolve paths (scripts in `9_dashboard_visuals/`; outputs under `10_risk_dashboard/visualizations/{causal,bupar,dtw,fpgrowth,cohort_pgx}/`).
+# 1. **Setup** – Resolve paths (scripts in `9_dashboard_visuals/`; outputs under `10_risk_dashboard/visualizations/{scenario,bupar,dtw,fpgrowth,cohort_pgx}/`).
 # 2. **Feature importance heatmaps** – Aggregated and combined heatmaps for the dashboard **Feature Importance** tab; saved to `3a_feature_importance/{cohort}/plots/{cohort}_aggregated_fi_heatmap.png` and `3a_feature_importance/plots/combined_cohorts_feature_importance_heatmap.png`. Notebook 5 (deploy) expects these paths and syncs them to S3.
 # 3. **BupaR** – Process mining sequences and plots (SHAP/FFA allowed codes when available); **saved locally** to `10_risk_dashboard/visualizations/bupar/{cohort}/{age_band_fname}/plots/` (notebook 5 Step 6 syncs to S3 `visualizations/bupar/{cohort}/{age_band}/plots/`).
 # 4. **DTW** – Trajectory features and plots **based on SHAP/FFA important codes** (same as BupaR/FP-Growth); **drug-only** for both cohorts. **Saved locally** to `10_risk_dashboard/visualizations/dtw/{cohort}/{age_band_fname}/`: `chart_data.json`, `sequence_heatmap.json`, `plots/trajectory_overview_plot.json`, `plots/dtw_trajectory_analysis_{base}.png`, `plots/dtw_sample_trajectories_{base}.png`, `plots/dtw_trajectory_cluster_1d/3d_{base}.html`. Notebook 5 Step 6 syncs to S3 `visualizations/dtw/{cohort}/{age_band}/` (age_band with **hyphen** on S3). **No empty artifacts:** when a plot doesn’t produce data, the pipeline writes JSON with `message`, `empty: true`, and `metrics` (why). The **manifest** (`dashboard_visual_objects.json`) lists all DTW objects and S3 paths; the dashboard uses **JSON-first** loading (chart_data, sequence_heatmap, trajectory_overview_plot from static first, then PNG/HTML fallbacks, API only when static fails). DTW tab includes **Routine vs No Routine (Outcomes)** (admin ICD codes identify routine appointments) and **High-Risk vs Low-Risk Trajectories**. Full pipeline (2016–2019). **Extreme-density** (optional): same routine vs no routine for high-utilizer subgroups.
 #
 # 5. **FP-Growth** – Itemsets, rules, **Plotly network HTML**, and PNGs; **saved locally** to `10_risk_dashboard/visualizations/fpgrowth/{cohort}/{age_band_fname}/plots/` and `.../data/` (notebook 5 Step 6 syncs to S3 `visualizations/fpgrowth/{cohort}/{age_band}/`). The dashboard loads the **network plot by cohort** from these URLs.
 #
-# **Causal (Scenario Analysis tab)** – Combined SHAP+FFA produces `dashboard_data.json` per cohort/age_band (via `combine_shap_ffa_results.py`); saved under `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/`. Run **Upload Scenario dashboard JSON to S3** (cell below) to push to the dashboard bucket as `visualizations/scenario/{cohort}/{age_band}/scenario_data.json`. The Scenario Analysis tab loads from S3; notebook 5 Step 6 also runs this during deploy.
+# **Scenario Analysis tab** – Combined SHAP+FFA produces `dashboard_data.json` per cohort/age_band (via `combine_shap_ffa_results.py`); saved under `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/`. Run **Upload Scenario dashboard JSON to S3** (cell below) to push to the dashboard bucket as `visualizations/scenario/{cohort}/{age_band}/scenario_data.json`. The Scenario Analysis tab loads from S3; notebook 5 Step 6 also runs this during deploy.
 #
 # Idempotent. Run from repo root. Prerequisites: `4_model_data`, `7_shap_analysis`, `8_ffa_analysis`; R and bupaR for BupaR. Then run notebook 5 to deploy (syncs all visuals including Causal, Cohort PGx, and others to S3).
 #
@@ -72,7 +72,7 @@ print(f"Model data root: {MODEL_DATA_ROOT}")
 print(f"S3 bucket: {S3_BUCKET}")
 print(f"Step 9 (scripts): {STEP9_ROOT}")
 print(f"Outputs: {VISUAL_ROOT}")
-print(f"Plots (PNG/HTML) appear under: {VISUAL_ROOT}/bupar/<cohort>/<age_band>/plots/ (and dtw/, fpgrowth/, cohort_pgx/networks/, causal/) — run the cells below to generate them.")
+print(f"Plots (PNG/HTML) appear under: {VISUAL_ROOT}/bupar/<cohort>/<age_band>/plots/ (and dtw/, fpgrowth/, cohort_pgx/networks/, scenario/) — run the cells below to generate them.")
 
 # %% [markdown]
 # ## Config: cohorts and age bands
@@ -87,10 +87,10 @@ print(f"Plots (PNG/HTML) appear under: {VISUAL_ROOT}/bupar/<cohort>/<age_band>/p
 # %%
 # Upload scenario dashboard JSON to S3 (Scenario Analysis tab)
 # Script reads 10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json
-upload_causal_script = REPO_ROOT / "10_risk_dashboard" / "data_preparation" / "upload_scenario_outputs_to_s3.py"
-if upload_causal_script.exists():
+upload_scenario_script = REPO_ROOT / "10_risk_dashboard" / "data_preparation" / "upload_scenario_outputs_to_s3.py"
+if upload_scenario_script.exists():
     r = subprocess.run(
-        [str(PYTHON_BIN), str(upload_causal_script)],
+        [str(PYTHON_BIN), str(upload_scenario_script)],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
@@ -147,7 +147,7 @@ from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_
 BUPAR_OUTPUTS = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar"
 BUPAR_OUTPUTS.mkdir(parents=True, exist_ok=True)
 DASHBOARD_OUTPUTS = REPO_ROOT / "10_risk_dashboard" / "outputs"
-CAUSAL_VISUALS = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
+SCENARIO_VISUALS = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "causal"
 COMBINE_SCRIPT = REPO_ROOT / "10_risk_dashboard" / "data_preparation" / "combine_shap_ffa_results.py"
 
 def _has_fi_source(cohort_name, age_band):
@@ -155,16 +155,16 @@ def _has_fi_source(cohort_name, age_band):
     step3b_dir = REPO_ROOT / "3b_feature_importance_eda" / "outputs" / cohort_name / age_band_fname
     step3b_any = any(step3b_dir.glob("*cohort_feature_importance*.csv")) if step3b_dir.exists() else False
     step3a_path = REPO_ROOT / "3a_feature_importance" / "outputs" / cohort_name / age_band_fname / "cohort_feature_importance.csv"
-    causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
-    combined_causal = causal_base / "combined_importance.csv"
+    scenario_base = SCENARIO_VISUALS / cohort_name / age_band_fname
+    combined_scenario = scenario_base / "combined_importance.csv"
     combined_per_bin = any(
-        (causal_base / b / "combined_importance.csv").exists() for b in _SCENARIO_DENSITY_BINS
+        (scenario_base / b / "combined_importance.csv").exists() for b in _SCENARIO_DENSITY_BINS
     )
     combined_out = DASHBOARD_OUTPUTS / cohort_name / age_band_fname / "combined_importance.csv"
     return (
         step3b_any
         or step3a_path.exists()
-        or combined_causal.exists()
+        or combined_scenario.exists()
         or combined_out.exists()
         or combined_per_bin
     )
@@ -177,18 +177,18 @@ if COMBINE_SCRIPT.exists():
         if _has_fi_source(cohort_name, age_band):
             continue
         age_band_fname = age_band.replace("-", "_")
-        causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
-        if (causal_base / "combined_importance.csv").exists():
+        scenario_base = SCENARIO_VISUALS / cohort_name / age_band_fname
+        if (scenario_base / "combined_importance.csv").exists():
             continue
-        if any((causal_base / b / "combined_importance.csv").exists() for b in _SCENARIO_DENSITY_BINS):
+        if any((scenario_base / b / "combined_importance.csv").exists() for b in _SCENARIO_DENSITY_BINS):
             continue
-        # Default causal path is per-bin; combine requires --bin (use medium for this fallback).
+        # Default scenario path is per-bin; combine requires --bin (use medium for this fallback).
         r = subprocess.run(
             [
                 str(PYTHON_BIN), str(COMBINE_SCRIPT),
                 "--cohort", cohort_name, "--age-band", age_band,
                 "--bin", "medium",
-                "--output-dir", str(CAUSAL_VISUALS), "--workers", "1",
+                "--output-dir", str(SCENARIO_VISUALS), "--workers", "1",
             ],
             cwd=str(REPO_ROOT),
             capture_output=True, text=True, timeout=600,
@@ -226,17 +226,17 @@ for cohort_name, age_band in combinations:
     
     step3b_dir = REPO_ROOT / "3b_feature_importance_eda" / "outputs" / cohort_name / age_band_fname
     step3b_any = any(step3b_dir.glob("*cohort_feature_importance*.csv")) if step3b_dir.exists() else False
-    causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
-    combined_causal = causal_base / "combined_importance.csv"
+    scenario_base = SCENARIO_VISUALS / cohort_name / age_band_fname
+    combined_scenario = scenario_base / "combined_importance.csv"
     combined_out = DASHBOARD_OUTPUTS / cohort_name / age_band_fname / "combined_importance.csv"
     combined_path = None
-    if combined_causal.exists():
-        combined_path = combined_causal
+    if combined_scenario.exists():
+        combined_path = combined_scenario
     elif combined_out.exists():
         combined_path = combined_out
     else:
         for b in _SCENARIO_DENSITY_BINS:
-            p = causal_base / b / "combined_importance.csv"
+            p = scenario_base / b / "combined_importance.csv"
             if p.exists():
                 combined_path = p
                 break
@@ -821,10 +821,10 @@ print("FP-Growth done.")
 # %% [markdown]
 # ## View visualization outputs
 #
-# **Outputs are not in the repo** — they are created when you run the FI heatmaps, BupaR, DTW, FP-Growth, Causal, and Cohort PGx cells above. Paths: **`10_risk_dashboard/visualizations/`** with **`bupar/`**, **`dtw/`**, **`fpgrowth/`**, **`feature_importance/`**, **`causal/`**, **`cohort_pgx/`** (each has cohort/age_band or cohort-only structure; plots in `plots/` or at root). Run the cell below **after** those steps to list paths and preview sample **JSON** (truncated), **PNG** (image), and **HTML** (link). If you see "No outputs yet", run the pipeline cells above first.
+# **Outputs are not in the repo** — they are created when you run the FI heatmaps, BupaR, DTW, FP-Growth, Scenario, and Cohort PGx cells above. Paths: **`10_risk_dashboard/visualizations/`** with **`bupar/`**, **`dtw/`**, **`fpgrowth/`**, **`feature_importance/`**, **`scenario/`**, **`cohort_pgx/`** (each has cohort/age_band or cohort-only structure; plots in `plots/` or at root). Run the cell below **after** those steps to list paths and preview sample **JSON** (truncated), **PNG** (image), and **HTML** (link). If you see "No outputs yet", run the pipeline cells above first.
 
 # %%
-# Where outputs live and sample preview (run after FI heatmaps, BupaR, DTW, FP-Growth, Causal, Cohort PGx)
+# Where outputs live and sample preview (run after FI heatmaps, BupaR, DTW, FP-Growth, Scenario, Cohort PGx)
 import html
 import json
 from pathlib import Path
@@ -909,17 +909,17 @@ else:
     print("  No outputs yet. Run the FI heatmaps cell and copy step above.")
 print()
 
-# --- Causal (dashboard_data.json per cohort/age_band) ---
-causal_base = base / "causal"
-print("--- Causal ---")
-causal_jsons = list(causal_base.rglob("dashboard_data.json")) if causal_base.exists() else []
-if causal_jsons:
-    print(f"  Path: {causal_base}/<cohort>/<age_band_fname>/")
-    print(f"  JSONs: {len(causal_jsons)}")
-    display(HTML("<b>Causal (sample JSON preview)</b>"))
-    display(HTML(f"<pre>{_preview_json(causal_jsons[0])}</pre>"))
+# --- Scenario (dashboard_data.json per cohort/age_band) ---
+scenario_base = base / "scenario"
+print("--- Scenario ---")
+scenario_jsons = list(scenario_base.rglob("dashboard_data.json")) if scenario_base.exists() else []
+if scenario_jsons:
+    print(f"  Path: {scenario_base}/<cohort>/<age_band_fname>/")
+    print(f"  JSONs: {len(scenario_jsons)}")
+    display(HTML("<b>Scenario (sample JSON preview)</b>"))
+    display(HTML(f"<pre>{_preview_json(scenario_jsons[0])}</pre>"))
 else:
-    print("  No outputs yet. Run the combine SHAP+FFA / Causal step above.")
+    print("  No outputs yet. Run the combine SHAP+FFA / Scenario step above.")
 print()
 
 # --- Cohort PGx (network HTML + JSON under cohort_pgx/networks/) ---
@@ -939,7 +939,7 @@ if pgx_base.exists():
 else:
     print("  No outputs yet. Run the Cohort PGx step above.")
 print()
-print("All outputs: 10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,feature_importance,causal,cohort_pgx/networks}/...")
+print("All outputs: 10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,feature_importance,scenario,cohort_pgx/networks}/...")
 
 # %% [markdown]
 # ## PGx Patient Card Setup (Optional)

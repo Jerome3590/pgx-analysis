@@ -124,7 +124,9 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 **Location**: [`CrossStep_Visualization/`](CrossStep_Visualization/)
 
 - **[README_data_visualization.md](CrossStep_Visualization/README_data_visualization.md)** - Data visualization approaches
+- **[README_data_visualizations.md](CrossStep_Development/README_data_visualizations.md)** - Pipeline visualization types, SHAP dependence plots (not PDP), network/DTW/FFA
 - **[README_output_structure.md](CrossStep_Visualization/README_output_structure.md)** - Output file structure
+- **Manuscript figure production:** [`../manuscript/infrastructure_setup/scripts/generate_figures/README.md`](../manuscript/infrastructure_setup/scripts/generate_figures/README.md)
 
 ### Development & Testing
 **Location**: [`CrossStep_Development/`](CrossStep_Development/)
