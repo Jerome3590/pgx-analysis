@@ -418,7 +418,7 @@ print(f"\n{'=' * 80}")
 # %% [markdown]
 # ### Check dashboard artifact paths (before Lambda / Step 6)
 #
-# Verify that EC2 paths and artifacts from **README_dashboard_visual_artifact_paths.md** (and RESEARCH_QUESTIONS_ARTIFACTS.md) are present before **updating Lambda** or **syncing S3**. Run the cell below; it checks Feature Importance, Causal, BupaR, DTW, FP-Growth, PGx Cohort, and metadata/frontend. This single check covers frontend, metadata, FI, Causal, BupaR, DTW, FP-Growth, and PGx (replacing the former "Dashboard requirement check"). See **TEST_PLAN_FINAL_DASHBOARD.md** Section 1.3 & 7. **Step 6** uploads causal JSON from `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` (generate via notebook 3 or combine_shap_ffa_results). Use `--strict` so the notebook fails if any required path is missing.
+# Verify that EC2 paths and artifacts from **README_dashboard_visual_artifact_paths.md** (and RESEARCH_QUESTIONS_ARTIFACTS.md) are present before **updating Lambda** or **syncing S3**. Run the cell below; it checks Feature Importance, Scenario, BupaR, DTW, FP-Growth, PGx Cohort, and metadata/frontend. This single check covers frontend, metadata, FI, Scenario, BupaR, DTW, FP-Growth, and PGx (replacing the former "Dashboard requirement check"). See **TEST_PLAN_FINAL_DASHBOARD.md** Section 1.3 & 7. **Step 6** uploads scenario JSON from `10_risk_dashboard/visualizations/scenario/{cohort}/{age_band_fname}/dashboard_data.json` (generate via notebook 3 or combine_shap_ffa_results). Use `--strict` so the notebook fails if any required path is missing.
 
 # %%
 # Check dashboard artifact paths before Lambda update / Step 6 sync
@@ -468,7 +468,7 @@ if manifest_path.exists():
         print()
     print("=" * 100)
     print(f"Manifest: {manifest_path}")
-    print("Run Step 6 below to sync frontend, metadata, FI heatmaps/JSON, Cohort PGx, and causal data to S3.")
+    print("Run Step 6 below to sync frontend, metadata, FI heatmaps/JSON, Cohort PGx, and scenario data to S3.")
 else:
     print(f"Manifest not found: {manifest_path}")
     print("Run notebook 4 (4_dashboard_visuals.ipynb) and execute the cell that writes dashboard_visual_objects.json, then re-run this cell.")

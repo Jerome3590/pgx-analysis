@@ -12,7 +12,7 @@ Each dashboard visualization tab has a folder here, aligned with `10_risk_dashbo
 | Folder | Dashboard tab | Produced here? | Output destination |
 |--------|----------------|-----------------|---------------------|
 | **bupar/** | BupaR Process Mining | Yes | `10_risk_dashboard/visualizations/bupar/` |
-| **causal/** | Causal Analysis | No (see [causal/README.md](causal/README.md)) | `10_risk_dashboard/visualizations/causal/` (from combine_shap_ffa_results) |
+| **causal/** | Causal Analysis | No (see [causal/README.md](causal/README.md)) | `10_risk_dashboard/visualizations/scenario/` (from combine_shap_ffa_results) |
 | **cohort_pgx/** | PGx Cohort | Yes | `10_risk_dashboard/visualizations/cohort_pgx/` |
 | **dtw/** | DTW Trajectories | Yes | `10_risk_dashboard/visualizations/dtw/` |
 | **fpgrowth/** | FP-Growth Patterns | Yes | `10_risk_dashboard/visualizations/fpgrowth/` |

@@ -401,7 +401,7 @@ sequenceDiagram
 
     Note over User,S3: Visualization Tabs - on demand
     opt User clicks a visualization tab and Load button
-        JS->>APIGW: GET /visualizations/causal or bupar or dtw or fpgrowth
+        JS->>APIGW: GET /visualizations/scenario or bupar or dtw or fpgrowth
         APIGW->>Lambda: forward
         Lambda->>S3: resolve pre-computed asset paths
         S3-->>Lambda: asset URLs
@@ -630,18 +630,18 @@ Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional 
 
 ```mermaid
 flowchart TD
-    A([Causal Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first]
+    A([Scenario Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first]
     B --> C[Optional: enter what-if codes\ncausal-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE]
     C --> D[Optional: filter top-N features\n10 · 20 · All]
     D --> E[Optional: filter by event density bin\nAll · low · medium · high · extreme\nAuto-synced from Risk n_event_bin on tab open]
     E --> F[Click Load Causal Analysis\nbtnLoadCausal]
     F --> G{n_event_bin\nselected?}
-    G -->|Yes bin| H[GET static causal_data.json\nCloudFront: visualizations/causal/\ncohort/ageBand/bin/causal_data.json]
+    G -->|Yes bin| H[GET static scenario_data.json\nCloudFront: visualizations/scenario/\ncohort/ageBand/bin/scenario_data.json]
     G -->|All bins| I[GET manifest entry OR\ndefault static path\nvisualization/causal/cohort/ageBand/]
     H --> J{Static fetch\nHTTP 200?}
     I --> J
     J -->|200| K[Client-side filter:\nfilter top_causal_factors by\nselectedFeatureSet drugs/ICDs/CPTs]
-    J -->|4xx/5xx| L[Fallback: GET Lambda\n/visualizations/causal\n?cohort=&age_band=&n_event_bin=]
+    J -->|4xx/5xx| L[Fallback: GET Lambda\n/visualizations/scenario\n?cohort=&age_band=&n_event_bin=]
     K --> M[causal-factors-chart\nPlotly bar: Top Causal Factors FFA]
     L --> M
     M --> N[shap-importance-chart\nPlotly bar: SHAP Feature Importance]
@@ -792,7 +792,7 @@ flowchart TD
 
 ### Visualization Endpoints
 
-- **`GET /visualizations/causal`** - Get causal analysis visualizations (FFA + SHAP)
+- **`GET /visualizations/scenario`** - Get causal analysis visualizations (FFA + SHAP)
   - Query params: `cohort`, `age_band`
   - Returns: Causal factors and SHAP importance data
 

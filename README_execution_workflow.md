@@ -385,7 +385,7 @@ See [9_dashboard_visuals/README.md](9_dashboard_visuals/README.md) for the full 
 - Model artifacts from Step 4.4 (final model)
 - SHAP values from Step 7
 - FFA results from Step 8
-- Dashboard visuals from **Step 5** (BupaR, DTW, FP-Growth) and Causal (served from SHAP/FFA by Lambda)
+- Dashboard visuals from **Step 5** (BupaR, DTW, FP-Growth) and Scenario Analysis (served from SHAP/FFA by Lambda)
 
 ### 6.2 Build and Deploy Dashboard
 

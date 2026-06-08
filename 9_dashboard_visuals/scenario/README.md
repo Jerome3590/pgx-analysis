@@ -2,11 +2,11 @@
 
 ## Research questions this visual answers
 
-- **Which features (drugs, diagnoses, procedures) does the model treat as causally important for the target?** The Causal tab surfaces the combined **SHAP + FFA (Functional Feature Attribution)** importance: both local (SHAP) and global/causal (FFA) contributions, merged per feature.
+- **Which features (drugs, diagnoses, procedures) does the model treat as most important for the target?** The Scenario Analysis tab surfaces the combined **SHAP + FFA (Functional Feature Attribution)** importance: both local (SHAP) and global (FFA) contributions, merged per feature.
 - **How does importance vary by cohort and age band?** Side-by-side or filtered views let you compare which codes matter for opioid-ED vs non–opioid-ED, and across age bands, so we can see what is driving each target cohort.
 - **Where should clinicians and researchers look first?** Ranked importance (and optional visual encoding) highlights the top drivers of risk, reducing noise and focusing interpretation on model-relevant signals.
 
-**Data source:** Combined SHAP + FFA importance from Steps 7 and 8; the visual does not use raw feature importance alone—it uses the causal/functional view for interpretability.
+**Data source:** Combined SHAP + FFA importance from Steps 7 and 8; the visual does not use raw feature importance alone—it uses the combined SHAP+FFA functional view for interpretability.
 
 ---
 
