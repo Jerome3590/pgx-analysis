@@ -142,7 +142,7 @@ PARALLEL_WORKERS = min(_ncpu, len(combinations))
 FPGROWTH_WORKERS = min(_ncpu, len(combinations))
 
 # Feature importance: use Step 3b, 3a, or combined_importance. If none exist, generate combined_importance from Steps 7+8 (no need to re-run an earlier notebook).
-from py_helpers.event_density_utils import DENSITY_BINS as _CAUSAL_DENSITY_BINS
+from py_helpers.event_density_utils import DENSITY_BINS as _SCENARIO_DENSITY_BINS
 from py_helpers.shap_ffa_fpgrowth_utils import write_shap_ffa_allowed_codes_for_bupar, _allowed_codes_needs_regen
 BUPAR_OUTPUTS = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar"
 BUPAR_OUTPUTS.mkdir(parents=True, exist_ok=True)
@@ -158,7 +158,7 @@ def _has_fi_source(cohort_name, age_band):
     causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
     combined_causal = causal_base / "combined_importance.csv"
     combined_per_bin = any(
-        (causal_base / b / "combined_importance.csv").exists() for b in _CAUSAL_DENSITY_BINS
+        (causal_base / b / "combined_importance.csv").exists() for b in _SCENARIO_DENSITY_BINS
     )
     combined_out = DASHBOARD_OUTPUTS / cohort_name / age_band_fname / "combined_importance.csv"
     return (
@@ -180,7 +180,7 @@ if COMBINE_SCRIPT.exists():
         causal_base = CAUSAL_VISUALS / cohort_name / age_band_fname
         if (causal_base / "combined_importance.csv").exists():
             continue
-        if any((causal_base / b / "combined_importance.csv").exists() for b in _CAUSAL_DENSITY_BINS):
+        if any((causal_base / b / "combined_importance.csv").exists() for b in _SCENARIO_DENSITY_BINS):
             continue
         # Default causal path is per-bin; combine requires --bin (use medium for this fallback).
         r = subprocess.run(
@@ -235,7 +235,7 @@ for cohort_name, age_band in combinations:
     elif combined_out.exists():
         combined_path = combined_out
     else:
-        for b in _CAUSAL_DENSITY_BINS:
+        for b in _SCENARIO_DENSITY_BINS:
             p = causal_base / b / "combined_importance.csv"
             if p.exists():
                 combined_path = p
@@ -1237,9 +1237,9 @@ def run_fetch_vip_reports(cohort_name, age_band, bin_name=None):
 _pgx_tasks = [
     (c, ab, None) for c, ab in COHORT_PGX_COHORTS
 ] + [
-    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _CAUSAL_DENSITY_BINS
+    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _SCENARIO_DENSITY_BINS
 ]
-print(f"Fetching VIP reports for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_CAUSAL_DENSITY_BINS)} bins each...")
+print(f"Fetching VIP reports for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_SCENARIO_DENSITY_BINS)} bins each...")
 print(f"  Top {COHORT_PGX_TOP_N} genes per cohort; total tasks: {len(_pgx_tasks)}")
 print()
 
@@ -1341,9 +1341,9 @@ def run_fetch_pubmed_citations(cohort_name, age_band, bin_name=None):
 _pubmed_tasks = [
     (c, ab, None) for c, ab in COHORT_PGX_COHORTS
 ] + [
-    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _CAUSAL_DENSITY_BINS
+    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _SCENARIO_DENSITY_BINS
 ]
-print(f"Fetching PubMed citations for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_CAUSAL_DENSITY_BINS)} bins each...")
+print(f"Fetching PubMed citations for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_SCENARIO_DENSITY_BINS)} bins each...")
 print(f"  NCBI API key: {'set (10 req/s)' if _NCBI_API_KEY else 'not set (3 req/s polite limit)'}; total tasks: {len(_pubmed_tasks)}")
 print()
 
@@ -1425,9 +1425,9 @@ def run_build_network(cohort_name, age_band, bin_name=None):
 _network_tasks = [
     (c, ab, None) for c, ab in COHORT_PGX_COHORTS
 ] + [
-    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _CAUSAL_DENSITY_BINS
+    (c, ab, b) for c, ab in COHORT_PGX_COHORTS for b in _SCENARIO_DENSITY_BINS
 ]
-print(f"Building network topology for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_CAUSAL_DENSITY_BINS)} bins each...")
+print(f"Building network topology for {len(COHORT_PGX_COHORTS)} cohort/age_band combinations + {len(_SCENARIO_DENSITY_BINS)} bins each...")
 print(f"  AWS Comprehend: {'Enabled' if USE_COMPREHEND else 'Disabled'}; total tasks: {len(_network_tasks)}")
 print()
 
