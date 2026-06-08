@@ -1,0 +1,1109 @@
+{
+  "year_labels": {
+    "0": ["All Years (2016-2018)"],
+    "2016": ["2016"],
+    "2017": ["2017"],
+    "2018": ["2018"]
+  },
+  "data": [
+    {
+      "activity": "CPT:99232",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 2179,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R109",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 2001,
+      "year": 0
+    },
+    {
+      "activity": "CPT:99285",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 1688,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R079",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 1606,
+      "year": 0
+    },
+    {
+      "activity": "CPT:99284",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 1533,
+      "year": 0
+    },
+    {
+      "activity": "CPT:85025",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 1440,
+      "year": 0
+    },
+    {
+      "activity": "CPT:99283",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 1223,
+      "year": 0
+    },
+    {
+      "activity": "CPT:80053",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 1187,
+      "year": 0
+    },
+    {
+      "activity": "ICD:G8929",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 1112,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R0789",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 1110,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R112",
+      "activity_short": "R11",
+      "activity_type": "Diagnosis",
+      "count": 1087,
+      "year": 0
+    },
+    {
+      "activity": "CPT:96374",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 1059,
+      "year": 0
+    },
+    {
+      "activity": "CPT:93010",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 912,
+      "year": 0
+    },
+    {
+      "activity": "CPT:99233",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 852,
+      "year": 0
+    },
+    {
+      "activity": "CPT:36415",
+      "activity_short": "364",
+      "activity_type": "Procedure",
+      "count": 831,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R1013",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 777,
+      "year": 0
+    },
+    {
+      "activity": "CPT:81001",
+      "activity_short": "810",
+      "activity_type": "Procedure",
+      "count": 739,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R1084",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 739,
+      "year": 0
+    },
+    {
+      "activity": "CPT:80048",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 673,
+      "year": 0
+    },
+    {
+      "activity": "ICD:J441",
+      "activity_short": "J44",
+      "activity_type": "Diagnosis",
+      "count": 657,
+      "year": 0
+    },
+    {
+      "activity": "CPT:71010",
+      "activity_short": "710",
+      "activity_type": "Procedure",
+      "count": 632,
+      "year": 0
+    },
+    {
+      "activity": "CPT:71020",
+      "activity_short": "710",
+      "activity_type": "Procedure",
+      "count": 603,
+      "year": 0
+    },
+    {
+      "activity": "CPT:93005",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 593,
+      "year": 0
+    },
+    {
+      "activity": "CPT:83690",
+      "activity_short": "836",
+      "activity_type": "Procedure",
+      "count": 547,
+      "year": 0
+    },
+    {
+      "activity": "ICD:G894",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 545,
+      "year": 0
+    },
+    {
+      "activity": "ICD:A419",
+      "activity_short": "A41",
+      "activity_type": "Diagnosis",
+      "count": 543,
+      "year": 0
+    },
+    {
+      "activity": "ICD:M545",
+      "activity_short": "M54",
+      "activity_type": "Diagnosis",
+      "count": 527,
+      "year": 0
+    },
+    {
+      "activity": "CPT:96376",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 517,
+      "year": 0
+    },
+    {
+      "activity": "CPT:83735",
+      "activity_short": "837",
+      "activity_type": "Procedure",
+      "count": 488,
+      "year": 0
+    },
+    {
+      "activity": "CPT:J1170",
+      "activity_short": "J11",
+      "activity_type": "Procedure",
+      "count": 488,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R1011",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 476,
+      "year": 0
+    },
+    {
+      "activity": "CPT:84484",
+      "activity_short": "844",
+      "activity_type": "Procedure",
+      "count": 451,
+      "year": 0
+    },
+    {
+      "activity": "CPT:96361",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 449,
+      "year": 0
+    },
+    {
+      "activity": "CPT:85027",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 445,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R0602",
+      "activity_short": "R06",
+      "activity_type": "Diagnosis",
+      "count": 440,
+      "year": 0
+    },
+    {
+      "activity": "CPT:J7030",
+      "activity_short": "J70",
+      "activity_type": "Procedure",
+      "count": 439,
+      "year": 0
+    },
+    {
+      "activity": "ICD:I10",
+      "activity_short": "I10",
+      "activity_type": "Diagnosis",
+      "count": 426,
+      "year": 0
+    },
+    {
+      "activity": "ICD:F259",
+      "activity_short": "F25",
+      "activity_type": "Diagnosis",
+      "count": 403,
+      "year": 0
+    },
+    {
+      "activity": "CPT:99223",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 402,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 385,
+      "year": 0
+    },
+    {
+      "activity": "ICD:R109",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 1266,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:R079",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 805,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:99284",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 759,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:99285",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 755,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:G8929",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 696,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:99232",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 688,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:R112",
+      "activity_short": "R11",
+      "activity_type": "Diagnosis",
+      "count": 688,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:99283",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 651,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:85025",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 643,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:96374",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 598,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:R0789",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 588,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:80053",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 567,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:R1084",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 549,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:R1013",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 490,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:71010",
+      "activity_short": "710",
+      "activity_type": "Procedure",
+      "count": 464,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:93010",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 423,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:36415",
+      "activity_short": "364",
+      "activity_type": "Procedure",
+      "count": 398,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:81001",
+      "activity_short": "810",
+      "activity_type": "Procedure",
+      "count": 379,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:J441",
+      "activity_short": "J44",
+      "activity_type": "Diagnosis",
+      "count": 346,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:J1170",
+      "activity_short": "J11",
+      "activity_type": "Procedure",
+      "count": 336,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:R1011",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 322,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:80048",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 318,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:83690",
+      "activity_short": "836",
+      "activity_type": "Procedure",
+      "count": 313,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:96376",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 273,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:99233",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 273,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:71020",
+      "activity_short": "710",
+      "activity_type": "Procedure",
+      "count": 272,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:J7030",
+      "activity_short": "J70",
+      "activity_type": "Procedure",
+      "count": 250,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:93005",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 244,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:84484",
+      "activity_short": "844",
+      "activity_type": "Procedure",
+      "count": 241,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:85027",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 239,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:83735",
+      "activity_short": "837",
+      "activity_type": "Procedure",
+      "count": 223,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:96361",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 219,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:R0602",
+      "activity_short": "R06",
+      "activity_type": "Diagnosis",
+      "count": 207,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:M545",
+      "activity_short": "M54",
+      "activity_type": "Diagnosis",
+      "count": 183,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:99223",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 166,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 163,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:A419",
+      "activity_short": "A41",
+      "activity_type": "Diagnosis",
+      "count": 160,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:G894",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 141,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:I10",
+      "activity_short": "I10",
+      "activity_type": "Diagnosis",
+      "count": 135,
+      "year": 2016
+    },
+    {
+      "activity": "ICD:F259",
+      "activity_short": "F25",
+      "activity_type": "Diagnosis",
+      "count": 99,
+      "year": 2016
+    },
+    {
+      "activity": "CPT:99285",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 603,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:99232",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 483,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:85025",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 434,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R109",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 433,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:99284",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 375,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R079",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 368,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:G8929",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 350,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:71020",
+      "activity_short": "710",
+      "activity_type": "Procedure",
+      "count": 331,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:80053",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 319,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R112",
+      "activity_short": "R11",
+      "activity_type": "Diagnosis",
+      "count": 314,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:J441",
+      "activity_short": "J44",
+      "activity_type": "Diagnosis",
+      "count": 297,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:96374",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 290,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:93010",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 277,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:80048",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 231,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:99283",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 212,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:81001",
+      "activity_short": "810",
+      "activity_type": "Procedure",
+      "count": 200,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:99233",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 189,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:G894",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 182,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:96376",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 178,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R0789",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 174,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:36415",
+      "activity_short": "364",
+      "activity_type": "Procedure",
+      "count": 172,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:93005",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 171,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:71010",
+      "activity_short": "710",
+      "activity_type": "Procedure",
+      "count": 168,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R1011",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 154,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:F259",
+      "activity_short": "F25",
+      "activity_type": "Diagnosis",
+      "count": 143,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:M545",
+      "activity_short": "M54",
+      "activity_type": "Diagnosis",
+      "count": 137,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:83690",
+      "activity_short": "836",
+      "activity_type": "Procedure",
+      "count": 136,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:96361",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 134,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R1013",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 130,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 127,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:83735",
+      "activity_short": "837",
+      "activity_type": "Procedure",
+      "count": 115,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:99223",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 108,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:A419",
+      "activity_short": "A41",
+      "activity_type": "Diagnosis",
+      "count": 108,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:I10",
+      "activity_short": "I10",
+      "activity_type": "Diagnosis",
+      "count": 107,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:J7030",
+      "activity_short": "J70",
+      "activity_type": "Procedure",
+      "count": 104,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:J1170",
+      "activity_short": "J11",
+      "activity_type": "Procedure",
+      "count": 101,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:85027",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 98,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:84484",
+      "activity_short": "844",
+      "activity_type": "Procedure",
+      "count": 94,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R1084",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 92,
+      "year": 2017
+    },
+    {
+      "activity": "ICD:R0602",
+      "activity_short": "R06",
+      "activity_type": "Diagnosis",
+      "count": 84,
+      "year": 2017
+    },
+    {
+      "activity": "CPT:99232",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 1008,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:R079",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 433,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:99284",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 399,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:99233",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 390,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:85025",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 363,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:99283",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 360,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:R0789",
+      "activity_short": "R07",
+      "activity_type": "Diagnosis",
+      "count": 348,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:99285",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 330,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:R109",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 302,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:80053",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 301,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:A419",
+      "activity_short": "A41",
+      "activity_type": "Diagnosis",
+      "count": 275,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:36415",
+      "activity_short": "364",
+      "activity_type": "Procedure",
+      "count": 261,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:G894",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 222,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:93010",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 212,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:M545",
+      "activity_short": "M54",
+      "activity_type": "Diagnosis",
+      "count": 207,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:I10",
+      "activity_short": "I10",
+      "activity_type": "Diagnosis",
+      "count": 184,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:93005",
+      "activity_short": "930",
+      "activity_type": "Procedure",
+      "count": 178,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:96374",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 171,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:F259",
+      "activity_short": "F25",
+      "activity_type": "Diagnosis",
+      "count": 161,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:81001",
+      "activity_short": "810",
+      "activity_type": "Procedure",
+      "count": 160,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:R1013",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 157,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:83735",
+      "activity_short": "837",
+      "activity_type": "Procedure",
+      "count": 150,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:R0602",
+      "activity_short": "R06",
+      "activity_type": "Diagnosis",
+      "count": 149,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:99223",
+      "activity_short": "992",
+      "activity_type": "Procedure",
+      "count": 128,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:80048",
+      "activity_short": "800",
+      "activity_type": "Procedure",
+      "count": 124,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:84484",
+      "activity_short": "844",
+      "activity_type": "Procedure",
+      "count": 116,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:85027",
+      "activity_short": "850",
+      "activity_type": "Procedure",
+      "count": 108,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:83690",
+      "activity_short": "836",
+      "activity_type": "Procedure",
+      "count": 98,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:R1084",
+      "activity_short": "R10",
+      "activity_type": "Diagnosis",
+      "count": 98,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:96361",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 96,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 95,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:J7030",
+      "activity_short": "J70",
+      "activity_type": "Procedure",
+      "count": 85,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:R112",
+      "activity_short": "R11",
+      "activity_type": "Diagnosis",
+      "count": 85,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:96376",
+      "activity_short": "963",
+      "activity_type": "Procedure",
+      "count": 66,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:G8929",
+      "activity_short": "G89",
+      "activity_type": "Diagnosis",
+      "count": 66,
+      "year": 2018
+    },
+    {
+      "activity": "CPT:J1170",
+      "activity_short": "J11",
+      "activity_type": "Procedure",
+      "count": 51,
+      "year": 2018
+    },
+    {
+      "activity": "ICD:J441",
+      "activity_short": "J44",
+      "activity_type": "Diagnosis",
+      "count": 14,
+      "year": 2018
+    }
+  ]
+}

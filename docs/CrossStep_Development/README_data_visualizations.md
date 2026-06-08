@@ -687,6 +687,18 @@ Formal Feature Attribution (FFA) visualizations help understand model prediction
 **Storage Location:**
 - `s3://pgxdatalake/gold/final_model/cohort_name={cohort}/age_band={age}/event_year={year}/shap_plots/`
 
+#### SHAP dependence plots (not partial dependence plots)
+
+For tree ensembles we use **SHAP dependence plots**: per-patient scatter of feature value (x) vs TreeSHAP contribution (y), optionally coloured by a second feature or utilization-density bin. These are **not** sklearn-style partial dependence plots (PDP), which marginalize over the empirical distribution by averaging predictions.
+
+| Artifact | Generator | Manuscript use |
+|:---|:---|:---|
+| `fig_n_events_shap_dep.pdf` | `generate_shap_actual.py` (`make_fig_n_events_shap_dep`) | CH_3 Figure 4 — inverse SHAP pattern for `n_events` refutes utilization confounding |
+| `fig_shap_dependence.pdf` | `generate_shap_actual.py` (`make_fig_shap_dependence`) | CH_3/CH_4 Supplementary S1 — top-feature SHAP value distributions by code type |
+| `shap_plot_numeric_{feature}.png` | `utility_scripts/create_manuscript_shap_dependence_plots.py` (`plot_type: numeric_shap_dependence`) | Exploratory numeric-feature dependence from Step 6 models |
+
+Inputs: Step 7 `*_shap_sample_values_*.parquet` plus optional Athena/local join for raw `n_events`. Production models use `n_event_bin_ordinal` for training; dependence plots for sensitivity use raw counts to show the model’s learned utilization signal.
+
 ### 4. Calibration Plots
 
 **File:** `calibration_plots/{class}_calibration.png`  

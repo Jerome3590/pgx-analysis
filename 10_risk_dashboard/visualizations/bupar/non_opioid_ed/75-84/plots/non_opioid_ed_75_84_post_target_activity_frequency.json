@@ -1,0 +1,38 @@
+{
+  "year_labels": {
+    "0": ["All Years (2016-2018)"],
+    "2016": ["2016"],
+    "2017": ["2017"],
+    "2018": ["2018"]
+  },
+  "data": [
+    {
+      "activity": "DRUG:CYANOCOBALAMIN",
+      "activity_short": "CYA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LORATADINE",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CYANOCOBALAMIN",
+      "activity_short": "CYA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LORATADINE",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    }
+  ]
+}

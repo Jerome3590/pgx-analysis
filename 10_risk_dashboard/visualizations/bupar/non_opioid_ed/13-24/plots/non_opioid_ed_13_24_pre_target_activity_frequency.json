@@ -1,0 +1,4273 @@
+{
+  "year_labels": {
+    "0": ["All Years (2016-2018)"],
+    "2016": ["2016"],
+    "2017": ["2017"],
+    "2018": ["2018"]
+  },
+  "data": [
+    {
+      "activity": "DRUG:AMOXICILLIN",
+      "activity_short": "AMO",
+      "activity_type": "Drug",
+      "count": 1217,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:AZITHROMYCIN",
+      "activity_short": "AZI",
+      "activity_type": "Drug",
+      "count": 826,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CEPHALEXIN",
+      "activity_short": "CEP",
+      "activity_type": "Drug",
+      "count": 662,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:IBUPROFEN",
+      "activity_short": "IBU",
+      "activity_type": "Drug",
+      "count": 590,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:PREDNISONE",
+      "activity_short": "PRE",
+      "activity_type": "Drug",
+      "count": 375,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:VYVANSE",
+      "activity_short": "VYV",
+      "activity_type": "Drug",
+      "count": 373,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NAPROXEN",
+      "activity_short": "NAP",
+      "activity_type": "Drug",
+      "count": 292,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MUPIROCIN",
+      "activity_short": "MUP",
+      "activity_type": "Drug",
+      "count": 180,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:KETOCONAZOLE",
+      "activity_short": "KET",
+      "activity_type": "Drug",
+      "count": 171,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CEFDINIR",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 166,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:BENZONATATE",
+      "activity_short": "BEN",
+      "activity_type": "Drug",
+      "count": 150,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TRETINOIN",
+      "activity_short": "TRE",
+      "activity_type": "Drug",
+      "count": 137,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:FLUCONAZOLE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 134,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:OFLOXACIN",
+      "activity_short": "OFL",
+      "activity_type": "Drug",
+      "count": 132,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ERYTHROMYCIN",
+      "activity_short": "ERY",
+      "activity_type": "Drug",
+      "count": 129,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:OMEPRAZOLE",
+      "activity_short": "OME",
+      "activity_type": "Drug",
+      "count": 98,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:METRONIDAZOLE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 97,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NUVARING",
+      "activity_short": "NUV",
+      "activity_type": "Drug",
+      "count": 91,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CIPRODEX",
+      "activity_short": "CIP",
+      "activity_type": "Drug",
+      "count": 88,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LORATADINE",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 88,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:EPIDUO",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 83,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:HYDROCORTISONE",
+      "activity_short": "HYD",
+      "activity_type": "Drug",
+      "count": 78,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MELOXICAM",
+      "activity_short": "MEL",
+      "activity_type": "Drug",
+      "count": 77,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ADAPALENE",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 68,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:PERMETHRIN",
+      "activity_short": "PER",
+      "activity_type": "Drug",
+      "count": 67,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ACYCLOVIR",
+      "activity_short": "ACY",
+      "activity_type": "Drug",
+      "count": 66,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:EPINEPHRINE",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 64,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ORSYTHIA",
+      "activity_short": "ORS",
+      "activity_type": "Drug",
+      "count": 60,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TAMIFLU",
+      "activity_short": "TAM",
+      "activity_type": "Drug",
+      "count": 60,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LAMOTRIGINE",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 52,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ALPRAZOLAM",
+      "activity_short": "ALP",
+      "activity_type": "Drug",
+      "count": 49,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TRINESSA",
+      "activity_short": "TRI",
+      "activity_type": "Drug",
+      "count": 49,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:XULANE",
+      "activity_short": "XUL",
+      "activity_type": "Drug",
+      "count": 48,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CONCERTA",
+      "activity_short": "CON",
+      "activity_type": "Drug",
+      "count": 46,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NEXPLANON",
+      "activity_short": "NEX",
+      "activity_type": "Drug",
+      "count": 45,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:FLUOCINONIDE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 44,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MONONESSA",
+      "activity_short": "MON",
+      "activity_type": "Drug",
+      "count": 43,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NYSTATIN",
+      "activity_short": "NYS",
+      "activity_type": "Drug",
+      "count": 42,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:RISPERIDONE",
+      "activity_short": "RIS",
+      "activity_type": "Drug",
+      "count": 42,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LEVETIRACETAM",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 41,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LEVOFLOXACIN",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 40,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LORYNA",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 39,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DIAZEPAM",
+      "activity_short": "DIA",
+      "activity_type": "Drug",
+      "count": 38,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ACZONE",
+      "activity_short": "ACZ",
+      "activity_type": "Drug",
+      "count": 37,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DESONIDE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 37,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:OCELLA",
+      "activity_short": "OCE",
+      "activity_type": "Drug",
+      "count": 36,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:AVIANE",
+      "activity_short": "AVI",
+      "activity_type": "Drug",
+      "count": 35,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:METHOCARBAMOL",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 35,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MISOPROSTOL",
+      "activity_short": "MIS",
+      "activity_type": "Drug",
+      "count": 33,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 32,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LORAZEPAM",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 31,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TOPIRAMATE",
+      "activity_short": "TOP",
+      "activity_type": "Drug",
+      "count": 30,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CLARITHROMYCIN",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 27,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LOTEMAX",
+      "activity_short": "LOT",
+      "activity_type": "Drug",
+      "count": 27,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:VIORELE",
+      "activity_short": "VIO",
+      "activity_type": "Drug",
+      "count": 27,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NORETHINDRONE",
+      "activity_short": "NOR",
+      "activity_type": "Drug",
+      "count": 26,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:STRATTERA",
+      "activity_short": "STR",
+      "activity_type": "Drug",
+      "count": 26,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DIFFERIN",
+      "activity_short": "DIF",
+      "activity_type": "Drug",
+      "count": 25,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MIRTAZAPINE",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 25,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CLONAZEPAM",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 24,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LISINOPRIL",
+      "activity_short": "LIS",
+      "activity_type": "Drug",
+      "count": 24,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MIRENA",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 24,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:SPIRONOLACTONE",
+      "activity_short": "SPI",
+      "activity_type": "Drug",
+      "count": 24,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ARIPIPRAZOLE",
+      "activity_short": "ARI",
+      "activity_type": "Drug",
+      "count": 23,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:GIANVI",
+      "activity_short": "GIA",
+      "activity_type": "Drug",
+      "count": 23,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TAZORAC",
+      "activity_short": "TAZ",
+      "activity_type": "Drug",
+      "count": 22,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:FLUOROMETHOLONE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 21,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:HUMALOG",
+      "activity_short": "HUM",
+      "activity_type": "Drug",
+      "count": 20,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ALTAVERA",
+      "activity_short": "ALT",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DRYSOL",
+      "activity_short": "DRY",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:OXCARBAZEPINE",
+      "activity_short": "OXC",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TACROLIMUS",
+      "activity_short": "TAC",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:VIENVA",
+      "activity_short": "VIE",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:VIGAMOX",
+      "activity_short": "VIG",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:FAMOTIDINE",
+      "activity_short": "FAM",
+      "activity_type": "Drug",
+      "count": 18,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MYORISAN",
+      "activity_short": "MYO",
+      "activity_type": "Drug",
+      "count": 18,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ATOMOXETINE",
+      "activity_short": "ATO",
+      "activity_type": "Drug",
+      "count": 17,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CEFADROXIL",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 17,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DEXAMETHASONE",
+      "activity_short": "DEX",
+      "activity_type": "Drug",
+      "count": 17,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CAMRESE",
+      "activity_short": "CAM",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CLARAVIS",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ETODOLAC",
+      "activity_short": "ETO",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:FALMINA",
+      "activity_short": "FAL",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ONEXTON",
+      "activity_short": "ONE",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ESTARYLLA",
+      "activity_short": "EST",
+      "activity_type": "Drug",
+      "count": 14,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LUTERA",
+      "activity_short": "LUT",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:OLANZAPINE",
+      "activity_short": "OLA",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:SYNTHROID",
+      "activity_short": "SYN",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:BOOSTRIX",
+      "activity_short": "BOO",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:KARIVA",
+      "activity_short": "KAR",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MENACTRA",
+      "activity_short": "MEN",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TERCONAZOLE",
+      "activity_short": "TER",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CLOTRIMAZOLE",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DESOXIMETASONE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:IVERMECTIN",
+      "activity_short": "IVE",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:SRONYX",
+      "activity_short": "SRO",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:GLYCOPYRROLATE",
+      "activity_short": "GLY",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LARISSIA",
+      "activity_short": "LAR",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:SKLICE",
+      "activity_short": "SKL",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:SOLODYN",
+      "activity_short": "SOL",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ABSORICA",
+      "activity_short": "ABS",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ALBENZA",
+      "activity_short": "ALB",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ATENOLOL",
+      "activity_short": "ATE",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:JOLESSA",
+      "activity_short": "JOL",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:SYMBICORT",
+      "activity_short": "SYM",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:BACITRACIN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ELIDEL",
+      "activity_short": "ELI",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:HAVRIX",
+      "activity_short": "HAV",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:KURVELO",
+      "activity_short": "KUR",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NOVOLOG",
+      "activity_short": "NOV",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TAYTULLA",
+      "activity_short": "TAY",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:JULEBER",
+      "activity_short": "JUL",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:METAXALONE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:SUCRALFATE",
+      "activity_short": "SUC",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:BACLOFEN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DAYSEE",
+      "activity_short": "DAY",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DUREZOL",
+      "activity_short": "DUR",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ISONIAZID",
+      "activity_short": "ISO",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LATUDA",
+      "activity_short": "LAT",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:PATADAY",
+      "activity_short": "PAT",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ADACEL",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CAMILA",
+      "activity_short": "CAM",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CIMETIDINE",
+      "activity_short": "CIM",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:GARDASIL",
+      "activity_short": "GAR",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:GATIFLOXACIN",
+      "activity_short": "GAT",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:HYDROCHLOROTHIAZIDE",
+      "activity_short": "HYD",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:METHOTREXATE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NASONEX",
+      "activity_short": "NAS",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TRIAZOLAM",
+      "activity_short": "TRI",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:VESTURA",
+      "activity_short": "VES",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:BUDESONIDE",
+      "activity_short": "BUD",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DULERA",
+      "activity_short": "DUL",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:FAMCICLOVIR",
+      "activity_short": "FAM",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:HUMATROPE",
+      "activity_short": "HUM",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:QUASENSE",
+      "activity_short": "QUA",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ACETAZOLAMIDE",
+      "activity_short": "ACE",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ATRALIN",
+      "activity_short": "ATR",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:BYSTOLIC",
+      "activity_short": "BYS",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CARBAMAZEPINE",
+      "activity_short": "CAR",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:EUCRISA",
+      "activity_short": "EUC",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:HEATHER",
+      "activity_short": "HEA",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ZYMAXID",
+      "activity_short": "ZYM",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ABREVA",
+      "activity_short": "ABR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:BESIVANCE",
+      "activity_short": "BES",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CARISOPRODOL",
+      "activity_short": "CAR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DOCQLACE",
+      "activity_short": "DOC",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ENSTILAR",
+      "activity_short": "ENS",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LASTACAFT",
+      "activity_short": "LAS",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LIALDA",
+      "activity_short": "LIA",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:MOVIPREP",
+      "activity_short": "MOV",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:STRIBILD",
+      "activity_short": "STR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TRUVADA",
+      "activity_short": "TRU",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ZENCHENT",
+      "activity_short": "ZEN",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ZOVIRAX",
+      "activity_short": "ZOV",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ANDROGEL",
+      "activity_short": "AND",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:AZELEX",
+      "activity_short": "AZE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:CHLORTHALIDONE",
+      "activity_short": "CHL",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:DAPSONE",
+      "activity_short": "DAP",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:ENTECAVIR",
+      "activity_short": "ENT",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:EPITOL",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:FIRAZYR",
+      "activity_short": "FIR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:GLYBURIDE",
+      "activity_short": "GLY",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LAMICTAL",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LAMIVUDINE",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LORTAB",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:LOVASTATIN",
+      "activity_short": "LOV",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NIZATIDINE",
+      "activity_short": "NIZ",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:NUVIGIL",
+      "activity_short": "NUV",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:PENNSAID",
+      "activity_short": "PEN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:PRAMOSONE",
+      "activity_short": "PRA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TINIDAZOLE",
+      "activity_short": "TIN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:TREXIMET",
+      "activity_short": "TRE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 0
+    },
+    {
+      "activity": "DRUG:AMOXICILLIN",
+      "activity_short": "AMO",
+      "activity_type": "Drug",
+      "count": 426,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:AZITHROMYCIN",
+      "activity_short": "AZI",
+      "activity_type": "Drug",
+      "count": 311,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CEPHALEXIN",
+      "activity_short": "CEP",
+      "activity_type": "Drug",
+      "count": 238,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:IBUPROFEN",
+      "activity_short": "IBU",
+      "activity_type": "Drug",
+      "count": 190,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:VYVANSE",
+      "activity_short": "VYV",
+      "activity_type": "Drug",
+      "count": 145,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:PREDNISONE",
+      "activity_short": "PRE",
+      "activity_type": "Drug",
+      "count": 127,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NAPROXEN",
+      "activity_short": "NAP",
+      "activity_type": "Drug",
+      "count": 107,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TRETINOIN",
+      "activity_short": "TRE",
+      "activity_type": "Drug",
+      "count": 62,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MUPIROCIN",
+      "activity_short": "MUP",
+      "activity_type": "Drug",
+      "count": 61,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:FLUCONAZOLE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 59,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CEFDINIR",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 58,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:KETOCONAZOLE",
+      "activity_short": "KET",
+      "activity_type": "Drug",
+      "count": 57,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:BENZONATATE",
+      "activity_short": "BEN",
+      "activity_type": "Drug",
+      "count": 52,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ERYTHROMYCIN",
+      "activity_short": "ERY",
+      "activity_type": "Drug",
+      "count": 47,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:EPIDUO",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 44,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:OFLOXACIN",
+      "activity_short": "OFL",
+      "activity_type": "Drug",
+      "count": 44,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ORSYTHIA",
+      "activity_short": "ORS",
+      "activity_type": "Drug",
+      "count": 40,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CIPRODEX",
+      "activity_short": "CIP",
+      "activity_type": "Drug",
+      "count": 39,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:METRONIDAZOLE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 38,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:OMEPRAZOLE",
+      "activity_short": "OME",
+      "activity_type": "Drug",
+      "count": 36,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ADAPALENE",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 34,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TAMIFLU",
+      "activity_short": "TAM",
+      "activity_type": "Drug",
+      "count": 33,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LORATADINE",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 30,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NUVARING",
+      "activity_short": "NUV",
+      "activity_type": "Drug",
+      "count": 29,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:PERMETHRIN",
+      "activity_short": "PER",
+      "activity_type": "Drug",
+      "count": 28,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LAMOTRIGINE",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 25,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MELOXICAM",
+      "activity_short": "MEL",
+      "activity_type": "Drug",
+      "count": 24,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:RISPERIDONE",
+      "activity_short": "RIS",
+      "activity_type": "Drug",
+      "count": 24,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TRINESSA",
+      "activity_short": "TRI",
+      "activity_type": "Drug",
+      "count": 22,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:HYDROCORTISONE",
+      "activity_short": "HYD",
+      "activity_type": "Drug",
+      "count": 21,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MONONESSA",
+      "activity_short": "MON",
+      "activity_type": "Drug",
+      "count": 21,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:FLUOCINONIDE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 20,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:OCELLA",
+      "activity_short": "OCE",
+      "activity_type": "Drug",
+      "count": 20,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ACYCLOVIR",
+      "activity_short": "ACY",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ALPRAZOLAM",
+      "activity_short": "ALP",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DIAZEPAM",
+      "activity_short": "DIA",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LORYNA",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NEXPLANON",
+      "activity_short": "NEX",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:XULANE",
+      "activity_short": "XUL",
+      "activity_type": "Drug",
+      "count": 19,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:STRATTERA",
+      "activity_short": "STR",
+      "activity_type": "Drug",
+      "count": 18,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LEVOFLOXACIN",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NYSTATIN",
+      "activity_short": "NYS",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LEVETIRACETAM",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TAZORAC",
+      "activity_short": "TAZ",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:VIGAMOX",
+      "activity_short": "VIG",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CLARITHROMYCIN",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 14,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:VIORELE",
+      "activity_short": "VIO",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CAMRESE",
+      "activity_short": "CAM",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LISINOPRIL",
+      "activity_short": "LIS",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ACZONE",
+      "activity_short": "ACZ",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:AVIANE",
+      "activity_short": "AVI",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CLONAZEPAM",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CONCERTA",
+      "activity_short": "CON",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DESONIDE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DRYSOL",
+      "activity_short": "DRY",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:GIANVI",
+      "activity_short": "GIA",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LOTEMAX",
+      "activity_short": "LOT",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:METHOCARBAMOL",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:FLUOROMETHOLONE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LORAZEPAM",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:SPIRONOLACTONE",
+      "activity_short": "SPI",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TOPIRAMATE",
+      "activity_short": "TOP",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ALTAVERA",
+      "activity_short": "ALT",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:SYNTHROID",
+      "activity_short": "SYN",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:FALMINA",
+      "activity_short": "FAL",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MIRENA",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MISOPROSTOL",
+      "activity_short": "MIS",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:OXCARBAZEPINE",
+      "activity_short": "OXC",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ARIPIPRAZOLE",
+      "activity_short": "ARI",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:HUMALOG",
+      "activity_short": "HUM",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MIRTAZAPINE",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NORETHINDRONE",
+      "activity_short": "NOR",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CEFADROXIL",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DIFFERIN",
+      "activity_short": "DIF",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ETODOLAC",
+      "activity_short": "ETO",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LUTERA",
+      "activity_short": "LUT",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MENACTRA",
+      "activity_short": "MEN",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ONEXTON",
+      "activity_short": "ONE",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:SOLODYN",
+      "activity_short": "SOL",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CLARAVIS",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DESOXIMETASONE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DEXAMETHASONE",
+      "activity_short": "DEX",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ESTARYLLA",
+      "activity_short": "EST",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:GLYCOPYRROLATE",
+      "activity_short": "GLY",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NASONEX",
+      "activity_short": "NAS",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NOVOLOG",
+      "activity_short": "NOV",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:OLANZAPINE",
+      "activity_short": "OLA",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TACROLIMUS",
+      "activity_short": "TAC",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TERCONAZOLE",
+      "activity_short": "TER",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ABSORICA",
+      "activity_short": "ABS",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CLOTRIMAZOLE",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ISONIAZID",
+      "activity_short": "ISO",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:JOLESSA",
+      "activity_short": "JOL",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:KURVELO",
+      "activity_short": "KUR",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:VESTURA",
+      "activity_short": "VES",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ATENOLOL",
+      "activity_short": "ATE",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ATRALIN",
+      "activity_short": "ATR",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:BACITRACIN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CAMILA",
+      "activity_short": "CAM",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:FAMOTIDINE",
+      "activity_short": "FAM",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:HAVRIX",
+      "activity_short": "HAV",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:HUMATROPE",
+      "activity_short": "HUM",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:IVERMECTIN",
+      "activity_short": "IVE",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:JULEBER",
+      "activity_short": "JUL",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:KARIVA",
+      "activity_short": "KAR",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:PATADAY",
+      "activity_short": "PAT",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:QUASENSE",
+      "activity_short": "QUA",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:SYMBICORT",
+      "activity_short": "SYM",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ZYMAXID",
+      "activity_short": "ZYM",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ALBENZA",
+      "activity_short": "ALB",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:BACLOFEN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:BOOSTRIX",
+      "activity_short": "BOO",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:BYSTOLIC",
+      "activity_short": "BYS",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DAYSEE",
+      "activity_short": "DAY",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DULERA",
+      "activity_short": "DUL",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DUREZOL",
+      "activity_short": "DUR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ELIDEL",
+      "activity_short": "ELI",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:EPINEPHRINE",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:FAMCICLOVIR",
+      "activity_short": "FAM",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:GARDASIL",
+      "activity_short": "GAR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:HYDROCHLOROTHIAZIDE",
+      "activity_short": "HYD",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:METAXALONE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:METHOTREXATE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MOVIPREP",
+      "activity_short": "MOV",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:MYORISAN",
+      "activity_short": "MYO",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:SKLICE",
+      "activity_short": "SKL",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:SRONYX",
+      "activity_short": "SRO",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:VIENVA",
+      "activity_short": "VIE",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ACETAZOLAMIDE",
+      "activity_short": "ACE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ADACEL",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ANDROGEL",
+      "activity_short": "AND",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:AZELEX",
+      "activity_short": "AZE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:BESIVANCE",
+      "activity_short": "BES",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CARBAMAZEPINE",
+      "activity_short": "CAR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CARISOPRODOL",
+      "activity_short": "CAR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:CIMETIDINE",
+      "activity_short": "CIM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:DOCQLACE",
+      "activity_short": "DOC",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ENSTILAR",
+      "activity_short": "ENS",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ENTECAVIR",
+      "activity_short": "ENT",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:GATIFLOXACIN",
+      "activity_short": "GAT",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:HEATHER",
+      "activity_short": "HEA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LAMIVUDINE",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LASTACAFT",
+      "activity_short": "LAS",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LATUDA",
+      "activity_short": "LAT",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LIALDA",
+      "activity_short": "LIA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:LORTAB",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:NUVIGIL",
+      "activity_short": "NUV",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:PENNSAID",
+      "activity_short": "PEN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:PRAMOSONE",
+      "activity_short": "PRA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:SUCRALFATE",
+      "activity_short": "SUC",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TINIDAZOLE",
+      "activity_short": "TIN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:TREXIMET",
+      "activity_short": "TRE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:ZENCHENT",
+      "activity_short": "ZEN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2016
+    },
+    {
+      "activity": "DRUG:AMOXICILLIN",
+      "activity_short": "AMO",
+      "activity_type": "Drug",
+      "count": 407,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:AZITHROMYCIN",
+      "activity_short": "AZI",
+      "activity_type": "Drug",
+      "count": 272,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:IBUPROFEN",
+      "activity_short": "IBU",
+      "activity_type": "Drug",
+      "count": 218,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CEPHALEXIN",
+      "activity_short": "CEP",
+      "activity_type": "Drug",
+      "count": 215,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:PREDNISONE",
+      "activity_short": "PRE",
+      "activity_type": "Drug",
+      "count": 134,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:VYVANSE",
+      "activity_short": "VYV",
+      "activity_type": "Drug",
+      "count": 128,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:NAPROXEN",
+      "activity_short": "NAP",
+      "activity_type": "Drug",
+      "count": 105,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CEFDINIR",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 57,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MUPIROCIN",
+      "activity_short": "MUP",
+      "activity_type": "Drug",
+      "count": 53,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:KETOCONAZOLE",
+      "activity_short": "KET",
+      "activity_type": "Drug",
+      "count": 52,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:BENZONATATE",
+      "activity_short": "BEN",
+      "activity_type": "Drug",
+      "count": 46,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:OFLOXACIN",
+      "activity_short": "OFL",
+      "activity_type": "Drug",
+      "count": 41,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:FLUCONAZOLE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 40,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ERYTHROMYCIN",
+      "activity_short": "ERY",
+      "activity_type": "Drug",
+      "count": 35,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:OMEPRAZOLE",
+      "activity_short": "OME",
+      "activity_type": "Drug",
+      "count": 35,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:EPINEPHRINE",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 34,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:METRONIDAZOLE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 32,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TRETINOIN",
+      "activity_short": "TRE",
+      "activity_type": "Drug",
+      "count": 32,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MELOXICAM",
+      "activity_short": "MEL",
+      "activity_type": "Drug",
+      "count": 30,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:NUVARING",
+      "activity_short": "NUV",
+      "activity_type": "Drug",
+      "count": 30,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ACYCLOVIR",
+      "activity_short": "ACY",
+      "activity_type": "Drug",
+      "count": 29,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:HYDROCORTISONE",
+      "activity_short": "HYD",
+      "activity_type": "Drug",
+      "count": 28,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LORATADINE",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 27,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ADAPALENE",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 23,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CIPRODEX",
+      "activity_short": "CIP",
+      "activity_type": "Drug",
+      "count": 23,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:EPIDUO",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 22,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:PERMETHRIN",
+      "activity_short": "PER",
+      "activity_type": "Drug",
+      "count": 22,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ALPRAZOLAM",
+      "activity_short": "ALP",
+      "activity_type": "Drug",
+      "count": 18,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TAMIFLU",
+      "activity_short": "TAM",
+      "activity_type": "Drug",
+      "count": 18,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ORSYTHIA",
+      "activity_short": "ORS",
+      "activity_type": "Drug",
+      "count": 17,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:AVIANE",
+      "activity_short": "AVI",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:METHOCARBAMOL",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LEVOFLOXACIN",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MONONESSA",
+      "activity_short": "MON",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:NYSTATIN",
+      "activity_short": "NYS",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CONCERTA",
+      "activity_short": "CON",
+      "activity_type": "Drug",
+      "count": 14,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LAMOTRIGINE",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 14,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MISOPROSTOL",
+      "activity_short": "MIS",
+      "activity_type": "Drug",
+      "count": 14,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:XULANE",
+      "activity_short": "XUL",
+      "activity_type": "Drug",
+      "count": 14,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ACZONE",
+      "activity_short": "ACZ",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DESONIDE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TRINESSA",
+      "activity_short": "TRI",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LORYNA",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MIRTAZAPINE",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TOPIRAMATE",
+      "activity_short": "TOP",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DIFFERIN",
+      "activity_short": "DIF",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LOTEMAX",
+      "activity_short": "LOT",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LEVETIRACETAM",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ALTAVERA",
+      "activity_short": "ALT",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CLARITHROMYCIN",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:FLUOCINONIDE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LISINOPRIL",
+      "activity_short": "LIS",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:NEXPLANON",
+      "activity_short": "NEX",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:OCELLA",
+      "activity_short": "OCE",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:OXCARBAZEPINE",
+      "activity_short": "OXC",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:VIENVA",
+      "activity_short": "VIE",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ARIPIPRAZOLE",
+      "activity_short": "ARI",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ATOMOXETINE",
+      "activity_short": "ATO",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CLONAZEPAM",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MIRENA",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ALBENZA",
+      "activity_short": "ALB",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DIAZEPAM",
+      "activity_short": "DIA",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:FAMOTIDINE",
+      "activity_short": "FAM",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:IVERMECTIN",
+      "activity_short": "IVE",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:RISPERIDONE",
+      "activity_short": "RIS",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:STRATTERA",
+      "activity_short": "STR",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CEFADROXIL",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CLARAVIS",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:FLUOROMETHOLONE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:GIANVI",
+      "activity_short": "GIA",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:HUMALOG",
+      "activity_short": "HUM",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LORAZEPAM",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:NORETHINDRONE",
+      "activity_short": "NOR",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:SPIRONOLACTONE",
+      "activity_short": "SPI",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TACROLIMUS",
+      "activity_short": "TAC",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TAZORAC",
+      "activity_short": "TAZ",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:VIORELE",
+      "activity_short": "VIO",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ABSORICA",
+      "activity_short": "ABS",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:BOOSTRIX",
+      "activity_short": "BOO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ESTARYLLA",
+      "activity_short": "EST",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ETODOLAC",
+      "activity_short": "ETO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LUTERA",
+      "activity_short": "LUT",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MYORISAN",
+      "activity_short": "MYO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:SKLICE",
+      "activity_short": "SKL",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:SRONYX",
+      "activity_short": "SRO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ATENOLOL",
+      "activity_short": "ATE",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:BACITRACIN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CAMRESE",
+      "activity_short": "CAM",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DEXAMETHASONE",
+      "activity_short": "DEX",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:FALMINA",
+      "activity_short": "FAL",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:GLYCOPYRROLATE",
+      "activity_short": "GLY",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:JULEBER",
+      "activity_short": "JUL",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:VIGAMOX",
+      "activity_short": "VIG",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ADACEL",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DRYSOL",
+      "activity_short": "DRY",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:GARDASIL",
+      "activity_short": "GAR",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:HAVRIX",
+      "activity_short": "HAV",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:JOLESSA",
+      "activity_short": "JOL",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:OLANZAPINE",
+      "activity_short": "OLA",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:PATADAY",
+      "activity_short": "PAT",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:SUCRALFATE",
+      "activity_short": "SUC",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TAYTULLA",
+      "activity_short": "TAY",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TERCONAZOLE",
+      "activity_short": "TER",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:BACLOFEN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CLOTRIMAZOLE",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DAYSEE",
+      "activity_short": "DAY",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DESOXIMETASONE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DUREZOL",
+      "activity_short": "DUR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ELIDEL",
+      "activity_short": "ELI",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:FAMCICLOVIR",
+      "activity_short": "FAM",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:GATIFLOXACIN",
+      "activity_short": "GAT",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:KARIVA",
+      "activity_short": "KAR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:KURVELO",
+      "activity_short": "KUR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LATUDA",
+      "activity_short": "LAT",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:NOVOLOG",
+      "activity_short": "NOV",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ONEXTON",
+      "activity_short": "ONE",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:SOLODYN",
+      "activity_short": "SOL",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:STRIBILD",
+      "activity_short": "STR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:SYMBICORT",
+      "activity_short": "SYM",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ABREVA",
+      "activity_short": "ABR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ACETAZOLAMIDE",
+      "activity_short": "ACE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:BESIVANCE",
+      "activity_short": "BES",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:BUDESONIDE",
+      "activity_short": "BUD",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:BYSTOLIC",
+      "activity_short": "BYS",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CAMILA",
+      "activity_short": "CAM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CARBAMAZEPINE",
+      "activity_short": "CAR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CARISOPRODOL",
+      "activity_short": "CAR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CHLORTHALIDONE",
+      "activity_short": "CHL",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:CIMETIDINE",
+      "activity_short": "CIM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:DOCQLACE",
+      "activity_short": "DOC",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:EPITOL",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:HEATHER",
+      "activity_short": "HEA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:HUMATROPE",
+      "activity_short": "HUM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ISONIAZID",
+      "activity_short": "ISO",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LAMICTAL",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LIALDA",
+      "activity_short": "LIA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:LOVASTATIN",
+      "activity_short": "LOV",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:MENACTRA",
+      "activity_short": "MEN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:METAXALONE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:METHOTREXATE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:NIZATIDINE",
+      "activity_short": "NIZ",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:SYNTHROID",
+      "activity_short": "SYN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:TRIAZOLAM",
+      "activity_short": "TRI",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:VESTURA",
+      "activity_short": "VES",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ZENCHENT",
+      "activity_short": "ZEN",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:ZOVIRAX",
+      "activity_short": "ZOV",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2017
+    },
+    {
+      "activity": "DRUG:AMOXICILLIN",
+      "activity_short": "AMO",
+      "activity_type": "Drug",
+      "count": 384,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:AZITHROMYCIN",
+      "activity_short": "AZI",
+      "activity_type": "Drug",
+      "count": 243,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CEPHALEXIN",
+      "activity_short": "CEP",
+      "activity_type": "Drug",
+      "count": 209,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:IBUPROFEN",
+      "activity_short": "IBU",
+      "activity_type": "Drug",
+      "count": 182,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:PREDNISONE",
+      "activity_short": "PRE",
+      "activity_type": "Drug",
+      "count": 114,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:VYVANSE",
+      "activity_short": "VYV",
+      "activity_type": "Drug",
+      "count": 100,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:NAPROXEN",
+      "activity_short": "NAP",
+      "activity_type": "Drug",
+      "count": 80,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MUPIROCIN",
+      "activity_short": "MUP",
+      "activity_type": "Drug",
+      "count": 66,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:KETOCONAZOLE",
+      "activity_short": "KET",
+      "activity_type": "Drug",
+      "count": 62,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:BENZONATATE",
+      "activity_short": "BEN",
+      "activity_type": "Drug",
+      "count": 52,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CEFDINIR",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 51,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ERYTHROMYCIN",
+      "activity_short": "ERY",
+      "activity_type": "Drug",
+      "count": 47,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:OFLOXACIN",
+      "activity_short": "OFL",
+      "activity_type": "Drug",
+      "count": 47,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TRETINOIN",
+      "activity_short": "TRE",
+      "activity_type": "Drug",
+      "count": 43,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:FLUCONAZOLE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 35,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:NUVARING",
+      "activity_short": "NUV",
+      "activity_type": "Drug",
+      "count": 32,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LORATADINE",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 31,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:HYDROCORTISONE",
+      "activity_short": "HYD",
+      "activity_type": "Drug",
+      "count": 29,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:EPINEPHRINE",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 28,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:METRONIDAZOLE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 27,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:OMEPRAZOLE",
+      "activity_short": "OME",
+      "activity_type": "Drug",
+      "count": 27,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CIPRODEX",
+      "activity_short": "CIP",
+      "activity_type": "Drug",
+      "count": 26,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MELOXICAM",
+      "activity_short": "MEL",
+      "activity_type": "Drug",
+      "count": 23,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CONCERTA",
+      "activity_short": "CON",
+      "activity_type": "Drug",
+      "count": 21,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ACYCLOVIR",
+      "activity_short": "ACY",
+      "activity_type": "Drug",
+      "count": 18,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:EPIDUO",
+      "activity_short": "EPI",
+      "activity_type": "Drug",
+      "count": 17,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:NEXPLANON",
+      "activity_short": "NEX",
+      "activity_type": "Drug",
+      "count": 17,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:PERMETHRIN",
+      "activity_short": "PER",
+      "activity_type": "Drug",
+      "count": 17,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LEVETIRACETAM",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 16,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:FLUOCINONIDE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LORAZEPAM",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:XULANE",
+      "activity_short": "XUL",
+      "activity_type": "Drug",
+      "count": 15,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TRINESSA",
+      "activity_short": "TRI",
+      "activity_type": "Drug",
+      "count": 14,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ACZONE",
+      "activity_short": "ACZ",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DESONIDE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LAMOTRIGINE",
+      "activity_short": "LAM",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:NORETHINDRONE",
+      "activity_short": "NOR",
+      "activity_type": "Drug",
+      "count": 13,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ALPRAZOLAM",
+      "activity_short": "ALP",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DIAZEPAM",
+      "activity_short": "DIA",
+      "activity_type": "Drug",
+      "count": 12,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ADAPALENE",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:GABAPENTIN",
+      "activity_short": "GAB",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MISOPROSTOL",
+      "activity_short": "MIS",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MYORISAN",
+      "activity_short": "MYO",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:NYSTATIN",
+      "activity_short": "NYS",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:RISPERIDONE",
+      "activity_short": "RIS",
+      "activity_type": "Drug",
+      "count": 11,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LARISSIA",
+      "activity_short": "LAR",
+      "activity_type": "Drug",
+      "count": 10,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ATOMOXETINE",
+      "activity_short": "ATO",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LEVOFLOXACIN",
+      "activity_short": "LEV",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TAMIFLU",
+      "activity_short": "TAM",
+      "activity_type": "Drug",
+      "count": 9,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ARIPIPRAZOLE",
+      "activity_short": "ARI",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:AVIANE",
+      "activity_short": "AVI",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DEXAMETHASONE",
+      "activity_short": "DEX",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DIFFERIN",
+      "activity_short": "DIF",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:FAMOTIDINE",
+      "activity_short": "FAM",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LORYNA",
+      "activity_short": "LOR",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:METHOCARBAMOL",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MIRENA",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:SPIRONOLACTONE",
+      "activity_short": "SPI",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TACROLIMUS",
+      "activity_short": "TAC",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TOPIRAMATE",
+      "activity_short": "TOP",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:VIENVA",
+      "activity_short": "VIE",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:VIORELE",
+      "activity_short": "VIO",
+      "activity_type": "Drug",
+      "count": 8,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:HUMALOG",
+      "activity_short": "HUM",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:KARIVA",
+      "activity_short": "KAR",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MONONESSA",
+      "activity_short": "MON",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:OCELLA",
+      "activity_short": "OCE",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ONEXTON",
+      "activity_short": "ONE",
+      "activity_type": "Drug",
+      "count": 7,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:GIANVI",
+      "activity_short": "GIA",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MIRTAZAPINE",
+      "activity_short": "MIR",
+      "activity_type": "Drug",
+      "count": 6,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:BOOSTRIX",
+      "activity_short": "BOO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CEFADROXIL",
+      "activity_short": "CEF",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CLARAVIS",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CLONAZEPAM",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CLOTRIMAZOLE",
+      "activity_short": "CLO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DRYSOL",
+      "activity_short": "DRY",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ETODOLAC",
+      "activity_short": "ETO",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:FLUOROMETHOLONE",
+      "activity_short": "FLU",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LOTEMAX",
+      "activity_short": "LOT",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:MENACTRA",
+      "activity_short": "MEN",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:OLANZAPINE",
+      "activity_short": "OLA",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TAYTULLA",
+      "activity_short": "TAY",
+      "activity_type": "Drug",
+      "count": 5,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CLARITHROMYCIN",
+      "activity_short": "CLA",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DESOXIMETASONE",
+      "activity_short": "DES",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ELIDEL",
+      "activity_short": "ELI",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ESTARYLLA",
+      "activity_short": "EST",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:METAXALONE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:SRONYX",
+      "activity_short": "SRO",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:SYMBICORT",
+      "activity_short": "SYM",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TERCONAZOLE",
+      "activity_short": "TER",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TRIAZOLAM",
+      "activity_short": "TRI",
+      "activity_type": "Drug",
+      "count": 4,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:BUDESONIDE",
+      "activity_short": "BUD",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CIMETIDINE",
+      "activity_short": "CIM",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:EUCRISA",
+      "activity_short": "EUC",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:FALMINA",
+      "activity_short": "FAL",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:HYDROCHLOROTHIAZIDE",
+      "activity_short": "HYD",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LATUDA",
+      "activity_short": "LAT",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LISINOPRIL",
+      "activity_short": "LIS",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ORSYTHIA",
+      "activity_short": "ORS",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:SKLICE",
+      "activity_short": "SKL",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:SUCRALFATE",
+      "activity_short": "SUC",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:SYNTHROID",
+      "activity_short": "SYN",
+      "activity_type": "Drug",
+      "count": 3,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ATENOLOL",
+      "activity_short": "ATE",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:BACLOFEN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DAYSEE",
+      "activity_short": "DAY",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DULERA",
+      "activity_short": "DUL",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DUREZOL",
+      "activity_short": "DUR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:GATIFLOXACIN",
+      "activity_short": "GAT",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:HAVRIX",
+      "activity_short": "HAV",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:JOLESSA",
+      "activity_short": "JOL",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:KURVELO",
+      "activity_short": "KUR",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LUTERA",
+      "activity_short": "LUT",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:METHOTREXATE",
+      "activity_short": "MET",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:OXCARBAZEPINE",
+      "activity_short": "OXC",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:SOLODYN",
+      "activity_short": "SOL",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TRUVADA",
+      "activity_short": "TRU",
+      "activity_type": "Drug",
+      "count": 2,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ABREVA",
+      "activity_short": "ABR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ACETAZOLAMIDE",
+      "activity_short": "ACE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ADACEL",
+      "activity_short": "ADA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ALTAVERA",
+      "activity_short": "ALT",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:BACITRACIN",
+      "activity_short": "BAC",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CAMILA",
+      "activity_short": "CAM",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:CARBAMAZEPINE",
+      "activity_short": "CAR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:DAPSONE",
+      "activity_short": "DAP",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ENSTILAR",
+      "activity_short": "ENS",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:FIRAZYR",
+      "activity_short": "FIR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:GLYBURIDE",
+      "activity_short": "GLY",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:GLYCOPYRROLATE",
+      "activity_short": "GLY",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:HEATHER",
+      "activity_short": "HEA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ISONIAZID",
+      "activity_short": "ISO",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:IVERMECTIN",
+      "activity_short": "IVE",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:LASTACAFT",
+      "activity_short": "LAS",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:NOVOLOG",
+      "activity_short": "NOV",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:QUASENSE",
+      "activity_short": "QUA",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:STRATTERA",
+      "activity_short": "STR",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:TAZORAC",
+      "activity_short": "TAZ",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    },
+    {
+      "activity": "DRUG:ZOVIRAX",
+      "activity_short": "ZOV",
+      "activity_type": "Drug",
+      "count": 1,
+      "year": 2018
+    }
+  ]
+}
