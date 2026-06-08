@@ -38,6 +38,7 @@ Runtime: ~1-2 minutes per cohort/age_band (fast!)
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional, Set, Tuple
@@ -211,9 +212,23 @@ def extract_patient_trajectories(
         model_data_path = None
 
     if not model_data_path or not model_data_path.exists():
-        age_band_fname = age_band.replace("-", "_")
-        model_data_dir = project_root / "4_model_data" / cohort_name / age_band_fname
-        model_data_path = model_data_dir / "model_events.parquet"
+        for root in (
+            Path("/mnt/nvme/4_model_data"),
+            Path(os.environ.get("PGX_DATA_ROOT", "")) / "4_model_data" if os.environ.get("PGX_DATA_ROOT") else None,
+            project_root / "4_model_data",
+        ):
+            if root is None or not root.exists():
+                continue
+            for band in (age_band.replace("-", "_"), age_band):
+                for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+                    candidate = root / f"cohort_name={cohort_name}" / f"age_band={band}" / name
+                    if candidate.exists() and candidate.stat().st_size > 0:
+                        model_data_path = candidate
+                        break
+                if model_data_path and model_data_path.exists():
+                    break
+            if model_data_path and model_data_path.exists():
+                break
 
     if not model_data_path.exists():
         _log("error", "Model data not found at %s", model_data_path)

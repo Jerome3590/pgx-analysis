@@ -320,7 +320,7 @@ def create_predictive_time_features(
     
     age_band_fname = age_band.replace("-", "_")
     
-    # Resolve model_events same as BupaR: 3b first, then 4_model_data (see py_helpers.model_data_paths)
+    # Resolve model_events same as BupaR: Step 4 (4_model_data) first (see py_helpers.model_data_paths)
     try:
         from py_helpers.model_data_paths import resolve_model_events_path
         model_data_path = resolve_model_events_path(project_root, cohort_name, age_band)

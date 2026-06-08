@@ -1,12 +1,17 @@
 """
-Resolve model_events.parquet path the same way BupaR does.
+Resolve model_events.parquet path the same way BupaR R scripts do.
 
-Used by DTW and any other step that reads model_events, so we prefer 3b output
-then 4_model_data (with same candidate roots and model_events_no_protocols preference).
+BupaR (create_bupar_outputs_*.R) **disabled** the Step 3b input_model_data path because
+that parquet often lacks Step 4 columns (e.g. first_f1120_date / first_o11_p_date and
+full ICD/CPT). DTW must follow the same rule or opioid_ed trajectories stay at 0 rows
+while non_opioid_ed works (when 3b exists for opioid but not polypharmacy on disk).
+
+Resolution order (matches BupaR):
+1. Step 4: /mnt/nvme/4_model_data, PGX_DATA_ROOT/4_model_data, project 4_model_data
+2. Step 3b: only if Step 4 missing AND parquet has a cohort target-date column
 
 Where model_events are written (saved):
-- Step 3b: 3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={slug}/age_band={band}/model_events.parquet
-  (slug = opioid | polypharmacy). Often synced to S3 gold/cohorts/input_model_data/...
+- Step 3b: 3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={slug}/...
 - Step 4:  4_model_data/cohort_name={cohort}/age_band={band}/model_events.parquet
   (or model_events_no_protocols.parquet). Built by 4_model_data/create_model_data.py.
 
@@ -18,6 +23,54 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from py_helpers.constants import get_cohort_slug_by_cohort
+
+
+def _target_date_column_candidates(cohort_name: str) -> Tuple[str, ...]:
+    """Ordered target-date columns required for DTW/BupaR lookback (same as create_dtw_trajectories)."""
+    base = cohort_name.replace("_extreme_density", "") if cohort_name.endswith("_extreme_density") else cohort_name
+    if base == "opioid_ed":
+        return ("first_f1120_date", "first_opioid_ed_date")
+    if base == "non_opioid_ed":
+        return ("first_o11_p_date", "first_ed_non_opioid_date", "first_opioid_ed_date")
+    return ("event_date",)
+
+
+def _parquet_column_names(path: Path) -> Optional[set]:
+    try:
+        import pyarrow.parquet as pq
+
+        return set(pq.ParquetFile(path).schema_arrow.names)
+    except Exception:
+        return None
+
+
+def _has_required_target_date(path: Path, cohort_name: str) -> bool:
+    """Step 3b snapshots are invalid for DTW when Step 4 target-date columns are missing."""
+    cols = _parquet_column_names(path)
+    if not cols:
+        return False
+    if "target" not in cols:
+        return False
+    return any(c in cols for c in _target_date_column_candidates(cohort_name))
+
+
+def _four_model_data_roots(project_root: Path) -> List[Path]:
+    nvme_4 = Path("/mnt/nvme/4_model_data")
+    data_root_env = os.environ.get("PGX_DATA_ROOT", "").strip()
+    roots: List[Path] = [nvme_4]
+    if data_root_env:
+        roots.append(Path(data_root_env) / "4_model_data")
+    roots.extend([project_root / "4_model_data", project_root / "4a_model_data"])
+    return roots
+
+
+def _model_events_in_hive_dir(base: Path, cohort_name: str, band: str) -> Optional[Path]:
+    d = base / f"cohort_name={cohort_name}" / f"age_band={band}"
+    for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+        p = d / name
+        if p.exists() and p.stat().st_size > 0:
+            return p
+    return None
 
 
 def confirm_paths_exist_with_listings(
@@ -80,7 +133,10 @@ def get_model_events_paths_checked(
     band_hyphen = age_band.replace("_", "-") if "_" in age_band else age_band
     bands_to_try = (band_underscore, band_hyphen) if band_underscore != band_hyphen else (age_band,)
     out: List[str] = []
-    # 3b paths
+    for root in _four_model_data_roots(project_root):
+        for band in bands_to_try:
+            for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
+                out.append(str(root / f"cohort_name={cohort_name}" / f"age_band={band}" / name))
     for band in bands_to_try:
         p = (
             project_root
@@ -93,20 +149,6 @@ def get_model_events_paths_checked(
             / "model_events.parquet"
         )
         out.append(str(p))
-    # 4_model_data roots (same order as resolve_model_events_path)
-    nvme_4 = Path("/mnt/nvme/4_model_data")
-    data_root_env = os.environ.get("PGX_DATA_ROOT", "").strip()
-    candidates_4 = [nvme_4]
-    if data_root_env:
-        candidates_4.append(Path(data_root_env) / "4_model_data")
-    candidates_4.extend([
-        project_root / "4_model_data",
-        project_root / "4a_model_data",
-    ])
-    for root in candidates_4:
-        for band in bands_to_try:
-            for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
-                out.append(str(root / f"cohort_name={cohort_name}" / f"age_band={band}" / name))
     return out
 
 
@@ -189,14 +231,11 @@ def resolve_model_events_path(
     age_band: str,
 ) -> Optional[Path]:
     """
-    Resolve model_events path: try 3b first, then 4_model_data (same logic as BupaR R scripts).
+    Resolve model_events path: Step 4 (4_model_data) first, then 3b only if it has target-date columns.
 
-    - 3b: project_root/3b_feature_importance_eda/outputs/cohorts/input_model_data/cohort_name={slug}/age_band={age_band}/model_events.parquet
-      where slug = "opioid" for opioid_ed, "polypharmacy" for non_opioid_ed.
-    - 4_model_data: under PGX_DATA_ROOT/4_model_data, /mnt/nvme/4_model_data, or project_root/4_model_data;
-      prefer model_events_no_protocols.parquet then model_events.parquet.
+    Matches create_bupar_outputs_opioid_ed.R / create_bupar_outputs_non_opioid_ed.R (3b path disabled there).
 
-    Returns the first path that exists, or None if none found.
+    Returns the first valid path, or None if none found.
     """
     project_root = Path(project_root).resolve()
     cohort_slug = get_cohort_slug_by_cohort(cohort_name)
@@ -206,7 +245,16 @@ def resolve_model_events_path(
     band_hyphen = age_band.replace("_", "-") if "_" in age_band else age_band
     bands_to_try = (band_underscore, band_hyphen) if band_underscore != band_hyphen else (age_band,)
 
-    # 1) Try 3b (same as BupaR)
+    # 1) Step 4 model_data (canonical; same as BupaR R)
+    for root in _four_model_data_roots(project_root):
+        if not root.exists():
+            continue
+        for band in bands_to_try:
+            p = _model_events_in_hive_dir(root, cohort_name, band)
+            if p is not None:
+                return p
+
+    # 2) Legacy 3b only when Step 4 absent AND schema has target-date column
     for band in bands_to_try:
         path_3b = (
             project_root
@@ -218,33 +266,7 @@ def resolve_model_events_path(
             / f"age_band={band}"
             / "model_events.parquet"
         )
-        if path_3b.exists():
+        if path_3b.exists() and path_3b.stat().st_size > 0 and _has_required_target_date(path_3b, cohort_name):
             return path_3b
-
-    # 2) Fallback: 4_model_data. On EC2 data is on NVMe; try /mnt/nvme first, then PGX_DATA_ROOT, then project.
-    nvme_4 = Path("/mnt/nvme/4_model_data")
-    data_root_env = os.environ.get("PGX_DATA_ROOT", "").strip()
-    candidates_4 = [nvme_4]
-    if data_root_env:
-        candidates_4.append(Path(data_root_env) / "4_model_data")
-    candidates_4.extend([
-        project_root / "4_model_data",
-        project_root / "4a_model_data",
-    ])
-    def _check_dir(base: Path, band: str) -> Optional[Path]:
-        d = base / f"cohort_name={cohort_name}" / f"age_band={band}"
-        for name in ("model_events_no_protocols.parquet", "model_events.parquet"):
-            p = d / name
-            if p.exists():
-                return p
-        return None
-
-    for root in candidates_4:
-        if not root.exists():
-            continue
-        for band in bands_to_try:
-            p = _check_dir(root, band)
-            if p is not None:
-                return p
 
     return None
