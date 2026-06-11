@@ -13,7 +13,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 | ID | Manuscript | Chapter | Action plan | Status |
 |:---|:-----------|:--------|:------------|:-------|
 | **T0** | **Complete pipeline rerun** | All | See T0 below | 🔴 **Active — EC2 required** |
-| **CH3** | CTS-2026-0196 | CH_3 | [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley |
+| **CH3** | CTS-2026-0196 | CH_3 | [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | **Submitted to CTS** — await response |
 | **CH4** | CTS-2026-0235-T | CH_4 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **2026-06-29**) |
 | **CH5** | CTS-2026-0255-T | CH_5 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **~2026-06-30**) |
 | T4 | `nbstripout` git filter (Windows) | pgx-analysis | — | ⬜ Open |
@@ -68,7 +68,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 **Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_3](manuscript/docs/cts/README_CTS.md) · **Submit:** [due_date submit README](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/submit/README.md)
 
-**Status:** `submission/outputs/` package **sent to Dr. Price** for co-author review (with CH4/CH5). **Not on Wiley** until Price sign-off.
+**Status:** Peer review revision package **submitted to CTS**. Await CTS response.
 
 ### Done — Jerome (first review)
 
@@ -77,12 +77,13 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 - [x] **Jerome:** Confirm marked MS reflects latest Methods cites (regenerate if needed — see build note below)
 - [x] **Jerome:** Upload **`submission/outputs/`** to Google Drive for **Dr. Price** (clean + marked MS + response + figures/supp)
 
-### In progress — Dr. Price sign-off
+### Submitted — CTS response pending
 
-- [ ] Dr. Price review — revised MS, marked MS, point-by-point response
-- [ ] Final proofread: marked vs clean DOCX; yellow highlights match edits
-- [ ] Confirm supplemental figures S1–S3 as **separate Wiley files** (not embedded in main MS)
-- [ ] Wiley: Remove & Replace Files — response + marked + clean DOCX + figure TIFFs
+- [x] Dr. Price review — revised MS, marked MS, point-by-point response
+- [x] Final proofread: marked vs clean DOCX; yellow highlights match edits
+- [x] Confirm supplemental figures S1–S3 as **separate Wiley files** (not embedded in main MS)
+- [x] Wiley: Remove & Replace Files — response + marked + clean DOCX + figure TIFFs
+- [ ] Await CTS response
 - [ ] Deadline: ~4 weeks from May 11, 2026 decision letter (**request extension if needed**)
 
 **Marked MS note:** After QMD edits, run `mark_revisions.py` on latest `ch03_cts_draft.docx` before sending to Price if marked DOCX predates cite/supplementary pass.
