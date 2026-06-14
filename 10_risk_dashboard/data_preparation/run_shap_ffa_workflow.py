@@ -224,7 +224,7 @@ def _ensure_shap_artifacts(
 def _load_shap_for_ffa(
     cohort: str, age_band: str, max_shap_rows: int = 5000, bin_name: str | None = None
 ) -> Tuple[dict, Optional[pd.DataFrame]]:
-    """Load SHAP global importance (map) and sample values from Step 7. Uses DuckDB to limit parquet rows on EC2."""
+    """Load dual-model SHAP consensus importance and XGBoost sample values from Step 7."""
     import duckdb
     age_band_fname = _age_band_fname(age_band)
     if bin_name:
@@ -232,20 +232,40 @@ def _load_shap_for_ffa(
     else:
         base = PROJECT_ROOT / "7_shap_analysis" / "outputs" / cohort / age_band_fname
     csv_path = base / f"{cohort}_{age_band_fname}_shap_global_importance_xgboost.csv"
+    cb_csv_path = base / f"{cohort}_{age_band_fname}_shap_global_importance_catboost.csv"
     parquet_path = base / f"{cohort}_{age_band_fname}_shap_sample_values_xgboost.parquet"
     if not csv_path.exists():
         raise FileNotFoundError(f"SHAP global importance not found: {csv_path}")
+    if not cb_csv_path.exists():
+        raise FileNotFoundError(f"CatBoost SHAP global importance not found: {cb_csv_path}")
     con = duckdb.connect()
     try:
         df_global = con.execute(f"SELECT feature, mean_abs_shap FROM read_csv_auto('{str(csv_path)}')").df()
+        df_global_cb = con.execute(f"SELECT feature, mean_abs_shap FROM read_csv_auto('{str(cb_csv_path)}')").df()
     finally:
         con.close()
     if "feature" not in df_global.columns or "mean_abs_shap" not in df_global.columns:
         raise ValueError(f"Expected columns feature, mean_abs_shap in {csv_path}")
-    shap_map = dict(zip(df_global["feature"], df_global["mean_abs_shap"].astype(float), strict=False))
-    max_shap = max(shap_map.values()) if shap_map else 1.0
-    if max_shap > 0:
-        shap_map = {k: v / max_shap for k, v in shap_map.items()}
+    if "feature" not in df_global_cb.columns or "mean_abs_shap" not in df_global_cb.columns:
+        raise ValueError(f"Expected columns feature, mean_abs_shap in {cb_csv_path}")
+    xgb_map = dict(zip(df_global["feature"], df_global["mean_abs_shap"].astype(float), strict=False))
+    cb_map = dict(zip(df_global_cb["feature"], df_global_cb["mean_abs_shap"].astype(float), strict=False))
+    max_xgb = max(xgb_map.values()) if xgb_map else 1.0
+    max_cb = max(cb_map.values()) if cb_map else 1.0
+    if max_xgb > 0:
+        xgb_map = {k: v / max_xgb for k, v in xgb_map.items()}
+    if max_cb > 0:
+        cb_map = {k: v / max_cb for k, v in cb_map.items()}
+    consensus_features = set(xgb_map).intersection(cb_map)
+    shap_map = {feature: (xgb_map[feature] + cb_map[feature]) / 2.0 for feature in consensus_features}
+    if not shap_map:
+        raise ValueError(f"No overlapping XGBoost/CatBoost SHAP features found in {csv_path} and {cb_csv_path}")
+    logger.info(
+        "Loaded dual-model SHAP consensus for FFA: xgboost=%d catboost=%d overlap=%d",
+        len(xgb_map),
+        len(cb_map),
+        len(shap_map),
+    )
     shap_values_df = None
     if parquet_path.exists():
         con = duckdb.connect()
