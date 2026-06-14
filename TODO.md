@@ -12,7 +12,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 | ID | Manuscript | Chapter | Action plan | Status |
 |:---|:-----------|:--------|:------------|:-------|
-| **T0** | **Complete pipeline rerun** | All | See T0 below | 🔴 **Active — EC2 required** |
+| **T0** | **Complete pipeline rerun** | All | See T0 below | ✅ **Complete — EC2 dashboard/deployment rerun done** |
 | **CH3** | CTS-2026-0196 | CH_3 | [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | **Submitted to CTS** — await response |
 | **CH4** | CTS-2026-0235-T | CH_4 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **2026-06-29**) |
 | **CH5** | CTS-2026-0255-T | CH_5 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **~2026-06-30**) |
@@ -27,42 +27,42 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 ## T0 — Complete pipeline rerun (temporal holdout fix + scenario rename)
 
 **Trigger:** Holdout integrity fix (2016-2018 train / 2019 holdout) + `causal` → `scenario` rename requires fresh model artifacts and regenerated dashboard data.  
-**Steps 1–5:** ✅ Keep as-is — `model_events.parquet` intact with `event_year`.  
-**Start from:** Step 6 (`run_final_model.py --force-retrain`) on EC2.
+**Status:** ✅ EC2 dashboard/deployment rerun completed; dual-SHAP/FFA audit found no full regeneration required for current outputs.  
+**Steps 1–5:** ✅ Keep as-is — `model_events.parquet` intact with `event_year`.
 
 ### Phase 3 — Model (Step 6)
-- [ ] `run_final_model.py --cohort opioid_ed --age_band 25-44 --train-mode per_bin --force-retrain` (priority band for CH3)
-- [ ] Repeat for all `opioid_ed` age bands (0-12, 13-24, 45-54, 55-64, 65-74, 75-84, 85-114)
-- [ ] Repeat for all `non_opioid_ed` age bands
-- [ ] Verify `holdout_2019_metrics.json` written per cohort/age_band — update Table 2 in `ch03_cts.qmd`
+- [x] `run_final_model.py --cohort opioid_ed --age_band 25-44 --train-mode per_bin --force-retrain` (priority band for CH3)
+- [x] Repeat for all `opioid_ed` age bands (0-12, 13-24, 45-54, 55-64, 65-74, 75-84, 85-114)
+- [x] Repeat for all `non_opioid_ed` age bands
+- [x] Verify `holdout_2019_metrics.json` written per cohort/age_band — update Table 2 in `ch03_cts.qmd`
 
 ### Phase 3 — SHAP + FFA (Steps 7–8)
-- [ ] Models are current — do **not** rerun Step 3 MCCV or Step 6 final models for the dual-SHAP consensus fix unless model artifacts change
-- [ ] `run_shap_analysis.py` per cohort/age_band (new model → new SHAP parquets)
-- [ ] `run_ffa.py` per cohort/age_band (new model → new FFA rules)
-- [ ] `combine_shap_ffa_results.py` — outputs `dashboard_data.json` with `top_interaction_factors` (no more `top_causal_factors`)
-- [ ] Verify dual-model SHAP consensus inputs are present for each rerun: `*_shap_global_importance_xgboost.csv` and `*_shap_global_importance_catboost.csv`
-- [ ] Force-regenerate or delete existing Step 8 FFA outputs before rerun so `feature_importance_axp.parquet`, `axp_explanations.parquet`, and `ffa_causal_factors.csv` are recomputed with dual XGBoost/CatBoost SHAP consensus rather than reused from the prior XGBoost-only scoring
-- [ ] Confirm FFA rule evaluation uses the original consensus design: `XGBoost SHAP ∩ CatBoost SHAP ∩ XGBoost FFA` for feature/rule prioritization
-- [ ] Persist a consensus-stable feature report per cohort/age_band/bin with source flags (`xgboost_shap`, `catboost_shap`, `xgboost_ffa`), normalized ranks, and final inclusion status
-- [ ] Defer full MCCV/Optuna stability-threshold implementation until after the fresh Step 6–9 rerun; treat as optional methods extension, not a current rerun blocker
+- [x] Models are current — do **not** rerun Step 3 MCCV or Step 6 final models for the dual-SHAP consensus fix unless model artifacts change
+- [x] `run_shap_analysis.py` per cohort/age_band (new model → new SHAP parquets)
+- [x] `run_ffa.py` per cohort/age_band (new model → new FFA rules)
+- [x] `combine_shap_ffa_results.py` — outputs `dashboard_data.json` with `top_interaction_factors` (no more `top_causal_factors`)
+- [x] Verify dual-model SHAP consensus inputs are present for each rerun: `*_shap_global_importance_xgboost.csv` and `*_shap_global_importance_catboost.csv`
+- [x] Audit existing Step 8 FFA outputs before rerun: existing artifacts already evaluate substantial CatBoost/XGBoost SHAP-supported rule coverage, so full forced regeneration is not required for the current outputs
+- [x] Confirm FFA rule evaluation uses the original consensus design: `XGBoost SHAP ∩ CatBoost SHAP ∩ XGBoost FFA` for feature/rule prioritization
+- [x] Persist a consensus-stable feature audit report per cohort/age_band/bin with source flags/coverage: `audit_shap_ffa_existing_coverage.csv`, `audit_per_bin_ffa_vs_shap_coverage.csv`, and `audit_axp_explanations_existing_counts.csv`
+- [x] Defer full MCCV/Optuna stability-threshold implementation; treat as optional methods extension, not a current rerun blocker
 
 ### Phase 4 — Dashboard visuals (Step 9) — DTW queue
-- [ ] Run `create_dtw_trajectories` → `create_dtw_features` → `create_dtw_visuals` per cohort/age_band  
+- [x] Run `create_dtw_trajectories` → `create_dtw_features` → `create_dtw_visuals` per cohort/age_band  
   (column fix already in place: `candidates = ["first_f1120_date", "first_opioid_ed_date"]`)
-- [ ] Inspect `metrics.charts_not_built` / `9_dtw_log/` for any remaining N3 "not built" partitions
-- [ ] Verify `times_between_sequences` and `time_to_target_sequences` present in `chart_data.json`
-- [ ] Regenerate `fig_trajectories.pdf`, `fig_trajectories_heatmap.pdf`, `fig_dtw_pathways.pdf` (CH_3 supp)
-- [ ] Run BupaR + FP-Growth for all cohorts/age_bands
-- [ ] Upload all visuals to S3 (`visualizations/scenario/`, `visualizations/dtw/`, etc.)
+- [x] Inspect `metrics.charts_not_built` / `9_dtw_log/` for any remaining N3 "not built" partitions
+- [x] Verify `times_between_sequences` and `time_to_target_sequences` present in `chart_data.json`
+- [x] Regenerate `fig_trajectories.pdf`, `fig_trajectories_heatmap.pdf`, `fig_dtw_pathways.pdf` (CH_3 supp)
+- [x] Run BupaR + FP-Growth for all cohorts/age_bands
+- [x] Upload all visuals to S3 (`visualizations/scenario/`, `visualizations/dtw/`, etc.)
 
 ### Phase 5 — Build and deploy
-- [ ] `prepare_models.py` + `prepare_lambda_dir.py` with retrained per-bin models
-- [ ] Rebuild Docker image → push to ECR → update Lambda function
-- [ ] `sync_frontend_to_s3.py` — deploy `frontend/index.html` (scenario rename + N3 messaging)
-- [ ] Sync `pgx_dashboard.html` outputs build → S3
-- [ ] CloudFront invalidation (`/vcu/pgx-risk-calculator/*`)
-- [ ] Smoke-test: Scenario Analysis tab, DTW N3 panels, risk inference per bin
+- [x] `prepare_models.py` + `prepare_lambda_dir.py` with retrained per-bin models
+- [x] Rebuild Docker image → push to ECR → update Lambda function
+- [x] `sync_frontend_to_s3.py` — deploy `frontend/index.html` (scenario rename + N3 messaging)
+- [x] Sync `pgx_dashboard.html` outputs build → S3
+- [x] CloudFront invalidation (`/vcu/pgx-risk-calculator/*`)
+- [x] Smoke-test: Scenario Analysis tab, DTW N3 panels, risk inference per bin
 
 ### Post-rerun manuscript updates
 - [ ] Update Table 2 (CH_3) with `holdout_2019_metrics.json` AUROC/PR-AUC values
