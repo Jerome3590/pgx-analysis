@@ -18,7 +18,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 | **CH5** | CTS-2026-0255-T | CH_5 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **~2026-06-30**) |
 | T4 | `nbstripout` git filter (Windows) | pgx-analysis | — | ⬜ Open |
 | T5 | Parent repo local changes (puppeteer) | pgx-analysis | — | ⬜ Open — notebooks committed; `11_testing/puppeteer/*` untracked |
-| T6 | CH1 systematic review (CTS-2026-0197) | CH_1 | [action plan](manuscript/cts/due_date/2026-07-10_CTS-2026-0197/response/cts_2026_0197_revision_action_plan.md) | 🟣 **Dr. Price PROSPERO approval needed** — approve/publication gate for CRD420261354089; CTS revision due **2026-07-10** |
+| T6 | CH1 systematic review (CTS-2026-0197) | CH_1 | [action plan](manuscript/cts/due_date/2026-07-10_CTS-2026-0197/response/cts_2026_0197_revision_action_plan.md) | � **PROSPERO approved by Dr. Price** — identify/confirm second reviewer for CH1; CTS revision due **2026-07-10** |
 | T8 | CH2 OODA / partition-first (CTS-2026-0230-T) | CH_2 | Wiley portal | 🟢 **Under Consideration** (rev 0) — await editorial decision |
 | T7 | `f31_proposal` folder | pgx-analysis | — | ⬜ Open |
 
@@ -232,7 +232,12 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 The April 2026 **halted submission** (title page + missing S1–S5) in `manuscript/manuscript_status.txt` was addressed; the record is no longer halted.
 
-### While Under Consideration (no action required)
+### Current action
+
+- [x] Dr. Price approved PROSPERO study / publication gate for CRD420261354089
+- [ ] Identify and confirm second reviewer for CH1 systematic review
+
+### While Under Consideration
 
 - [ ] Monitor Wiley for status change (desk reject, send to review, or revision request)
 - [ ] If **revision requested:** stage response in `docs/cts/due_date/TBD_CTS-2026-0197/` (rename folder to dated due-date when letter arrives)
