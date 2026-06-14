@@ -37,9 +37,15 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 - [ ] Verify `holdout_2019_metrics.json` written per cohort/age_band — update Table 2 in `ch03_cts.qmd`
 
 ### Phase 3 — SHAP + FFA (Steps 7–8)
+- [ ] Models are current — do **not** rerun Step 3 MCCV or Step 6 final models for the dual-SHAP consensus fix unless model artifacts change
 - [ ] `run_shap_analysis.py` per cohort/age_band (new model → new SHAP parquets)
 - [ ] `run_ffa.py` per cohort/age_band (new model → new FFA rules)
 - [ ] `combine_shap_ffa_results.py` — outputs `dashboard_data.json` with `top_interaction_factors` (no more `top_causal_factors`)
+- [ ] Verify dual-model SHAP consensus inputs are present for each rerun: `*_shap_global_importance_xgboost.csv` and `*_shap_global_importance_catboost.csv`
+- [ ] Force-regenerate or delete existing Step 8 FFA outputs before rerun so `feature_importance_axp.parquet`, `axp_explanations.parquet`, and `ffa_causal_factors.csv` are recomputed with dual XGBoost/CatBoost SHAP consensus rather than reused from the prior XGBoost-only scoring
+- [ ] Confirm FFA rule evaluation uses the original consensus design: `XGBoost SHAP ∩ CatBoost SHAP ∩ XGBoost FFA` for feature/rule prioritization
+- [ ] Persist a consensus-stable feature report per cohort/age_band/bin with source flags (`xgboost_shap`, `catboost_shap`, `xgboost_ffa`), normalized ranks, and final inclusion status
+- [ ] Defer full MCCV/Optuna stability-threshold implementation until after the fresh Step 6–9 rerun; treat as optional methods extension, not a current rerun blocker
 
 ### Phase 4 — Dashboard visuals (Step 9) — DTW queue
 - [ ] Run `create_dtw_trajectories` → `create_dtw_features` → `create_dtw_visuals` per cohort/age_band  

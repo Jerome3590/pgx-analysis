@@ -64,6 +64,20 @@ def find_shap_results(cohort: str, age_band: str, project_root: Path, bin_name: 
     return None
 
 
+def find_catboost_shap_results(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Optional[Path]:
+    """Find CatBoost SHAP global-importance results from Step 7."""
+    age_band_fname = age_band.replace("-", "_")
+    base = f"{cohort}_{age_band_fname}"
+    shap_base = project_root / "7_shap_analysis" / "outputs" / cohort / age_band_fname
+    shap_dir = shap_base / "bin_models" / bin_name if bin_name else shap_base
+    p = shap_dir / f"{base}_shap_global_importance_catboost.csv"
+    if p.exists():
+        logger.info(f"Found CatBoost SHAP results: {p}")
+        return p
+    logger.warning("CatBoost SHAP results not found - dual-model SHAP consensus unavailable")
+    return None
+
+
 def find_shap_sample_parquet(cohort: str, age_band: str, project_root: Path, bin_name: str | None = None) -> Optional[Path]:
     """Find XGBoost SHAP sample values parquet from Step 7."""
     age_band_fname = age_band.replace("-", "_")
@@ -145,6 +159,49 @@ def load_shap_data(shap_path: Path) -> Tuple[Optional[np.ndarray], Optional[pd.D
         shap_values = df.values
         return shap_values, None
     raise ValueError(f"Unsupported SHAP file format: {shap_path.suffix}")
+
+
+def load_dual_model_shap_consensus(xgb_shap_path: Path, catboost_shap_path: Path) -> pd.DataFrame:
+    """Load XGBoost/CatBoost global SHAP overlap with averaged normalized importance."""
+    _, xgb_importance = load_shap_data(xgb_shap_path)
+    _, cb_importance = load_shap_data(catboost_shap_path)
+    if xgb_importance is None or cb_importance is None:
+        return pd.DataFrame()
+    for df in (xgb_importance, cb_importance):
+        if "feature" not in df.columns:
+            return pd.DataFrame()
+        if "importance" not in df.columns:
+            imp_col = next(
+                (c for c in df.columns if c != "feature" and ("shap" in c.lower() or "importance" in c.lower())),
+                df.columns[1] if len(df.columns) > 1 else None,
+            )
+            if imp_col is None:
+                return pd.DataFrame()
+            df.rename(columns={imp_col: "importance"}, inplace=True)
+    xgb = xgb_importance[["feature", "importance"]].copy()
+    cb = cb_importance[["feature", "importance"]].copy()
+    xgb["importance"] = pd.to_numeric(xgb["importance"], errors="coerce").fillna(0.0)
+    cb["importance"] = pd.to_numeric(cb["importance"], errors="coerce").fillna(0.0)
+    xgb_max = xgb["importance"].max()
+    cb_max = cb["importance"].max()
+    xgb["xgboost_shap_norm"] = xgb["importance"] / xgb_max if xgb_max > 0 else 0.0
+    cb["catboost_shap_norm"] = cb["importance"] / cb_max if cb_max > 0 else 0.0
+    merged = xgb[["feature", "xgboost_shap_norm"]].merge(
+        cb[["feature", "catboost_shap_norm"]],
+        on="feature",
+        how="inner",
+    )
+    if merged.empty:
+        return pd.DataFrame()
+    merged["importance"] = (merged["xgboost_shap_norm"] + merged["catboost_shap_norm"]) / 2.0
+    merged = merged.sort_values("importance", ascending=False, ignore_index=True)
+    logger.info(
+        "Loaded dual-model SHAP consensus: xgboost=%d catboost=%d overlap=%d",
+        len(xgb),
+        len(cb),
+        len(merged),
+    )
+    return merged
 
 
 def load_shap_sample_parquet(parquet_path: Path, feature_names: Optional[List[str]] = None) -> Optional[np.ndarray]:
@@ -651,6 +708,7 @@ def main():
     
     # Find results (same path layout for opioid_ed and non_opioid_ed: 7_shap_analysis/outputs/{cohort}/{age_band_fname}/)
     shap_path = find_shap_results(args.cohort, args.age_band, project_root, bin_name=_bin_name)
+    catboost_shap_path = find_catboost_shap_results(args.cohort, args.age_band, project_root, bin_name=_bin_name)
     shap_sample_path = find_shap_sample_parquet(args.cohort, args.age_band, project_root, bin_name=_bin_name)
     ffa_explanations_path, ffa_importance_path = find_ffa_results(args.cohort, args.age_band, project_root, bin_name=_bin_name)
     
@@ -658,8 +716,11 @@ def main():
     age_band_fname = args.age_band.replace("-", "_")
     missing = []
     if not shap_path:
-        missing.append("SHAP importance")
-        logger.error("Required input missing: SHAP importance. Expected under 7_shap_analysis/outputs/%s/%s/", args.cohort, age_band_fname)
+        missing.append("XGBoost SHAP importance")
+        logger.error("Required input missing: XGBoost SHAP importance. Expected under 7_shap_analysis/outputs/%s/%s/", args.cohort, age_band_fname)
+    if not catboost_shap_path:
+        missing.append("CatBoost SHAP importance")
+        logger.error("Required input missing: CatBoost SHAP importance. Expected 7_shap_analysis/outputs/%s/%s/*_shap_global_importance_catboost.csv", args.cohort, age_band_fname)
     if not shap_sample_path:
         missing.append("SHAP sample values (parquet)")
         logger.error("Required input missing: SHAP sample values. Expected 7_shap_analysis/outputs/%s/%s/*_shap_sample_values_xgboost.parquet", args.cohort, age_band_fname)
@@ -673,13 +734,16 @@ def main():
         logger.error("Cannot combine: missing required inputs: %s. Fix the above and re-run.", ", ".join(missing))
         sys.exit(1)
 
-    logger.info("All required inputs found: SHAP importance, SHAP sample, FFA explanations, FFA importance")
+    logger.info("All required inputs found: XGBoost SHAP, CatBoost SHAP, SHAP sample, FFA explanations, FFA importance")
 
     # Load data
     shap_values = None
     shap_importance = None
-    if shap_path:
-        shap_values, shap_importance = load_shap_data(shap_path)
+    if shap_path and catboost_shap_path:
+        shap_importance = load_dual_model_shap_consensus(shap_path, catboost_shap_path)
+        if shap_importance.empty:
+            logger.error("Cannot combine: XGBoost and CatBoost SHAP global-importance files have no usable overlap.")
+            sys.exit(1)
     
     ffa_explanations = None
     ffa_importance = None

@@ -85,6 +85,14 @@ The system ensures that the **FFA Causal Analysis** only focuses on signals robu
 
 **Trade-off**: While this approach may miss rare variants found only by CatBoost, it ensures that all features entering causal analysis have been validated by multiple model architectures and can be expressed as interpretable logical rules.
 
+### Potential Next Steps
+
+- **Dual-model SHAP inputs to FFA rule evaluation**: Extend the SHAP-augmented FFA rule scoring so XGBoost symbolic rules are evaluated against both XGBoost and CatBoost SHAP global importance, using their overlapping feature set as the primary robustness filter.
+- **Consensus-stable feature report**: Persist the final `XGBoost SHAP ∩ CatBoost SHAP ∩ XGBoost FFA` feature set per cohort, age band, and density bin with source flags, ranks, and normalized importance scores.
+- **Post-hoc stability selection**: If repeated runs are available, compute feature selection frequency across runs and report stability distributions before adopting a fixed threshold.
+- **Optional stability threshold**: Evaluate a manually chosen stability threshold before considering automated tuning of the threshold within Optuna.
+- **Avoid full nested optimization initially**: Treat MCCV-by-Optuna-by-SHAP-by-FFA as a future methodological extension because it is computationally expensive and changes the analysis design.
+
 ## Architecture
 
 ```
