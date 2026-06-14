@@ -74,6 +74,9 @@ status/*.pdf
 status/*.csv
 status/*.json
 status/*.crdownload
+# Generated audit CSVs; regenerate with utility_scripts/audit_*.
+audit_*_coverage.csv
+audit_*_counts.csv
 # Dashboard debug/sample payloads (e.g. activity_frequency, chart_data)
 status/dashboard_errors/
 
