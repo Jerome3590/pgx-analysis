@@ -13,7 +13,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 | ID | Manuscript | Chapter | Action plan | Status |
 |:---|:-----------|:--------|:------------|:-------|
 | **T0** | **Complete pipeline rerun** | All | See T0 below | ✅ **Complete — EC2 dashboard/deployment rerun done** |
-| **CH3** | CTS-2026-0196 | CH_3 | [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | **Submitted to CTS** — await response |
+| **CH3** | CTS-2026-0196 | CH_3 | [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) | ✅ **Revision submitted to CTS** — await editorial response |
 | **CH4** | CTS-2026-0235-T | CH_4 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0235-T/response/cts_0235_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **2026-06-29**) |
 | **CH5** | CTS-2026-0255-T | CH_5 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **~2026-06-30**) |
 | T4 | `nbstripout` git filter (Windows) | pgx-analysis | — | ⬜ Open |
@@ -70,11 +70,11 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 
 ---
 
-## CH3 — CTS-2026-0196 (pending upload)
+## CH3 — CTS-2026-0196 (revision submitted)
 
 **Spec:** [action plan](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/response/cts_2026_0196_revision_action_plan.md) · **Checklist:** [README_CTS.md § CH_3](manuscript/docs/cts/README_CTS.md) · **Submit:** [due_date submit README](manuscript/docs/cts/due_date/2026-06-08_CTS-2026-0196/submit/README.md)
 
-**Status:** Peer review revision package **submitted to CTS**. Await CTS response.
+**Status:** Peer review revision package **submitted to CTS**. Await editorial response.
 
 ### Done — Jerome (first review)
 
