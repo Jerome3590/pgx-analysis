@@ -1,0 +1,11 @@
+---
+description: EC2 and local/remote workflow guidance for pgx-analysis
+alwaysApply: false
+---
+
+# EC2 Remote Workflow
+
+- Local Cursor terminals use AWS profile `mushin` from `.vscode/settings.json`; EC2 should normally use its IAM instance profile.
+- Long pipeline and notebook runs should execute on EC2 or the configured compute environment, not in the local editor.
+- Use S3 checkpoints and existing project path helpers instead of hard-coded local paths.
+- Before enabling the Jupyter post-save hook, verify `python cursor_setup.py status` works in the EC2 checkout.
