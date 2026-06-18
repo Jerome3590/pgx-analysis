@@ -1,0 +1,22 @@
+---
+description: Notebook output access and indexing rules for pgx-analysis
+alwaysApply: true
+---
+
+# Notebook Output Access
+
+## Project Notebook Metadata
+
+- Project slug: `pgx-analysis`
+- Default notebook metadata bucket: `mushin-solutions-project-metadata`
+- Default notebook metadata prefix: `notebooks`
+- Full notebook metadata root: `s3://mushin-solutions-project-metadata/notebooks/pgx-analysis/`
+- Use `python cursor_setup.py push-outputs <notebook>` and `python cursor_setup.py fetch-outputs <notebook>` without repeating bucket or slug flags unless intentionally overriding these defaults.
+
+This repository contains many large workflow notebooks. Do not rely on raw notebook JSON as primary context.
+
+- Prefer paired Python workflow scripts and project docs when available.
+- When asked about notebook results, look for a sidecar `*.outputs.json` pointer next to the notebook.
+- Fetch synced outputs with `python cursor_setup.py fetch-outputs <notebook_path>`.
+- Use `python cursor_setup.py status` to inventory notebooks and pointer files.
+- Do not clear or strip outputs unless the user explicitly asks or a commit workflow requires it.

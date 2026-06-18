@@ -1,0 +1,106 @@
+# Ignore below files to reduce context window - create vscode compatible python workflow scripts
+0_config_and_pipeline.ipynb
+1_cohort_workflow.ipynb
+2_feature_importance.ipynb
+2_create_cohort/cohort_workflow.ipynb
+3a_feature_importance/feature_importance_cohort_runner.ipynb
+3b_feature_importance_eda/step3b_interactive_analysis_cohort1.ipynb
+3b_feature_importance_eda/step3b_interactive_analysis_cohort2.ipynb
+3b_feature_importance_eda/step3b_interactive_analysis_cohort3.ipynb
+3b_feature_importance_eda/step3b_interactive_analysis_cohort4.ipynb
+3b_feature_importance_eda/step3b_interactive_analysis_cohort5.ipynb
+3b_feature_importance_eda/step3b_interactive_analysis_cohort6.ipynb
+3b_feature_importance_eda/step3b_interactive_analysis_cohort7.ipynb
+3_model_train_shap_ffa.ipynb
+4_dashboard_visuals.ipynb
+5_build_and_deploy.ipynb
+5_pgx_analysis/pgx_cohort_runner.ipynb
+6_final_model/build_train_test_datasets.ipynb
+6_final_model/final_model_cohort_runner.ipynb
+7_shap_analysis/shap_cohort_runner.ipynb
+8_ffa_analysis/formal_feature_attribution.ipynb
+8_ffa_analysis/ffa_cohort_runner.ipynb
+9_dashboard_visuals/bupar/bupaR_pipeline_non_opioid_ed.ipynb
+9_dashboard_visuals/bupar/bupaR_pipeline_opioid_ed.ipynb
+9_dashboard_visuals/bupar/bupar_cohort_runner.ipynb
+9_dashboard_visuals/dtw/dtw_cohort_runner.ipynb
+9_dashboard_visuals/fpgrowth/cohort_fpgrowth_feature_importance.ipynb
+9_dashboard_visuals/fpgrowth/fpgrowth_cohort_runner.ipynb
+9_dashboard_visuals/fpgrowth/global_fpgrowth_feature_importance.ipynb
+9_dashboard_visuals/test_dashboard_visuals.ipynb
+aws-pgx-setup/emr/emr_studio/drug_feature_importance_pipeline/1_clean_dataset_builder.ipynb
+aws-pgx-setup/emr/emr_studio/drug_feature_importance_pipeline/2_remove_data_skew.ipynb
+aws-pgx-setup/emr/emr_studio/drug_feature_importance_pipeline/3_cohort_model_builder.ipynb
+aws-pgx-setup/emr/emr_studio/drug_feature_importance_pipeline/4_cohort_feature_filter_scala.ipynb
+aws-pgx-setup/emr/emr_studio/drug_feature_importance_pipeline/5_cohort_final_model.ipynb
+aws-pgx-setup/notebooks/jupyter/1_clean_dataset_builder_cohort6.ipynb
+aws-pgx-setup/notebooks/jupyter/2_remove_data_skew_cohort6.ipynb
+aws-pgx-setup/notebooks/jupyter/3_cohort6_model_builder.ipynb
+aws-pgx-setup/notebooks/jupyter/3_cohort6_model_builder2.ipynb
+aws-pgx-setup/notebooks/jupyter/3_cohort6_model_builder3.ipynb
+aws-pgx-setup/notebooks/jupyter/4_cohort6_feature_filter_scala.ipynb
+aws-pgx-setup/notebooks/jupyter/5_cohort6_final_model.ipynb
+
+# ============================================================
+# Cursor project utility defaults
+# Keep generated/runtime artifacts out of the index. The explicit notebook
+# list above is project-specific and intentionally preserved.
+# ============================================================
+
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+
+# Notebook artifacts
+**/.ipynb_checkpoints/
+**/*.nbconvert/
+.nbcache/
+.jupyter_cache/
+
+# Data/model/runtime artifacts
+**/*.parquet
+**/*.feather
+**/*.h5
+**/*.hdf5
+**/*.pkl
+**/*.joblib
+**/*.npy
+**/*.npz
+**/*.db
+**/*.sqlite
+**/*.duckdb
+**/*.pt
+**/*.pth
+**/*.onnx
+**/*.bin
+**/*.safetensors
+**/*.gguf
+
+# AWS/Terraform and docs build output
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.backup
+**/.aws/
+**/*.tfvars
+_site/
+_book/
+docs/_build/
+site/
+quarto_output/
+
+# Misc
+*.log
+*.lock
+poetry.lock
+uv.lock
