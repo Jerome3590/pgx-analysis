@@ -1,0 +1,36 @@
+{
+  "description": "Publication-oriented PGx network figure pack.",
+  "source_guidance": [
+    "10_analysis_results/network_analysis.md",
+    "10_analysis_results/README_pgx_network_visuals.md"
+  ],
+  "figures": [
+    "pgx_cluster_ego_networks.html",
+    "pgx_cohort_small_multiples.html",
+    "pgx_global_intervention_network.html",
+    "pgx_intervention_priority_heatmap.html",
+    "pgx_pathway_context_panel.html",
+    "pgx_time_to_event_panel.html",
+    "pgx_cluster_ego_networks.png",
+    "pgx_cohort_small_multiples.png",
+    "pgx_global_intervention_network.png",
+    "pgx_intervention_priority_heatmap.png",
+    "pgx_pathway_context_panel.png",
+    "pgx_time_to_event_panel.png"
+  ],
+  "priority_rows": 81,
+  "time_window_rows": 2,
+  "pathway_context_rows": 158,
+  "pathway_context_definitions": {
+    "dynamics": "Where the signal changes by outcome/age stratum and implies a prevention target.",
+    "kinetics": "ADME and transporter genes that alter exposure, clearance, or active metabolite burden.",
+    "allergic_response": "Immune/hypersensitivity context to monitor when HLA or allergy-linked PGx edges emerge.",
+    "underappreciated_signaling": "Peripheral or Undefined genes that make sparse modules clinically interpretable.",
+    "kinetic_pathways": "Drug -> kinetics gene -> exposure/timing pathway connected to lead-time before event."
+  },
+  "notes": [
+    "PNG files are screenshots of the Plotly HTML figures for GitHub rendering.",
+    "R tidygraph/ggraph implementation remains optional; this Python implementation uses the same visual grammar.",
+    "Pathway context tags annotate dynamics, kinetics, allergic-response watch-listing, underappreciated signaling, and kinetic pathways."
+  ]
+}

@@ -3213,6 +3213,61 @@
     }
   });
 
+  function _cohortPgxFigurePackUrls(stem) {
+    const base = "visualizations/cohort_pgx/figure_pack/" + stem;
+    return {
+      png: staticJsonPath(base + ".png"),
+      html: staticJsonPath(base + ".html")
+    };
+  }
+
+  async function loadCohortPgxFigurePack() {
+    const select = document.getElementById("cohort-pgx-figure-pack-select");
+    const status = document.getElementById("cohort-pgx-figure-pack-status");
+    const image = document.getElementById("cohort-pgx-figure-pack-image");
+    const links = document.getElementById("cohort-pgx-figure-pack-links");
+    if (!select || !status || !image || !links) return;
+
+    const stem = select.value || "pgx_global_intervention_network";
+    const urls = _cohortPgxFigurePackUrls(stem);
+    status.textContent = "Loading PGx figure-pack preview...";
+    status.className = "status-message info";
+    links.innerHTML = "";
+    image.style.display = "none";
+
+    try {
+      const pngHead = await fetch(urls.png, { method: "HEAD" }).catch(function() { return null; });
+      const htmlHead = await fetch(urls.html, { method: "HEAD" }).catch(function() { return null; });
+      if (!pngHead || !pngHead.ok) {
+        const apiResp = await fetch(API_BASE + "/visualizations/cohort_pgx");
+        if (apiResp.ok) {
+          const apiData = await apiResp.json();
+          const figurePack = apiData.figure_pack || {};
+          const item = figurePack[stem] || {};
+          if (item.png_url) urls.png = item.png_url;
+          if (item.html_url) urls.html = item.html_url;
+        }
+      }
+      image.src = urls.png;
+      image.style.display = "";
+      links.innerHTML = `
+        <a href="${urls.html}" target="_blank" rel="noopener">Open interactive HTML</a>
+        <span style="color:#94a3b8;"> | </span>
+        <a href="${urls.png}" target="_blank" rel="noopener">Open PNG</a>
+      `;
+      status.textContent = htmlHead && htmlHead.ok
+        ? "PGx figure-pack preview loaded."
+        : "PGx figure-pack preview loaded; verify HTML exists if the interactive link fails.";
+      status.className = "status-message success";
+    } catch (err) {
+      status.textContent = `Error loading PGx figure-pack visual: ${err.message}`;
+      status.className = "status-message error";
+    }
+  }
+
+  document.getElementById("btnLoadCohortPgxFigurePack")?.addEventListener("click", loadCohortPgxFigurePack);
+  document.getElementById("cohort-pgx-figure-pack-select")?.addEventListener("change", loadCohortPgxFigurePack);
+
   // BupaR Visualizations Tab: load image URLs + activity frequency JSON (bar charts)
   document.getElementById("btnLoadBupaR")?.addEventListener("click", async () => {
     const cohort = document.getElementById("bupar-cohort").value;

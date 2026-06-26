@@ -3327,14 +3327,31 @@ def handle_visualizations_cohort_pgx(event: Dict[str, Any]) -> Dict[str, Any]:
         age_band = params.get("age_band")
         n_event_bin = params.get("n_event_bin") or None
 
+        prefix = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/cohort_pgx"
+        figure_stems = [
+            "pgx_global_intervention_network",
+            "pgx_cohort_small_multiples",
+            "pgx_cluster_ego_networks",
+            "pgx_intervention_priority_heatmap",
+            "pgx_pathway_context_panel",
+            "pgx_time_to_event_panel",
+        ]
+        figure_pack: Dict[str, Dict[str, str]] = {}
+        for stem in figure_stems:
+            html_key = f"{prefix}/figure_pack/{stem}.html"
+            png_key = f"{prefix}/figure_pack/{stem}.png"
+            figure_pack[stem] = {
+                "html_url": _dashboard_s3_url(html_key),
+                "png_url": _dashboard_s3_url(png_key),
+            }
+
         if not cohort or not age_band:
-            return _response(400, {"error": "cohort and age_band parameters required"})
+            return _response(200, {"figure_pack": figure_pack})
 
         # S3 paths use hyphen (25-44); EC2 dirs use underscore (25_44)
-        prefix   = f"{S3_DASHBOARD_PREFIX.strip('/')}/visualizations/cohort_pgx"
         net_base = f"{prefix}/networks/{cohort}/{age_band}"
         full_html_key = f"{net_base}/network_topology.html"
-        payload: Dict[str, Any] = {"n_event_bin": n_event_bin}
+        payload: Dict[str, Any] = {"n_event_bin": n_event_bin, "figure_pack": figure_pack}
 
         # --- Resolve network topology URL + track which dir was actually used ---
         resolved_dir = net_base  # default: full-cohort dir

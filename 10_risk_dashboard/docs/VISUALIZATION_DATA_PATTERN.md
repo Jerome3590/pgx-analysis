@@ -26,7 +26,7 @@ These visuals are **not** converted to JSON; they are built on EC2 and served as
 | Tab | Visual | Delivery |
 |-----|--------|----------|
 | **FP-Growth Patterns** | Network plot (drug association rules) | Pre-built HTML on S3; Lambda returns URL; frontend uses iframe or network HTML proxy. |
-| **PGx Cohort** | Network topology | Pre-built HTML on S3; Lambda returns `network_topology_url`; frontend uses iframe. |
+| **PGx Cohort** | Network topology + drug network figure pack | Pre-built HTML on S3; Lambda returns `network_topology_url`; frontend uses iframe. Figure pack uses static PNG previews with links to interactive HTML under `visualizations/cohort_pgx/figure_pack/`. |
 
 Pipeline for these: run on EC2 → write HTML → upload to dashboard bucket → Lambda returns URL → frontend displays in iframe.
 
@@ -41,7 +41,7 @@ Pipeline for these: run on EC2 → write HTML → upload to dashboard bucket →
 | **BupaR Process Mining** | `trace_explorer_plot`, `process_matrix_drug_drug`, activity_frequency (separate endpoint) | Image/iframe URLs for sequence, trace pre, process matrix combined, frequency map |
 | **DTW Trajectories** | `chart_data`, `sequence_heatmap`, `trajectory_overview_plot` | Image URLs for overview/sample when JSON missing |
 | **FP-Growth Patterns** | `itemsets_data` (itemsets JSON for client Plotly) | **Network: HTML only** (EC2). Itemsets PNG/HTML URLs. |
-| **PGx Cohort** | — | **Network: HTML only** (EC2). `network_topology_url`. |
+| **PGx Cohort** | `figure_pack` URL map (optional API fallback) | **Network: HTML only** (EC2). `network_topology_url`; figure pack PNG/HTML loaded static-first. |
 
 ---
 

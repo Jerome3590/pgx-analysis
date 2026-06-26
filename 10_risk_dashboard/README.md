@@ -728,7 +728,7 @@ flowchart TD
 
 #### Tab: PGx Cohort Network
 
-Gene–drug–phenotype topology network from SHAP/FFA top genes + PharmGKB VIP reports. Includes radar chart and PubMed citations.
+Gene–drug–phenotype topology network from SHAP/FFA top genes + PharmGKB VIP reports. Includes radar chart, PubMed citations, and a static PNG/interactive HTML PGx drug network figure pack.
 
 ```mermaid
 flowchart TD
@@ -742,10 +742,11 @@ flowchart TD
     H -->|Yes| I[cohort-pgx-radar-section shown\nGene Actionability Profile\nPlotly radar: CPIC · dosing ·\nPharmGKB VIP · literature · causal rank]
     H -->|No| J
     I --> J[cohort-pgx-citations-section shown\nPubMed citations per PGx gene\nNCBI E-utilities · last 5 years\ncollapsible per gene]
-    J --> K([Network + radar + citations displayed])
+    J --> K[Select PGx figure-pack visual\nPNG preview + HTML link]
+    K --> L([Network + radar + citations + figure pack displayed])
 
     style F fill:#fee2e2
-    style K fill:#dcfce7
+    style L fill:#dcfce7
 ```
 
 ## Key Features

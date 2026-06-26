@@ -338,6 +338,7 @@ def main():
         cohort_pgx_dir = step9_root / "cohort_pgx"
         fetch_pgx_script = cohort_pgx_dir / "fetch_vip_reports.py"
         build_pgx_script = cohort_pgx_dir / "build_network_topology.py"
+        figure_pack_script = cohort_pgx_dir / "generate_network_figure_pack.py"
         reports_dir = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "cohort_pgx" / "reports"
         networks_dir = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "cohort_pgx" / "networks"
         reports_dir.mkdir(parents=True, exist_ok=True)
@@ -405,6 +406,19 @@ def main():
                     if r.returncode != 0 and args.fail_fast:
                         sys.exit(1)
             print()
+
+            if figure_pack_script.exists():
+                print("Cohort PGx: generate publication figure pack")
+                print("-" * 40)
+                r = subprocess.run(
+                    [str(get_workflow_python_bin()), str(figure_pack_script), "--project-root", str(REPO_ROOT)],
+                    cwd=str(REPO_ROOT),
+                    capture_output=False,
+                )
+                print(f"  [Cohort PGx figure pack] -> exit {r.returncode}")
+                if r.returncode != 0 and args.fail_fast:
+                    sys.exit(1)
+                print()
         else:
             print("Cohort PGx: scripts not found; skip.")
             print()

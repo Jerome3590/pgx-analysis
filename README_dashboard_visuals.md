@@ -67,6 +67,7 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 
 | Date       | Scope / tab              | Change |
 |------------|--------------------------|--------|
+| 2026-06-26 | PGx Cohort visuals       | Added PGx drug network figure-pack panel with PNG previews and interactive HTML links; documented S3 paths and Lambda figure-pack URL fallback. |
 | 2026-04-21 | README sync              | Corrected primary tab order (Documentation now first); added missing h2 sections (Dashboard visual artifacts from manifest, Event density bins) to Documentation tab checklist; updated tabs list to reflect actual primary + visualization tab order. |
 | 2026-03-31 | Full production workflow | Notebook 4 final production workflow: BupaR → DTW → FP-Growth → Scenario → Cohort PGx (VIP reports + PubMed citations + network topology, full cohort + per-bin) → PGx patient card → manifest → time-between-events histogram → manuscript checkpoint writer (416 checkpoints, 0 errors). Checkpoint fields now include `[BupaR/bin]` (n_activities + top activity), `[CohortPGx/bin]` (network_html), and `[SHAP/bin]` (top feature name). Documented in `9_dashboard_visuals/README.md` and `README_execution_workflow.md`. |
 | 2025-02-25 | Production finalization  | Removed legacy orphaned "Feature Interactions" tab (`#interactions-tab`). Interactions remain only as panel inside Scenario Analysis tab. |
@@ -207,7 +208,8 @@ Record notable changes here (date, scope, and brief description). Run the checkl
 - [ ] **Controls:** Cohort, Age Band dropdowns; Load PGx Cohort Network.
 - [ ] **Heading:** "Gene–Drug–Phenotype Network Topology" (matches path README).
 - [ ] **Iframe:** `#cohort-pgx-iframe` loads `network_topology.html`; URL path-style S3: `visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (age_band hyphen).
-- [ ] **API:** `GET /visualizations/cohort_pgx?cohort=&age_band=` or direct S3 path; age_band format (e.g. `25_44`) consistent with backend.
+- [ ] **Figure pack:** `#cohort-pgx-figure-pack-select`, `#btnLoadCohortPgxFigurePack`, `#cohort-pgx-figure-pack-image`, and `#cohort-pgx-figure-pack-links` load static PNG previews from `visualizations/cohort_pgx/figure_pack/` and link to matching interactive HTML.
+- [ ] **API:** `GET /visualizations/cohort_pgx?cohort=&age_band=` or direct S3 path for topology; `GET /visualizations/cohort_pgx` without cohort/age can return `figure_pack` URLs for fallback.
 
 ---
 
