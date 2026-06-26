@@ -20,3 +20,23 @@ This repository contains many large workflow notebooks. Do not rely on raw noteb
 - Fetch synced outputs with `python cursor_setup.py fetch-outputs <notebook_path>`.
 - Use `python cursor_setup.py status` to inventory notebooks and pointer files.
 - Do not clear or strip outputs unless the user explicitly asks or a commit workflow requires it.
+
+## Final Notebook Editing Workflow
+
+When editing `*.ipynb` files in this repo:
+
+- Prefer `nbformat` structural edits for targeted cell insert/update work; avoid broad JSON/text rewrites.
+- Use a temporary Python script from PowerShell here-strings for complex notebook edits. Do not use Unix heredoc syntax (`python - <<'PY'`) in PowerShell.
+- Keep edits targeted to known cell indices/headers. After modifying, run `nbformat.validate(nb)` before writing or before commit.
+- Normalize legacy notebook outputs before validation when needed:
+  - stream outputs require `name` (usually `stdout`);
+  - display/execute/error outputs require `metadata`.
+- Preserve this repo's older notebook schema when present: strip generated cell `id` fields if validation reports `id` as an unexpected property.
+- Do not execute or clear long-running workflow notebooks just to edit markdown/code guidance unless explicitly requested.
+
+## Deployment Lessons Learned
+
+- Dashboard notebook S3 links should use path-style URLs under `https://s3.us-east-1.amazonaws.com/{bucket}/{prefix}/...` and should be verified with public `HEAD`/`GET`.
+- For dashboard visual updates, sync frontend files and `visualizations/dashboard_visual_objects.json`, then invalidate CloudFront.
+- Lambda S3 code override may fail if the image entrypoint cannot write to `/var/task`; for backend handler changes, rebuild and push a Lambda-compatible ECR image.
+- For Lambda ECR images built with Docker BuildKit/buildx, use Lambda-compatible image output (`--provenance=false --sbom=false`, `linux/amd64`) before `update-function-code`.
