@@ -35,9 +35,15 @@ else
     echo -e "${YELLOW}Windows/CI detected — pulling models from S3${NC}"
 fi
 
-# Auto-detect Python binary (EC2 jupyter-env first, then python3, then python)
+# Auto-detect Python binary (EC2 jupyter-env first, then an interpreter with boto3,
+# then python3/python). On Windows/Git Bash, python3 may exist without the project
+# packages while python has boto3 from the repo environment.
 if [ -x "/home/pgx3874/jupyter-env/bin/python3.11" ]; then
     PYTHON_BIN="/home/pgx3874/jupyter-env/bin/python3.11"
+elif command -v python &>/dev/null && python -c "import boto3" &>/dev/null; then
+    PYTHON_BIN="python"
+elif command -v python3 &>/dev/null && python3 -c "import boto3" &>/dev/null; then
+    PYTHON_BIN="python3"
 elif command -v python3 &>/dev/null; then
     PYTHON_BIN="python3"
 elif command -v python &>/dev/null; then

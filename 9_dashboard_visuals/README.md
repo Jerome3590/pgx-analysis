@@ -25,7 +25,7 @@ Feature importance heatmaps are produced in **3a_feature_importance**; notebook 
 - **BupaR** – Process mining sequences and plots → `10_risk_dashboard/visualizations/bupar/`
 - **DTW** – Trajectory features and plots → `10_risk_dashboard/visualizations/dtw/`. Trajectories are binned by **event density** (events per month: low/medium/high/extreme); chart_data includes density-stratified series for the dashboard Event density filter.
 - **FP-Growth** – Risk-predictive co-occurrence (SHAP/FFA-gated, target-only): itemsets, network HTML, PNGs → `10_risk_dashboard/visualizations/fpgrowth/`
-- **Cohort PGx** – PharmGKB VIP reports and network topology → `10_risk_dashboard/visualizations/cohort_pgx/`
+- **Cohort PGx** – PharmGKB VIP reports, per-cohort network topology, and publication figure pack → `10_risk_dashboard/visualizations/cohort_pgx/`
 - **Feature importance** – Heatmaps built in 3a; notebook 4 copies to `10_risk_dashboard/visualizations/feature_importance/` (per cohort + combined).
 
 Outputs: `10_risk_dashboard/visualizations/{bupar,dtw,fpgrowth,cohort_pgx}/` (canonical paths). Scripts live in `9_dashboard_visuals/{bupar,dtw,fpgrowth,cohort_pgx}/`. **Outputs are not committed**—they are generated on EC2 (or locally when running step 9) and uploaded to S3; `*/outputs/` is in `.gitignore`.
@@ -62,6 +62,7 @@ Dashboard visuals use **two different** feature-importance sources so the right 
 | **BupaR** | **SHAP/FFA combined** | Allowed codes (drug/ICD/CPT) come from merged SHAP + FFA causal importance (Step 7 + 8). Written to `allowed_codes_shap_ffa_{cohort}_{age_band}.json`; R scripts use this file only (no FP-Growth inputs). |
 | **DTW** | **SHAP/FFA combined** | Same as BupaR: trajectories and plots are restricted to codes from the combined SHAP/FFA list. |
 | **FP-Growth** | **Final feature importances** | Allowed items come from **cohort feature importance** (Step 3b: `cohort_feature_importance` CSV). FP-Growth does not use SHAP/FFA combined. |
+| **Cohort PGx** | **Top model-important drug names resolved to genes** | `fetch_vip_reports.py` resolves top drug-name features to CPIC/PharmGKB genes; `build_network_topology.py` exports gene-drug topology; `generate_network_figure_pack.py` creates PNG/HTML summaries with dynamics, kinetics, allergic-response, underappreciated-signaling, and kinetic-pathway annotations. |
 
 Allowed codes for **BupaR, DTW, and FP-Growth** are mandatory from a single source only: **Step 3b cohort_feature_importance** (final feature importances). No fallbacks. Implemented in `py_helpers/shap_ffa_fpgrowth_utils.py` (`get_shap_ffa_allowed_codes_combined`, `write_shap_ffa_allowed_codes_for_bupar`).
 

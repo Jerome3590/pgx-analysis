@@ -23,6 +23,7 @@ The **Cohort PGx** feature combines:
 - **pytextrank** - Extracts key phrases and entities from VIP summary text
 - **AWS Comprehend** (optional) - Medical entity recognition and key phrase extraction
 - **NetworkX + Plotly** - Builds interactive multi-layer network topology with filtering
+- **Publication figure pack** - Summarizes intervention-weighted drug networks with static PNG previews and interactive HTML for dashboard/repo rendering
 
 ## Key Features
 
@@ -169,6 +170,31 @@ python build_network_topology.py \
   --comprehend-summary-only
 ```
 
+### 3. Generate PGx Drug Network Figure Pack
+
+**Script**: `generate_network_figure_pack.py`
+
+Builds dashboard- and GitHub-friendly visual summaries from all cohort/age-band `network_nodes.csv` and `network_edges.csv` outputs. The generator is robust to older topology exports: if explicit model seed edges are unavailable, it falls back to weighted gene-drug topology edges.
+
+**Output directory**:
+
+`10_risk_dashboard/visualizations/cohort_pgx/figure_pack/`
+
+**Outputs**:
+- `pgx_global_intervention_network.html/png` - Intervention-weighted global drug-gene network.
+- `pgx_cohort_small_multiples.html/png` - Cohort and age-band comparison panels for network dynamics.
+- `pgx_cluster_ego_networks.html/png` - Therapeutic cluster ego networks.
+- `pgx_intervention_priority_heatmap.html/png` - Priority score heatmap from importance, rank, and pathway context.
+- `pgx_pathway_context_panel.html/png` - Dedicated context panel for dynamics, kinetics, allergic response, underappreciated signaling, and kinetic pathways.
+- `pgx_time_to_event_panel.html/png` - Medication lead-time framing for kinetic pathway review.
+- `pgx_intervention_priority_scores.csv`, `pgx_pathway_context_edges.csv`, `pgx_time_to_event_windows.csv`, and `figure_pack_manifest.json`.
+
+**Usage**:
+
+```bash
+python 9_dashboard_visuals/cohort_pgx/generate_network_figure_pack.py --project-root /path/to/repo
+```
+
 ## Installation
 
 ### Required Dependencies
@@ -205,7 +231,8 @@ Run from **notebook 4** ([4_dashboard_visuals.ipynb](../../4_dashboard_visuals.i
 
 1. **Fetch VIP reports**: Parallel fetch for all cohort/age_band combinations (max 2 workers for API rate limiting)
 2. **Build networks**: Parallel network building (max 4 workers); each build **uploads to dashboard S3** automatically (same as BupaR/DTW/FP-Growth)
-3. **View outputs**: Interactive visualization previews
+3. **Generate figure pack**: `generate_network_figure_pack.py` creates static PNG previews and interactive HTML under `figure_pack/`
+4. **View outputs**: Interactive topology and figure-pack previews
 
 Notebook 5 (Step 6: Sync Dashboard Frontend) syncs `visualizations/cohort_pgx/` to S3 when you deploy, same as other dashboard visuals.
 
@@ -216,15 +243,15 @@ Notebook 5 (Step 6: Sync Dashboard Frontend) syncs `visualizations/cohort_pgx/` 
 Upload to the dashboard S3 bucket happens **inside** `build_network_topology.py` after writing outputs (same as BupaR, DTW, and FP-Growth). No separate upload step is required.
 
 - **Notebook 4_dashboard_visuals.ipynb**: Runs fetch → build. Each build uploads to S3 (same pattern as BupaR/DTW/FP-Growth). **Notebook 5** (Step 6: Sync Dashboard Frontend) syncs `visualizations/cohort_pgx/` to S3 when you deploy.
-- **run_dashboard_visuals.py**: Runs full step-9 pipeline including Cohort PGx (fetch VIP reports, build network topology; each build uploads to S3). Use `--skip-cohort-pgx` to omit Cohort PGx; use `--no-cohort-pgx-upload` to build but not upload.
+- **run_dashboard_visuals.py**: Runs full step-9 pipeline including Cohort PGx (fetch VIP reports, build network topology, then generate the figure pack). Use `--skip-cohort-pgx` to omit Cohort PGx; use `--no-cohort-pgx-upload` to build but not upload.
 
-Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (EC2: underscore). Step 6 runs `sync_cohort_pgx_to_s3.py`, which uploads to `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/` (S3: hyphen).
+Outputs go to `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/` (EC2: underscore) and `10_risk_dashboard/visualizations/cohort_pgx/figure_pack/`. Step 6 runs `sync_cohort_pgx_to_s3.py`, which uploads networks to `{S3_DASHBOARD_PREFIX}/visualizations/cohort_pgx/networks/{cohort}/{age_band}/` (S3: hyphen) and figure-pack assets to `{S3_DASHBOARD_PREFIX}/visualizations/cohort_pgx/figure_pack/`.
 
 **Logs (Cohort PGx):** When you run `fetch_vip_reports.py` from the command line, logs are written to **`9_dashboard_visuals/logs/cohort_pgx/fetch_vip_reports_{cohort}_{age_band_fname}.log`** (and to stderr). Use `--log-file PATH` to override. `build_network_topology.py` uses `print()` only; its output appears in the terminal or notebook cell output.
 
 ### Upload to S3 (production)
 
-**Notebook 5** (Step 6) runs `sync_cohort_pgx_to_s3.py`, which maps EC2 dirs `25_44` to S3 keys `25-44`. Lambda expects `{S3_DASHBOARD_PREFIX}/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (hyphen in age_band).
+**Notebook 5** (Step 6) runs `sync_cohort_pgx_to_s3.py`, which maps EC2 dirs `25_44` to S3 keys `25-44`. Lambda expects `{S3_DASHBOARD_PREFIX}/visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (hyphen in age_band) and serves figure-pack URLs from `{S3_DASHBOARD_PREFIX}/visualizations/cohort_pgx/figure_pack/`.
 
 To re-sync without a full deploy (e.g. manual or CI):
 

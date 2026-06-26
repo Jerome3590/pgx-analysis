@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Sync Cohort PGx network HTML from EC2 to S3 with age-band path convention.
+Sync Cohort PGx network and figure-pack artifacts to S3.
 
 EC2 paths use underscore (e.g. networks/opioid_ed/25_44/network_topology.html).
 S3 paths use hyphen under visualizations/ (e.g. visualizations/cohort_pgx/networks/opioid_ed/25-44/network_topology.html).
+The publication figure pack is uploaded under visualizations/cohort_pgx/figure_pack/.
 
 Usage (from repo root):
     python 10_risk_dashboard/deployment/sync_cohort_pgx_to_s3.py
@@ -21,6 +22,16 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOCAL = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "cohort_pgx"
 NETWORKS_SUBDIR = "networks"
+FIGURE_PACK_SUBDIR = "figure_pack"
+
+
+def _content_type(path: Path) -> str:
+    return {
+        "csv": "text/csv",
+        "html": "text/html",
+        "json": "application/json",
+        "png": "image/png",
+    }.get(path.suffix.lower().lstrip("."), "")
 
 
 def main() -> int:
@@ -30,9 +41,6 @@ def main() -> int:
     args = parser.parse_args()
     local_base = args.local_dir.resolve()
     networks_dir = local_base / NETWORKS_SUBDIR
-    if not networks_dir.exists():
-        print(f"No {NETWORKS_SUBDIR}/ under {local_base}; nothing to sync.")
-        return 0
     try:
         import boto3
     except ImportError:
@@ -44,28 +52,50 @@ def main() -> int:
     s3_prefix = f"{prefix}/visualizations/cohort_pgx/{NETWORKS_SUBDIR}"
     s3 = boto3.client("s3")
     uploaded = 0
-    for cohort_dir in sorted(networks_dir.iterdir()):
-        if not cohort_dir.is_dir() or cohort_dir.name.startswith("."):
-            continue
-        cohort = cohort_dir.name
-        for age_dir in sorted(cohort_dir.iterdir()):
-            if not age_dir.is_dir() or age_dir.name.startswith("."):
+    if networks_dir.exists():
+        for cohort_dir in sorted(networks_dir.iterdir()):
+            if not cohort_dir.is_dir() or cohort_dir.name.startswith("."):
                 continue
-            age_band_fname = age_dir.name  # EC2: 25_44
-            age_band_s3 = age_band_fname.replace("_", "-")  # S3: 25-44
-            for f in age_dir.rglob("*"):
-                if not f.is_file():
+            cohort = cohort_dir.name
+            for age_dir in sorted(cohort_dir.iterdir()):
+                if not age_dir.is_dir() or age_dir.name.startswith("."):
                     continue
-                rel = f.relative_to(age_dir)
-                key = f"{s3_prefix}/{cohort}/{age_band_s3}/{rel.as_posix()}"
-                try:
-                    _ct = {"html": "text/html", "json": "application/json", "csv": "text/csv"}.get(f.suffix.lower().lstrip("."), "")
-                    extra = {"ContentType": _ct} if _ct else {}
-                    s3.upload_file(str(f), bucket, key, ExtraArgs=extra)
-                    print(f"  ✓ {cohort}/{age_band_s3}/{rel} -> s3://{bucket}/{key}")
-                    uploaded += 1
-                except Exception as e:
-                    print(f"  ⚠ Upload failed {key}: {e}", file=sys.stderr)
+                age_band_fname = age_dir.name  # EC2: 25_44
+                age_band_s3 = age_band_fname.replace("_", "-")  # S3: 25-44
+                for f in age_dir.rglob("*"):
+                    if not f.is_file():
+                        continue
+                    rel = f.relative_to(age_dir)
+                    key = f"{s3_prefix}/{cohort}/{age_band_s3}/{rel.as_posix()}"
+                    try:
+                        _ct = _content_type(f)
+                        extra = {"ContentType": _ct} if _ct else {}
+                        s3.upload_file(str(f), bucket, key, ExtraArgs=extra)
+                        print(f"  ✓ {cohort}/{age_band_s3}/{rel} -> s3://{bucket}/{key}")
+                        uploaded += 1
+                    except Exception as e:
+                        print(f"  ⚠ Upload failed {key}: {e}", file=sys.stderr)
+    else:
+        print(f"No {NETWORKS_SUBDIR}/ under {local_base}; skipping network sync.")
+
+    figure_dir = local_base / FIGURE_PACK_SUBDIR
+    if figure_dir.exists():
+        figure_prefix = f"{prefix}/visualizations/cohort_pgx/{FIGURE_PACK_SUBDIR}"
+        for f in sorted(figure_dir.rglob("*")):
+            if not f.is_file():
+                continue
+            rel = f.relative_to(figure_dir)
+            key = f"{figure_prefix}/{rel.as_posix()}"
+            try:
+                _ct = _content_type(f)
+                extra = {"ContentType": _ct} if _ct else {}
+                s3.upload_file(str(f), bucket, key, ExtraArgs=extra)
+                print(f"  ✓ figure_pack/{rel} -> s3://{bucket}/{key}")
+                uploaded += 1
+            except Exception as e:
+                print(f"  ⚠ Upload failed {key}: {e}", file=sys.stderr)
+    else:
+        print(f"No {FIGURE_PACK_SUBDIR}/ under {local_base}; skipping figure-pack sync.")
     if uploaded:
         print(f"Cohort PGx: {uploaded} file(s) synced to S3 (age-band paths use hyphen).")
     return 0

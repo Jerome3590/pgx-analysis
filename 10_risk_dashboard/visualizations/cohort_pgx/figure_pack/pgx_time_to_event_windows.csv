@@ -1,0 +1,3 @@
+cohort,age_band,drug,median_days_before_event,window_low,window_high,source,panel,label
+falls,65-74,FUROSEMIDE,25.5,21,42,network_analysis.md fallback,Falls 65-74,FUROSEMIDE (25.5 d)
+falls,75-84,FUROSEMIDE,37.0,21,42,network_analysis.md fallback,Falls 75-84,FUROSEMIDE (37.0 d)

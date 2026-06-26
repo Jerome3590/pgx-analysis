@@ -65,7 +65,7 @@ After notebook 5 **Step 6** (or `pgx_dashboard_visuals.py` with deploy), the fol
 | **BupaR** | `visualizations/bupar/{cohort}/{age_band}/plots/*` — e.g. `{base}_activity_frequency.json`, `{base}_pre_target_activity_frequency.json`, `{base}_post_target_activity_frequency.json`, `{base}_trace_explorer_plot.json`, `{base}_process_matrix_drug_drug.json`, `{base}_process_matrix_drug_drug.png`, `{base}_activity_sequence_top.json`, `{base}_activity_sequence_top.png`, `{base}_overall_activity_frequency.png`, trace explorer PNGs, etc. (`{base}` = `{cohort}_{age_band}` with underscore, e.g. `opioid_ed_25_44`) |
 | **DTW** | `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `sequence_heatmap.json`; `visualizations/dtw/{cohort}/{age_band}/plots/trajectory_overview_plot.json`, `*.html` |
 | **FP-Growth** | `visualizations/fpgrowth/{cohort}/{age_band}/drug_name_itemsets.json`, `drug_name_rules.json`, `drug_name_encoding_map.json`, `drug_name_metrics.json`, etc.; `visualizations/fpgrowth/{cohort}/{age_band}/plots/{cohort}_{age_band}_combined_rules_network.html`, `{cohort}_{age_band}_drug_name_combined_top_itemsets.png` |
-| **Cohort PGx** | `visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (and related JSON/CSV in that dir) |
+| **Cohort PGx** | `visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (and related JSON/CSV in that dir); `visualizations/cohort_pgx/figure_pack/*.png`, `*.html`, `*.csv`, `figure_pack_manifest.json` |
 | **Frontend** | `index.html` (and any assets) |
 
 These paths match what the **frontend** expects when using **static-first** loading (see [STATIC_FIRST_JSON.md](STATIC_FIRST_JSON.md)). The manifest `visualizations/dashboard_visual_objects.json` is the single source of truth for tab → static file mapping; the frontend builds URLs from it when available.
@@ -173,6 +173,7 @@ These paths match what the **frontend** expects when using **static-first** load
 | Tab | Visual (heading) | Data artifact | EC2 file path | S3 object key (path-style) |
 |-----|-------------------|---------------|---------------|-----------------------------|
 | PGx Cohort | Gene–Drug–Phenotype Network Topology | `network_topology.html` | `10_risk_dashboard/visualizations/cohort_pgx/networks/{cohort}/{age_band_fname}/network_topology.html` | `cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` |
+| PGx Cohort | PGx Drug Network Figure Pack | `pgx_global_intervention_network.png/html`, `pgx_cohort_small_multiples.png/html`, `pgx_cluster_ego_networks.png/html`, `pgx_intervention_priority_heatmap.png/html`, `pgx_pathway_context_panel.png/html`, `pgx_time_to_event_panel.png/html` | `10_risk_dashboard/visualizations/cohort_pgx/figure_pack/` | `cohort_pgx/figure_pack/` |
 
 ---
 
