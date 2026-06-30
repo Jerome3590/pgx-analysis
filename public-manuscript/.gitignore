@@ -1,0 +1,81 @@
+# Public code companion guardrails.
+
+# Article/manuscript content should not be published here.
+CH_*/
+*.qmd
+*.docx
+*.pdf
+*.tex
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+
+# Private data, reviewer, submission, and generated output folders.
+data/
+inputs/
+outputs/
+figures/
+tables/
+output/
+cts/
+refs/
+templates/
+archive/
+docs/
+infrastructure_setup/
+presentations/
+f31_proposal/
+Literature_Review/
+manual_review/
+second_review/
+
+# Source data and generated artifacts.
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.json
+*.jsonl
+*.parquet
+*.rds
+*.RData
+*.sqlite
+*.db
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+
+# Local/runtime files.
+__pycache__/
+*.pyc
+.quarto/
+*_files/
+node_modules/
+*.code-workspace
+**/.DS_Store
+**/Thumbs.db
+
+# Explicitly allow this code companion.
+!README.md
+!.gitignore
+!code/
+!code/**
+!code/**/*.py
+!code/**/*.R
+!code/**/*.yaml
+!code/**/*.yml
+!code/**/*.md
+!artifacts/
+!artifacts/**
+!artifacts/**/*.csv
+!artifacts/**/*.md
+
+# Re-assert runtime exclusions after allowlist exceptions.
+__pycache__/
+**/__pycache__/
+*.pyc

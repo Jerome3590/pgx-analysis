@@ -1,0 +1,11 @@
+cohort,age_band,selected_model,auroc_2019_holdout,pr_auc_2019_holdout,recall_f1_optimal,brier,ici,pr_auc_lift_over_prevalence,evaluation_partition
+opioid_ed,13-24,Ensemble,0.809,0.375,0.524,0.008,0.164,2.3,low_density_holdout
+opioid_ed,25-44,Ensemble,0.800,0.557,0.647,0.013,0.108,3.3,low_density_holdout
+opioid_ed,45-54,Ensemble,0.842,0.559,0.687,0.007,0.154,3.4,low_density_holdout
+opioid_ed,55-64,Ensemble,0.864,0.478,0.778,0.051,0.138,2.9,low_density_holdout
+opioid_ed,65-74,Ensemble,0.824,0.479,0.738,0.003,0.147,2.9,low_density_holdout
+opioid_ed,75-84,Ensemble,0.886,0.629,0.830,0.004,0.206,3.8,age_band_aggregate_holdout
+opioid_ed,85-114,Ensemble,0.890,0.741,0.689,0.003,0.209,4.4,age_band_aggregate_holdout
+non_opioid_ed,65-74,CatBoost,0.996,0.984,0.977,0.008,0.071,,low_density_holdout
+non_opioid_ed,75-84,Ensemble,0.999,0.997,0.973,0.007,0.290,,low_density_holdout
+non_opioid_ed,85-114,Ensemble,0.997,0.992,0.971,0.007,0.212,,low_density_holdout

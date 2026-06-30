@@ -1,0 +1,10 @@
+path,chapter_primary,cts_reference,description
+ch01/File_S3.csv,CH1,CTS-2026-0197,Targeted ML/XAI extraction records
+ch01/File_S5.csv,CH1,CTS-2026-0197,Full evidence-map records
+cross_chapter/consensus_causal_feature_counts_by_cohort_age_band.csv,"CH3, CH4","CTS-2026-0196; CTS-2026-0235-T",Consensus-causal feature counts by cohort and age band
+cross_chapter/cpic_gene_drug_pairs_inventory.csv,CH5,CTS-2026-0255-T,CPIC gene-drug pair inventory
+cross_chapter/cpic_gene_drug_pairs_summary.csv,CH5,CTS-2026-0255-T,CPIC gene-drug pair summary
+cross_chapter/cpt_codes_by_ffa_family_opioid_ed.csv,CH3,CTS-2026-0196,CPT codes grouped by FFA family for opioid ED analysis
+cross_chapter/ffa_representative_rules_opioid_ed_25_44_low.csv,CH3,CTS-2026-0196,Representative FFA rules for opioid ED 25-44 low-density partition
+cross_chapter/ffa_rule_families_opioid_ed_summary.csv,CH3,CTS-2026-0196,FFA rule-family summary for opioid ED analysis
+cross_chapter/model_performance_2019_holdout_low_bin.csv,"CH3, CH4","CTS-2026-0196; CTS-2026-0235-T",2019 holdout model-performance metrics
