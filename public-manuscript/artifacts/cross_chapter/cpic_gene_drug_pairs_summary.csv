@@ -1,0 +1,6 @@
+metric,value,notes
+gene_drug_pair_rows,573,Official CPIC cpic_gene-drug_pairs.xlsx row count (CH5 concordance denominator)
+distinct_genes,121,Column Gene
+distinct_drugs,300,Column Drug
+level_a_pairs,100,CPIC Level == A
+level_b_pairs,32,CPIC Level == B

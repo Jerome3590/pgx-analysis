@@ -1,0 +1,8 @@
+cohort,age_band,consensus_causal_feature_count,gate_definition,chapter_primary
+opioid_ed,13-24,384,SHAP mean absolute value at or above the partition 75th percentile plus FFA rule support >= 0.05 and confidence >= 0.70.,CH3
+opioid_ed,25-44,498,SHAP mean absolute value at or above the partition 75th percentile plus FFA rule support >= 0.05 and confidence >= 0.70.,CH3
+opioid_ed,45-54,498,SHAP mean absolute value at or above the partition 75th percentile plus FFA rule support >= 0.05 and confidence >= 0.70.,CH3
+opioid_ed,55-64,498,SHAP mean absolute value at or above the partition 75th percentile plus FFA rule support >= 0.05 and confidence >= 0.70.,CH3
+non_opioid_ed,65-74,89,SHAP mean absolute value at or above the partition 75th percentile plus FFA rule support >= 0.05 and confidence >= 0.70.,CH4
+non_opioid_ed,75-84,33,SHAP mean absolute value at or above the partition 75th percentile plus FFA rule support >= 0.05 and confidence >= 0.70.,CH4
+non_opioid_ed,85-114,29,SHAP mean absolute value at or above the partition 75th percentile plus FFA rule support >= 0.05 and confidence >= 0.70.,CH4
