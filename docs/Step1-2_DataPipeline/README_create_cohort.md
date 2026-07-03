@@ -363,6 +363,88 @@ Example QA log:
 
 ***
 
+## 📐 Verified Analytic Cohort Counts (Athena + Pipeline Logs)
+
+> **Verified 2026-07-03** against S3 pipeline logs and the Athena `APCD` workgroup (account `535362115856`). These are the **final matched analytic cohort** patient counts used for modeling (5:1 controls per case) — distinct from raw event-workload sizes.
+
+### Data provenance
+
+| Metric | Source |
+| :-- | :-- |
+| APCD universe | Athena `medical.medical` (workgroup `APCD`; results bucket `s3://aws-athena-query-results-us-east-1-535362115856/`) |
+| Final cohort cases/controls | `cohort_counts.json` (sum of `is_target_case` per `cohort_name` × `age_band`) |
+| Patient counts per band | `s3://pgx-repository/5_pgx_analysis_log/{cohort}/{ab}/` ("Created 2 PGx features for N patients") |
+| Models per band | `s3://pgxdatalake/gold/dashboard/models/{cohort}/{ab}/bin_models/{bin}/` |
+
+> **Note:** the Glue table `cohorts.cohorts_clean` is **stale** — its S3 location `s3://pgxdatalake/gold/cohorts_clean/` is empty, so partitions register but return zero rows. Use `cohort_counts.json` / `5_pgx_analysis_log` for authoritative counts, not that table.
+
+### APCD universe (2016–2019)
+
+```sql
+-- Athena workgroup: APCD
+SELECT COUNT(DISTINCT mi_person_key) AS apcd_universe
+FROM medical.medical
+WHERE event_year IN ('2016','2017','2018','2019');
+-- → 6,356,062 distinct patients (medical claims)
+```
+
+Medical-claims universe = **6,356,062** distinct patients. (CH3 attrition uses the broader medical+pharmacy universe, 6,929,576; the `pgxdatalake.pharmacy_partitioned` table is not currently Athena-queryable — `COLUMN_NOT_FOUND` on `mi_person_key`.)
+
+### Final matched analytic cohorts (cases + 5:1 controls)
+
+**opioid_ed** (F11.xx OUD-related ED anchor):
+
+| Age band | Cases | Controls | Total |
+|:--|--:|--:|--:|
+| 0–12 | 23 | 150 | 173 |
+| 13–24 | 1,630 | 12,080 | 13,710 |
+| 25–44 | 12,753 | 94,635 | 107,388 |
+| 45–54 | 5,984 | 37,655 | 43,639 |
+| 55–64 | 6,343 | 36,270 | 42,613 |
+| 65–74 | 4,957 | 26,650 | 31,607 |
+| 75–84 | 1,906 | 10,035 | 11,941 |
+| 85–114 | 498 | 2,665 | 3,163 |
+| **Total** | **34,094** | **220,140** | **254,234** |
+
+**non_opioid_ed** (HCG ED/urgent index; opioid-excluded — polypharmacy):
+
+| Age band | Cases | Controls | Total |
+|:--|--:|--:|--:|
+| 0–12 | 26,343 | 243,915 | 270,258 |
+| 13–24 | 11,397 | 148,940 | 160,337 |
+| 25–44 | 8,174 | 110,360 | 118,534 |
+| 45–54 | 3,185 | 42,890 | 46,075 |
+| 55–64 | 2,451 | 32,060 | 34,511 |
+| 65–74 | 801 | 10,770 | 11,571 |
+| 75–84 | 213 | 2,980 | 3,193 |
+| 85–114 | 168 | 2,355 | 2,523 |
+| **Total** | **52,732** | **594,270** | **647,002** |
+
+### Modeling scope vs. reporting scope
+
+- **Models trained & stored for all eight age bands in both cohorts** (16 cohort × band sets, each a per-density-bin ensemble: CatBoost + XGBoost + RF + calibration), under `s3://pgxdatalake/gold/dashboard/models/`.
+- Manuscript **reporting** focuses each cohort on its clinically-relevant bands (see `manuscript/METRICS.md`):
+  - **CH3 (opioid_ed):** 13–24 → 85–114 (0–12 excluded; 23 cases, below training threshold).
+  - **CH4 (non_opioid_ed / polypharmacy):** geriatric **65–114 = 17,287** (1,182 cases + 16,105 controls). Polypharmacy is a predominantly geriatric risk mechanism; younger bands were modeled but not reported.
+- Presentation figure: `manuscript/figures/shared/fig_polypharmacy_cohort_pipeline.{tex,pdf,png}`.
+
+### Drug-burden gradient (non_opioid_ed, `5_pgx_analysis_log`)
+
+Patient counts below are the model-data (pre-final-match) PGx-feature stage and differ slightly from the final matched totals above (e.g., 65–74: 12,561 vs 11,571).
+
+| Age band | Patients | With any drug | With CPIC drug |
+|:--|--:|--:|--:|
+| 0–12 | 257,473 | 174,900 (68%) | 127,436 (50%) |
+| 13–24 | 153,352 | 119,998 (78%) | 73,626 (48%) |
+| 25–44 | 117,015 | 98,626 (84%) | 61,058 (52%) |
+| 45–54 | 47,694 | 41,942 (88%) | 27,742 (58%) |
+| 55–64 | 36,518 | 32,147 (88%) | 22,090 (61%) |
+| 65–74 | 12,561 | 9,922 (79%) | 6,909 (55%) |
+| 75–84 | 3,524 | 2,742 (78%) | 1,974 (56%) |
+| 85–114 | 2,797 | 2,061 (74%) | 1,610 (57%) |
+
+***
+
 ## ⚡ Performance Metrics
 
 | Metric | Original | Optimized | Gain |
