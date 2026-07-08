@@ -18,9 +18,10 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 | **CH5** | CTS-2026-0255-T | CH_5 | [action plan](manuscript/docs/cts/due_date/2026-06-29_CTS-2026-0255-T/response/cts_2026_0255_t_revision_action_plan.md) | 🟣 **Dr. Price reviewing** → Wiley (due **~2026-06-30**) |
 | T4 | `nbstripout` git filter (Windows) | pgx-analysis | — | ⬜ Open |
 | T5 | Parent repo local changes (puppeteer) | pgx-analysis | — | ⬜ Open — notebooks committed; `11_testing/puppeteer/*` untracked |
-| T6 | CH1 systematic review (CTS-2026-0197) | CH_1 | [action plan](manuscript/cts/due_date/2026-07-10_CTS-2026-0197/response/cts_2026_0197_revision_action_plan.md) | � **PROSPERO approved by Dr. Price** — identify/confirm second reviewer for CH1; CTS revision due **2026-07-10** |
+| T6 | CH1 systematic review (CTS-2026-0197) | CH_1 | [action plan](manuscript/cts/due_date/2026-07-10_CTS-2026-0197/response/cts_2026_0197_revision_action_plan.md) | 🟡 **PROSPERO approved by Dr. Price** — identify/confirm second reviewer for CH1; CTS revision due **2026-07-10** |
 | T8 | CH2 OODA / partition-first (CTS-2026-0230-T) | CH_2 | Wiley portal | 🟢 **Under Consideration** (rev 0) — await editorial decision |
 | T7 | `f31_proposal` folder | pgx-analysis | — | ⬜ Open |
+| T9 | Notebook development best practices | pgx-analysis | `project_utility_scripts` migration | ✅ Migrated into Cursor notebook rules |
 
 ---
 
