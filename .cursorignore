@@ -68,6 +68,12 @@ pip-wheel-metadata/
 .nbcache/
 .jupyter_cache/
 
+# Published/production notebooks are GitHub artifacts, not Cursor editing targets.
+# Keep them trackable in Git, but exclude them from Cursor indexing to avoid hangs.
+**/notebooks/published/**/*.ipynb
+**/notebooks/production/**/*.ipynb
+**/reports/**/*.ipynb
+
 # Data/model/runtime artifacts
 **/*.parquet
 **/*.feather
