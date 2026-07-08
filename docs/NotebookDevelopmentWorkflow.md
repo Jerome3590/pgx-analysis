@@ -65,6 +65,61 @@ Prefer these artifact locations:
 
 Do not open output-heavy published notebooks in Cursor during normal development.
 
+## Required setup cell for active dev notebooks
+
+Add this near the top of any notebook that will be actively run or edited in `notebooks/dev/`. This does not rerun analysis by itself; it only sets canonical output locations so artifacts land in the expected GitHub-trackable and S3 paths when cells are executed later.
+
+```python
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path.cwd().resolve()
+while PROJECT_ROOT != PROJECT_ROOT.parent and not (PROJECT_ROOT / "py_helpers").exists():
+    PROJECT_ROOT = PROJECT_ROOT.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from py_helpers.notebook_artifacts import (
+    github_artifact_path,
+    local_artifact_path,
+    s3_artifact_uri,
+    setup_notebook_artifacts,
+)
+
+NB_CONTEXT = setup_notebook_artifacts(
+    notebook_file=__file__ if "__file__" in globals() else "notebook.ipynb",
+    step_name=None,
+    run_label="manual",
+)
+
+print("GitHub artifact dir:", NB_CONTEXT.github_dir)
+print("Local output dir:", NB_CONTEXT.local_output_dir)
+print("S3 artifact prefix:", f"s3://{NB_CONTEXT.datalake_bucket}/{NB_CONTEXT.s3_artifact_prefix}")
+```
+
+Use these helpers inside later cells:
+
+```python
+# GitHub-trackable summary artifact
+summary_path = github_artifact_path(NB_CONTEXT, "summary.json")
+
+# Local reproducibility/output artifact under the step outputs folder
+data_path = local_artifact_path(NB_CONTEXT, "intermediate.parquet")
+
+# S3 artifact URI for expensive/reusable outputs
+s3_uri = s3_artifact_uri(NB_CONTEXT, "intermediate.parquet")
+```
+
+If a notebook has a stable step directory, set `step_name` explicitly, for example:
+
+```python
+NB_CONTEXT = setup_notebook_artifacts(
+    notebook_file="final_model_dev.ipynb",
+    step_name="6_final_model",
+    run_label="manual",
+)
+```
+
 ## Useful commands
 
 Inspect notebook/output pointer status:
