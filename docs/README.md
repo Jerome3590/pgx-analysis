@@ -133,6 +133,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 
 - **Workflow testing** (QA): see [`11_testing/DASHBOARD_VALIDATION.md`](../11_testing/DASHBOARD_VALIDATION.md) and [`11_testing/TEST_PLAN_FINAL_DASHBOARD.md`](../11_testing/TEST_PLAN_FINAL_DASHBOARD.md)
 - **[README_parallelization_pipeline.md](CrossStep_Development/README_parallelization_pipeline.md)** - Parallelization strategies
+- **[NotebookDevelopmentWorkflow.md](NotebookDevelopmentWorkflow.md)** - Dev vs production notebook workflow, Mermaid diagram, artifact setup cell, GitHub/S3 output conventions
 - **[README_local_notebook.md](CrossStep_Development/README_local_notebook.md)** - Local notebook development
 - **[README_duckdb_dev.md](CrossStep_Development/README_duckdb_dev.md)** - DuckDB development notes
 - **[README_target_leakage.md](CrossStep_Development/README_target_leakage.md)** - Target leakage prevention
