@@ -13,10 +13,11 @@ alwaysApply: true
 - Full notebook metadata root: `s3://mushin-solutions-project-metadata/notebooks/pgx-analysis/`
 - Use `python cursor_setup.py push-outputs <notebook>` and `python cursor_setup.py fetch-outputs <notebook>` without repeating bucket or slug flags unless intentionally overriding these defaults.
 
-This repository contains many large workflow notebooks. Do not rely on raw notebook JSON as primary context.
+This repository contains many large workflow notebooks. Do not rely on raw notebook JSON as primary context. Follow `docs/NotebookDevelopmentWorkflow.md` for the project-specific dev/published notebook pattern.
 
 - Prefer paired Python workflow scripts and project docs when available.
-- Work in lightweight development notebooks; keep output-rich published notebooks or HTML reports as generated artifacts.
+- Do not rerun completed analyses just to reorganize notebooks; create lightweight development copies only when active editing is needed.
+- Work in `<step_dir>/notebooks/dev/` for actively edited lightweight notebooks; keep output-rich published notebooks or HTML reports in `<step_dir>/notebooks/published/` or `<step_dir>/reports/` as generated artifacts.
 - When asked about notebook results, look for a sidecar `*.outputs.json` pointer next to the notebook.
 - Fetch synced outputs with `python cursor_setup.py fetch-outputs <notebook_path>`.
 - Use `python cursor_setup.py status` to inventory notebooks and pointer files.
@@ -42,6 +43,7 @@ When editing `*.ipynb` files in this repo:
 ## Publishing and Artifact Pattern
 
 - Keep committed development notebooks lean.
+- Existing numbered workflow notebooks do not require mass migration; migrate opportunistically when a notebook needs active Cursor editing.
 - Treat published notebooks, HTML reports, `notebooks/published/`, `reports/`, `.nbcache/`, `.jupyter_cache/`, and `.ipynb_checkpoints/` as generated artifacts unless explicitly designated as source.
 - When a rendered artifact is needed, execute from a clean environment and publish outputs separately rather than using notebook JSON as the artifact store.
 - For repeated expensive computations: compute once, write the artifact to S3 or a deterministic local output path, check for that artifact first on later runs, and recompute only if missing or intentionally invalidated.
