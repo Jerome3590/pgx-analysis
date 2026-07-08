@@ -16,10 +16,12 @@ alwaysApply: true
 This repository contains many large workflow notebooks. Do not rely on raw notebook JSON as primary context.
 
 - Prefer paired Python workflow scripts and project docs when available.
+- Work in lightweight development notebooks; keep output-rich published notebooks or HTML reports as generated artifacts.
 - When asked about notebook results, look for a sidecar `*.outputs.json` pointer next to the notebook.
 - Fetch synced outputs with `python cursor_setup.py fetch-outputs <notebook_path>`.
 - Use `python cursor_setup.py status` to inventory notebooks and pointer files.
 - Do not clear or strip outputs unless the user explicitly asks or a commit workflow requires it.
+- Do not rely on inline notebook output as a durable cache; write expensive intermediates to Parquet, pickle, Feather, or S3-backed artifacts and load them explicitly on later runs.
 
 ## Final Notebook Editing Workflow
 
@@ -33,6 +35,16 @@ When editing `*.ipynb` files in this repo:
   - display/execute/error outputs require `metadata`.
 - Preserve this repo's older notebook schema when present: strip generated cell `id` fields if validation reports `id` as an unexpected property.
 - Do not execute or clear long-running workflow notebooks just to edit markdown/code guidance unless explicitly requested.
+- Avoid printing large dataframes, large JSON payloads, or full artifact contents directly into cells; save tables and plots to disk/S3 instead.
+- If Cursor notebook tabs become blank, frozen, or unstable, clear outputs, save, close/reopen the notebook, restart the kernel, and rerun only the minimal cells needed.
+- For production-style or long-running work, prefer paired `# %%` Python scripts or step workflow scripts over increasingly large exploratory notebooks.
+
+## Publishing and Artifact Pattern
+
+- Keep committed development notebooks lean.
+- Treat published notebooks, HTML reports, `notebooks/published/`, `reports/`, `.nbcache/`, `.jupyter_cache/`, and `.ipynb_checkpoints/` as generated artifacts unless explicitly designated as source.
+- When a rendered artifact is needed, execute from a clean environment and publish outputs separately rather than using notebook JSON as the artifact store.
+- For repeated expensive computations: compute once, write the artifact to S3 or a deterministic local output path, check for that artifact first on later runs, and recompute only if missing or intentionally invalidated.
 
 ## Deployment Lessons Learned
 
