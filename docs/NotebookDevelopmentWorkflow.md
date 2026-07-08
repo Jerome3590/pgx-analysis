@@ -9,6 +9,30 @@ The intended split is:
 - S3 notebook metadata bucket: synced notebook cell outputs and sidecar pointers.
 - S3 datalake bucket: reusable analysis artifacts created by notebook runs.
 
+## Workflow diagram
+
+```mermaid
+flowchart TD
+    A[Need to edit or run a notebook] --> B{Existing analysis already complete?}
+    B -->|Yes| C[Do not rerun just to reorganize]
+    B -->|No / intentional new run| D[Create or update lightweight dev notebook]
+    C --> E{Notebook needs active Cursor editing?}
+    E -->|No| F[Leave existing output-rich notebook as historical/published artifact]
+    E -->|Yes| D
+    D --> G[Place/edit in step_dir/notebooks/dev]
+    G --> H[Clear heavy outputs and keep notebook lightweight]
+    H --> I[Add artifact setup cell using py_helpers.notebook_artifacts]
+    I --> J[Run only needed cells or intentional pipeline run]
+    J --> K[Write local outputs to step_dir/outputs/notebook_artifacts]
+    J --> L[Write reusable artifacts to s3://pgxdatalake/gold/notebook_artifacts]
+    J --> M[Sync notebook output metadata to s3://mushin-solutions-project-metadata/notebooks/pgx-analysis]
+    J --> N[Generate production/published notebook or report]
+    N --> O[Save under step_dir/notebooks/published, step_dir/notebooks/production, or step_dir/reports]
+    O --> P[Commit/push production artifact to GitHub when intentional]
+    O --> Q[Ignored by Cursor via .cursorignore to prevent hangs]
+    G --> R[Cursor indexes only lightweight dev notebooks and source scripts]
+```
+
 ## Current migration rule
 
 Do not rerun completed analyses just to create lighter notebooks. Existing output-rich notebooks can remain as historical or published artifacts. When a notebook needs active editing again, create or move a lightweight development copy and keep the output-heavy version as an artifact.
