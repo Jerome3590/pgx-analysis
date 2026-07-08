@@ -23,6 +23,7 @@ This repository contains many large workflow notebooks. Do not rely on raw noteb
 - Use `python cursor_setup.py status` to inventory notebooks and pointer files.
 - Do not clear or strip outputs unless the user explicitly asks or a commit workflow requires it.
 - Do not rely on inline notebook output as a durable cache; write expensive intermediates to Parquet, pickle, Feather, or S3-backed artifacts and load them explicitly on later runs.
+- For any dev notebook that will be executed, include the setup cell from `docs/NotebookDevelopmentWorkflow.md` and use `py_helpers.notebook_artifacts` so GitHub-trackable artifacts, local outputs, and S3 artifact prefixes are deterministic.
 
 ## Final Notebook Editing Workflow
 

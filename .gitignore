@@ -44,6 +44,9 @@ docs/invoice2570376517.pdf
 # F31 NIH proposal — now tracked in manuscript submodule
 f31_proposal/
 
+# Notebook development artifacts generated from lightweight dev notebooks
+*/outputs/notebook_artifacts/
+
 # Dashboard visualization outputs (BupaR, DTW, FP-Growth generated data/plots)
 9_risk_dashboard/visualizations/*/outputs/
 10_risk_dashboard/visualizations/*/outputs/
