@@ -148,6 +148,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 
 - **[3Min_Presentation_Quick_Reference.md](Presentations/3Min_Presentation_Quick_Reference.md)** - 3-minute presentation quick reference
 - **[Pharmacy_Translational_Informatics_Presentation.md](Presentations/Pharmacy_Translational_Informatics_Presentation.md)** - Pharmacy translational informatics presentation
+- **[README_dissertation_defense_slides.md](Presentations/README_dissertation_defense_slides.md)** - Dissertation defense slide workflow, NotebookLM input staging scripts, CTS manuscript mapping
 
 ## 🚀 Quick Links
 
