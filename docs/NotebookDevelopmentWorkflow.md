@@ -1,6 +1,13 @@
 # Notebook Development Workflow
 
-This project uses lightweight development notebooks to keep Cursor stable while preserving reproducible analysis artifacts. The goal is to avoid rerunning expensive analyses solely to reorganize notebooks.
+This project uses lightweight development notebooks to keep Cursor stable while preserving reproducible production notebooks and analysis artifacts. The goal is to avoid rerunning expensive analyses solely to reorganize notebooks.
+
+The intended split is:
+
+- `notebooks/dev/`: lightweight notebooks used in Cursor for active development.
+- `notebooks/published/` or `notebooks/production/`: output-rich notebooks produced after runs, pushed to GitHub when they are intentional artifacts, and ignored by Cursor indexing.
+- S3 notebook metadata bucket: synced notebook cell outputs and sidecar pointers.
+- S3 datalake bucket: reusable analysis artifacts created by notebook runs.
 
 ## Current migration rule
 
@@ -16,7 +23,7 @@ For new notebook work inside a pipeline step directory, use:
 <step_dir>/reports/
 ```
 
-Use `notebooks/dev/` for notebooks actively edited in Cursor. Use `notebooks/published/` or `reports/` for output-rich notebooks, HTML exports, and shareable renderings.
+Use `notebooks/dev/` for notebooks actively edited in Cursor. Use `notebooks/published/`, `notebooks/production/`, or `reports/` for output-rich notebooks, HTML exports, and shareable renderings. Published/production notebooks should be eligible for GitHub commits after successful runs but ignored by Cursor via `.cursorignore`.
 
 Examples:
 
@@ -53,7 +60,7 @@ Development notebooks should:
 
 ## Published artifact rules
 
-Published notebooks and reports may contain outputs, but they should be treated as generated artifacts unless intentionally tracked for a manuscript, supplement, or dashboard audit.
+Published/production notebooks and reports may contain outputs. They should be treated as generated artifacts, but they can be intentionally tracked and pushed to GitHub after a successful run when they support a manuscript, supplement, dashboard audit, or reproducibility record. They should remain ignored by Cursor indexing so normal development happens from lightweight `notebooks/dev/` copies.
 
 Prefer these artifact locations:
 

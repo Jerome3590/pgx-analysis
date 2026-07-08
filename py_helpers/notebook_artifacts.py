@@ -13,6 +13,7 @@ NOTEBOOK_METADATA_BUCKET = os.environ.get("PGX_NOTEBOOK_METADATA_BUCKET", "mushi
 NOTEBOOK_METADATA_PREFIX = os.environ.get("PGX_NOTEBOOK_METADATA_PREFIX", "notebooks")
 DATALAKE_BUCKET = os.environ.get("PGX_DATALAKE_BUCKET", "pgxdatalake")
 GITHUB_ARTIFACT_ROOT = os.environ.get("PGX_GITHUB_ARTIFACT_ROOT", "reports/notebook_artifacts")
+PRODUCTION_NOTEBOOK_DIRS = {"published", "production"}
 
 
 @dataclass(frozen=True)
@@ -69,7 +70,10 @@ def setup_notebook_artifacts(
     step_slug = step_dir.name if step_dir != project_root else "root"
     safe_run_label = run_label or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
-    github_dir = project_root / GITHUB_ARTIFACT_ROOT / step_slug / notebook_name
+    if any(part in PRODUCTION_NOTEBOOK_DIRS for part in notebook_path.parts):
+        github_dir = step_dir / "reports" / "notebook_artifacts" / notebook_name
+    else:
+        github_dir = project_root / GITHUB_ARTIFACT_ROOT / step_slug / notebook_name
     local_output_dir = step_dir / "outputs" / "notebook_artifacts" / notebook_name / safe_run_label
     s3_metadata_prefix = f"{NOTEBOOK_METADATA_PREFIX}/{PROJECT_SLUG}/{step_slug}/{notebook_name}/"
     s3_artifact_prefix = f"gold/notebook_artifacts/{step_slug}/{notebook_name}/{safe_run_label}/"
