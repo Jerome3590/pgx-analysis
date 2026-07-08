@@ -8,4 +8,6 @@ alwaysApply: false
 - Local Cursor terminals use AWS profile `mushin` from `.vscode/settings.json`; EC2 should normally use its IAM instance profile.
 - Long pipeline and notebook runs should execute on EC2 or the configured compute environment, not in the local editor.
 - Use S3 checkpoints and existing project path helpers instead of hard-coded local paths.
+- Utility cleanup scripts must use project-specific NVMe paths such as `/mnt/nvme/pgx-analysis/...`.
+- Never delete shared NVMe inputs like `/mnt/nvme/gold/medical` or `/mnt/nvme/gold/pharmacy`.
 - Before enabling the Jupyter post-save hook, verify `python cursor_setup.py status` works in the EC2 checkout.
