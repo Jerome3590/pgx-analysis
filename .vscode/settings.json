@@ -58,6 +58,19 @@
     "**/.ipynb_checkpoints": true,
     "**/*.egg-info": true
   },
+  // Confirmed notebook crash mitigations — see
+  // C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md
+  // → "Confirmed Cursor notebook crash causes"
+  "[jupyter]": {
+    "cursor.tab.enabled": false,
+    "cursor.cpp.enable": false,
+    "notebook.codeActionsOnSave": {
+      "source.fixAll": "never",
+      "source.organizeImports": "never"
+    },
+    "notebook.formatOnSave": false,
+    "notebook.formatOnCellExecution": false
+  },
   "notebook.output.scrolling": true,
   "notebook.output.textLineLimit": 30,
   "cursor.context.excludePatterns": [
@@ -71,7 +84,7 @@
     "**/__pycache__": true,
     "**/.ipynb_checkpoints": true
   },
-  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python-envs.defaultEnvManager": "ms-python.python:venv",
   "python-envs.pythonProjects": [],
   // R settings
   "r.rterm.windows": "C:/Program Files/R/R-4.5.3/bin/R.exe",

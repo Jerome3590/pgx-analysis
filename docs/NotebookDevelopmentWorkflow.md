@@ -1,104 +1,58 @@
 # Notebook Development Workflow
 
-This project uses lightweight development notebooks to keep Cursor stable while preserving reproducible production notebooks and analysis artifacts. The goal is to avoid rerunning expensive analyses solely to reorganize notebooks.
+**Final production workflow** for editing/running analysis notebooks in this repo. Intermediate approaches (including a mandatory `notebooks/dev/` vs `notebooks/published/` split) are retired — see [Lessons learned](CrossStep_Development/README_lessons_learned.md#cursor-notebook-stability--final-production-workflow-july-2026).
 
-The intended split is:
+Goal: keep Cursor stable, keep expensive results on disk/S3, and prefer scripts over ballooning `.ipynb` JSON as the source of truth for production steps.
 
-- `notebooks/dev/`: lightweight notebooks used in Cursor for active development.
-- `notebooks/published/` or `notebooks/production/`: output-rich notebooks produced after runs, pushed to GitHub when they are intentional artifacts, and ignored by Cursor indexing.
-- S3 notebook metadata bucket: synced notebook cell outputs and sidecar pointers.
-- S3 datalake bucket: reusable analysis artifacts created by notebook runs.
+## Confirmed Cursor notebook crash causes
 
-## Workflow diagram
+Blank / frozen / reload-loop notebook tabs are fixed by IDE + git hygiene, not by folder layout. Canonical write-up:
+
+**[`C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md`](../../project_utility_scripts/CURSOR_DEV_RULES.md)** → **Confirmed Cursor notebook crash causes**
+
+| Cause | Mitigation in this repo |
+|:------|:------------------------|
+| Jupyter / notebook `settings.json` (Cursor Tab/CPP / format-on-save) | `.vscode/settings.json` → `[jupyter]` block |
+| CRLF + `.gitattributes` / broken `nbstripout` filter corrupting JSON | `.gitattributes` → `*.ipynb text eol=lf filter=nbstripout`; install filter with **Windows** Python |
+| Conflicting Python / Jupyter extensions | Prefer MS Python + Jupyter + Pylance; `python-envs.defaultEnvManager: venv` |
+
+Short entrypoint: `project_utility_scripts/DEV_RULES.md` → Notebook Defaults.
+
+## Final production workflow
 
 ```mermaid
 flowchart TD
-    A[Need to edit or run a notebook] --> B{Existing analysis already complete?}
-    B -->|Yes| C[Do not rerun just to reorganize]
-    B -->|No / intentional new run| D[Create or update lightweight dev notebook]
-    C --> E{Notebook needs active Cursor editing?}
-    E -->|No| F[Leave existing output-rich notebook as historical/published artifact]
-    E -->|Yes| D
-    D --> G[Place/edit in step_dir/notebooks/dev]
-    G --> H[Clear heavy outputs and keep notebook lightweight]
-    H --> I[Add artifact setup cell using py_helpers.notebook_artifacts]
-    I --> J[Run only needed cells or intentional pipeline run]
-    J --> K[Write local outputs to step_dir/outputs/notebook_artifacts]
-    J --> L[Write reusable artifacts to s3://pgxdatalake/gold/notebook_artifacts]
-    J --> M[Sync notebook output metadata to s3://mushin-solutions-project-metadata/notebooks/pgx-analysis]
-    J --> N[Generate production/published notebook or report]
-    N --> O[Save under step_dir/notebooks/published, step_dir/notebooks/production, or step_dir/reports]
-    O --> P[Commit/push production artifact to GitHub when intentional]
-    O --> Q[Ignored by Cursor via .cursorignore to prevent hangs]
-    G --> R[Cursor indexes only lightweight dev notebooks and source scripts]
+    A[Need analysis work] --> B{Long-running / production step?}
+    B -->|Yes| C[Paired # %% .py or step script under step_dir]
+    B -->|No / exploratory| D[Lean .ipynb in step_dir — optional]
+    C --> E[Write artifacts to step_dir/outputs or S3]
+    D --> F[Ensure crash mitigations: settings + LF + nbstripout + extensions]
+    F --> G[No large embeds — print summaries only]
+    G --> E
+    E --> H[Sidecar *.outputs.json via cursor_setup.py when needed]
+    E --> I[GitHub-trackable summaries under reports/notebook_artifacts]
+    H --> J[Do not keep abandoned intermediate scaffolds]
 ```
 
-## Current migration rule
+### Rules (production)
 
-Do not rerun completed analyses just to create lighter notebooks. Existing output-rich notebooks can remain as historical or published artifacts. When a notebook needs active editing again, create or move a lightweight development copy and keep the output-heavy version as an artifact.
+1. **Source of truth:** Prefer `# %%` Python scripts or existing step runners (`run_*.py`) for anything that must be re-run on EC2 or cited in manuscripts.
+2. **Artifacts out of the notebook:** Parquet / CSV / JSON / plots → `step_dir/outputs/`, `reports/notebook_artifacts/`, or S3 (`py_helpers.notebook_artifacts` / pipeline conventions). Never treat embedded cell output as the durable cache.
+3. **Lean `.ipynb` only when useful:** Clear or strip heavy outputs before commit; validate with `nbformat.validate` after structural edits.
+4. **Crash mitigations always on:** `[jupyter]` settings, LF notebooks + working Windows `nbstripout`, no conflicting env-manager extensions.
+5. **No intermediate scaffolding in the permanent docs or tree:** When a protocol ships, document the **final** path only in lessons learned / READMEs; delete or clearly mark abandoned alternate scripts and unrun scaffolds.
 
-## Recommended layout
+### What we do *not* require
 
-For new notebook work inside a pipeline step directory, use:
+- A mandatory `notebooks/dev/` vs `notebooks/published/` (or `production/`) tree for Cursor stability.
+- Rerunning completed analyses just to reorganize folders.
+- Mass-moving historical numbered workflow notebooks.
 
-```text
-<step_dir>/notebooks/dev/
-<step_dir>/notebooks/published/
-<step_dir>/reports/
-```
+Legacy ignore rules for `**/notebooks/published/**` and `**/notebooks/production/**` in `.cursorignore` remain harmless if those folders still exist; they are not the primary hang fix.
 
-Use `notebooks/dev/` for notebooks actively edited in Cursor. Use `notebooks/published/`, `notebooks/production/`, or `reports/` for output-rich notebooks, HTML exports, and shareable renderings. Published/production notebooks should be eligible for GitHub commits after successful runs but ignored by Cursor via `.cursorignore`.
+## Artifact helpers (when using a notebook or `# %%` driver)
 
-Examples:
-
-```text
-6_final_model/notebooks/dev/
-6_final_model/notebooks/published/
-6_final_model/reports/
-
-10_risk_dashboard/notebooks/dev/
-10_risk_dashboard/notebooks/published/
-10_risk_dashboard/reports/
-```
-
-## Existing notebooks
-
-Existing numbered workflow notebooks do not need a mass move. Apply this rule opportunistically:
-
-1. If the notebook is not being edited, leave it where it is.
-2. If it needs active Cursor editing, create a lightweight copy under `<step_dir>/notebooks/dev/`.
-3. Clear outputs in the development copy.
-4. Keep the original output-rich notebook, rendered HTML, or published notebook as the reproducibility artifact.
-5. Store expensive intermediate outputs as deterministic files or S3 artifacts rather than embedded notebook outputs.
-
-## Development notebook rules
-
-Development notebooks should:
-
-- stay small enough to open reliably in Cursor;
-- avoid large embedded tables, plots, JSON payloads, and full dataframe prints;
-- write large outputs to deterministic local paths or S3;
-- use `*.outputs.json` sidecars when notebook outputs are synced with `cursor_setup.py`;
-- be validated structurally after scripted edits with `nbformat.validate(nb)`;
-- be cleared before commit when output size causes instability or unnecessary diffs.
-
-## Published artifact rules
-
-Published/production notebooks and reports may contain outputs. They should be treated as generated artifacts, but they can be intentionally tracked and pushed to GitHub after a successful run when they support a manuscript, supplement, dashboard audit, or reproducibility record. They should remain ignored by Cursor indexing so normal development happens from lightweight `notebooks/dev/` copies.
-
-Prefer these artifact locations:
-
-```text
-<step_dir>/notebooks/published/
-<step_dir>/reports/
-<step_dir>/outputs/
-```
-
-Do not open output-heavy published notebooks in Cursor during normal development.
-
-## Required setup cell for active dev notebooks
-
-Add this near the top of any notebook that will be actively run or edited in `notebooks/dev/`. This does not rerun analysis by itself; it only sets canonical output locations so artifacts land in the expected GitHub-trackable and S3 paths when cells are executed later.
+Near the top of an executed notebook / percent script:
 
 ```python
 from pathlib import Path
@@ -119,7 +73,7 @@ from py_helpers.notebook_artifacts import (
 
 NB_CONTEXT = setup_notebook_artifacts(
     notebook_file=__file__ if "__file__" in globals() else "notebook.ipynb",
-    step_name=None,
+    step_name=None,  # e.g. "6_final_model" when known
     run_label="manual",
 )
 
@@ -128,61 +82,24 @@ print("Local output dir:", NB_CONTEXT.local_output_dir)
 print("S3 artifact prefix:", f"s3://{NB_CONTEXT.datalake_bucket}/{NB_CONTEXT.s3_artifact_prefix}")
 ```
 
-Use these helpers inside later cells:
-
 ```python
-# GitHub-trackable summary artifact
 summary_path = github_artifact_path(NB_CONTEXT, "summary.json")
-
-# Local reproducibility/output artifact under the step outputs folder
 data_path = local_artifact_path(NB_CONTEXT, "intermediate.parquet")
-
-# S3 artifact URI for expensive/reusable outputs
 s3_uri = s3_artifact_uri(NB_CONTEXT, "intermediate.parquet")
-```
-
-If a notebook has a stable step directory, set `step_name` explicitly, for example:
-
-```python
-NB_CONTEXT = setup_notebook_artifacts(
-    notebook_file="final_model_dev.ipynb",
-    step_name="6_final_model",
-    run_label="manual",
-)
 ```
 
 ## Useful commands
 
-Inspect notebook/output pointer status:
-
 ```bash
 python cursor_setup.py status
-```
-
-Push notebook outputs to S3 and write a sidecar pointer:
-
-```bash
 python cursor_setup.py push-outputs <notebook_path>
-```
-
-Fetch synced notebook outputs:
-
-```bash
 python cursor_setup.py fetch-outputs <notebook_path>
-```
-
-Clear notebook outputs without running analysis:
-
-```bash
 jupyter nbconvert --clear-output --inplace <notebook_path>
 ```
 
 ## Cursor recovery pattern
 
-If Cursor starts hanging, showing blank notebook tabs, or repeatedly reloading:
-
-1. Close output-heavy notebooks.
-2. Work from a lightweight `notebooks/dev/` copy.
-3. Clear outputs in the development copy without rerunning analysis.
-4. Restart the kernel only if needed.
-5. Use paired Python scripts or `# %%` files for long-running production-style workflow edits.
+1. Confirm `.vscode/settings.json` has the `[jupyter]` block (Tab/CPP/format-on-save off for notebooks).
+2. Validate the `.ipynb` (`nbformat.validate`); check for CRLF and a Windows-safe `nbstripout` filter (`git config --get filter.nbstripout.clean`).
+3. Check **Output → Jupyter** / **Python Environments** for extension conflicts; prove the kernel with `jupyter kernelspec list` / `nbclient` outside Cursor.
+4. Clear heavy outputs if needed, reopen, or continue in the paired `# %%` / step script.

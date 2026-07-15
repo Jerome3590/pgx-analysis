@@ -22,6 +22,8 @@ June 2026 cohort QA identified two separate leakage classes: `opioid_ed` had a t
 11. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
 12. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
 13. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
+14. [Cursor Notebook Stability — Final Production Workflow (July 2026)](#cursor-notebook-stability--final-production-workflow-july-2026)
+15. [Document Final Production Workflow; Remove Intermediates](#document-final-production-workflow-remove-intermediates)
 
 ---
 
@@ -778,6 +780,49 @@ When investigating row count issues:
 
 **Result:** Natural representation for sequence methods while maintaining temporal information needed for symbolic reasoning and rule extraction.
 
+### Cursor Notebook Stability — Final Production Workflow (July 2026)
+
+**Problem:** Cursor notebook tabs blanked, froze, or reload-looped on Windows. An intermediate response was a mandatory `notebooks/dev/` vs `notebooks/published|production/` layout plus `.cursorignore` of “heavy” notebooks.
+
+**Root cause (confirmed):** Not folder layout. Three hygiene failures:
+
+1. Jupyter / notebook `settings.json` — Cursor Tab, Cursor CPP, and format / code-actions-on-save fighting the notebook document model (and `python-envs.defaultEnvManager: system` delaying kernel discovery).
+2. CRLF + `.gitattributes` / broken `nbstripout` filter — Windows filter pointing at WSL `/usr/bin/python3` or missing `*.ipynb text eol=lf`, corrupting notebook JSON on checkout/commit.
+3. Conflicting Python / Jupyter extensions — duplicate environment managers, missing Pylance, junk Store / WindowsApps interpreters stalling kernel detection.
+
+Canonical write-up: `C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md` → **Confirmed Cursor notebook crash causes**. Project entry: [`docs/NotebookDevelopmentWorkflow.md`](../NotebookDevelopmentWorkflow.md).
+
+**Final production workflow (keep this; drop the folder-split “fix”):**
+
+| Layer | Production rule |
+|:------|:----------------|
+| Edit / run | Prefer `# %%` `.py` or step `run_*.py` as source of truth for re-runnable / manuscript work |
+| Artifacts | Disk / S3 / `reports/notebook_artifacts` — never embedded cell output as durable cache |
+| IDE | `.vscode/settings.json` `[jupyter]` block; `python-envs.defaultEnvManager: venv` |
+| Git | `*.ipynb text eol=lf` (+ `filter=nbstripout` only with a working **Windows** Python) |
+| Extensions | MS Python + Jupyter + Pylance; disable competing env managers |
+| Docs | Document only this final path; mark or delete abandoned scaffolds |
+
+**Abandoned intermediate:** Requiring `notebooks/dev/` + `notebooks/published/` (or `production/`) as the Cursor hang mitigation. Ignore patterns for those paths may remain; they are not the diagnosis or the required tree.
+
+**Result:** Stable Cursor Jupyter depends on settings + line endings + extensions + script-first artifacts; organization follows the step directory without a permanent dual-notebook tree.
+
+### Document Final Production Workflow; Remove Intermediates
+
+**Standing rule for this repo (and shared `project_utility_scripts`):**
+
+When a protocol or tooling path is chosen, **always** land the **final production workflow** in lessons learned / step READMEs — with abandoned trials removed or clearly labeled as historical, not left as competing “canonical” docs.
+
+| Do | Do not |
+|:---|:-------|
+| One SSOT path (script + output dirs + how to run) | Parallel “alternate unrun scaffolds” kept as first-class |
+| Lessons learned: Initial → Final + what was removed and why | Docs that still prescribe intermediate folder layouts or dual protocols |
+| Delete or archive dead runners after numbers ship | Leave `*_utilization_*` vs `*_util_*` style duplicates without marking which is SSOT |
+
+**Example (CH4 R2 util-free sensitivity):** Final runner + manuscript SSOT under `ch04_util_free_sensitivity`; alternate low-bin scaffold is not the production path — document only the shipped protocol in supplements / response letters.
+
+**Result:** Readers and agents follow one production path; crash fixes and analysis protocols stay discoverable without archaeology through intermediates.
+
 ---
 
 ## Related Documentation
@@ -785,7 +830,9 @@ When investigating row count issues:
 - [README.md](../../README.md) - Main project documentation
 - [README_data_pipeline_architecture.md](README_data_pipeline_architecture.md) - Pipeline architecture
 - [README_data_pipeline_workflow.md](README_data_pipeline_workflow.md) - Workflow execution
+- [NotebookDevelopmentWorkflow.md](../NotebookDevelopmentWorkflow.md) - Final notebook / Cursor workflow
+- `C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md` - Shared Cursor crash mitigations
 
-**Version:** 2.2  
-**Last Updated:** March 2026  
+**Version:** 2.3  
+**Last Updated:** July 2026  
 **Maintainers:** PGx Data Engineering & Analytics Team
