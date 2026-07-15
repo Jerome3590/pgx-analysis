@@ -55,6 +55,7 @@ All five dissertation chapters submitted to [*Clinical and Translational Science
 | 1 | **[1_cohort_workflow.ipynb](1_cohort_workflow.ipynb)** | Cohort creation (APCD input, event filtering, QA) | 1a → 1b → 2 |
 | 2 | **[2_feature_importance.ipynb](2_feature_importance.ipynb)** | Feature importance screening and refinement | 3a → 3b → 3c |
 | 3 | **[3_model_train_shap_ffa.ipynb](3_model_train_shap_ffa.ipynb)** | Model training, feature attribution, analysis | 4 → 5 → 6 → 7 → 8 |
+| 3b | **[3_model_sensitivity.ipynb](3_model_sensitivity.ipynb)** | CH4 util-free sensitivity (CTS R2 supplement; EC2) | `6_final_model/run_sensitivity_util_free.py` |
 | 4 | **[4_dashboard_visuals.ipynb](4_dashboard_visuals.ipynb)** | Dashboard visualizations (BupaR, DTW, FP-Growth) | 9 (visuals) |
 | 5 | **[5_build_and_deploy.ipynb](5_build_and_deploy.ipynb)** | Build and deploy (Lambda, Docker, S3) | 10 (deploy) |
 

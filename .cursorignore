@@ -12,6 +12,7 @@
 3b_feature_importance_eda/step3b_interactive_analysis_cohort6.ipynb
 3b_feature_importance_eda/step3b_interactive_analysis_cohort7.ipynb
 3_model_train_shap_ffa.ipynb
+3_model_sensitivity.ipynb
 4_dashboard_visuals.ipynb
 5_build_and_deploy.ipynb
 5_pgx_analysis/pgx_cohort_runner.ipynb

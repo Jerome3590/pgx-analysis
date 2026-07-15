@@ -12,6 +12,7 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **Phase 1:** `1_cohort_workflow.ipynb` (Steps 1-2): 1a APCD input, 1b event filter (aggregated FI + ICD/admin; target leakage removed in Step 4), 2 cohort creation. Uses S3 sync to NVMe and S3 checkpoints (idempotent).
 - **Phase 2:** `2_feature_importance.ipynb` (Steps 3a-3c): 3a MC-CV feature importance, 3b BupaR/code research, 3c final update to features. Run after cohorts; sync gold/cohorts from S3.
 - **Phase 3:** `3_model_train_shap_ffa.ipynb`: Model data → PGx → final model → SHAP → FFA → combine (no deploy). Sync 3a/3b/6 outputs from S3; checkpoint metadata/models prep.
+- **Phase 3 sensitivity (CH4 R2):** `3_model_sensitivity.ipynb` → `6_final_model/run_sensitivity_util_free.py` (utilization-free refit; manuscript SSOT under `manuscript/data/supplementary/ch04_util_free_sensitivity/`).
 - **Phase 4:** `4_dashboard_visuals.ipynb` (Step 9): BupaR, DTW, FP-Growth (SHAP/FFA-driven). Alternative: `pgx_dashboard_visuals.py`.
 - **Phase 5:** `5_build_and_deploy.ipynb` (Step 10): Lambda dir → Docker → ECR → Lambda → S3 frontend. Run once.
 

@@ -6,12 +6,11 @@
 # 2. Top drug SHAP overlap / rank shift
 # 3. Overlap vs published CH4 synergistic pairs (and triplets when present)
 #
-# ## How to run
-# From repo root, with the project venv:
-# ```powershell
-# ..\.venv\Scripts\python.exe 6_final_model\notebooks\dev\ch04_util_free_sensitivity.py
-# ```
-# Or open this file as a `# %%` notebook and run cells top-to-bottom.
+# ## How to run (EC2 / local)
+# Prefer root notebook driver (same layout style as 3_model_train_shap_ffa.ipynb):
+#   jupyter nbconvert --execute 3_model_sensitivity.ipynb --to notebook --inplace
+# Or from repo root:
+#   python 6_final_model/run_sensitivity_util_free.py
 #
 # ## Outputs
 # - `6_final_model/outputs/non_opioid_ed/65_74_util_free/` — model + metrics
@@ -31,7 +30,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score, roc_auc_score
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -118,7 +117,7 @@ RANDOM_STATE = 1997
 MAX_SHAP_ROWS = 2000
 
 NB_CONTEXT = setup_notebook_artifacts(
-    notebook_file="ch04_util_free_sensitivity.py",
+    notebook_file="3_model_sensitivity.ipynb",
     step_name="6_final_model",
     run_label="ch04_util_free_sensitivity",
 )

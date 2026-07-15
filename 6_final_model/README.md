@@ -73,7 +73,9 @@ Feature engineering for the final model **does not produce** trajectory, sequenc
 
 ## Step 6 Pipeline Overview
 
-The authoritative production entry point is `3_model_train_shap_ffa.ipynb`. In the final workflow:
+The authoritative production entry point is `3_model_train_shap_ffa.ipynb`. For the CH4 CTS util-free sensitivity supplement, use root `3_model_sensitivity.ipynb` → `6_final_model/run_sensitivity_util_free.py` (numbers SSOT: `manuscript/data/supplementary/ch04_util_free_sensitivity/`).
+
+In the final training workflow:
 
 - Step 4 runs both `opioid_ed` and `non_opioid_ed`, but skips existing `model_events.parquet` when force flags are off.
 - Step 5 runs both cohorts with checkpoint-aware behavior when `FORCE_STEP5 = False`.
