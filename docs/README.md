@@ -139,7 +139,8 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_target_leakage.md](CrossStep_Development/README_target_leakage.md)** - Target leakage prevention
 - **[README_logging.md](CrossStep_Development/README_logging.md)** - Pipeline logging architecture, EC2/S3 log locations, troubleshooting guide
 - **[README_event_density_bins.md](CrossStep_Development/README_event_density_bins.md)** - n_event_bin architecture end-to-end (training → SHAP/FFA → Lambda)
-- **[README_lessons_learned.md](CrossStep_Development/README_lessons_learned.md)** - Critical QA bugs, design decisions, final production workflow lessons
+- **[README_lessons_learned.md](CrossStep_Development/README_lessons_learned.md)** - Critical QA bugs, design decisions, final production workflow lessons (incl. Cursor notebook stability July 2026; remove intermediates)
+- **[NotebookDevelopmentWorkflow.md](NotebookDevelopmentWorkflow.md)** - Final notebook / Cursor workflow (script-first; crash mitigations)
 - **[DEPLOYMENT_LESSONS_LEARNED.md](../10_risk_dashboard/docs/DEPLOYMENT_LESSONS_LEARNED.md)** - Dashboard deployment lessons (tab display bugs, CloudFront/browser cache layers)
 - **[README_target_leakage.md](../9_dashboard_visuals/fpgrowth/README_target_leakage.md)** - FP-Growth target leakage analysis (confirmed: FP-Growth features cause leakage; visualization only)
 

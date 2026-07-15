@@ -21,7 +21,7 @@ Track cross-repo work here. Manuscript build detail: `manuscript/NEXT_STEPS.md`,
 | T6 | CH1 systematic review (CTS-2026-0197) | CH_1 | [action plan](manuscript/cts/due_date/2026-07-10_CTS-2026-0197/response/cts_2026_0197_revision_action_plan.md) | 🟡 **PROSPERO approved by Dr. Price** — identify/confirm second reviewer for CH1; CTS revision due **2026-07-10** |
 | T8 | CH2 OODA / partition-first (CTS-2026-0230-T) | CH_2 | Wiley portal | 🟢 **Under Consideration** (rev 0) — await editorial decision |
 | T7 | `f31_proposal` folder | pgx-analysis | — | ⬜ Open |
-| T9 | Notebook development best practices | pgx-analysis | `project_utility_scripts` migration | ✅ Migrated into `docs/NotebookDevelopmentWorkflow.md` and Cursor notebook rules |
+| T9 | Notebook development best practices | pgx-analysis | `project_utility_scripts` migration | ✅ Final workflow in `docs/NotebookDevelopmentWorkflow.md` + lessons learned (July 2026); crash mitigations in `project_utility_scripts` — not `dev`/`published` layout |
 
 ---
 
