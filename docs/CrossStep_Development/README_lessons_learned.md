@@ -819,7 +819,7 @@ When a protocol or tooling path is chosen, **always** land the **final productio
 | Lessons learned: Initial → Final + what was removed and why | Docs that still prescribe intermediate folder layouts or dual protocols |
 | Delete or archive dead runners after numbers ship | Leave `*_utilization_*` vs `*_util_*` style duplicates without marking which is SSOT |
 
-**Example (CH4 R2 util-free sensitivity):** Final runner + manuscript SSOT under `ch04_util_free_sensitivity`; alternate low-bin scaffold is not the production path — document only the shipped protocol in supplements / response letters.
+**Example (CH4 R2 util-free sensitivity):** Final path is root `3_model_sensitivity.ipynb` → `6_final_model/run_sensitivity_util_free.py` with manuscript SSOT under `ch04_util_free_sensitivity/`; abandoned `ch04_util*` scaffolds under `notebooks/dev/` were removed.
 
 **Result:** Readers and agents follow one production path; crash fixes and analysis protocols stay discoverable without archaeology through intermediates.
 
