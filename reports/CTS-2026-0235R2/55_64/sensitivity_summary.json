@@ -1,0 +1,48 @@
+{
+  "cohort": "non_opioid_ed",
+  "age_band": "55-64",
+  "train_mode": "aggregate_util_free_refit",
+  "n_util_features_dropped": 17,
+  "util_features_dropped": [
+    "early_event_rate_per30",
+    "event_burstiness",
+    "event_rate_delta_per30",
+    "event_rate_per30",
+    "event_rate_ratio_late_vs_early",
+    "event_span_days",
+    "late_event_rate_per30",
+    "mean_inter_event_days",
+    "median_inter_event_days",
+    "n_event_bin",
+    "n_event_bin_ordinal",
+    "n_events",
+    "recent30_event_count",
+    "recent30_event_fraction",
+    "recent90_event_count",
+    "recent90_event_fraction",
+    "std_inter_event_days"
+  ],
+  "n_features_util_free": 735,
+  "pgx_features_excluded": true,
+  "pgx_exclusion_reason": "Local PGx join leaves controls near-zero on pgx_has_any_drug while cases are 100%; excluded so utilization ablation is not confounded by broken PGx coverage.",
+  "manuscript_primary_auprc": null,
+  "local_with_util_auprc": 1.0,
+  "util_free_auprc": 0.0537,
+  "util_free_auroc": 0.7405,
+  "util_free_pr_lift": 2.1871,
+  "auprc_delta_vs_manuscript": null,
+  "auprc_delta_vs_local_with_util": -0.9463,
+  "primary_metrics_source": "local_with_util_retrain",
+  "drug_shap_overlap": {
+    "top_k": 25,
+    "jaccard": 0.0,
+    "n_intersection": 0,
+    "intersection": []
+  },
+  "published_pairs_positive_ie": "3/5",
+  "outputs": {
+    "sens_dir": "/home/pgx3874/pgx-analysis/6_final_model/outputs/non_opioid_ed/55_64_util_free",
+    "comp_dir": "/home/pgx3874/pgx-analysis/8_ffa_analysis/outputs/non_opioid_ed/55_64_util_free_sensitivity",
+    "ms_band_dir": "/home/pgx3874/pgx-analysis/manuscript/data/supplementary/ch04_util_free_sensitivity/55_64"
+  }
+}

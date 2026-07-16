@@ -134,12 +134,23 @@ Next: create model data (Step 4).
 Log: ${LOG}"
 
   echo "==== CREATE MODEL DATA for missing bands ===="
+  # Cohorts may have been written to S3 only — ensure local NVMe copies exist.
+  echo "---- sync gold/cohorts from S3 before create_model_data ----"
+  mkdir -p "$NVME/gold/cohorts"
+  aws s3 sync "s3://pgxdatalake/gold/cohorts/cohort_name=${COHORT}/" \
+    "$NVME/gold/cohorts/cohort_name=${COHORT}/" --only-show-errors
   for b in "${MISSING[@]}"; do
     echo "---- create_model_data ${COHORT} ${b} $(date -u) ----"
     if ! "$PY" "$REPO/4_model_data/create_model_data.py" \
         --cohort "$COHORT" \
         --age-band "$b"; then
       email "[pgx-analysis-1a] ERROR: model data failed ${b}" "See ${LOG}"
+      exit 1
+    fi
+    out="$(model_events_path "$b")"
+    if [[ ! -s "$out" ]]; then
+      email "[pgx-analysis-1a] ERROR: model_events missing after create_model_data ${b}" \
+"Expected non-empty ${out}. See ${LOG}"
       exit 1
     fi
   done

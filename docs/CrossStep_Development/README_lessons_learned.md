@@ -819,7 +819,7 @@ When a protocol or tooling path is chosen, **always** land the **final productio
 | Lessons learned: Initial → Final + what was removed and why | Docs that still prescribe intermediate folder layouts or dual protocols |
 | Delete or archive dead runners after numbers ship | Leave `*_utilization_*` vs `*_util_*` style duplicates without marking which is SSOT |
 
-**Example (CH4 R2 util-free sensitivity):** Final path is root `3_model_sensitivity.ipynb` → `6_final_model/run_sensitivity_util_free.py` across **all modeled age bands** for `non_opioid_ed`, with manuscript SSOT under `ch04_util_free_sensitivity/` (rollup + per-band folders).
+**Example (CH4 R2 util-free sensitivity):** Final path is root `3_model_sensitivity.ipynb` → `6_final_model/run_sensitivity_util_free.py` across **all modeled age bands** for `non_opioid_ed`, with journal SSOT under `reports/CTS-2026-0235R2/` (rollup + per-band folders).
 
 **Result:** Readers and agents follow one production path; crash fixes and analysis protocols stay discoverable without archaeology through intermediates.
 

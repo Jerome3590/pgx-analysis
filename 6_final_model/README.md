@@ -73,7 +73,7 @@ Feature engineering for the final model **does not produce** trajectory, sequenc
 
 ## Step 6 Pipeline Overview
 
-The authoritative production entry point is `3_model_train_shap_ffa.ipynb`. For the CH4 CTS util-free sensitivity supplement, use root `3_model_sensitivity.ipynb` → `6_final_model/run_sensitivity_util_free.py` (numbers SSOT: `manuscript/data/supplementary/ch04_util_free_sensitivity/`).
+The authoritative production entry point is `3_model_train_shap_ffa.ipynb`. For the CH4 CTS util-free sensitivity supplement, use root `3_model_sensitivity.ipynb` → `6_final_model/run_sensitivity_util_free.py` (numbers SSOT: `reports/CTS-2026-0235R2/`).
 
 In the final training workflow:
 

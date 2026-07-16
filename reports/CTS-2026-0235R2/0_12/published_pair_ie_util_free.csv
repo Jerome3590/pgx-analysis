@@ -1,0 +1,6 @@
+drug_a,drug_b,feature_a,feature_b,features_resolved,ie,ci_low,ci_high,synergy_positive
+Acetaminophen,Levofloxacin,item_drug_ACETAMINOPHEN_CODEINE,,False,,,,False
+Levofloxacin,Lorazepam,,,False,,,,False
+Carvedilol,Levofloxacin,,,False,,,,False
+Gabapentin,Levofloxacin,,,False,,,,False
+Digoxin,Simvastatin,,,False,,,,False

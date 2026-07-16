@@ -1,0 +1,3 @@
+drugs,features,features_resolved
+Furosemide + Hydrochlorothiazide + Lisinopril,"[None, 'item_drug_HYDROCHLOROTHIAZIDE', 'item_drug_LISINOPRIL']",False
+Digoxin + Furosemide + Amiodarone,"[None, None, None]",False
