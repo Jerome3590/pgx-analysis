@@ -1,0 +1,6 @@
+drug_a,drug_b,feature_a,feature_b,features_resolved,ie,ci_low,ci_high,synergy_positive
+Acetaminophen,Levofloxacin,item_drug_ACETAMINOPHEN_CODEINE,item_drug_LEVOFLOXACIN,True,0.0,0.0,0.0,False
+Levofloxacin,Lorazepam,item_drug_LEVOFLOXACIN,item_drug_LORAZEPAM,True,0.019588,0.019506,0.019689,True
+Carvedilol,Levofloxacin,item_drug_CARVEDILOL,item_drug_LEVOFLOXACIN,True,0.029308,0.029203,0.029411,True
+Gabapentin,Levofloxacin,item_drug_GABAPENTIN,item_drug_LEVOFLOXACIN,True,0.030543,0.030415,0.030648,True
+Digoxin,Simvastatin,,item_drug_SIMVASTATIN,False,,,,False

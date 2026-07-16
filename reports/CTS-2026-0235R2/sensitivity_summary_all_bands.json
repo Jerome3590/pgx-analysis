@@ -1,0 +1,93 @@
+{
+  "cohort": "non_opioid_ed",
+  "age_bands_requested": [
+    "0-12",
+    "13-24",
+    "25-44",
+    "45-54",
+    "55-64",
+    "65-74",
+    "75-84",
+    "85-114"
+  ],
+  "age_bands_succeeded": [
+    "0-12",
+    "13-24",
+    "25-44",
+    "45-54",
+    "55-64",
+    "65-74",
+    "75-84",
+    "85-114"
+  ],
+  "age_bands_failed": {},
+  "n_requested": 8,
+  "n_succeeded": 8,
+  "per_band": {
+    "0-12": {
+      "util_free_auprc": 0.1193,
+      "util_free_pr_lift": 1.3745,
+      "manuscript_primary_auprc": null,
+      "auprc_delta_vs_manuscript": null,
+      "drug_shap_jaccard": 0.7241,
+      "published_pairs_positive_ie": "0/5"
+    },
+    "13-24": {
+      "util_free_auprc": 0.104,
+      "util_free_pr_lift": 1.1923,
+      "manuscript_primary_auprc": null,
+      "auprc_delta_vs_manuscript": null,
+      "drug_shap_jaccard": 0.4706,
+      "published_pairs_positive_ie": "0/5"
+    },
+    "25-44": {
+      "util_free_auprc": 0.1121,
+      "util_free_pr_lift": 1.3719,
+      "manuscript_primary_auprc": null,
+      "auprc_delta_vs_manuscript": null,
+      "drug_shap_jaccard": 0.4706,
+      "published_pairs_positive_ie": "2/5"
+    },
+    "45-54": {
+      "util_free_auprc": 0.1092,
+      "util_free_pr_lift": 1.4975,
+      "manuscript_primary_auprc": null,
+      "auprc_delta_vs_manuscript": null,
+      "drug_shap_jaccard": 0.6129,
+      "published_pairs_positive_ie": "3/5"
+    },
+    "55-64": {
+      "util_free_auprc": 0.0537,
+      "util_free_pr_lift": 2.1871,
+      "manuscript_primary_auprc": null,
+      "auprc_delta_vs_manuscript": null,
+      "drug_shap_jaccard": 0.0,
+      "published_pairs_positive_ie": "3/5"
+    },
+    "65-74": {
+      "util_free_auprc": 0.0553,
+      "util_free_pr_lift": 1.9464,
+      "manuscript_primary_auprc": 0.301,
+      "auprc_delta_vs_manuscript": -0.2457,
+      "drug_shap_jaccard": 0.0,
+      "published_pairs_positive_ie": "3/5"
+    },
+    "75-84": {
+      "util_free_auprc": 0.1185,
+      "util_free_pr_lift": 1.4855,
+      "manuscript_primary_auprc": null,
+      "auprc_delta_vs_manuscript": null,
+      "drug_shap_jaccard": 0.3158,
+      "published_pairs_positive_ie": "2/5"
+    },
+    "85-114": {
+      "util_free_auprc": 0.0367,
+      "util_free_pr_lift": 1.5703,
+      "manuscript_primary_auprc": null,
+      "auprc_delta_vs_manuscript": null,
+      "drug_shap_jaccard": 0.25,
+      "published_pairs_positive_ie": "3/5"
+    }
+  },
+  "scope_note": "All modeled age bands for non_opioid_ed (consistent with Step-6 partition-first modeling). AE asked for a single supplemental analysis; multi-band coverage is an internal consistency choice."
+}

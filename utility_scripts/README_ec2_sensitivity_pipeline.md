@@ -1,6 +1,6 @@
 # EC2 CH4 util-free sensitivity pipeline — plan & status
 
-**Last updated:** 2026-07-15 ~08:08 EDT (12:08 UTC)  
+**Last updated:** 2026-07-15 ~11:36 EDT  
 **Owner intent:** CTS-2026-0235R2 CH4 (`non_opioid_ed`) utilization-free sensitivity for **all** modeled age bands, with SES emails per step and EC2 auto-stop on success.
 
 Update the **Status** section whenever you check the instance so a new chat can resume without prior context.
@@ -11,28 +11,19 @@ Update the **Status** section whenever you check the instance so a new chat can 
 
 | Field | Value |
 |:------|:------|
-| Overall | **IN PROGRESS** — cohort create for missing age bands |
-| Instance | `pgx-analysis-1a` / `i-0e7d1bd469620c0bb` / **running** |
-| Public IP (may change after stop/start) | `52.200.121.30` |
-| SSH user / key | `ec2-user` + `C:\Projects\mushin_pgx.pem` (repo under `/home/pgx3874/pgx-analysis`; do **not** SSH as `pgx3874` — key refuses) |
-| Repo commit on EC2 | Prefer `main` ≥ `45afa88d` (orchestrator). Earlier start used `96afe677`; script was scp’d independently. |
-| Orchestrator PID | `21720` (`bash utility_scripts/ec2_run_sensitivity_pipeline.sh`) |
-| Log | `/mnt/nvme/pgx-analysis/logs/sensitivity_pipeline_20260715_114655.log` |
-| Nohup mirror | `/mnt/nvme/pgx-analysis/logs/nohup_sensitivity.out` |
-| Current work (as of last check) | `0_create_cohort.py --age-band 13-24 --event-year 2018 --cohort ed_non_opioid` |
-| SES recipient | `dixonrj@vcu.edu` (from `jerome@mushinsolutions.com`) |
+| Overall | **COMPLETE** — all 8 age bands succeeded; results pulled to local SSOT |
+| Instance | `pgx-analysis-1a` / `i-0e7d1bd469620c0bb` / **stopped** (pipeline FINAL 10:36 EDT; re-pulled + stop 11:35 EDT) |
+| Results SSOT | `reports/CTS-2026-0235R2/` (`sensitivity_summary_all_bands.json`, per-band dirs, `sensitivity_auprc_by_age_band.csv`) |
+| Headline (65–74) | util-free AUPRC **0.0553** vs manuscript **0.301** (Δ −0.2457); pairs **3/5**; drug Jaccard **0.0** vs with-util local comparator |
+| All bands | 8/8 OK; util-free AUPRC 0.037–0.119; pairs 0–3/5 by band |
 
 ### Step checklist
 
 | Step | State | Notes |
 |:-----|:------|:------|
-| 1. Sync code | **DONE** | SES sent: `[pgx-analysis-1a] STEP1 COMPLETE: code synced` |
-| 2. Check model data | **DONE** | Incomplete on S3; SES step2 + step2b after gold sync |
-| 2b. Sync gold medical/pharmacy (+ FI) for missing bands | **DONE** | → `/mnt/nvme/gold/` |
-| 3. Create cohorts (missing bands × 2016–2019) | **IN PROGRESS** | Finished `0-12` all years; working through `13-24` (on 2018). Still queued: rest of `13-24`, then `25-44`, `45-54`, `75-84` |
-| 4. Create model data for missing bands | PENDING | `create_model_data.py --cohort non_opioid_ed --age-band …` |
-| 5. Run sensitivity (all 8 bands) | PENDING | `python 6_final_model/run_sensitivity_util_free.py` |
-| 6. Stop EC2 + final SES | PENDING | Script calls `aws ec2 stop-instances` then SES FINAL |
+| 1–4 Rebuild cohorts/model data | **DONE** | On S3 + completed on EC2 |
+| 5. Sensitivity (all 8 bands) | **DONE** | Finished ~10:36 EDT 2026-07-15 |
+| 6. Stop EC2 + FINAL SES | **DONE** | Auto-stop then confirmed pull + stop |
 
 ### `model_events` on NVMe
 
@@ -59,7 +50,7 @@ Update the **Status** section whenever you check the instance so a new chat can 
 - Script: [`utility_scripts/ec2_run_sensitivity_pipeline.sh`](ec2_run_sensitivity_pipeline.sh) (committed on `main` as `45afa88d`)
 - Runner / science: [`6_final_model/run_sensitivity_util_free.py`](../6_final_model/run_sensitivity_util_free.py)
 - EC2 driver notebook (optional): repo-root `3_model_sensitivity.ipynb`
-- Manuscript numbers SSOT: `manuscript/data/supplementary/ch04_util_free_sensitivity/` (+ `sensitivity_summary_all_bands.json`)
+- Journal numbers SSOT: `reports/CTS-2026-0235R2/` (+ `sensitivity_summary_all_bands.json`)
 
 ### Intended sequence
 
@@ -145,3 +136,6 @@ export PYTHONPATH=$PWD PGX_DATA_ROOT=/mnt/nvme
 |:-------------|:-----|
 | 2026-07-15 ~07:30–08:00 EDT | Started instance, mounted/formatted NVMe, cloned repo, SES step1, SCP’d partial model_events, launched orchestrator |
 | 2026-07-15 ~08:08 EDT | Still on cohort `13-24` / `2018`; `0-12` years done; this README added for session recovery |
+| 2026-07-15 ~08:56 EDT | Instance running; SSH timeout from laptop. S3 shows cohorts through `45-54`/2017; no model_events on S3 yet |
+| 2026-07-15 ~09:50 EDT | Step 3 complete (20/20 cohorts on S3). Step 4 failed: cohorts not synced to `/mnt/nvme/gold/cohorts`. Pipeline exited before sensitivity. |
+| 2026-07-15 ~09:51 EDT | **Resume launched:** `ec2_resume_sensitivity_after_cohort_sync.sh` — sync cohorts → create_model_data (verify) → sensitivity → stop |

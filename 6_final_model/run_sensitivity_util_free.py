@@ -31,13 +31,8 @@ from py_helpers.notebook_artifacts import (  # noqa: E402
 
 COHORT = "non_opioid_ed"
 S3_BUCKET = "pgxdatalake"
-MS_DIR = (
-    PROJECT_ROOT
-    / "manuscript"
-    / "data"
-    / "supplementary"
-    / "ch04_util_free_sensitivity"
-)
+# Public GitHub SSOT keyed by journal manuscript ID (manuscript/ is private).
+MS_DIR = PROJECT_ROOT / "reports" / "CTS-2026-0235R2"
 
 # Utilization-derived columns to drop for the AE sensitivity refit.
 UTIL_EXACT = {
@@ -754,7 +749,7 @@ def main(age_bands: list[str] | None = None) -> dict:
 
     print("\n=== ROLLUP ===")
     print(json.dumps(rollup, indent=2))
-    print("Manuscript SSOT:", MS_DIR)
+    print("Journal SSOT (CTS-2026-0235R2):", MS_DIR)
     return rollup
 
 
