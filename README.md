@@ -27,19 +27,25 @@ Hosted on S3 + CloudFront. See [`10_risk_dashboard/`](10_risk_dashboard/) for de
 
 ---
 
-## 📄 Manuscripts Under Review — CTS
+## 📄 Papers and public article artifacts
 
-All five dissertation chapters submitted to [*Clinical and Translational Science*](https://ascpt.onlinelibrary.wiley.com/journal/17528062) (Wiley/ASCPT). Submission portal: [cts.msubmit.net](https://cts.msubmit.net/cgi-bin/main.plex). CTS guidelines and revision tracking: [`manuscript/docs/cts/`](manuscript/docs/cts/).
+Supporting **code and supplementary files** (no patient-level APCD) live in
+[`public-manuscript/`](public-manuscript/). Chapter 1 SQLR tables and the combined
+Supplementary Information PDF are in
+[`public-manuscript/artifacts/ch01/`](public-manuscript/artifacts/ch01/).
+Screening code is in [`public-manuscript/code/ch01/`](public-manuscript/code/ch01/).
 
-| CH | CTS Manuscript ID | Title | Repo Steps | Status |
-|---|---|---|---|---|
-| **CH_1** | CTS-2026-0255-T | Bridging Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk Prediction: A Systematic Quantitative Literature Review | Background / Methodology Foundation | Under Review |
-| **CH_2** | CTS-2026-0235-T | Building the Clinical OODA Loop: A Partition-First Data Architecture for Model-Based Precision Analytics | Steps 1a → 1b → 2 | Under Review |
-| **CH_3** | CTS-2026-0196 | Causal Temporal Drivers of Opioid-Related ED Visits: An Ensemble Machine Learning Study with Consensus-Based Feature Attribution | Steps 3a → 3b → 6 → 7 → 8 | **Revision R1 complete — pending submission** · Decision: May 11, 2026 · All items resolved: May 18, 2026 · **Due: June 8, 2026** |
-| **CH_4** | CTS-2026-0197 | Formal Feature Attribution as a Causal Calculator for Drug-Drug Interaction Risk in Polypharmacy: A Systems Pharmacology Approach Using Virginia's All Payer Claim Database | Steps 5 → 8 | Under Review |
-| **CH_5** | CTS-2026-0230-T | A Serverless Pharmacogenomic Risk Dashboard: Translating Ensemble Models and Causal Rules to Clinical Decision Support | Steps 9 → 10 | Under Review |
+The `manuscript/` directory is a **private** submodule and is not part of the public GitHub tree.
 
-> Manuscripts are under review at [*Clinical and Translational Science*](https://ascpt.onlinelibrary.wiley.com/journal/17528062) (Wiley/ASCPT) — open-access upon acceptance. DOI links will be added here post-publication. Code availability in each manuscript references `https://github.com/Jerome3590/pgx-analysis`.
+| CH | Venue | Identifier | Status |
+|---|---|---|---|
+| **CH_1** | *npj Genomic Medicine* (Article) | SQLR: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* | Preparing submission · artifacts in [`public-manuscript/artifacts/ch01/`](public-manuscript/artifacts/ch01/) |
+| **CH_2** | *Journal of Big Data* | SNAPP `c26d4dae-1d1e-4201-a1d6-328080f18437` | Under consideration |
+| **CH_3** | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70690 | Published |
+| **CH_4** | *Clin Transl Sci.* | CTS-2026-0235R2 | Accepted |
+| **CH_5** | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70697 | Published |
+
+Code availability statements in the papers point to `https://github.com/Jerome3590/pgx-analysis` (this repo) and the `public-manuscript/` companion for CH1 evidence-map files.
 
 ---
 
@@ -130,6 +136,7 @@ pgx-analysis/
 ├── 11_testing/                   # Integration and smoke tests for pipeline steps and dashboard visuals
 ├── aws-pgx-setup/                # AWS infrastructure config (EC2, Lambda, ECR, IAM, CloudFront, S3)
 ├── pgx-patient-card/             # PGx patient card assets (drug cards, gene cards)
+├── public-manuscript/            # Public article companion (CH1 SI + evidence-map CSVs; no APCD)
 ├── py_helpers/                   # Shared Python utilities (S3, DuckDB, logging)
 ├── r_helpers/                    # Shared R utilities
 ├── utility_scripts/              # Pipeline management: cleanup, status checks, S3 sync helpers

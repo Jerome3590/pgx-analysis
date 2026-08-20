@@ -1,41 +1,40 @@
-# Manuscript Code Companion
+# Manuscript code companion
 
-This folder is a public code companion for the PGx analysis manuscript series.
-It is intentionally **not** a copy of the article or dissertation manuscript.
+Public supporting files for the PGx analysis paper series.
+This is **not** a copy of unpublished article text.
 
-## What Is Included
+**Start here:** [artifacts/ch01/](artifacts/ch01/) for the Chapter 1 systematic review (SQLR) tables and Supplementary Information PDF.
 
-- Reproducibility scripts referenced by the manuscript workflow.
-- Configuration needed to understand the evidence-map classification workflow.
-- Public supplementary/data artifact tables released with or supporting the
-  manuscripts.
-- Lightweight documentation for the public code companion.
+## What is included
 
-## What Is Not Included
+- Reproducibility scripts for the Chapter 1 evidence map
+- Public supplementary tables (no patient-level APCD claims)
+- The Chapter 1 Supplementary Information PDF (PRISMA checklist, search strings, PROBAST)
 
-- Submitted manuscript text, chapter drafts, or article proofs.
-- Reviewer response files or journal submission packages.
-- Source data, full-text article downloads, Zotero exports, S3 metadata, or local
-  credentialed retrieval workflows.
-- Generated figures, DOCX/PDF submission outputs, or private audit files.
+## What is not included
 
-## Current Contents
+- Submitted manuscript Word/PDF drafts or journal upload packs
+- Reviewer response letters
+- Full-text article PDFs, Zotero libraries, or credentialed retrieval workflows
+- Patient-level Virginia APCD data
 
-- `code/ch01/`: Chapter 1 SQLR screening, evidence-map classification, PRISMA,
-  and figure/table generation scripts.
-- `artifacts/ch01/`: machine-readable Chapter 1 supplementary tables.
-- `artifacts/cross_chapter/`: public supplementary CSVs supporting CH3-CH5
-  claims, including model-performance, CPIC, FFA, CPT-code, and feature-count
-  summaries.
-- `artifacts/artifact_manifest.csv`: artifact-to-paper mapping with CTS
-  manuscript references.
+## Layout
 
-## CTS References
+| Path | Contents |
+|:-----|:---------|
+| [`code/ch01/`](code/ch01/) | SQLR screening, OODA/CRISP-DM classification, PRISMA, figure scripts |
+| [`artifacts/ch01/`](artifacts/ch01/) | File S3, S5, S6 CSVs + `Supplementary_Information.pdf` |
+| [`artifacts/cross_chapter/`](artifacts/cross_chapter/) | Public summary CSVs supporting CH3–CH5 |
+| [`artifacts/artifact_manifest.csv`](artifacts/artifact_manifest.csv) | Artifact-to-paper map |
 
-- CH1: `CTS-2026-0197`
-- CH3: `CTS-2026-0196`
-- CH4: `CTS-2026-0235-T`
-- CH5: `CTS-2026-0255-T`
+## Papers
 
-The publication should be cited for the manuscript content. This repository
-provides supporting code and public supplementary artifacts only.
+| Chapter | Venue | Identifier |
+|:--------|:------|:-----------|
+| CH1 SQLR | *npj Genomic Medicine* (Article) | In preparation; title: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* |
+| CH3 | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70690 |
+| CH4 | *Clin Transl Sci.* | CTS-2026-0235R2 (accepted) |
+| CH5 | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70697 |
+| CH2 | *Journal of Big Data* | Under consideration (SNAPP `c26d4dae-1d1e-4201-a1d6-328080f18437`) |
+
+Cite the published articles for scientific content. This folder is the public code and data companion only.

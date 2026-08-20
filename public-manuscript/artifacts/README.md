@@ -1,32 +1,17 @@
-# Public Supplementary Artifacts
+# Public supplementary artifacts
 
-This folder contains machine-readable supplementary tables and data artifacts
-intended for public release with the manuscript code companion.
+Machine-readable tables and the Chapter 1 Supplementary Information PDF.
+No patient-level claims data.
 
-## CH1
+## CH1 (*npj Genomic Medicine* Article / SQLR)
 
-- `ch01/File_S3.csv`: targeted ML/XAI extraction records. CTS reference:
-  `CTS-2026-0197`.
-- `ch01/File_S5.csv`: full evidence-map records. CTS reference:
-  `CTS-2026-0197`.
+| File | Description |
+|:-----|:------------|
+| [`ch01/Supplementary_Information.pdf`](ch01/Supplementary_Information.pdf) | Single SI PDF (search strings, PRISMA 2020 checklist, PROBAST, S6 table) |
+| [`ch01/File_S3.csv`](ch01/File_S3.csv) | Targeted ML/XAI extraction + NIH AI checklist tags |
+| [`ch01/File_S5.csv`](ch01/File_S5.csv) | Full evidence map (6,182 eligible records) |
+| [`ch01/File_S6.csv`](ch01/File_S6.csv) | Outcome strata for the 94-study ML prediction subset |
 
-## Cross-Chapter Tables
+## Cross-chapter tables (CH3–CH5)
 
-- `cross_chapter/consensus_causal_feature_counts_by_cohort_age_band.csv`.
-  CTS references: `CTS-2026-0196`, `CTS-2026-0235-T`.
-- `cross_chapter/cpic_gene_drug_pairs_inventory.csv`.
-  CTS reference: `CTS-2026-0255-T`.
-- `cross_chapter/cpic_gene_drug_pairs_summary.csv`.
-  CTS reference: `CTS-2026-0255-T`.
-- `cross_chapter/cpt_codes_by_ffa_family_opioid_ed.csv`.
-  CTS reference: `CTS-2026-0196`.
-- `cross_chapter/ffa_representative_rules_opioid_ed_25_44_low.csv`.
-  CTS reference: `CTS-2026-0196`.
-- `cross_chapter/ffa_rule_families_opioid_ed_summary.csv`.
-  CTS reference: `CTS-2026-0196`.
-- `cross_chapter/model_performance_2019_holdout_low_bin.csv`.
-  CTS references: `CTS-2026-0196`, `CTS-2026-0235-T`.
-- `cross_chapter/supplementary_files_manifest.csv`
-
-Private source data, raw full-text retrieval files, reviewer materials, and
-journal-submission packages are not included.
+See `cross_chapter/` and `artifact_manifest.csv`. These are summary CSVs (model performance, CPIC pairs, FFA families), not APCD patient rows.
