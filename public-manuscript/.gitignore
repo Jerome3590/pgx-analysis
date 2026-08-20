@@ -74,6 +74,7 @@ node_modules/
 !artifacts/**
 !artifacts/**/*.csv
 !artifacts/**/*.md
+!artifacts/**/*.pdf
 
 # Re-assert runtime exclusions after allowlist exceptions.
 __pycache__/

@@ -1,0 +1,5 @@
+Primary_Outcome_Category,n,Pct_of_94,Definition_Notes
+OUD_diagnosis_dependence,43,46%,Primary label OUD diagnosis / dependence (modal ICD-10 F11.20).
+Opioid_related_ED_or_overdose_utilization,27,29%,ED visit-based or overdose utilization definitions from claims/EHR.
+Overdose_T40_primary,19,20%,Overdose (ICD-10 T40.xx) as the primary outcome label.
+Polypharmacy_ADE_or_DDI,5,5%,Polypharmacy ADE or DDI-related primary outcome.
