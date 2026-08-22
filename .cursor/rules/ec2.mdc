@@ -1,5 +1,5 @@
 ---
-description: EC2 and local/remote workflow guidance for pgx-analysis
+description: EC2 workflow, Spot AZ failover, and local/remote compute guidance for pgx-analysis
 alwaysApply: false
 ---
 
@@ -11,3 +11,22 @@ alwaysApply: false
 - Utility cleanup scripts must use project-specific NVMe paths such as `/mnt/nvme/pgx-analysis/...`.
 - Never delete shared NVMe inputs like `/mnt/nvme/gold/medical` or `/mnt/nvme/gold/pharmacy`.
 - Before enabling the Jupyter post-save hook, verify `python cursor_setup.py status` works in the EC2 checkout.
+
+## Spot capacity / AZ failover
+
+- Default compute is **Spot**. Keep **at least two Spot analysis instances
+  in different AZs**. If an AZ is lost or a box is retired, stand up a
+  replacement Spot box in another AZ before relying on on-demand.
+- On `InsufficientInstanceCapacity` or a Spot capacity fail for the
+  primary: try the other-AZ analysis Spot next. On-demand is last resort
+  only. Path: primary Spot --> other-AZ Spot --> on-demand last resort.
+- Analysis box `i-0e7d1bd469620c0bb` (`pgx-analysis-1a`) was **terminated
+  2026-08-22** to drop an idle 197 GB gp3 root. Restore from AMI
+  `ami-039bac14566b4e7ef` (`mushin-analysis`) in another AZ before the
+  next long run. Document the new instance ID here after launch.
+- Dashboard `i-0c968462d413a1028` (`pgx-dashboard-1b`) is **not** an
+  analysis failover target.
+- Do not treat surgical-ed-vr instance IDs as this project's primary boxes.
+  Document failover IDs here when a second analysis AZ exists.
+- Never terminate Mushin `i-0c968462d413a1028`.
+- ASCII arrows only: `-->`.
