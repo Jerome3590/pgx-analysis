@@ -1,5 +1,6 @@
 # ── Dissertation content (private until after defense) ───────────────────────
-# manuscript/ is now a private submodule → pgx-analysis-manuscript (private repo)
+# Local clone of private repo pgx-analysis-manuscript. Not a public submodule.
+/manuscript/
 
 .vscode/
 .trunk

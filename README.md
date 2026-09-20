@@ -35,7 +35,7 @@ Supplementary Information PDF are in
 [`public-manuscript/artifacts/ch01/`](public-manuscript/artifacts/ch01/).
 Screening code is in [`public-manuscript/code/ch01/`](public-manuscript/code/ch01/).
 
-The `manuscript/` directory is a **private** submodule and is not part of the public GitHub tree.
+The `manuscript/` directory is a **private** local clone (`pgx-analysis-manuscript`) and is gitignored. It is not part of the public GitHub tree.
 
 Publication status follows [jerome-dixon.io/#publications](https://jerome-dixon.io/#publications) (September 2026). Journals are listed only after acceptance.
 
