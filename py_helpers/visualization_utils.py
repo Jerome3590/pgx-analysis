@@ -13,6 +13,7 @@ if project_root not in sys.path:
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
 
@@ -304,13 +305,23 @@ html_template = Template("""
 """)
 
 
-def create_network_visualization(rules_df, title, cohort_name, age_band, event_year, itemsets_counts=None, logger=None):
+def create_network_visualization(
+    rules_df,
+    title,
+    cohort_name,
+    age_band,
+    event_year,
+    itemsets_counts=None,
+    logger=None,
+    output_path=None,
+):
     """
-    Build a graph, compute centrality, render HTML, and save to S3.
+    Build a graph, compute centrality, render HTML, and save to S3 (or output_path).
 
     rules_df must have columns:
       ['antecedents', 'consequents', 'support', 'confidence', 'certainty']
     itemsets_counts (optional): dict mapping item (str) to support (float)
+    output_path (optional): local path or s3:// URI; defaults to gold fpgrowth drug_network_plot
     """
     if logger:
         logger.info(f"Rendering network for {cohort_name} {age_band} {event_year}")
@@ -360,26 +371,26 @@ def create_network_visualization(rules_df, title, cohort_name, age_band, event_y
 
     for node, cent in centrality.items():
         node_data = {
-            'id': node,
-            'centrality': cent
+            'id': str(node),
+            'centrality': float(cent),
         }
         if itemsets_counts and node in itemsets_counts:
-            node_data['support'] = round(itemsets_counts[node], 5)
+            node_data['support'] = float(round(float(itemsets_counts[node]), 5))
         elements.append({'data': node_data})
 
     for u, v, data in G.edges(data=True):
         elements.append({'data': {
-            'source': u,
-            'target': v,
-            'support': round(data['support'], 5),
-            'confidence': round(data['confidence'], 5),
-            'certainty': round(data['certainty'], 5)
+            'source': str(u),
+            'target': str(v),
+            'support': float(round(float(data['support']), 5)),
+            'confidence': float(round(float(data['confidence']), 5)),
+            'certainty': float(round(float(data['certainty']), 5)),
         }})
 
-    # Render HTML
+    # Render HTML (native floats only — avoids NumPy 2.0 np.float_ JSON issues)
     html_content = html_template.render(
         title=title,
-        elements=json.dumps(convert_json_serializable(elements)),
+        elements=json.dumps(elements),
         cohort_name=cohort_name,
         age_band=age_band,
         event_year=event_year,
@@ -387,16 +398,22 @@ def create_network_visualization(rules_df, title, cohort_name, age_band, event_y
         filesaver_js=filesaver_js
     )
 
-    # Save to S3
-    html_path = get_output_paths(cohort_name, age_band, event_year)['drug_network_plot']
-    save_to_s3_html(html_content, html_path)
+    # Save to S3 or local path
+    html_path = output_path or get_output_paths(cohort_name, age_band, event_year)['drug_network_plot']
+    if str(html_path).startswith("s3://"):
+        save_to_s3_html(html_content, html_path)
+    else:
+        out = Path(html_path) if not isinstance(html_path, Path) else html_path
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html_content, encoding="utf-8")
     if logger:
         logger.info(f"Saved network HTML to {html_path}")
 
     return {
         'num_nodes': G.number_of_nodes(),
         'num_edges': G.number_of_edges(),
-        'elements': elements
+        'elements': elements,
+        'output_path': str(html_path),
     }
 
 

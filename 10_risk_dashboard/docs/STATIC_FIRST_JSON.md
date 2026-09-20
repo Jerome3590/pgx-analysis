@@ -19,18 +19,18 @@ If you haven’t uploaded `metadata/*.json` (or other static JSON) to S3/CloudFr
 
 - **`?metadata=api`** — skip the static metadata request and use the API only.
 
-Example: `https://jerome-dixon.io/vcu/pgx-risk-calculator/?metadata=api`
+Example: `https://pgx.jerome-dixon.io/?metadata=api`
 
 ## Same-origin paths
 
-Paths are relative to the dashboard root (e.g. `/vcu/pgx-risk-calculator/`). The frontend uses `staticJsonPath(relativePath)` so that:
+Paths are relative to the dashboard root (served at `https://pgx.jerome-dixon.io/` with S3 prefix `pgx/`). The frontend uses `staticJsonPath(relativePath)` so that:
 
-- From `https://example.com/vcu/pgx-risk-calculator/index.html`
-- `staticJsonPath("metadata/opioid_ed.json")` → `/vcu/pgx-risk-calculator/metadata/opioid_ed.json`
+- From `https://pgx.jerome-dixon.io/index.html`
+- `staticJsonPath("metadata/opioid_ed.json")` → `/metadata/opioid_ed.json`
 
 ## S3 layout (dashboard bucket prefix)
 
-Under the dashboard prefix (e.g. `vcu/pgx-risk-calculator/`), deploy these for static-first behavior:
+Under the dashboard prefix (`pgx/`), deploy these for static-first behavior:
 
 | Same-origin path | S3 key (under prefix) | Shape / content |
 |------------------|------------------------|-----------------|
@@ -64,9 +64,9 @@ Helpers: `getDashboardManifest()`, `getManifestEntryByTab()`, `getStaticBasePath
 
 When syncing the full deployment package to S3:
 
-1. Upload frontend: `aws s3 sync frontend/ s3://bucket/vcu/pgx-risk-calculator/`
+1. Upload frontend: `aws s3 sync frontend/ s3://bucket/pgx/`
 2. Upload metadata:  
-   `aws s3 cp outputs/metadata/metadata_opioid_ed.json s3://bucket/vcu/pgx-risk-calculator/metadata/opioid_ed.json --content-type application/json`  
+   `aws s3 cp outputs/metadata/metadata_opioid_ed.json s3://bucket/pgx/metadata/opioid_ed.json --content-type application/json`  
    (and `non_opioid_ed.json` similarly)
 3. Feature importance: Step 6 uploads `aggregated_fi_heatmap.json` (and PNG) to `visualizations/feature_importance/{cohort}/` and `.../combined/` under the dashboard prefix. No wrapper needed; frontend loads that JSON from S3 and uses it as heatmap_data.
 

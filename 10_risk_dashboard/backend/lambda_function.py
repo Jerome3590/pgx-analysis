@@ -73,7 +73,7 @@ except ImportError:
 S3_BUCKET = os.environ.get("PGX_RESULTS_BUCKET", "pgxdatalake")
 # Dashboard frontend bucket/prefix (where FP-Growth assets are uploaded so they render with the app)
 S3_DASHBOARD_BUCKET = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
-S3_DASHBOARD_PREFIX = os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator")
+S3_DASHBOARD_PREFIX = os.environ.get("S3_DASHBOARD_PREFIX", "pgx")
 S3_DASHBOARD_REGION = os.environ.get("S3_DASHBOARD_REGION", "us-east-1")
 MODEL_CACHE_TTL = int(os.environ.get("MODEL_CACHE_TTL", "3600"))
 

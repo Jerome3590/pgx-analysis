@@ -2,11 +2,78 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "PublicReadPgxDashboard",
+      "Sid": "PublicReadGetPGXDashboard",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/pgx/*"
+    },
+    {
+      "Sid": "PublicReadGetPHTSDashboard",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/phts/*"
+    },
+    {
+      "Sid": "PublicReadGetTravelHubAndTrips",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/travel/*"
+    },
+    {
+      "Sid": "PublicReadGetResearchArtifacts",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/research/*"
+    },
+    {
+      "Sid": "PublicReadGetPersonalSiteRoot",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": [
+        "arn:aws:s3:::jerome-dixon.io/index.html",
+        "arn:aws:s3:::jerome-dixon.io/styles.css",
+        "arn:aws:s3:::jerome-dixon.io/script.js"
+      ]
+    },
+    {
+      "Sid": "PublicReadLegacyPGXPrefix",
       "Effect": "Allow",
       "Principal": "*",
       "Action": "s3:GetObject",
       "Resource": "arn:aws:s3:::jerome-dixon.io/vcu/pgx-risk-calculator/*"
+    },
+    {
+      "Sid": "PublicReadLegacyPHTSPrefix",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/uva/phts-risk-calculator/*"
+    },
+    {
+      "Sid": "PublicReadLegacyIcelandTrip",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/iceland_trip/*"
+    },
+    {
+      "Sid": "PublicReadLegacyFallTravel",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/fall_travel/*"
+    },
+    {
+      "Sid": "PublicReadLegacyParisTrip",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::jerome-dixon.io/paris_trip/*"
     }
   ]
 }

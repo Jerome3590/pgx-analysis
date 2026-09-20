@@ -14,7 +14,7 @@ Scripts and configurations for deploying the dashboard to AWS.
 
 **Dashboard tabs ↔ data sources:** See [../docs/DASHBOARD_TABS.md](../docs/DASHBOARD_TABS.md) for which API/S3 path feeds each tab (Feature Importance, Causal Analysis, BupaR, DTW, FP-Growth, PGx Cohort, etc.). That doc also documents the **required S3 URL format** for assets: path-style `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. **Age bands:** EC2 paths use underscore (e.g. `25_44`); S3 paths use hyphen (e.g. `25-44`). Use `sync_cohort_pgx_to_s3.py` for Cohort PGx so S3 keys use hyphen.
 
-**Target S3 path for BupaR (Lambda reads this):** The API expects BupaR plots under `{prefix}/visualizations/bupar/{cohort}/{age_band}/plots/`. Example: `s3://jerome-dixon.io/vcu/pgx-risk-calculator/visualizations/bupar/opioid_ed/45-54/plots/`. Step 6 in notebook 5 promotes from `.../visualizations/bupar/builds/` to this path.
+**Target S3 path for BupaR (Lambda reads this):** The API expects BupaR plots under `{prefix}/visualizations/bupar/{cohort}/{age_band}/plots/`. Example: `s3://jerome-dixon.io/pgx/visualizations/bupar/opioid_ed/45-54/plots/`. Step 6 in notebook 5 promotes from `.../visualizations/bupar/builds/` to this path.
 
 **Static-first JSON (fast/cheap):** Pre-built JSON (metadata, feature importance) is loaded from same-origin paths (S3/CloudFront) first; Lambda API is fallback. See [../docs/STATIC_FIRST_JSON.md](../docs/STATIC_FIRST_JSON.md) for the pattern and S3 layout.
 
@@ -142,28 +142,29 @@ Expected: `causal ≥ 14`, `fpgrowth = 14`, `fpgrowth_per_bin ≥ 20`.
    - Set environment variables
 
 4. **Deploy Frontend**:
-   - **S3 location:** `s3://jerome-dixon.io/vcu/pgx-risk-calculator/`
+   - **S3 location:** `s3://jerome-dixon.io/pgx/`
    - Sync all frontend files (preferred — uses `aws s3 sync` under the hood):
      ```powershell
      python 10_risk_dashboard/deployment/sync_frontend_to_s3.py
      ```
    - Or sync manually:
-     `aws s3 sync 10_risk_dashboard/frontend/ s3://jerome-dixon.io/vcu/pgx-risk-calculator/`
+     `aws s3 sync 10_risk_dashboard/frontend/ s3://jerome-dixon.io/pgx/`
    - Upload model performance metrics:  
-     `aws s3 cp ../outputs/metadata/model_performance_metrics.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/model_performance_metrics.json --content-type application/json`
+     `aws s3 cp ../outputs/metadata/model_performance_metrics.json s3://jerome-dixon.io/pgx/metadata/model_performance_metrics.json --content-type application/json`
    - Upload cohort metadata for dropdowns (same-origin, no API call):  
-     `aws s3 cp ../outputs/metadata/metadata_opioid_ed.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/opioid_ed.json --content-type application/json`  
-     `aws s3 cp ../outputs/metadata/metadata_non_opioid_ed.json s3://jerome-dixon.io/vcu/pgx-risk-calculator/metadata/non_opioid_ed.json --content-type application/json`  
+     `aws s3 cp ../outputs/metadata/metadata_opioid_ed.json s3://jerome-dixon.io/pgx/metadata/opioid_ed.json --content-type application/json`  
+     `aws s3 cp ../outputs/metadata/metadata_non_opioid_ed.json s3://jerome-dixon.io/pgx/metadata/non_opioid_ed.json --content-type application/json`  
      (The 5_build_and_deploy notebook uploads metrics and metadata automatically after frontend sync.)
+   - **Live URL:** `https://pgx.jerome-dixon.io/` (dedicated CF `EOX9GAQHM85DQ`, Origin Path `/pgx`)
    - **CloudFront invalidation** (required after every frontend deploy — clears CDN cache):
-     - **Distribution ID:** `E3MZK5HYTJ14P3`  (alias: `jerome-dixon.io`, origin: `jerome-dixon.io.s3-website-us-east-1.amazonaws.com`)
+     - **Distribution ID:** `EOX9GAQHM85DQ` (alias: `pgx.jerome-dixon.io`; personal/travel/phts use separate distributions — see `website/personal/README.md`)
      - Invalidate `index.html` only (fast):
        ```powershell
-       aws cloudfront create-invalidation --distribution-id E3MZK5HYTJ14P3 --paths "/vcu/pgx-risk-calculator/index.html"
+       aws cloudfront create-invalidation --distribution-id EOX9GAQHM85DQ --paths "/index.html" "/"
        ```
      - Invalidate all frontend assets (after tab HTML or JS changes):
        ```powershell
-       aws cloudfront create-invalidation --distribution-id E3MZK5HYTJ14P3 --paths "/vcu/pgx-risk-calculator/*"
+       aws cloudfront create-invalidation --distribution-id EOX9GAQHM85DQ --paths "/*"
        ```
 
 ## Architecture
@@ -185,10 +186,10 @@ Lambda Function (ECR Container)
 
 ### Why VCU fails but UVA works (different origins)
 
-- **VCU (failing):** `https://jerome-dixon.io.s3.us-east-1.amazonaws.com/vcu/pgx-risk-calculator/index.html`  
-  Page origin = `https://jerome-dixon.io.s3.us-east-1.amazonaws.com` (raw S3 REST hostname).
-- **UVA (working):** `https://jerome-dixon.io/uva/phts-risk-calculator/index.html`  
-  Page origin = `https://jerome-dixon.io` (custom domain).
+- **Raw S3 (avoid):** `https://jerome-dixon.io.s3.us-east-1.amazonaws.com/pgx/index.html`  
+  Page origin = raw S3 REST hostname (CORS / mixed-content issues).
+- **Custom host (use):** `https://pgx.jerome-dixon.io/` or `https://phts.jerome-dixon.io/`  
+  Page origin = dedicated CloudFront alias.
 
 The dashboard calls API Gateway from the **page origin**. The Lambda returns `Access-Control-Allow-Origin: *`, but:
 
@@ -199,8 +200,8 @@ The dashboard calls API Gateway from the **page origin**. The Lambda returns `Ac
 
 Serve the PGx calculator from your custom domain so it uses the same origin and HTTPS setup as the working UVA app:
 
-- **Target URL:** `https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html`
-- **How:** Upload the frontend to the same bucket/prefix used for the domain (e.g. under `vcu/pgx-risk-calculator/` in the bucket that backs `jerome-dixon.io`), so that `jerome-dixon.io` (and CloudFront, if used) serves both `uva/` and `vcu/`. Do **not** open the app via the raw S3 URL `jerome-dixon.io.s3.us-east-1.amazonaws.com`.
+- **Target URL:** `https://pgx.jerome-dixon.io/`
+- **How:** Upload the frontend to `s3://jerome-dixon.io/pgx/` (PHTS: `phts/`) and open via the dedicated host. Do **not** open the app via the raw S3 URL.
 - **Result:** Same origin as UVA, one certificate, no cross-origin surprise, and "Not secure" goes away.
 
 ### CORS blocked from jerome-dixon.io
@@ -266,7 +267,7 @@ This adds `Access-Control-Allow-Origin` (and related headers) to API Gateway’s
 
 2. **Confirm which API URL the dashboard uses**  
    After deploying the updated frontend, the error message will include `[API: https://...]`. Open the dashboard with an explicit base if needed:  
-   `https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html?apiBase=https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod`
+   `https://pgx.jerome-dixon.io/?apiBase=https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod`
 
 3. **Deploy the correct file**  
    The live app must use `frontend/index.html` (which has the real API id). Do **not** deploy `pgx_dashboard.html` as the main page—it contains the placeholder `YOUR_API.execute-api...`.

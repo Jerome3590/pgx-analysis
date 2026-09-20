@@ -670,6 +670,12 @@
       width: 100%;
       min-height: 600px;
     }
+    #cytoscape-visualizations-tab .panels {
+      grid-template-columns: 1fr;
+    }
+    #cytoscape-visualizations-tab #cytoscape-iframe {
+      background: #fff;
+    }
     #documentation-tab .doc-content {
       max-height: 70vh;
       min-height: 200px;
@@ -781,6 +787,7 @@
       <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
+      <button class="tab-button" data-tab="cytoscape-visualizations" onclick="switchTab('cytoscape-visualizations')">Cytoscape Networks</button>
       <button class="tab-button" data-tab="cohort-pgx-visualizations" onclick="switchTab('cohort-pgx-visualizations')">PGx Cohort</button>
     </div>
 
@@ -815,6 +822,9 @@
     <!-- FP-Growth Visualizations Tab (drug names only: sequences/combinations driving target outcomes) -->
     <div id="fpgrowth-visualizations-tab" class="tab-content"></div>
 
+    <!-- Cytoscape Networks Tab (FI-filtered FP-Growth rules, Cytoscape HTML) -->
+    <div id="cytoscape-visualizations-tab" class="tab-content"></div>
+
     <!-- PGx Cohort Tab (Cohort PGx: VIP reports + network topology per cohort/age_band) -->
     <div id="cohort-pgx-visualizations-tab" class="tab-content"></div>
 
@@ -840,6 +850,7 @@
     ['bupar-visualizations-tab', 'tabs/bupar.html'],
     ['dtw-visualizations-tab', 'tabs/dtw.html'],
     ['fpgrowth-visualizations-tab', 'tabs/fpgrowth.html'],
+    ['cytoscape-visualizations-tab', 'tabs/cytoscape.html'],
     ['cohort-pgx-visualizations-tab', 'tabs/cohort-pgx.html'],
     ['documentation-tab', 'tabs/documentation.html'],
   ];
@@ -2346,6 +2357,15 @@
   // ==============================
   
   // Tab switching is done via onclick="switchTab('...')" on each tab button (PHTS-style).
+  // Deep link: ?tab=fpgrowth-visualizations (or any data-tab value)
+  (function openTabFromQuery() {
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (!tabParam) return;
+    const allowed = document.querySelector(".tab-button[data-tab='" + tabParam + "']");
+    if (allowed && typeof window.switchTab === "function") {
+      window.switchTab(tabParam);
+    }
+  })();
 
   // PGx Card File Upload Handler
   if (snpFileEl) snpFileEl.addEventListener("change", async (e) => {
@@ -2891,6 +2911,57 @@
   document.getElementById("dtw-heatmap-activity-type")?.addEventListener("change", () => {
     const sel = document.getElementById("dtw-heatmap-activity-type");
     if (sel && window.dtwSequenceHeatmapData) renderDTWSequenceHeatmap(window.dtwSequenceHeatmapData, sel.value);
+  });
+
+  // Cytoscape Networks Tab (FI-filtered FP-Growth → Cytoscape HTML under visualizations/cytoscape/)
+  document.getElementById("btnLoadCytoscape")?.addEventListener("click", async () => {
+    const cohort = document.getElementById("cytoscape-cohort")?.value;
+    const ageBand = document.getElementById("cytoscape-age-band")?.value;
+    const statusEl = document.getElementById("cytoscape-status");
+    const iframe = document.getElementById("cytoscape-iframe");
+    const linksEl = document.getElementById("cytoscape-links");
+    if (!cohort || !ageBand) {
+      if (statusEl) {
+        statusEl.textContent = "Please select cohort and age band";
+        statusEl.className = "status-message error";
+      }
+      return;
+    }
+    if (statusEl) {
+      statusEl.textContent = `Loading Cytoscape network for ${cohort} / ${ageBand}...`;
+      statusEl.className = "status-message info";
+    }
+    try {
+      const baseRel = `visualizations/cytoscape/${cohort}/${ageBand}`;
+      const networkName = `${cohort}_${ageBand}_combined_drug_network.html`;
+      const networkUrl = ensureAbsoluteUrl(staticJsonPath(`${baseRel}/${networkName}`));
+      const itemsetsUrl = ensureAbsoluteUrl(staticJsonPath(`${baseRel}/itemsets.json`));
+      const rulesUrl = ensureAbsoluteUrl(staticJsonPath(`${baseRel}/rules.json`));
+      const head = await fetch(networkUrl, { method: "HEAD" });
+      if (!head.ok) {
+        throw new Error(`Network not found (${head.status}). Rebuild with personal/research/rebuild_cytoscape_from_fpgrowth.py --upload`);
+      }
+      if (iframe) iframe.src = networkUrl;
+      if (linksEl) {
+        linksEl.innerHTML =
+          `<a href="${networkUrl}" target="_blank" rel="noopener">Open network</a>` +
+          ` · <a href="${itemsetsUrl}" target="_blank" rel="noopener">itemsets.json</a>` +
+          ` · <a href="${rulesUrl}" target="_blank" rel="noopener">rules.json</a>` +
+          ` · <a href="https://jerome-dixon.io/research/" target="_blank" rel="noopener">Personal research page</a>`;
+      }
+      if (statusEl) {
+        statusEl.textContent = "Cytoscape network loaded (FI-filtered FP-Growth rules).";
+        statusEl.className = "status-message success";
+      }
+    } catch (err) {
+      console.error(err);
+      if (iframe) iframe.removeAttribute("src");
+      if (linksEl) linksEl.innerHTML = "";
+      if (statusEl) {
+        statusEl.textContent = `Failed to load Cytoscape network: ${err.message}`;
+        statusEl.className = "status-message error";
+      }
+    }
   });
 
   // FP-Growth Visualizations Tab (drug names only)
@@ -4542,7 +4613,7 @@
   function syncVisualizationCohortContext(cohort) {
     const defaultAgeBand = cohort === "opioid_ed" ? "25-44" : "65-74";
     const ageBandToSelect = currentAgeBand || defaultAgeBand;
-    ['scenario', 'dtw', 'fpgrowth', 'bupar', 'cohort-pgx'].forEach(prefix => {
+    ['scenario', 'dtw', 'fpgrowth', 'cytoscape', 'bupar', 'cohort-pgx'].forEach(prefix => {
       const cohortSelect = document.getElementById(`${prefix}-cohort`);
       const ageBandSelect = document.getElementById(`${prefix}-age-band`);
       if (cohortSelect && ageBandSelect) {
@@ -4558,7 +4629,7 @@
   }
 
   // Update age bands when cohort changes on a visualization tab; BupaR: rebuild visual checkboxes per research question
-  ['scenario', 'dtw', 'fpgrowth', 'bupar', 'cohort-pgx'].forEach(prefix => {
+  ['scenario', 'dtw', 'fpgrowth', 'cytoscape', 'bupar', 'cohort-pgx'].forEach(prefix => {
     const cohortSelect = document.getElementById(`${prefix}-cohort`);
     const ageBandSelect = document.getElementById(`${prefix}-age-band`);
     if (cohortSelect && ageBandSelect) {

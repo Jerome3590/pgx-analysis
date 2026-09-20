@@ -12,7 +12,7 @@ Usage (from repo root):
 
 Environment:
     S3_DASHBOARD_BUCKET (default: jerome-dixon.io)
-    S3_DASHBOARD_PREFIX (default: vcu/pgx-risk-calculator)
+    S3_DASHBOARD_PREFIX (default: pgx)
 """
 
 import os
@@ -25,7 +25,7 @@ SCENARIO_VISUALS_DIR = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "sce
 
 def main() -> int:
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
-    prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
+    prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "pgx") or "").strip("/")
 
     try:
         import boto3

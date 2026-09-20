@@ -12,7 +12,7 @@ Usage (from repo root):
 
 Environment:
     S3_DASHBOARD_BUCKET (default: jerome-dixon.io)
-    S3_DASHBOARD_PREFIX (default: vcu/pgx-risk-calculator)
+    S3_DASHBOARD_PREFIX (default: pgx)
 """
 
 import os
@@ -47,7 +47,7 @@ def main() -> int:
         print("boto3 not available; pip install boto3", file=sys.stderr)
         return 1
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
-    prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
+    prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "pgx") or "").strip("/")
     # Always write to final path (no builds). Notebook 5 Step 6 is the single sync step.
     s3_prefix = f"{prefix}/visualizations/cohort_pgx/{NETWORKS_SUBDIR}"
     s3 = boto3.client("s3")
