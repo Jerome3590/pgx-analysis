@@ -37,12 +37,15 @@ Screening code is in [`public-manuscript/code/ch01/`](public-manuscript/code/ch0
 
 The `manuscript/` directory is a **private** submodule and is not part of the public GitHub tree.
 
-| CH | Venue | Identifier | Status |
+Publication status follows [jerome-dixon.io/#publications](https://jerome-dixon.io/#publications) (September 2026). Journals are listed only after acceptance.
+
+| CH | Venue | Title | Status |
 |---|---|---|---|
-| **CH_1** | — | SQLR: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* | Preparing submission · artifacts in [`public-manuscript/artifacts/ch01/`](public-manuscript/artifacts/ch01/) |
-| **CH_3** | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70690 | Published |
-| **CH_4** | *Clin Transl Sci.* | CTS-2026-0235R2 | Accepted |
-| **CH_5** | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70697 | Published |
+| **CH_1** | — | *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* | Journal pending · DOI pending · artifacts in [`public-manuscript/artifacts/ch01/`](public-manuscript/artifacts/ch01/) |
+| **CH_2** | — | *Low cost big data framework for scalable claims analytics* | Journal pending · DOI pending |
+| **CH_3** | *Clin Transl Sci.* · 2026 | *Temporal Drivers of Opioid-Related ED Visits: An Ensemble Machine Learning Study with Consensus-Based Feature Attribution* | Published · https://doi.org/10.1111/cts.70690 |
+| **CH_4** | *Clin Transl Sci.* | *A SHAP-Informed Formal Feature Attribution Framework for Drug–Drug Interaction Risk in Large-Scale Claims Data* | Accepted · https://doi.org/10.1111/cts.70718 |
+| **CH_5** | *Clin Transl Sci.* · 2026 | *A Serverless Pharmacogenomic Risk Dashboard: Translating Ensemble Models and Model-Based Scenario Rules to Clinical Decision Support* | Published · https://doi.org/10.1111/cts.70697 |
 
 Code availability statements in the papers point to `https://github.com/Jerome3590/pgx-analysis` (this repo) and the `public-manuscript/` companion for CH1 evidence-map files.
 
