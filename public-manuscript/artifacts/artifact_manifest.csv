@@ -1,8 +1,8 @@
 path,chapter_primary,reference,description
-ch01/Supplementary_Information.pdf,CH1,npj Genomic Medicine Article,Combined SI PDF (S1 search strings; S2 PRISMA; S4 PROBAST; S6 table)
-ch01/File_S3.csv,CH1,npj Genomic Medicine Article,Targeted ML/XAI extraction records
-ch01/File_S5.csv,CH1,npj Genomic Medicine Article,Full evidence-map records (n=6182)
-ch01/File_S6.csv,CH1,npj Genomic Medicine Article,Outcome-stratum labels for 94-study ML subset
+ch01/Supplementary_Information.pdf,CH1,CH1 SQLR (in preparation),Combined SI PDF (S1 search strings; S2 PRISMA; S4 PROBAST; S6 table)
+ch01/File_S3.csv,CH1,CH1 SQLR (in preparation),Targeted ML/XAI extraction records
+ch01/File_S5.csv,CH1,CH1 SQLR (in preparation),Full evidence-map records (n=6182)
+ch01/File_S6.csv,CH1,CH1 SQLR (in preparation),Outcome-stratum labels for 94-study ML subset
 cross_chapter/consensus_causal_feature_counts_by_cohort_age_band.csv,"CH3, CH4",https://doi.org/10.1111/cts.70690; CTS-2026-0235R2,Consensus-risk feature counts by cohort and age band
 cross_chapter/cpic_gene_drug_pairs_inventory.csv,CH5,https://doi.org/10.1111/cts.70697,CPIC gene-drug pair inventory
 cross_chapter/cpic_gene_drug_pairs_summary.csv,CH5,https://doi.org/10.1111/cts.70697,CPIC gene-drug pair summary
