@@ -21,7 +21,7 @@ Usage:
 
 Environment:
     S3_DASHBOARD_BUCKET  (default: jerome-dixon.io)
-    S3_DASHBOARD_PREFIX  (default: vcu/pgx-risk-calculator)
+    S3_DASHBOARD_PREFIX  (default: pgx)
 """
 
 from __future__ import annotations
@@ -247,7 +247,7 @@ def main() -> int:
     p.add_argument("--strict", action="store_true", help="Exit 1 if any locally-missing required file")
     p.add_argument("--tab", default=None, help="Restrict upload to a single dashboard tab name")
     p.add_argument("--bucket", default=os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io"))
-    p.add_argument("--prefix", default=os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator"))
+    p.add_argument("--prefix", default=os.environ.get("S3_DASHBOARD_PREFIX", "pgx"))
     p.add_argument("--manifest", type=Path, default=MANIFEST_PATH)
     p.add_argument("--region", default=os.environ.get("AWS_REGION", "us-east-1"))
     args = p.parse_args()

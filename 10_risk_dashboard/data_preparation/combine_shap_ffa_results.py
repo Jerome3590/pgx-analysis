@@ -638,7 +638,7 @@ def upload_scenario_data_to_dashboard(json_path: Path, cohort: str, age_band: st
         logger.warning("boto3 not available; skipping upload to dashboard S3")
         return False
     bucket = os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io")
-    prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator") or "").strip("/")
+    prefix = (os.environ.get("S3_DASHBOARD_PREFIX", "pgx") or "").strip("/")
     _bin_seg = f"/{bin_name}" if bin_name else ""
     key = f"{prefix}/visualizations/scenario/{cohort}/{age_band}{_bin_seg}/scenario_data.json"
     try:

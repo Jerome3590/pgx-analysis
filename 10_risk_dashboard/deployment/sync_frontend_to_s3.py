@@ -2,7 +2,7 @@
 """
 Sync the dashboard frontend (index.html and assets) to the dashboard S3 bucket.
 
-Uses S3_DASHBOARD_BUCKET and S3_DASHBOARD_PREFIX (defaults: jerome-dixon.io, vcu/pgx-risk-calculator).
+Uses S3_DASHBOARD_BUCKET and S3_DASHBOARD_PREFIX (defaults: jerome-dixon.io, pgx).
 Run from repo root or from this directory.
 
 Usage:
@@ -30,7 +30,7 @@ def main():
     p = argparse.ArgumentParser(description="Sync dashboard frontend to S3")
     p.add_argument("--dry-run", action="store_true", help="Show what would be synced (aws s3 sync --dryrun)")
     p.add_argument("--bucket", default=os.environ.get("S3_DASHBOARD_BUCKET", "jerome-dixon.io"), help="S3 bucket (default: S3_DASHBOARD_BUCKET or jerome-dixon.io)")
-    p.add_argument("--prefix", default=os.environ.get("S3_DASHBOARD_PREFIX", "vcu/pgx-risk-calculator"), help="S3 key prefix (default: S3_DASHBOARD_PREFIX or vcu/pgx-risk-calculator)")
+    p.add_argument("--prefix", default=os.environ.get("S3_DASHBOARD_PREFIX", "pgx"), help="S3 key prefix (default: S3_DASHBOARD_PREFIX or pgx)")
     p.add_argument("--region", default=os.environ.get("AWS_REGION", "us-east-1"), help="AWS region")
     args = p.parse_args()
 

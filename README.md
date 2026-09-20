@@ -21,7 +21,7 @@ aws configure
 
 ## 🌐 Live Dashboard
 
-**[https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html](https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html)**
+**[https://pgx.jerome-dixon.io/](https://pgx.jerome-dixon.io/)** (legacy `/vcu/pgx-risk-calculator/` → 301 here)
 
 Hosted on S3 + CloudFront. See [`10_risk_dashboard/`](10_risk_dashboard/) for deployment details.
 
@@ -50,6 +50,25 @@ Publication status follows [jerome-dixon.io/#publications](https://jerome-dixon.
 Code availability statements in the papers point to `https://github.com/Jerome3590/pgx-analysis` (this repo) and the `public-manuscript/` companion for CH1 evidence-map files.
 
 ---
+
+## EC2 (Mushin / aws-setup)
+
+Compute runs in Mushin account `535362115856` (CLI profile `mushin` or `pgx`).
+Launch from **stock Amazon Linux 2** plus bootstrap. Do not keep a session AMI
+or a warm 197 GB root. Gold/cohorts come from S3.
+
+```bash
+# from C:\Projects\aws-setup
+AWS_PROFILE=mushin bash ec2/scripts/bash/launch_pgx_session.sh
+# SSH as pgx3874 after bootstrap finishes (R/Python compile, often 1-2 hours), then:
+bash ec2/scripts/bash/clone_and_setup_pgx.sh
+```
+
+- Bootstrap: `ec2/bootstrap/ec2_linux2_single.sh` as user-data
+- After clone: `/home/pgx3874/pgx-analysis` with `~/jupyter-env`
+- Idle stop: CloudWatch `sedvr-idle-stop-<instance-id>` (CPU < 5% for 45 min)
+
+See `.cursor/rules/ec2.mdc` and `aws-pgx-setup/ec2/README.md`.
 
 ## 🚀 Running the Workflow
 

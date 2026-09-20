@@ -3,8 +3,8 @@
 This directory contains the **production-ready risk assessment dashboard** and deployment artifacts for the PGx analysis pipeline.
 
 **Risk calculator dashboard (hosted):**  
-- **Live:** [https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html](https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html)
-- **S3:** `s3://jerome-dixon.io/vcu/pgx-risk-calculator/` — frontend and static assets for the PGx risk calculator.
+- **Live:** [https://pgx.jerome-dixon.io/](https://pgx.jerome-dixon.io/) (legacy apex `/vcu/pgx-risk-calculator/` → 301 here)
+- **S3:** `s3://jerome-dixon.io/pgx/` — frontend and static assets (CloudFront `EOX9GAQHM85DQ`, Origin Path `/pgx`).
 
 ## Quick Overview
 
@@ -932,7 +932,7 @@ Show FP-Growth drug network alongside FFA/SHAP results for drug-focused pattern 
 
 ## E2E Test Results
 
-Puppeteer end-to-end tests run against the live dashboard (`https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html`).
+Puppeteer end-to-end tests run against the live dashboard (`https://pgx.jerome-dixon.io/`).
 
 **Last passing run: 2026-04-18 — 42/42 tests, 8 suites (WSL native)**
 

@@ -1,0 +1,38 @@
+
+      <p class="subtitle">
+        <strong>Research focus:</strong> Cytoscape drug association networks mined only over feature-importance–filtered drugs.
+        <br>
+        <small style="color: #64748b;">Same FI-gated FP-Growth rules as the personal Research Artifacts page — interactive Cytoscape (not Plotly). Combined train window per cohort × age band.</small>
+      </p>
+      <div class="controls">
+        <div class="control-group">
+          <label for="cytoscape-cohort">Cohort:</label>
+          <select id="cytoscape-cohort">
+            <option value="opioid_ed">Opioid ED</option>
+            <option value="non_opioid_ed">Polypharmacy</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="cytoscape-age-band">Age Band:</label>
+          <select id="cytoscape-age-band"></select>
+        </div>
+        <div class="control-group full-width">
+          <button id="btnLoadCytoscape">Load Cytoscape Network</button>
+        </div>
+      </div>
+      <div id="cytoscape-status" class="status-message">Select cohort and age band, then click Load.</div>
+      <div class="panels">
+        <div class="panel full-width">
+          <h2>FI-Filtered Drug Association Network (Cytoscape)</h2>
+          <p class="subtitle" style="margin-bottom: 0.5rem;">
+            <small style="color: #64748b;">
+              <strong>Research question:</strong> Among model-important drugs, which co-prescription associations are strongest?
+              Nodes = drugs; edges = association rules (support / confidence / certainty). Only drugs from Step 3b feature importance enter mining.
+            </small>
+          </p>
+          <div id="cytoscape-links" style="margin-bottom: 0.75rem;"></div>
+          <div id="cytoscape-iframe-container" style="min-height: 600px;">
+            <iframe id="cytoscape-iframe" style="width: 100%; height: 720px; border: 1px solid #e2e8f0; border-radius: 0.5rem;" title="Cytoscape FI-filtered drug network"></iframe>
+          </div>
+        </div>
+      </div>

@@ -4,3 +4,4 @@
 [submodule "manuscript"]
 	path = manuscript
 	url = https://github.com/Jerome3590/pgx-analysis-manuscript.git
+	ignore = untracked

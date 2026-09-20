@@ -935,10 +935,10 @@ print(f"\n{'=' * 80}")
 # %% [markdown]
 # ### Invalidate CloudFront distribution (before EC2 shutdown)
 #
-# After syncing the frontend and assets to S3, invalidate the CloudFront cache so the dashboard at **jerome-dixon.io** serves the latest content. Run this step before shutting down the EC2 instance.
+# After syncing the frontend and assets to S3, invalidate the CloudFront cache so the dashboard at **pgx.jerome-dixon.io** serves the latest content. Run this step before shutting down the EC2 instance.
 
 # %%
-# CloudFront invalidation (jerome-dixon.io distribution)
+# CloudFront invalidation (jerome-dixon.io distribution; live PGx host: pgx.jerome-dixon.io)
 # Distribution ID for jerome-dixon.io HTTPS website (origin: jerome-dixon.io.s3-website-us-east-1.amazonaws.com)
 CLOUDFRONT_DISTRIBUTION_ID = os.environ.get("CLOUDFRONT_DISTRIBUTION_ID", "E3MZK5HYTJ14P3")
 
