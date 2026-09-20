@@ -11,11 +11,18 @@
 10_risk_dashboard/pgx_dashboard.html
 .venv/
 .venv*
-.cursorrules
+# Cursor / Claude local agent files (keep off the public GitHub tree)
 .cursor/
+**/.cursor/
+.cursorrules
+**/.cursorrules
 .cursorignore
+.claude/
+**/.claude/
+CLAUDE.md
+**/CLAUDE.md
+.claudeignore
 .windsurf/
-!manuscript/.cursorrules
 
 # Legacy duplicate figure output from older generator paths (canonical: manuscript/figures/)
 manuscript/scripts/generate_figures/figures/
