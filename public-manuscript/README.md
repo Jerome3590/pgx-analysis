@@ -31,10 +31,9 @@ This is **not** a copy of unpublished article text.
 
 | Chapter | Venue | Identifier |
 |:--------|:------|:-----------|
-| CH1 SQLR | *npj Genomic Medicine* (Article) | In preparation; title: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* |
+| CH1 SQLR | — | Preparing submission; title: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* |
 | CH3 | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70690 |
 | CH4 | *Clin Transl Sci.* | CTS-2026-0235R2 (accepted) |
 | CH5 | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70697 |
-| CH2 | *Journal of Big Data* | Under consideration (SNAPP `c26d4dae-1d1e-4201-a1d6-328080f18437`) |
 
 Cite the published articles for scientific content. This folder is the public code and data companion only.

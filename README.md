@@ -39,8 +39,7 @@ The `manuscript/` directory is a **private** submodule and is not part of the pu
 
 | CH | Venue | Identifier | Status |
 |---|---|---|---|
-| **CH_1** | *npj Genomic Medicine* (Article) | SQLR: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* | Preparing submission · artifacts in [`public-manuscript/artifacts/ch01/`](public-manuscript/artifacts/ch01/) |
-| **CH_2** | *Journal of Big Data* | SNAPP `c26d4dae-1d1e-4201-a1d6-328080f18437` | Under consideration |
+| **CH_1** | — | SQLR: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* | Preparing submission · artifacts in [`public-manuscript/artifacts/ch01/`](public-manuscript/artifacts/ch01/) |
 | **CH_3** | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70690 | Published |
 | **CH_4** | *Clin Transl Sci.* | CTS-2026-0235R2 | Accepted |
 | **CH_5** | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70697 | Published |
