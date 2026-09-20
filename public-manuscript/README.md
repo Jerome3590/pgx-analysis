@@ -31,9 +31,10 @@ This is **not** a copy of unpublished article text.
 
 | Chapter | Venue | Identifier |
 |:--------|:------|:-----------|
-| CH1 SQLR | — | Preparing submission; title: *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* |
-| CH3 | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70690 |
-| CH4 | *Clin Transl Sci.* | CTS-2026-0235R2 (accepted) |
-| CH5 | *Clin Transl Sci.* | https://doi.org/10.1111/cts.70697 |
+| CH1 SQLR | — | Journal pending · DOI pending · *Explainable AI and Pharmacogenomics for Opioid and Polypharmacy Risk: A Systematic Review* |
+| CH2 | — | Journal pending · DOI pending · *Low cost big data framework for scalable claims analytics* |
+| CH3 | *Clin Transl Sci.* · 2026 | Published · https://doi.org/10.1111/cts.70690 |
+| CH4 | *Clin Transl Sci.* | Accepted · https://doi.org/10.1111/cts.70718 |
+| CH5 | *Clin Transl Sci.* · 2026 | Published · https://doi.org/10.1111/cts.70697 |
 
 Cite the published articles for scientific content. This folder is the public code and data companion only.

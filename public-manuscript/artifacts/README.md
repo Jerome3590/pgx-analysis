@@ -3,7 +3,7 @@
 Machine-readable tables and the Chapter 1 Supplementary Information PDF.
 No patient-level claims data.
 
-## CH1 SQLR (in preparation)
+## CH1 SQLR (journal pending)
 
 | File | Description |
 |:-----|:------------|
