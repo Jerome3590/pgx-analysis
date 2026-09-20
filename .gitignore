@@ -1,8 +1,7 @@
 # ── Dissertation content (private until after defense) ───────────────────────
 # manuscript/ is now a private submodule → pgx-analysis-manuscript (private repo)
 
-.vscode/*
-!.vscode/settings.json
+.vscode/
 .trunk
 .Rproj.user
 .Rproj*
@@ -23,6 +22,15 @@ CLAUDE.md
 **/CLAUDE.md
 .claudeignore
 .windsurf/
+
+# Local scratch, generated outputs, and machine-local helpers
+TODO.md
+TODO/
+cursor_setup.py
+ec2_jupyter_config_snippet.py
+nb_output_sync.py
+status/
+reports/
 
 # Legacy duplicate figure output from older generator paths (canonical: manuscript/figures/)
 manuscript/scripts/generate_figures/figures/
