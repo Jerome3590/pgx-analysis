@@ -1,10 +1,10 @@
 
       <p class="subtitle">
-        Your PGx card is built from cohort-level analysis of insurance claims combined with PharmGKB/CPIC gene–drug evidence — providing actionable intelligence on which genes to consider testing.
-        <br><small style="color:#64748b;">Select your cohort profile to see the identified PGx genes. Optionally enter your genetic variants to personalize the view to your specific alleles.</small>
+        Upload gene data, resolve a phenotype, then see CPIC-aligned actions for Virginia APCD generic medications.
+        Cohort radar remains supplementary claims evidence — it is not a CPIC action.
+        <br><small style="color:#64748b;">Active medications drive the default view. All matched drugs is the comprehensive CPIC report. Every three-way medication match in the current scope is listed separately from CPIC guidance.</small>
       </p>
 
-      <!-- Step 1: Cohort Profile (base layer from claims analysis) -->
       <div class="pgx-input-section">
         <div class="control-group">
           <label for="pgx-card-cohort">Cohort</label>
@@ -44,12 +44,11 @@
 
       <div id="pgx-card-status" class="status-message">Select cohort and age band, then click 'Load Cohort PGx Profile'</div>
 
-      <!-- Cohort profile: radar chart + gene list -->
       <div id="pgx-cohort-profile-section" style="display:none;">
         <div class="panels">
           <div class="panel full-width">
             <h2>Gene Actionability Profile</h2>
-            <p class="subtitle"><small style="color:#64748b;">Radar shows each identified PGx gene scored across five actionability dimensions derived from claims analysis and PharmGKB/CPIC data.</small></p>
+            <p class="subtitle"><small style="color:#64748b;">Supplementary cohort/claims association — not a CPIC prescribing action.</small></p>
             <div id="pgx-card-radar-chart" style="min-height:460px;"></div>
           </div>
         </div>
@@ -61,28 +60,58 @@
         </div>
       </div>
 
-      <!-- Step 2: Optional SNP refinement (shown after cohort profile loads) -->
-      <div id="pgx-snp-refine-section" style="display:none;">
+      <div id="pgx-snp-refine-section">
         <div style="margin-top:1.5rem;padding:1.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.75rem;">
-          <h2 style="margin:0 0 0.5rem;">Refine with Your Genetic Variants <span style="font-size:0.875rem;font-weight:400;color:#94a3b8;">(Optional)</span></h2>
-          <p style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">Enter your alleles to filter the cohort profile to genes where you have a known variant — personalizing from cohort-level to patient-level.</p>
+          <h2 style="margin:0 0 0.5rem;">1. Gene data</h2>
+          <p style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">VCF is not parsed in-browser yet. Use AncestryDNA zip/csv/txt or Gene,Allele1,Allele2 lines. Missing or unlisted allele pairs stay indeterminate — they are never treated as normal.</p>
           <div class="pgx-input-section">
             <div class="control-group">
-              <label for="patient-id">Patient ID <span style="color:#94a3b8;font-weight:400;">(Optional)</span></label>
-              <input type="text" id="patient-id" placeholder="Leave blank for full privacy" />
+              <label for="patient-id">Session / patient pseudonym <span style="color:#94a3b8;font-weight:400;">(optional)</span></label>
+              <input type="text" id="patient-id" placeholder="Leave blank for anonymous session" />
             </div>
             <div class="control-group">
-              <label for="snp-input">Gene Variants</label>
-              <small style="color:#64748b;font-size:0.75rem;display:block;margin-bottom:0.5rem;">Format: Gene,Variant1,Variant2 per line. Example: CYP2D6,*1,*2</small>
-              <textarea id="snp-input" rows="6" placeholder="CYP2D6,*1,*2&#10;CYP2C19,*1,*17&#10;CYP2C9,*1,*2"></textarea>
+              <label for="snp-input">Gene / allele entries</label>
+              <small style="color:#64748b;font-size:0.75rem;display:block;margin-bottom:0.5rem;">Format: Gene,Variant1,Variant2. Example: CYP2D6,*1,*4</small>
+              <textarea id="snp-input" rows="6" placeholder="CYP2D6,*1,*4&#10;CYP2C19,*1,*17&#10;SLCO1B1,*1,*5"></textarea>
             </div>
             <div class="control-group">
-              <label for="snp-file">Or Upload File</label>
-              <input type="file" id="snp-file" accept=".csv,.xlsx,.txt" />
+              <label for="snp-file">Or upload file</label>
+              <input type="file" id="snp-file" accept=".zip,.csv,.txt,.tsv,.xlsx,.vcf" />
+              <small style="color:#64748b;font-size:0.75rem;display:block;margin-top:0.35rem;">AncestryDNA zip/csv/txt. Raw genome is not uploaded to S3 from this page.</small>
+            </div>
+          </div>
+
+          <h2 style="margin:1.5rem 0 0.5rem;">2. Virginia APCD medications</h2>
+          <p style="color:#64748b;font-size:0.875rem;">Generic names only. Type at least two characters and choose a dropdown match. Combination products expand to ingredients automatically.</p>
+          <div class="pgx-input-section">
+            <div class="control-group">
+              <label for="pgx-drug-scope">Drug scope</label>
+              <select id="pgx-drug-scope">
+                <option value="ACTIVE">Active medications</option>
+                <option value="SELECTED">Selected drugs</option>
+                <option value="ALL_MATCHED">All matched drugs</option>
+              </select>
+            </div>
+            <div class="control-group full-width pgx-autocomplete-wrap">
+              <label for="pgx-drug-search">Select medications</label>
+              <input type="text" id="pgx-drug-search" placeholder="Search approved generic medications..." aria-autocomplete="list" aria-controls="pgx-drug-suggest" />
+              <div id="pgx-drug-suggest" class="pgx-suggest" hidden role="listbox"></div>
             </div>
             <div class="control-group full-width">
-              <button id="btnGenerateCard">Generate Personalized Card</button>
+              <div id="pgx-selected-chips" class="pgx-chip-row"></div>
+              <p id="pgx-combo-warning" class="status-message" style="display:none;"></p>
+            </div>
+            <div class="control-group">
+              <span>View</span>
+              <label><input type="radio" name="pgx-view-mode" value="patient" /> Patient</label>
+              <label><input type="radio" name="pgx-view-mode" value="clinician" checked /> Clinician / pharmacist</label>
+            </div>
+            <div class="control-group full-width">
+              <button id="btnGenerateCard">Generate PGx results</button>
               <button id="btnResetCard" class="button-secondary">Reset</button>
+              <button type="button" id="pgx-export-current" class="button-secondary">Export current view</button>
+              <button type="button" id="pgx-export-json" class="button-secondary">Download JSON</button>
+              <button type="button" id="pgx-export-tech" class="button-secondary">Technical appendix</button>
             </div>
           </div>
         </div>
@@ -93,24 +122,31 @@
       <div id="pgx-card-display" style="display: none;">
         <div class="pgx-card">
           <div class="pgx-card-header">
-            <h2>Personalized PGx Card</h2>
+            <h2>PGx results</h2>
             <div id="pgx-patient-id" style="margin-top: 0.5rem;"></div>
-            <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.5rem;">
-              <strong>Cohort-informed, variant-filtered.</strong> CPIC drug guidance for genes where you have a known variant, based on this cohort's claims analysis.
-            </p>
+            <div id="pgx-session-header"></div>
+          </div>
+          <div id="pgx-summary-cards" class="pgx-count-row"></div>
+          <div class="pgx-card-section">
+            <h3>Medication-first action queue</h3>
+            <div id="pgx-action-queue"></div>
           </div>
           <div class="pgx-card-section">
-            <h3>Genes Tested</h3>
+            <h3>Gene–drug actionability matrix</h3>
+            <div id="pgx-action-matrix"></div>
+          </div>
+          <div class="pgx-card-section">
+            <h3>Polypharmacy triplet engine</h3>
+            <p class="subtitle"><small>Every three-way match in the current drug scope. Never shown as a CPIC recommendation.</small></p>
+            <div id="pgx-triplet-panel"></div>
+          </div>
+          <div class="pgx-card-section">
+            <h3>Genes tested</h3>
             <div id="pgx-genes-list"></div>
           </div>
           <div class="pgx-card-section">
-            <h3>Drugs Requiring Dosing Modifications</h3>
-            <div id="pgx-drugs-list"></div>
-          </div>
-          <div class="pgx-card-section">
-            <h3>Gene Details</h3>
+            <h3>Gene details</h3>
             <div id="pgx-gene-details"></div>
           </div>
         </div>
       </div>
-    

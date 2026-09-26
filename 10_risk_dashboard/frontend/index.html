@@ -19,6 +19,8 @@
   </script>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="js/pgx-workflow.js?v=20260926c"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -479,6 +481,42 @@
     .pgx-drug-guideline a:hover {
       text-decoration: underline;
     }
+    .pgx-session-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.75rem; font-size:0.82rem; color:#334155; margin-top:0.75rem; }
+    .pgx-privacy-note { font-size:0.8rem; color:#64748b; margin:0.75rem 0 0; }
+    .pgx-count-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.75rem; margin:1rem 0 1.5rem; }
+    .pgx-count-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.85rem; font-size:0.8rem; }
+    .pgx-count-n { font-size:1.4rem; font-weight:700; }
+    .pgx-action-card, .pgx-triplet-card { background:#fff; border:1px solid #e2e8f0; border-left:4px solid #64748b; border-radius:0.5rem; padding:1rem; margin-bottom:0.75rem; }
+    .pgx-act-avoid, .pgx-cell-avoid { border-left-color:#b91c1c; }
+    .pgx-act-dose { border-left-color:#c2410c; }
+    .pgx-act-monitor { border-left-color:#a16207; }
+    .pgx-act-std { border-left-color:#64748b; }
+    .pgx-act-indet, .pgx-cell-indet { border-left-color:#7c3aed; background-image:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(124,58,237,0.06) 6px,rgba(124,58,237,0.06) 12px); }
+    .pgx-act-triplet { border-left-color:#0f766e; }
+    .pgx-action-kicker { display:flex; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.4rem; }
+    .pgx-evidence-badge { font-size:0.68rem; font-weight:700; letter-spacing:0.02em; background:#e2e8f0; color:#334155; padding:0.15rem 0.4rem; border-radius:0.25rem; }
+    .pgx-badge-active { background:#dbeafe; color:#1d4ed8; }
+    .pgx-badge-triplet { background:#ccfbf1; color:#0f766e; }
+    .pgx-triplet-scroll { max-height:22rem; overflow:auto; border:1px solid #e2e8f0; border-radius:0.5rem; }
+    .pgx-triplet-high td { background:#ecfdf5; }
+    .pgx-triplet-mod td { background:#fff; }
+    .pgx-action-label { font-weight:600; }
+    .pgx-chip-row { display:flex; flex-wrap:wrap; gap:0.4rem; min-height:2rem; }
+    .pgx-chip { border:1px solid #cbd5e1; background:#fff; border-radius:999px; padding:0.25rem 0.65rem; cursor:pointer; }
+    .pgx-chip-empty { color:#94a3b8; font-size:0.85rem; }
+    .pgx-autocomplete-wrap { position:relative; }
+    .pgx-suggest { position:absolute; z-index:20; left:0; right:0; top:100%; background:#fff; border:1px solid #cbd5e1; border-radius:0.4rem; max-height:220px; overflow:auto; box-shadow:0 8px 20px rgba(15,23,42,0.08); }
+    .pgx-suggest-item { display:block; width:100%; text-align:left; background:none; border:0; padding:0.5rem 0.75rem; cursor:pointer; }
+    .pgx-suggest-item:hover, .pgx-suggest-item:focus { background:#f1f5f9; }
+    .pgx-suggest-empty { padding:0.75rem; color:#64748b; font-size:0.85rem; }
+    .pgx-matrix { width:100%; border-collapse:collapse; font-size:0.78rem; }
+    .pgx-matrix th, .pgx-matrix td { border:1px solid #e2e8f0; padding:0.4rem; }
+    .pgx-cell-none { color:#94a3b8; background:#f8fafc; }
+    .pgx-empty { color:#64748b; font-style:italic; }
+    @media print {
+      .cohort-tabs, .tabs, .pgx-input-section, #pgx-snp-refine-section, #pgx-card-status, button { display:none !important; }
+      #pgx-card-display { display:block !important; }
+    }
     .status-message {
       padding: 1rem;
       border-radius: 0.5rem;
@@ -863,6 +901,9 @@
       }
     } catch (e) { console.warn('[tab-loader] Failed:', file, e); }
   }));
+  if (window.PgxWorkflow && typeof window.PgxWorkflow.init === "function") {
+    window.PgxWorkflow.init();
+  }
 
 
   // ==============================
@@ -1045,6 +1086,7 @@
     populateSelect(drugsEl, codesForAge.drugs || []);
     populateSelect(icdsEl, codesForAge.icds || []);
     populateSelect(cptsEl, codesForAge.cpts || []);
+    if (window.PgxWorkflow) window.PgxWorkflow.setVocabFromMetadata(codesForAge.drugs || []);
     updateSelectionDisplays();
   }
 
@@ -1959,14 +2001,206 @@
       panel.classList.toggle("active", panel.id === "dtw-subpanel-" + subtabId);
     });
     // Lazy-render bin comparison on first switch to avoid layout issues in hidden panels
-    if (subtabId === "bins" && window.dtwBinComparisonData) {
-      renderDTWBinComparison(window.dtwBinComparisonData, window.dtwBinTransitionsData);
-      window.dtwBinComparisonData = null; // render once; data stays in dtwBinTransitionsData
+    if (subtabId === "bins" && (window.dtwBinComparisonData || window.dtwBinTransitionsData || window._dtwBinHeatmapCache)) {
+      renderDTWBinComparison(window.dtwBinComparisonData || window._dtwBinHeatmapCache, window.dtwBinTransitionsData);
     }
   };
 
   const _BIN_COLORS = { low: "#10b981", medium: "#3b82f6", high: "#f59e0b", extreme: "#ef4444" };
   const _BIN_ORDER = ["low", "medium", "high", "extreme"];
+
+  function ageBandPathVariants(ageBand) {
+    const hyphen = String(ageBand || "");
+    const under = hyphen.replace(/-/g, "_");
+    return hyphen === under ? [hyphen] : [hyphen, under];
+  }
+
+  async function fetchFirstJson(urls) {
+    for (const url of urls) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const data = await resp.json();
+        if (data && typeof data === "object" && !data.empty) return data;
+      } catch (_) { /* try next */ }
+    }
+    return null;
+  }
+
+  function normalizeBinHeatmap(data) {
+    if (!data || data.empty) return null;
+    if (Array.isArray(data.row_labels) && Array.isArray(data.matrix) && data.row_labels.length && data.matrix.length) {
+      return data;
+    }
+    const counts = {};
+    for (const sectionKey of ["drug", "icd", "cpt"]) {
+      const section = data[sectionKey];
+      if (!section || !Array.isArray(section.codes) || !Array.isArray(section.counts)) continue;
+      section.codes.forEach((code, i) => {
+        const raw = section.counts[i];
+        const total = Array.isArray(raw) ? raw.reduce((a, b) => a + Number(b || 0), 0) : Number(raw || 0);
+        const label = sectionKey.toUpperCase() + ":" + code;
+        counts[label] = (counts[label] || 0) + total;
+      });
+    }
+    const rows = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 30);
+    if (!rows.length) return null;
+    return {
+      row_labels: rows,
+      column_labels: ["all"],
+      matrix: rows.map((label) => [counts[label]]),
+      metric: data.metric || "count",
+      heatmap_type: data.heatmap_type || "normalized_sequence_heatmap"
+    };
+  }
+
+  function extractPatientCount(data) {
+    if (!data || typeof data !== "object") return 0;
+    const n = data.n_patients
+      || data.n_trajectories
+      || (data.summary && (data.summary.n_patients || data.summary.total_trajectories));
+    return Number(n) || 0;
+  }
+
+  function applyPatientRates(combined, nPatients) {
+    if (!combined || !Array.isArray(combined.matrix) || !Array.isArray(combined.column_labels)) return combined;
+    const merged = Object.assign({}, combined.n_patients_per_bin || {}, nPatients || {});
+    const cols = combined.column_labels;
+    const hasN = cols.some((bin) => Number(merged[bin]) > 1);
+    combined.n_patients_per_bin = merged;
+    if (!hasN) {
+      if (!combined.metric) combined.metric = "event_count";
+      return combined;
+    }
+    combined.matrix = combined.matrix.map((row) =>
+      cols.map((bin, i) => {
+        const raw = Number(row[i] || 0);
+        const n = Number(merged[bin]) || 0;
+        return n > 1 ? Math.round((raw / n) * 1e6) / 1e6 : raw;
+      })
+    );
+    combined.metric = "rate_per_patient";
+    return combined;
+  }
+
+  async function loadBinPatientCounts(cohort, ageBand) {
+    const ages = ageBandPathVariants(ageBand);
+    const nPatients = {};
+    await Promise.all(_BIN_ORDER.map(async (bin) => {
+      const urls = ages.map((age) =>
+        staticJsonPath(`visualizations/dtw/${cohort}/${age}/density/${bin}/chart_data.json`)
+      );
+      const n = extractPatientCount(await fetchFirstJson(urls));
+      if (n) nPatients[bin] = n;
+    }));
+    return nPatients;
+  }
+
+  function combineSequenceHeatmapsByBin(byBin) {
+    const binCodeCounts = {};
+    const nPatients = {};
+    Object.keys(byBin || {}).forEach((binName) => {
+      const hm = byBin[binName];
+      if (!hm || hm.empty) return;
+      const n = extractPatientCount(hm);
+      if (n) nPatients[binName] = n;
+      for (const sectionKey of ["drug", "icd", "cpt"]) {
+        const section = hm[sectionKey];
+        if (!section || !Array.isArray(section.codes) || !Array.isArray(section.counts)) continue;
+        section.codes.forEach((code, i) => {
+          const raw = section.counts[i];
+          const total = Array.isArray(raw) ? raw.reduce((a, b) => a + Number(b || 0), 0) : Number(raw || 0);
+          const label = sectionKey.toUpperCase() + ":" + code;
+          if (!binCodeCounts[label]) binCodeCounts[label] = {};
+          binCodeCounts[label][binName] = (binCodeCounts[label][binName] || 0) + total;
+        });
+      }
+    });
+    const rows = Object.keys(binCodeCounts)
+      .sort((a, b) => {
+        const sa = _BIN_ORDER.reduce((s, bin) => s + (binCodeCounts[a][bin] || 0), 0);
+        const sb = _BIN_ORDER.reduce((s, bin) => s + (binCodeCounts[b][bin] || 0), 0);
+        return sb - sa;
+      })
+      .slice(0, 30);
+    if (!rows.length) return null;
+    return {
+      row_labels: rows,
+      column_labels: _BIN_ORDER.slice(),
+      matrix: rows.map((label) => _BIN_ORDER.map((bin) => binCodeCounts[label][bin] || 0)),
+      metric: "event_count",
+      heatmap_type: "dtw_sequence_code_frequency",
+      n_patients_per_bin: nPatients
+    };
+  }
+
+  async function loadCombinedBinHeatmap(kind, cohort, ageBand) {
+    const ages = ageBandPathVariants(ageBand);
+    const combinedName = {
+      dtw: "dtw_sequence_heatmap.json",
+      bupar: "bupar_activity_heatmap.json",
+      fpgrowth: "fpgrowth_itemset_heatmap.json"
+    }[kind];
+    const folder = kind === "fpgrowth" ? "fpgrowth" : kind;
+    const combinedUrls = ages.map((age) =>
+      staticJsonPath(`visualizations/${folder}/${cohort}/${age}/density/combined/${combinedName}`)
+    );
+    const combined = normalizeBinHeatmap(await fetchFirstJson(combinedUrls));
+    const nPatients = kind === "dtw" ? await loadBinPatientCounts(cohort, ageBand) : {};
+    if (combined) {
+      const alreadyRated = combined.metric === "rate_per_patient" || combined.metric === "support";
+      return alreadyRated ? Object.assign(combined, { n_patients_per_bin: Object.assign({}, nPatients, combined.n_patients_per_bin || {}) }) : applyPatientRates(combined, nPatients);
+    }
+    if (kind === "fpgrowth") {
+      const byBin = {};
+      await Promise.all(_BIN_ORDER.map(async (bin) => {
+        const urls = ages.flatMap((age) => [
+          staticJsonPath(`visualizations/fpgrowth/${cohort}/${age}/density/${bin}/drug_name_itemsets.json`),
+          staticJsonPath(`visualizations/fpgrowth/${cohort}/${age}/density/${bin}/plots/drug_name_itemsets.json`)
+        ]);
+        byBin[bin] = await fetchFirstJson(urls);
+      }));
+      const labels = {};
+      Object.keys(byBin).forEach((binName) => {
+        const rows = Array.isArray(byBin[binName]) ? byBin[binName] : (byBin[binName] && byBin[binName].itemsets);
+        if (!Array.isArray(rows)) return;
+        rows.forEach((row) => {
+          const items = row.itemsets || row.items || [];
+          if (!items.length) return;
+          const label = items.map(String).sort().join(" + ");
+          if (!labels[label]) labels[label] = {};
+          labels[label][binName] = Math.max(labels[label][binName] || 0, Number(row.support || 0));
+        });
+      });
+      const rows = Object.keys(labels)
+        .sort((a, b) => _BIN_ORDER.reduce((s, bin) => s + (labels[b][bin] || 0), 0) - _BIN_ORDER.reduce((s, bin) => s + (labels[a][bin] || 0), 0))
+        .slice(0, 30);
+      if (!rows.length) return null;
+      return {
+        row_labels: rows,
+        column_labels: _BIN_ORDER.slice(),
+        matrix: rows.map((label) => _BIN_ORDER.map((bin) => labels[label][bin] || 0)),
+        metric: "support",
+        heatmap_type: "fpgrowth_itemset_support"
+      };
+    }
+    if (kind !== "dtw") return null;
+    const byBin = {};
+    await Promise.all(_BIN_ORDER.map(async (bin) => {
+      const urls = ages.map((age) =>
+        staticJsonPath(`visualizations/dtw/${cohort}/${age}/density/${bin}/sequence_heatmap.json`)
+      );
+      byBin[bin] = await fetchFirstJson(urls);
+    }));
+    return applyPatientRates(combineSequenceHeatmapsByBin(byBin), nPatients);
+  }
+
+  async function loadBinTransitions(cohort, ageBand) {
+    const urls = ageBandPathVariants(ageBand).map((age) =>
+      staticJsonPath(`visualizations/dtw/${cohort}/${age}/density/transitions/bin_transitions.json`)
+    );
+    return fetchFirstJson(urls);
+  }
 
   function renderDTWBinBarChart(heatmapData, topN) {
     _renderBinBarChart("dtw-bin-bar-container", heatmapData, topN);
@@ -1997,9 +2231,10 @@
       const nRows = hm.row_labels.length;
       Plotly.newPlot(hmContainer, [{
         type: "heatmap", x: hm.column_labels, y: hm.row_labels, z: hm.matrix,
-        colorscale: "YlOrRd",
+        colorscale: [[0, "#ffffff"], [0.02, "#fff7ed"], [0.25, "#fdba74"], [0.6, "#ea580c"], [1, "#7c2d12"]],
+        zmin: 0,
         colorbar: { title: hm.metric || "rate_per_patient", thickness: 14, len: 0.6 },
-        hovertemplate: "Code: %{y}<br>Bin: %{x}<br>Rate: %{z:.4f}<extra></extra>"
+        hovertemplate: "Code: %{y}<br>Bin: %{x}<br>Value: %{z:.4f}<extra></extra>"
       }], {
         height: Math.max(400, nRows * 18 + 100),
         margin: { l: 180, r: 80, t: 30, b: 80 },
@@ -2015,7 +2250,7 @@
     const barContainer = document.getElementById(barContainerId);
     if (!barContainer) return;
     if (!heatmapData || !heatmapData.row_labels || !heatmapData.matrix || heatmapData.empty) {
-      barContainer.innerHTML = "<p style=\"color:#64748b;font-style:italic;padding:1rem;\">Grouped bar chart not available.</p>";
+      barContainer.innerHTML = "<p style=\"color:#64748b;font-style:italic;padding:1rem;\">Grouped bar chart not available. Combined bin heatmap was not found (tried hyphen and underscore age-band paths, then per-bin sequence heatmaps). Run <code>create_combined_bin_heatmap.py</code> and sync to S3.</p>";
       return;
     }
     const n = topN || 10;
@@ -2041,6 +2276,18 @@
       legend: { orientation: "h", y: 1.08 },
       paper_bgcolor: "#fff", plot_bgcolor: "#fff"
     }, { responsive: true, displayModeBar: false });
+    const captionId = barContainerId + "-caption";
+    let caption = document.getElementById(captionId);
+    if (!caption) {
+      caption = document.createElement("p");
+      caption.id = captionId;
+      caption.style.cssText = "color:#64748b;font-size:0.8rem;margin:0.35rem 0 0;";
+      barContainer.insertAdjacentElement("afterend", caption);
+    }
+    const nPat = heatmapData.n_patients_per_bin || {};
+    caption.textContent = Object.keys(nPat).length
+      ? "Patients per bin: " + _BIN_ORDER.filter((b) => nPat[b] != null).map((b) => b + " n=" + Number(nPat[b]).toLocaleString()).join(" · ")
+      : "";
   }
 
   window.renderDTWBinChartView = function(type) {
@@ -2140,9 +2387,10 @@
     if (yearDistContainer && transitions.per_year_distribution) {
       yearDistContainer.innerHTML = "";
       const years = Object.keys(transitions.per_year_distribution).sort();
+      const yearLabels = years.map(String);
       const traces = _BIN_ORDER.map(bin => ({
         type: "bar", name: bin,
-        x: years,
+        x: yearLabels,
         y: years.map(yr => (transitions.per_year_distribution[yr] || {})[bin] || 0),
         marker: { color: _BIN_COLORS[bin] },
         hovertemplate: bin + " %{x}: %{y:,} patients<extra></extra>"
@@ -2150,7 +2398,7 @@
       Plotly.newPlot(yearDistContainer, traces, {
         barmode: "stack", height: 300,
         margin: { l: 60, r: 20, t: 20, b: 50 },
-        xaxis: { title: "Year" },
+        xaxis: { title: "Year", type: "category", categoryorder: "array", categoryarray: yearLabels },
         yaxis: { title: "Patients", rangemode: "tozero" },
         legend: { orientation: "h", y: -0.2 },
         paper_bgcolor: "#fff", plot_bgcolor: "#fff"
@@ -2367,15 +2615,105 @@
     }
   })();
 
-  // PGx Card File Upload Handler
+  // PGx Card File Upload Handler — AncestryDNA zip/csv/txt or Gene,Variant lines
+  const PGX_RSID_MAP = {
+    rs4244285: { gene: "CYP2C19", star: "*2", alt: ["A", "T"] },
+    rs4986893: { gene: "CYP2C19", star: "*3", alt: ["A", "T"] },
+    rs12248560: { gene: "CYP2C19", star: "*17", alt: ["T", "A"] },
+    rs1799853: { gene: "CYP2C9", star: "*2", alt: ["T", "A"] },
+    rs1057910: { gene: "CYP2C9", star: "*3", alt: ["C", "G"] },
+    rs3892097: { gene: "CYP2D6", star: "*4", alt: ["A", "T"] },
+    rs1065852: { gene: "CYP2D6", star: "*10", alt: ["A", "T"] },
+    rs16947: { gene: "CYP2D6", star: "*2", alt: ["A", "T"] },
+    rs28371725: { gene: "CYP2D6", star: "*41", alt: ["T", "A"] },
+    rs5030655: { gene: "CYP2D6", star: "*6", alt: ["D", "-"] },
+    rs35742686: { gene: "CYP2D6", star: "*3", alt: ["D", "-"] },
+    rs4149056: { gene: "SLCO1B1", star: "*5", alt: ["C", "G"] },
+    rs2306283: { gene: "SLCO1B1", star: "*1B", alt: ["G", "C"] },
+    rs776746: { gene: "CYP3A5", star: "*3", alt: ["C", "G"] },
+    rs1800460: { gene: "TPMT", star: "*3B", alt: ["A", "T"] },
+    rs1142345: { gene: "TPMT", star: "*3C", alt: ["C", "G"] },
+    rs1800462: { gene: "TPMT", star: "*2", alt: ["C", "G"] },
+    rs3918290: { gene: "DPYD", star: "*2A", alt: ["T", "A"] },
+    rs67376798: { gene: "DPYD", star: "*13", alt: ["T", "A"] },
+    rs9923231: { gene: "VKORC1", star: "*2", alt: ["A", "T"] },
+    rs2108622: { gene: "CYP4F2", star: "*3", alt: ["T", "A"] },
+    rs2740574: { gene: "CYP3A4", star: "*1B", alt: ["G", "C"] },
+    rs35599367: { gene: "CYP3A4", star: "*22", alt: ["T", "A"] }
+  };
+
+  function parseGeneVariantLines(text) {
+    return String(text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#") && line.includes(","));
+  }
+
+  function parseAncestryDnaText(text) {
+    const byGene = {};
+    const lines = String(text || "").split(/\r?\n/);
+    for (const line of lines) {
+      if (!line || line.startsWith("#")) continue;
+      const parts = line.split(/\t|,/);
+      if (parts.length < 5) continue;
+      const rsid = String(parts[0] || "").trim();
+      if (rsid === "rsid" || !rsid.startsWith("rs")) continue;
+      const mapped = PGX_RSID_MAP[rsid];
+      if (!mapped) continue;
+      const a1 = String(parts[3] || "").trim().toUpperCase();
+      const a2 = String(parts[4] || "").trim().toUpperCase();
+      if (!a1 || !a2 || a1 === "0" || a2 === "0") continue;
+      const alt = (mapped.alt || []).map((x) => String(x).toUpperCase());
+      const copies = [a1, a2].filter((allele) => alt.includes(allele)).length;
+      if (!copies) continue;
+      const alleles = copies === 2 ? [mapped.star, mapped.star] : ["*1", mapped.star];
+      const existing = byGene[mapped.gene] || [];
+      alleles.forEach((star) => {
+        if (!existing.includes(star)) existing.push(star);
+      });
+      byGene[mapped.gene] = existing;
+    }
+    return Object.keys(byGene)
+      .sort()
+      .map((gene) => gene + "," + byGene[gene].join(","));
+  }
+
+  async function readSnpUploadText(file) {
+    const name = (file && file.name ? file.name : "").toLowerCase();
+    if (name.endsWith(".zip")) {
+      if (!window.JSZip) throw new Error("Zip support is not loaded");
+      const zip = await window.JSZip.loadAsync(file);
+      const entry = Object.values(zip.files).find((item) => {
+        if (item.dir) return false;
+        const n = item.name.toLowerCase();
+        return n.endsWith(".txt") || n.endsWith(".csv") || n.endsWith(".tsv");
+      });
+      if (!entry) throw new Error("Zip has no .txt/.csv DNA extract");
+      return entry.async("string");
+    }
+    return file.text();
+  }
+
   if (snpFileEl) snpFileEl.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
     try {
-      const text = await file.text();
-      snpInputEl.value = text;
-      setPGxStatus("File loaded successfully", "success");
+      const text = await readSnpUploadText(file);
+      if ((file.name || "").toLowerCase().endsWith(".vcf")) {
+        setPGxStatus("VCF uploaded but haplotype calling is not run in the browser. Enter Gene,Allele lines or use AncestryDNA export. Unparsed VCF is treated as insufficient resolution, not normal.", "error");
+        return;
+      }
+      const ancestryLines = parseAncestryDnaText(text);
+      const geneLines = parseGeneVariantLines(text);
+      if (ancestryLines.length) {
+        snpInputEl.value = ancestryLines.join("\n");
+        setPGxStatus("Loaded " + ancestryLines.length + " PGx gene(s) from AncestryDNA file. Review, then generate the card.", "success");
+      } else if (geneLines.length) {
+        snpInputEl.value = geneLines.join("\n");
+        setPGxStatus("File loaded successfully", "success");
+      } else {
+        throw new Error("No PGx SNPs or Gene,Variant lines found in that file");
+      }
     } catch (err) {
       setPGxStatus(`Error reading file: ${err.message}`, "error");
     }
@@ -2402,6 +2740,9 @@
     if (!snpData) {
       setPGxStatus("Please enter SNP data", "error");
       return;
+    }
+    if (window.PgxWorkflow && document.getElementById("pgx-drug-scope")?.value === "ACTIVE") {
+      getMultiSelectValues(drugsEl).forEach((name) => window.PgxWorkflow.addSelection(name));
     }
     
     setPGxStatus("Generating PGx Card...", "info");
@@ -2431,8 +2772,10 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patient_id: patientId || null, // Optional, send null if empty
-          variants: variants
+          patient_id: patientId || null,
+          variants: variants,
+          selected_apcd_drugs: window.PgxWorkflow ? window.PgxWorkflow.currentIngredientNames() : [],
+          drug_scope: document.getElementById("pgx-drug-scope") ? document.getElementById("pgx-drug-scope").value : "ACTIVE"
         })
       });
       
@@ -2482,26 +2825,10 @@
       genesListEl.appendChild(geneEl);
     });
     
-    // Display drugs
-    const drugsListEl = document.getElementById("pgx-drugs-list");
-    drugsListEl.innerHTML = "";
-    if (data.drugs && data.drugs.length > 0) {
-      data.drugs.forEach(drug => {
-        const drugEl = document.createElement("div");
-        drugEl.className = "pgx-drug-item";
-        drugEl.innerHTML = `
-          <div class="pgx-drug-name">${drug.drug}</div>
-          <div class="pgx-drug-gene">Gene: ${drug.gene}</div>
-          <div class="pgx-drug-guideline">
-            <a href="${drug.guideline_url}" target="_blank">CPIC Guideline</a>
-            ${drug.cpic_level ? ` | CPIC Level: ${drug.cpic_level}` : ""}
-            ${drug.fda_label ? ` | FDA Label: ${drug.fda_label}` : ""}
-          </div>
-        `;
-        drugsListEl.appendChild(drugEl);
+    if (window.PgxWorkflow) {
+      window.PgxWorkflow.render(data, {
+        variants: (data.genes || []).map((g) => ({ gene: g.gene, variants: g.variants || [] }))
       });
-    } else {
-      drugsListEl.innerHTML = "<p style='color: #64748b;'>No drugs requiring dosing modifications found.</p>";
     }
     
     // Display gene details
@@ -2876,21 +3203,22 @@
         dtwSelected.push(...getDTWVisualSelection(cohort));
       }
       renderDTWVisualizations(data, densityFilter, dtwSelected.length ? dtwSelected : undefined);
+      const histUrls = ageBandPathVariants(ageBand).flatMap((age) => [
+        staticJsonPath(`visualizations/dtw/${cohort}/${age}/time_between_events_histogram.json`),
+        staticJsonPath(`visualizations/dtw/outputs/${cohort}/${age}/time_between_events_histogram.json`)
+      ]);
+      fetchFirstJson(histUrls).then((hist) => renderTimeBetweenEventsHistogram(hist)).catch(() => renderTimeBetweenEventsHistogram(null));
       const emptyMsg = (data.chart_data && data.chart_data.empty && data.chart_data.message) || (data.sequence_heatmap && data.sequence_heatmap.empty && data.sequence_heatmap.message) || (data.trajectory_overview_plot && data.trajectory_overview_plot.empty && data.trajectory_overview_plot.message);
       document.getElementById("dtw-status").textContent = emptyMsg ? emptyMsg : "DTW visualizations loaded successfully";
       document.getElementById("dtw-status").className = emptyMsg ? "status-message info" : "status-message success";
       // Fetch bin comparison + transition data in background (lazy-rendered when Bin Comparison sub-tab is opened)
-      const ageBandFnameDTW = ageBand.replace(/-/g, "_");
-      const binHeatmapUrl = staticJsonPath(`visualizations/dtw/${cohort}/${ageBandFnameDTW}/density/combined/dtw_sequence_heatmap.json`);
-      const binTransUrl   = staticJsonPath(`visualizations/dtw/${cohort}/${ageBandFnameDTW}/density/transitions/bin_transitions.json`);
-      Promise.all([fetch(binHeatmapUrl), fetch(binTransUrl)]).then(async ([hmRes, trRes]) => {
-        window.dtwBinComparisonData  = hmRes.ok  ? await hmRes.json().catch(() => null)  : null;
-        window.dtwBinTransitionsData = trRes.ok  ? await trRes.json().catch(() => null)  : null;
-        // If user already switched to the bins sub-tab, render immediately
+      Promise.all([loadCombinedBinHeatmap("dtw", cohort, ageBand), loadBinTransitions(cohort, ageBand)]).then(([hm, tr]) => {
+        window.dtwBinComparisonData  = hm;
+        window.dtwBinTransitionsData = tr;
+        window._dtwBinHeatmapCache = hm;
         const activeSub = document.querySelector("#dtw-visualizations-tab .dtw-subtab.active");
         if (activeSub && activeSub.getAttribute("data-dtw-subtab") === "bins") {
-          renderDTWBinComparison(window.dtwBinComparisonData, window.dtwBinTransitionsData);
-          window.dtwBinComparisonData = null;
+          renderDTWBinComparison(hm, tr);
         }
       }).catch(() => { /* bin comparison data optional */ });
     } catch (err) {
@@ -3039,9 +3367,7 @@
       document.getElementById("fpgrowth-status").textContent = "FP-Growth visualizations loaded successfully";
       document.getElementById("fpgrowth-status").className = "status-message success";
       // Background fetch of combined bin itemset heatmap for Bin Comparison panel
-      const ageBandFnameFPG = ageBand.replace(/-/g, "_");
-      fetch(staticJsonPath(`visualizations/fpgrowth/${cohort}/${ageBandFnameFPG}/density/combined/fpgrowth_itemset_heatmap.json`))
-        .then(r => r.ok ? r.json().catch(() => null) : null)
+      loadCombinedBinHeatmap("fpgrowth", cohort, ageBand)
         .then(hm => {
           window._fpgrowthBinHeatmapCache = hm;
           const topN = parseInt(document.getElementById("fpgrowth-bin-bar-topn")?.value || "10", 10);
@@ -3448,9 +3774,7 @@
       }
       document.getElementById("bupar-status").className = "status-message success";
       // Background fetch of combined bin activity heatmap for Bin Comparison panel
-      const ageBandFnameBupaR = ageBand.replace(/-/g, "_");
-      fetch(staticJsonPath(`visualizations/bupar/${cohort}/${ageBandFnameBupaR}/density/combined/bupar_activity_heatmap.json`))
-        .then(r => r.ok ? r.json().catch(() => null) : null)
+      loadCombinedBinHeatmap("bupar", cohort, ageBand)
         .then(hm => {
           window._buparBinHeatmapCache = hm;
           const topN = parseInt(document.getElementById("bupar-bin-bar-topn")?.value || "10", 10);
