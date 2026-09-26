@@ -51,6 +51,12 @@ Code availability statements in the papers point to `https://github.com/Jerome35
 
 ---
 
+## Data sources
+
+APCD **bronze** keeps all vendor columns; **gold** is the filtered modeling
+layer. Silver and FAERS copies were removed. See
+**[README_datasources.md](README_datasources.md)**.
+
 ## EC2 (Mushin / aws-setup)
 
 Compute runs in Mushin account `535362115856` (CLI profile `mushin` or `pgx`).
@@ -60,13 +66,17 @@ or a warm 197 GB root. Gold/cohorts come from S3.
 ```bash
 # from C:\Projects\aws-setup
 AWS_PROFILE=mushin bash ec2/scripts/bash/launch_pgx_session.sh
-# SSH as pgx3874 after bootstrap finishes (R/Python compile, often 1-2 hours), then:
+# SSH as ec2-user / pgx3874 after bootstrap finishes (Python/DuckDB, often ~1 hour), then:
 bash ec2/scripts/bash/clone_and_setup_pgx.sh
+# Only if the job calls R (BupaR / r_helpers):
+# INSTALL_R=1 AWS_PROFILE=mushin bash ec2/scripts/bash/launch_pgx_session.sh
 ```
 
-- Bootstrap: `ec2/bootstrap/ec2_linux2_single.sh` as user-data
+- Bootstrap: `ec2/bootstrap/ec2_linux2_single.sh` as user-data (`INSTALL_R=0` by default)
 - After clone: `/home/pgx3874/pgx-analysis` with `~/jupyter-env`
 - Idle stop: CloudWatch `sedvr-idle-stop-<instance-id>` (CPU < 5% for 45 min)
+- Session wrap: `bash utility_scripts/run_ec2_analysis_session.sh --job-name "..." -- <cmd>`
+  emails a COMPLETE summary, then a FINAL confirmation after Spot cancel + terminate
 
 See `.cursor/rules/ec2.mdc` and `aws-pgx-setup/ec2/README.md`.
 

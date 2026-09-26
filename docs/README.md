@@ -25,7 +25,8 @@ Notebooks are broken up by **phase 0–5**. Run in order: **Phase 0** → **1** 
 - **[README_create_cohort_pipeline.md](Step1-2_DataPipeline/README_create_cohort_pipeline.md)** - Cohort pipeline phases and execution
 - **[README_preprocessing.md](Step1-2_DataPipeline/README_preprocessing.md)** - Data preprocessing steps
 - **[README_preprocessing_pipeline.md](Step1-2_DataPipeline/README_preprocessing_pipeline.md)** - Preprocessing pipeline detail
-- **[README_s3_datalake.md](Step1-2_DataPipeline/README_s3_datalake.md)** - S3 data lake structure
+- **[README_datasources.md](../README_datasources.md)** - APCD bronze (full columns) and gold prefixes, Athena tables
+- **[README_s3_datalake.md](Step1-2_DataPipeline/README_s3_datalake.md)** - S3 feature-importance output structure
 - **[README_pipeline_state_tracking.md](Step1-2_DataPipeline/README_pipeline_state_tracking.md)** - Pipeline state and checkpoint tracking
 
 ### Step 3: Feature Importance Analysis
