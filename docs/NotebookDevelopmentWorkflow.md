@@ -1,22 +1,18 @@
 # Notebook Development Workflow
 
-**Final production workflow** for editing/running analysis notebooks in this repo. Intermediate approaches (including a mandatory `notebooks/dev/` vs `notebooks/published/` split) are retired — see [Lessons learned](CrossStep_Development/README_lessons_learned.md#cursor-notebook-stability--final-production-workflow-july-2026).
+**Final production workflow** for editing/running analysis notebooks in this repo. Intermediate approaches (including a mandatory `notebooks/dev/` vs `notebooks/published/` split) are retired — see [Lessons learned](CrossStep_Development/README_lessons_learned.md#notebook-tab-stability--final-production-workflow-july-2026).
 
-Goal: keep Cursor stable, keep expensive results on disk/S3, and prefer scripts over ballooning `.ipynb` JSON as the source of truth for production steps.
+Goal: keep the editor stable, keep expensive results on disk/S3, and prefer scripts over ballooning `.ipynb` JSON as the source of truth for production steps.
 
-## Confirmed Cursor notebook crash causes
+## Confirmed notebook crash causes
 
-Blank / frozen / reload-loop notebook tabs are fixed by IDE + git hygiene, not by folder layout. Canonical write-up:
-
-**[`C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md`](../../project_utility_scripts/CURSOR_DEV_RULES.md)** → **Confirmed Cursor notebook crash causes**
+Blank / frozen / reload-loop notebook tabs are fixed by IDE + git hygiene, not by folder layout.
 
 | Cause | Mitigation in this repo |
 |:------|:------------------------|
-| Jupyter / notebook `settings.json` (Cursor Tab/CPP / format-on-save) | `.vscode/settings.json` → `[jupyter]` block |
+| Jupyter / notebook `settings.json` (inline completion / format-on-save) | `.vscode/settings.json` → `[jupyter]` block |
 | CRLF + `.gitattributes` / broken `nbstripout` filter corrupting JSON | `.gitattributes` → `*.ipynb text eol=lf filter=nbstripout`; install filter with **Windows** Python |
 | Conflicting Python / Jupyter extensions | Prefer MS Python + Jupyter + Pylance; `python-envs.defaultEnvManager: venv` |
-
-Short entrypoint: `project_utility_scripts/DEV_RULES.md` → Notebook Defaults.
 
 ## Final production workflow
 
@@ -29,7 +25,7 @@ flowchart TD
     D --> F[Ensure crash mitigations: settings + LF + nbstripout + extensions]
     F --> G[No large embeds — print summaries only]
     G --> E
-    E --> H[Sidecar *.outputs.json via cursor_setup.py when needed]
+    E --> H[Sidecar *.outputs.json via notebook output sync when needed]
     E --> I[GitHub-trackable summaries under reports/notebook_artifacts]
     H --> J[Do not keep abandoned intermediate scaffolds]
 ```
@@ -44,11 +40,11 @@ flowchart TD
 
 ### What we do *not* require
 
-- A mandatory `notebooks/dev/` vs `notebooks/published/` (or `production/`) tree for Cursor stability.
+- A mandatory `notebooks/dev/` vs `notebooks/published/` (or `production/`) tree for editor stability.
 - Rerunning completed analyses just to reorganize folders.
 - Mass-moving historical numbered workflow notebooks.
 
-Legacy ignore rules for `**/notebooks/published/**` and `**/notebooks/production/**` in `.cursorignore` remain harmless if those folders still exist; they are not the primary hang fix.
+Legacy ignore rules for `**/notebooks/published/**` and `**/notebooks/production/**` remain harmless if those folders still exist; they are not the primary hang fix.
 
 ## Artifact helpers (when using a notebook or `# %%` driver)
 
@@ -97,9 +93,11 @@ python cursor_setup.py fetch-outputs <notebook_path>
 jupyter nbconvert --clear-output --inplace <notebook_path>
 ```
 
-## Cursor recovery pattern
+`cursor_setup.py` is the project notebook-output sync helper (sidecar `*.outputs.json`).
 
-1. Confirm `.vscode/settings.json` has the `[jupyter]` block (Tab/CPP/format-on-save off for notebooks).
+## Notebook recovery pattern
+
+1. Confirm `.vscode/settings.json` has the `[jupyter]` block (inline completion and format-on-save off for notebooks).
 2. Validate the `.ipynb` (`nbformat.validate`); check for CRLF and a Windows-safe `nbstripout` filter (`git config --get filter.nbstripout.clean`).
-3. Check **Output → Jupyter** / **Python Environments** for extension conflicts; prove the kernel with `jupyter kernelspec list` / `nbclient` outside Cursor.
+3. Check **Output → Jupyter** / **Python Environments** for extension conflicts; prove the kernel with `jupyter kernelspec list` / `nbclient` outside the editor.
 4. Clear heavy outputs if needed, reopen, or continue in the paired `# %%` / step script.

@@ -837,8 +837,17 @@ When a protocol or tooling path is chosen, **always** land the **final productio
 | Clone | `clone_and_setup_pgx.sh` with `--recurse-submodules`; push the submodule pointer **before** launch |
 | Deps | Always `pip install -r requirements.txt` (includes `mlxtend`, `psutil`). Then `preflight_pgx_python.sh` |
 | Job wrap | `run_ec2_analysis_session.sh` → SES COMPLETE → cancel Spot → terminate → SES FINAL |
+| NVMe | `mount_nvme.sh` (sudo) at waiter and job start. Wrap must not require `/mnt/nvme` |
 | Size | One band: `x2iedn.2xlarge` (256 GiB). Bin transitions use gold cohorts, not `model_events` |
 | Artifacts | S3. No session AMI, no 197 GB root |
+
+#### `/mnt/nvme` mkdir as `ec2-user` (2026-09-26, `i-08d39967023dcc7a1`)
+
+`run_ec2_analysis_session.sh` used to `mkdir -p ${PGX_DATA_ROOT:-/mnt/nvme}/pgx-analysis/logs` as the session user **before** the job script’s sudo NVMe mount. If `/mnt/nvme` does not exist, only root can create it → Permission denied → waiter exits → no gold-cohort job.
+
+The 65-74 box (`i-0bdc2808cbf4b09f5`) did not hit this because start was `nohup bash /tmp/start_65_74.sh` as **root** (or `/mnt/nvme` already present). The gaps start was `sudo -u ec2-user ... wait_bootstrap_and_run_gaps.sh`. Same wrapper, different uid. AL2023 bootstrap `set -e` also died on `ln -sf python3.11` onto itself (cloud-init error); that did not block Python, but it skipped later user-data. Bootstrap still does not format instance-store.
+
+**Rule:** Mount NVMe (sudo) before session wrap, or wrap must not require `/mnt/nvme`. Do not start the waiter as `sudo -u ec2-user` unless `/mnt/nvme` is already mounted and writable. Prefer a root waiter that drops to `ec2-user` for pip/job, or mount first as root. AL2023 IMDSv2: fetch a token then instance-id (unauthenticated IMDS curl is empty → `Instance=local` → skip SES COMPLETE / Spot cancel).
 
 **Abandoned intermediates (do not relaunch from these):**
 
@@ -849,7 +858,7 @@ When a protocol or tooling path is chosen, **always** land the **final productio
 - `pip install <missing_name>` (PyPI `phases` hid `2_create_cohort/phases`)
 - Standing session AMI / warm 1 TB box
 
-**Result:** Next session follows one path; preflight fails before the job if the submodule or helper imports are missing.
+**Result:** Next session follows one path; preflight fails before the job if the submodule or helper imports are missing. Session wrap never dies because `/mnt/nvme` is unmounted.
 
 ---
 
@@ -861,6 +870,6 @@ When a protocol or tooling path is chosen, **always** land the **final productio
 - [NotebookDevelopmentWorkflow.md](../NotebookDevelopmentWorkflow.md) - Final notebook workflow (script-first; crash mitigations)
 - [README_pgx_session.md](../../aws-pgx-setup/ec2/README_pgx_session.md) - Final production EC2 session path
 
-**Version:** 2.4  
+**Version:** 2.5  
 **Last Updated:** September 2026  
 **Maintainers:** PGx Data Engineering & Analytics Team

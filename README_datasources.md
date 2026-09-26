@@ -116,4 +116,4 @@ Formation blocked drop). Files behind it are gone.
 
 - Preprocessing flow: `1a_apcd_input_data/README.md`
 - Pipeline architecture: `docs/Step1-2_DataPipeline/README_data_pipeline.md`
-- EC2 sessions: `.cursor/rules/ec2.mdc`
+- EC2 sessions: `aws-pgx-setup/ec2/README_pgx_session.md`
