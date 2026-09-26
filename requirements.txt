@@ -1,4 +1,6 @@
 # Python 3.11
+# EC2 OS is chosen to fit these pins (Amazon Linux 2023). Do not downgrade
+# this file to run on AL2. See aws-pgx-setup/ec2/README_os_and_libraries.md.
 # Core data and SHAP/FFA workflow (DuckDB for memory-efficient CSV/parquet)
 duckdb>=1.4.0
 
@@ -36,3 +38,10 @@ dtaidistance>=2.3.0
 # Utilities
 tenacity>=8.0.0
 certifi>=2023.0.0
+
+# Imported at module load by py_helpers.common_imports and aws_utils.
+# Cohort/SES jobs fail before any pipeline work if these are missing.
+mlxtend>=0.23.0
+psutil>=5.9.0
+jinja2>=3.1.0
+requests>=2.31.0

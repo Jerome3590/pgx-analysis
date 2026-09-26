@@ -9,7 +9,7 @@ import signal
 import traceback
 import psutil
 from contextlib import contextmanager
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import certifi
 
 # Set root of project for imports
@@ -154,6 +154,97 @@ def send_status_email_ses(
         # Intentionally keep this helper side-effect free for callers:
         # they can log failures but the pipeline shouldn't crash on email issues.
         return False
+
+
+def _session_email_lines(lines: List[str]) -> str:
+    return "\n".join(line for line in lines if line is not None)
+
+
+def notify_session_analysis_complete(
+    job_name: str,
+    summary: str,
+    *,
+    instance_id: Optional[str] = None,
+    extra_lines: Optional[List[str]] = None,
+) -> bool:
+    """SES: analysis finished. Includes a short summary of what completed."""
+    iid = instance_id or get_instance_id()
+    body = _session_email_lines([
+        "Analysis finished with no errors.",
+        "",
+        f"Job: {job_name}",
+        f"Instance: {iid}",
+        "",
+        "Summary:",
+        summary.strip() or "(no summary provided)",
+        "",
+        *(extra_lines or []),
+        "",
+        "Next: cancel the Spot request and terminate this session.",
+    ])
+    return send_status_email_ses(
+        f"[pgx-analysis-session] COMPLETE: {job_name}",
+        body,
+    )
+
+
+def notify_session_error(
+    job_name: str,
+    summary: str,
+    *,
+    instance_id: Optional[str] = None,
+    extra_lines: Optional[List[str]] = None,
+) -> bool:
+    """SES: analysis failed. Instance is left running unless the caller shuts it down."""
+    iid = instance_id or get_instance_id()
+    body = _session_email_lines([
+        "Analysis failed. The EC2 session was left running for debugging.",
+        "",
+        f"Job: {job_name}",
+        f"Instance: {iid}",
+        "",
+        "Error:",
+        summary.strip() or "(no error text)",
+        "",
+        *(extra_lines or []),
+    ])
+    return send_status_email_ses(
+        f"[pgx-analysis-session] ERROR: {job_name}",
+        body,
+    )
+
+
+def notify_session_shutdown(
+    instance_id: str,
+    state: str,
+    *,
+    job_name: Optional[str] = None,
+    summary: Optional[str] = None,
+    spot_request_id: Optional[str] = None,
+    alarm_name: Optional[str] = None,
+    extra_lines: Optional[List[str]] = None,
+) -> bool:
+    """SES: Spot cancel + terminate issued (or confirmed)."""
+    body = _session_email_lines([
+        "EC2 session teardown finished.",
+        "",
+        f"Job: {job_name or '(unspecified)'}",
+        f"Instance: {instance_id}",
+        f"Spot request cancelled: {spot_request_id or '(none / already gone)'}",
+        f"Idle alarm deleted: {alarm_name or f'sedvr-idle-stop-{instance_id}'}",
+        f"Instance state after teardown: {state}",
+        "Root volume: DeleteOnTermination=true",
+        "",
+        "Analysis summary:",
+        (summary or "(see COMPLETE email)").strip(),
+        "",
+        *(extra_lines or []),
+    ])
+    subject_job = f" ({job_name})" if job_name else ""
+    return send_status_email_ses(
+        f"[pgx-analysis-session] FINAL: EC2 shutdown confirmed{subject_job}",
+        body,
+    )
 
 
 def get_shared_s3_client(worker_id: Optional[str] = None) -> Any:
