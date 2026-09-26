@@ -1,0 +1,10 @@
+{
+  "apcdVocabularyVersion": "apcd-generic-v1",
+  "cpicKnowledgeVersion": "cpic-gene-drug-pairs-dashboard",
+  "phenotypeTableVersion": "pgx-phenotype-v1",
+  "crosswalkVersion": "apcd-cpic-crosswalk-v1",
+  "tripletModelVersion": "regimen-three-way-v1",
+  "thresholdVersion": "triplet-threshold-v1",
+  "exportRendererVersion": "pgx-card-export-v1",
+  "updatedAt": "2026-09-26"
+}

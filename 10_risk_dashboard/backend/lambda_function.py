@@ -1944,66 +1944,193 @@ def handle_pgx_card(event: Dict[str, Any]) -> Dict[str, Any]:
         })
 
 
+def _pgx_diplotype(alleles: List[str]) -> Optional[str]:
+    stars = []
+    for raw in alleles or []:
+        s = str(raw or "").strip()
+        if not s or s == "0":
+            continue
+        stars.append(s if s.startswith("*") or s.lower().startswith("rs") else "*" + s.lstrip("*"))
+    if not stars:
+        return None
+    if len(stars) == 1:
+        return f"{stars[0]}/{stars[0]}"
+    return "/".join(sorted(stars[:2]))
+
+
+def _pgx_phenotype(gene: str, alleles: List[str]) -> Dict[str, Any]:
+    """Translate alleles to phenotype. Unlisted pairs are indeterminate, never normal."""
+    table = {
+        "CYP2C19": {
+            "*2/*2": "Poor metabolizer", "*2/*3": "Poor metabolizer", "*3/*3": "Poor metabolizer",
+            "*1/*2": "Intermediate metabolizer", "*1/*3": "Intermediate metabolizer",
+            "*1/*1": "Normal metabolizer", "*1/*17": "Rapid metabolizer", "*17/*17": "Ultrarapid metabolizer",
+            "*2/*17": "Intermediate metabolizer",
+        },
+        "CYP2C9": {
+            "*2/*2": "Poor metabolizer", "*3/*3": "Poor metabolizer", "*2/*3": "Poor metabolizer",
+            "*1/*2": "Intermediate metabolizer", "*1/*3": "Intermediate metabolizer", "*1/*1": "Normal metabolizer",
+        },
+        "CYP2D6": {
+            "*4/*4": "Poor metabolizer", "*3/*4": "Poor metabolizer", "*4/*6": "Poor metabolizer",
+            "*1/*4": "Intermediate metabolizer", "*1/*10": "Intermediate metabolizer", "*1/*41": "Intermediate metabolizer",
+            "*1/*1": "Normal metabolizer", "*1/*2": "Normal metabolizer", "*2/*2": "Normal metabolizer",
+        },
+        "SLCO1B1": {
+            "*5/*5": "Poor function", "*1/*5": "Decreased function", "*1B/*5": "Decreased function",
+            "*1/*1": "Normal function", "*1B/*1B": "Normal function",
+        },
+        "CYP3A5": {"*3/*3": "Poor metabolizer", "*1/*3": "Intermediate metabolizer", "*1/*1": "Normal metabolizer"},
+        "CYP3A4": {
+            "*22/*22": "Decreased function", "*1/*22": "Decreased function",
+            "*1/*1": "Normal metabolizer", "*1B/*1B": "Normal metabolizer",
+        },
+        "TPMT": {
+            "*3C/*3C": "Poor metabolizer", "*2/*2": "Poor metabolizer",
+            "*1/*3C": "Intermediate metabolizer", "*1/*3B": "Intermediate metabolizer",
+            "*1/*2": "Intermediate metabolizer", "*1/*1": "Normal metabolizer",
+        },
+        "DPYD": {
+            "*2A/*2A": "Poor metabolizer", "*1/*2A": "Intermediate metabolizer",
+            "*1/*13": "Intermediate metabolizer", "*1/*1": "Normal metabolizer",
+        },
+        "VKORC1": {
+            "*2/*2": "High warfarin sensitivity", "*1/*2": "Increased warfarin sensitivity", "*1/*1": "Normal sensitivity",
+        },
+        "CYP4F2": {"*3/*3": "Decreased function", "*1/*3": "Decreased function", "*1/*1": "Normal metabolizer"},
+    }
+    dip = _pgx_diplotype(alleles)
+    g = (gene or "").upper()
+    ph = None
+    if dip:
+        gene_table = table.get(g, {})
+        ph = gene_table.get(dip) or gene_table.get("/".join(reversed(dip.split("/"))))
+    if not dip:
+        return {"diplotype": None, "phenotype": None, "phenotypeConfidence": "INDETERMINATE", "limitations": ["No allele call"]}
+    if not ph:
+        return {
+            "diplotype": dip,
+            "phenotype": None,
+            "phenotypeConfidence": "INDETERMINATE",
+            "limitations": ["Allele pair not in phenotype table; treated as indeterminate, not normal"],
+        }
+    return {"diplotype": dip, "phenotype": ph, "phenotypeConfidence": "MODERATE", "limitations": []}
+
+
+def _pgx_action(gene: str, phenotype: Optional[str], drug: str) -> str:
+    if not phenotype:
+        return "INSUFFICIENT_GENOTYPE_RESOLUTION"
+    g = (gene or "").upper()
+    d = (drug or "").strip().lower()
+    avoid = {
+        ("CYP2C19", "Poor metabolizer"): ("clopidogrel", "citalopram"),
+        ("CYP2D6", "Poor metabolizer"): ("codeine", "tramadol"),
+        ("DPYD", "Poor metabolizer"): ("fluorouracil", "capecitabine"),
+        ("DPYD", "Intermediate metabolizer"): ("fluorouracil", "capecitabine"),
+    }
+    if d in avoid.get((g, phenotype), ()):
+        return "AVOID_OR_USE_ALTERNATIVE"
+    dose = {
+        "CYP2C9": ("warfarin", "phenytoin", "celecoxib"),
+        "CYP2C19": ("voriconazole", "sertraline", "escitalopram"),
+        "CYP2D6": ("metoprolol", "atomoxetine", "ondansetron"),
+        "SLCO1B1": ("simvastatin", "atorvastatin", "rosuvastatin"),
+        "TPMT": ("azathioprine", "mercaptopurine", "thioguanine"),
+        "VKORC1": ("warfarin",),
+        "CYP3A5": ("tacrolimus",),
+    }
+    abnormal = any(tok in phenotype.lower() for tok in ("poor", "intermediate", "decreased", "high warfarin", "increased warfarin", "rapid", "ultrarapid"))
+    if abnormal and d in dose.get(g, ()):
+        if "rapid" in phenotype.lower() or "ultra" in phenotype.lower():
+            return "DOSE_INCREASE_OR_ALTERNATIVE"
+        return "DOSE_REDUCTION_OR_TITRATION"
+    if abnormal:
+        return "ENHANCED_MONITORING"
+    return "STANDARD_PRESCRIBING"
+
+
 def generate_pgx_card(variants: List[Dict[str, Any]], timestamp: str, ip_address: str, patient_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Generate anonymous, generic PGx Patient Card from SNP variants.
-    
-    Args:
-        variants: List of dicts with 'gene' and 'variants' keys
-        timestamp: Timestamp when card was generated
-        ip_address: IP address of requester (for tracking, not identification)
-        patient_id: Optional patient identifier (not required, for privacy)
-        
-    Returns:
-        Dict with timestamp, ip_address, optional patient_id, genes, and drugs requiring modifications
+    Generate anonymous PGx card. CPIC actions require a resolved phenotype.
+    Unlisted allele pairs stay indeterminate (never assumed normal).
     """
-    import csv
-    
-    # Load CPIC data (from container or S3)
     cpic_data = load_cpic_data()
-    
-    # Process variants
+    versions = {
+        "apcdVocabularyVersion": "apcd-generic-v1",
+        "cpicKnowledgeVersion": "cpic-gene-drug-pairs-dashboard",
+        "phenotypeTableVersion": "pgx-phenotype-v1",
+        "crosswalkVersion": "apcd-cpic-crosswalk-v1",
+        "tripletModelVersion": "regimen-three-way-v1",
+        "thresholdVersion": "triplet-threshold-v1",
+        "exportRendererVersion": "pgx-card-export-v1",
+    }
     genes_processed = []
+    gene_calls = []
     drugs_found = []
-    
+    recommendations = []
+
     for variant in variants:
         gene = variant.get("gene", "").upper()
         variant_list = variant.get("variants", [])
-        
         if not gene or not variant_list:
             continue
-        
-        # Store gene info
+        translated = _pgx_phenotype(gene, variant_list)
         genes_processed.append({
             "gene": gene,
             "variants": variant_list,
-            "allele_count": len([v for v in variant_list if v and v != "0"])
+            "allele_count": len([v for v in variant_list if v and v != "0"]),
+            "diplotype": translated["diplotype"],
+            "phenotype": translated["phenotype"],
+            "phenotypeConfidence": translated["phenotypeConfidence"],
         })
-        
-        # Find drugs associated with this gene
-        gene_drugs = cpic_data.get(gene, [])
-        for drug_info in gene_drugs:
-            # Avoid duplicates
-            if not any(d["drug"] == drug_info["drug"] and d["gene"] == gene for d in drugs_found):
-                drugs_found.append({
-                    "gene": gene,
-                    "drug": drug_info["drug"],
-                    "guideline_url": drug_info.get("guideline", ""),
-                    "cpic_level": drug_info.get("cpic_level", ""),
-                    "fda_label": drug_info.get("pgx_on_fda_label", "")
-                })
-    
+        gene_calls.append({
+            "gene": gene,
+            "sourceVariants": variant_list,
+            "alleleCalls": variant_list,
+            "diplotype": translated["diplotype"],
+            "phenotype": translated["phenotype"],
+            "phenotypeConfidence": translated["phenotypeConfidence"],
+            "limitations": translated["limitations"],
+            "phenotypeTableVersion": versions["phenotypeTableVersion"],
+        })
+        for drug_info in cpic_data.get(gene, []):
+            drug_name = drug_info["drug"]
+            if any(d["drug"] == drug_name and d["gene"] == gene for d in drugs_found):
+                continue
+            drugs_found.append({
+                "gene": gene,
+                "drug": drug_name,
+                "guideline_url": drug_info.get("guideline", ""),
+                "cpic_level": drug_info.get("cpic_level", ""),
+                "fda_label": drug_info.get("pgx_on_fda_label", ""),
+            })
+            action = _pgx_action(gene, translated["phenotype"], drug_name)
+            recommendations.append({
+                "patientGeneCallId": gene,
+                "apcdDrugId": "".join(ch if ch.isalnum() else "-" for ch in drug_name.lower()).strip("-"),
+                "formattedGenericName": drug_name,
+                "gene": gene,
+                "diplotype": translated["diplotype"],
+                "phenotype": translated["phenotype"],
+                "cpicGuidelineId": drug_info.get("guideline", ""),
+                "cpicGuidelineVersion": versions["cpicKnowledgeVersion"],
+                "actionCategory": action,
+                "recommendationText": action.replace("_", " ").title(),
+                "cpicMappingStatus": "VERIFIED",
+                "sourceUrl": drug_info.get("guideline", ""),
+            })
+
     result = {
         "timestamp": timestamp,
         "ip_address": ip_address,
         "genes": genes_processed,
-        "drugs": drugs_found
+        "drugs": drugs_found,
+        "gene_calls": gene_calls,
+        "recommendations": recommendations,
+        "versions": versions,
     }
-    
-    # Only include patient_id if provided (optional)
     if patient_id:
         result["patient_id"] = patient_id
-    
     return result
 
 

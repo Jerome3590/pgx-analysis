@@ -1,0 +1,11 @@
+{
+  "mappingVersion": "apcd-combo-v1",
+  "combinations": {
+    "oxycodone / acetaminophen": ["oxycodone", "acetaminophen"],
+    "hydrocodone / acetaminophen": ["hydrocodone", "acetaminophen"],
+    "codeine / acetaminophen": ["codeine", "acetaminophen"],
+    "tramadol / acetaminophen": ["tramadol", "acetaminophen"],
+    "amoxicillin / clavulanate": ["amoxicillin", "clavulanic acid"],
+    "buprenorphine / naloxone": ["buprenorphine", "naloxone"]
+  }
+}
