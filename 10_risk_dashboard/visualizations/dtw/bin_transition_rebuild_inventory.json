@@ -1,0 +1,140 @@
+{
+  "generated": "2026-09-25T20:39:16.452074+00:00",
+  "n_ok": 13,
+  "n_failed": 1,
+  "bands": [
+    {
+      "cohort": "opioid_ed",
+      "age_band": "13-24",
+      "ok": true,
+      "n_patients_tracked": 11776,
+      "total_transitions": 8246,
+      "escalation_rate": 0.2161,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/opioid_ed/13-24/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "opioid_ed",
+      "age_band": "25-44",
+      "ok": true,
+      "n_patients_tracked": 107388,
+      "total_transitions": 95120,
+      "escalation_rate": 0.2536,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/opioid_ed/25-44/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "opioid_ed",
+      "age_band": "45-54",
+      "ok": true,
+      "n_patients_tracked": 37274,
+      "total_transitions": 35190,
+      "escalation_rate": 0.2284,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/opioid_ed/45-54/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "opioid_ed",
+      "age_band": "55-64",
+      "ok": true,
+      "n_patients_tracked": 34322,
+      "total_transitions": 35103,
+      "escalation_rate": 0.2261,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/opioid_ed/55-64/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "opioid_ed",
+      "age_band": "65-74",
+      "ok": false,
+      "error": "An error occurred (NoSuchKey) when calling the GetObject operation: The specified key does not exist."
+    },
+    {
+      "cohort": "opioid_ed",
+      "age_band": "75-84",
+      "ok": true,
+      "n_patients_tracked": 7748,
+      "total_transitions": 8258,
+      "escalation_rate": 0.1967,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/opioid_ed/75-84/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "opioid_ed",
+      "age_band": "85-114",
+      "ok": true,
+      "n_patients_tracked": 3163,
+      "total_transitions": 4455,
+      "escalation_rate": 0.2227,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/opioid_ed/85-114/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "non_opioid_ed",
+      "age_band": "13-24",
+      "ok": true,
+      "n_patients_tracked": 153224,
+      "total_transitions": 46253,
+      "escalation_rate": 0.4296,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/non_opioid_ed/13-24/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "non_opioid_ed",
+      "age_band": "25-44",
+      "ok": true,
+      "n_patients_tracked": 117000,
+      "total_transitions": 36488,
+      "escalation_rate": 0.4588,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/non_opioid_ed/25-44/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "non_opioid_ed",
+      "age_band": "45-54",
+      "ok": true,
+      "n_patients_tracked": 47711,
+      "total_transitions": 15668,
+      "escalation_rate": 0.5378,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/non_opioid_ed/45-54/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "non_opioid_ed",
+      "age_band": "55-64",
+      "ok": true,
+      "n_patients_tracked": 34511,
+      "total_transitions": 36826,
+      "escalation_rate": 0.2154,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/non_opioid_ed/55-64/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "non_opioid_ed",
+      "age_band": "65-74",
+      "ok": true,
+      "n_patients_tracked": 11571,
+      "total_transitions": 19174,
+      "escalation_rate": 0.2185,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/non_opioid_ed/65-74/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "non_opioid_ed",
+      "age_band": "75-84",
+      "ok": true,
+      "n_patients_tracked": 3529,
+      "total_transitions": 1615,
+      "escalation_rate": 0.6142,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/non_opioid_ed/75-84/density/transitions/bin_transitions.json"
+    },
+    {
+      "cohort": "non_opioid_ed",
+      "age_band": "85-114",
+      "ok": true,
+      "n_patients_tracked": 2523,
+      "total_transitions": 3882,
+      "escalation_rate": 0.2223,
+      "dashboard_s3": "s3://jerome-dixon.io/pgx/visualizations/dtw/non_opioid_ed/85-114/density/transitions/bin_transitions.json"
+    }
+  ],
+  "rebuildable_from": {
+    "thresholds_all_bands": "s3://pgxdatalake/gold/dashboard/models/{cohort}/{age_under}/n_event_bin_thresholds.json",
+    "opioid_13_64": "s3://pgxdatalake/gold/dtw_filter/opioid_ed/{age}/event_intervals_*.parquet",
+    "opioid_75_84": "s3://pgxdatalake/gold/cohorts/cohort_name=opioid_ed/event_year={2016-2019}/age_band=75-84/cohort.parquet",
+    "opioid_65_74": "NOT ON S3 \u2014 thresholds only; need EC2/NVMe model_events or gold/cohorts extract",
+    "poly_13_54": "s3://pgxdatalake/gold/cohorts_model_data/cohort_name=non_opioid_ed/age_band={age}/model_events.parquet",
+    "poly_65_74_85": "s3://pgxdatalake/gold/dtw_filter/non_opioid_ed/{age or 85-94}/event_intervals_*.parquet",
+    "poly_75_84": "s3://pgxdatalake/gold/cohorts_model_data/.../75-84/model_events.parquet",
+    "command": "python 9_dashboard_visuals/dtw/create_bin_transitions.py --all --force"
+  }
+}

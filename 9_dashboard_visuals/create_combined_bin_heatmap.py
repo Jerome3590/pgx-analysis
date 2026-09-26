@@ -42,6 +42,23 @@ BUPAR_VIZ_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "bupar"
 FPGROWTH_VIZ_ROOT = REPO_ROOT / "10_risk_dashboard" / "visualizations" / "fpgrowth"
 
 
+def _age_band_dirs(root: Path, cohort_name: str, age_band: str) -> List[Path]:
+    """Try hyphen and underscore age-band folders (S3 uses hyphen; some local trees use underscore)."""
+    seen = []
+    for token in (age_band, age_band.replace("-", "_")):
+        path = root / cohort_name / token
+        if path not in seen:
+            seen.append(path)
+    return seen
+
+
+def _first_existing_file(candidates: List[Path]) -> Optional[Path]:
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
+
+
 # ---------------------------------------------------------------------------
 # BupaR activity heatmap
 # ---------------------------------------------------------------------------
@@ -56,11 +73,11 @@ def _load_bupar_activity_freqs(
     n_patients: Dict[str, int] = {}
 
     for bin_name in DENSITY_BINS:
-        json_path = (
-            BUPAR_VIZ_ROOT / cohort_name / age_band_fname
-            / "density" / bin_name / "plots" / f"{base}_activity_frequency.json"
-        )
-        if not json_path.exists():
+        json_path = _first_existing_file([
+            d / "density" / bin_name / "plots" / f"{base}_activity_frequency.json"
+            for d in _age_band_dirs(BUPAR_VIZ_ROOT, cohort_name, age_band)
+        ])
+        if not json_path:
             continue
         try:
             with open(json_path, encoding="utf-8") as f:
@@ -119,8 +136,11 @@ def _load_fpgrowth_itemset_supports(
     bin_itemset_support: Dict[str, Dict[str, float]] = {}
 
     for bin_name in DENSITY_BINS:
-        bin_dir = FPGROWTH_VIZ_ROOT / cohort_name / age_band_fname / "density" / bin_name
-        if not bin_dir.exists():
+        bin_dir = next(
+            (d / "density" / bin_name for d in _age_band_dirs(FPGROWTH_VIZ_ROOT, cohort_name, age_band) if (d / "density" / bin_name).exists()),
+            None,
+        )
+        if not bin_dir:
             continue
         for item_type in item_types:
             json_path = bin_dir / f"{item_type}_itemsets.json"
@@ -180,11 +200,11 @@ def _load_dtw_sequence_heatmaps(
     n_patients: Dict[str, int] = {}
 
     for bin_name in DENSITY_BINS:
-        json_path = (
-            DTW_VIZ_ROOT / cohort_name / age_band_fname
-            / "density" / bin_name / "sequence_heatmap.json"
-        )
-        if not json_path.exists():
+        json_path = _first_existing_file([
+            d / "density" / bin_name / "sequence_heatmap.json"
+            for d in _age_band_dirs(DTW_VIZ_ROOT, cohort_name, age_band)
+        ])
+        if not json_path:
             continue
         try:
             with open(json_path, encoding="utf-8") as f:
@@ -423,11 +443,15 @@ def build_combined_bin_heatmaps(
 
     age_band_fname = age_band.replace("-", "_")
 
-    # One combined dir per visualization type
+    def _out_dir(root: Path) -> Path:
+        existing = next((d for d in _age_band_dirs(root, cohort_name, age_band) if d.exists()), None)
+        return (existing or (root / cohort_name / age_band)) / "density" / "combined"
+
+    # Prefer the age-band folder style that already exists (hyphen on S3 / local trees)
     combined_dirs = {
-        "bupar": BUPAR_VIZ_ROOT / cohort_name / age_band_fname / "density" / "combined",
-        "fpgrowth": FPGROWTH_VIZ_ROOT / cohort_name / age_band_fname / "density" / "combined",
-        "dtw": DTW_VIZ_ROOT / cohort_name / age_band_fname / "density" / "combined",
+        "bupar": _out_dir(BUPAR_VIZ_ROOT),
+        "fpgrowth": _out_dir(FPGROWTH_VIZ_ROOT),
+        "dtw": _out_dir(DTW_VIZ_ROOT),
     }
     written: Dict[str, str] = {}
 
