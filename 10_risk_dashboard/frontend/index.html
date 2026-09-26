@@ -20,7 +20,7 @@
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="js/pgx-workflow.js?v=20260926c"></script>
+  <script src="js/pgx-workflow.js?v=20260926e"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -94,7 +94,7 @@
       color: #64748b;
       margin-bottom: 0.5rem;
     }
-    input[type="number"], select, button {
+    input[type="number"], input[type="text"], select, button {
       width: 100%;
       padding: 0.5rem 0.75rem;
       font-size: 0.9rem;
@@ -502,12 +502,13 @@
     .pgx-triplet-mod td { background:#fff; }
     .pgx-action-label { font-weight:600; }
     .pgx-chip-row { display:flex; flex-wrap:wrap; gap:0.4rem; min-height:2rem; }
-    .pgx-chip { border:1px solid #cbd5e1; background:#fff; border-radius:999px; padding:0.25rem 0.65rem; cursor:pointer; }
+    button.pgx-chip { border:1px solid #cbd5e1; background:#fff; color:#0f172a; font-weight:500; border-radius:999px; padding:0.25rem 0.65rem; cursor:pointer; }
+    button.pgx-chip:hover:not(:disabled) { background:#f1f5f9; color:#0f172a; }
     .pgx-chip-empty { color:#94a3b8; font-size:0.85rem; }
     .pgx-autocomplete-wrap { position:relative; }
     .pgx-suggest { position:absolute; z-index:20; left:0; right:0; top:100%; background:#fff; border:1px solid #cbd5e1; border-radius:0.4rem; max-height:220px; overflow:auto; box-shadow:0 8px 20px rgba(15,23,42,0.08); }
-    .pgx-suggest-item { display:block; width:100%; text-align:left; background:none; border:0; padding:0.5rem 0.75rem; cursor:pointer; }
-    .pgx-suggest-item:hover, .pgx-suggest-item:focus { background:#f1f5f9; }
+    button.pgx-suggest-item { display:block; width:100%; text-align:left; background:#fff; border:0; color:#0f172a; font-weight:500; padding:0.5rem 0.75rem; cursor:pointer; }
+    button.pgx-suggest-item:hover:not(:disabled), button.pgx-suggest-item:focus { background:#f1f5f9; color:#0f172a; }
     .pgx-suggest-empty { padding:0.75rem; color:#64748b; font-size:0.85rem; }
     .pgx-matrix { width:100%; border-collapse:collapse; font-size:0.78rem; }
     .pgx-matrix th, .pgx-matrix td { border:1px solid #e2e8f0; padding:0.4rem; }
@@ -3501,7 +3502,8 @@
     var profileSec = document.getElementById("pgx-cohort-profile-section");
     var snpSec = document.getElementById("pgx-snp-refine-section");
     if (profileSec) profileSec.style.display = "none";
-    if (snpSec) snpSec.style.display = "none";
+    // Keep the variant/medication form visible while the cohort profile loads.
+    // Hiding #pgx-snp-refine-section here made offsetParent null and flaked tests.
     try {
       var _bp = bin && bin !== "";
       var base = "visualizations/cohort_pgx/networks/" + cohort + "/" + ageBand + (_bp ? "/density/" + bin : "");
