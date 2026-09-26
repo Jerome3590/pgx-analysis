@@ -18,6 +18,8 @@ from typing import Any, Optional
 
 import duckdb
 
+# Lake FAERS copies were deleted 26 Sep 2026 (FDA publishes the extracts).
+# Pass --base if you stage a local or new S3 parquet set.
 DEFAULT_FAERS_S3_BASE = "s3://pgxdatalake-backups/gold_backup_20251109T193811Z/faers"
 
 

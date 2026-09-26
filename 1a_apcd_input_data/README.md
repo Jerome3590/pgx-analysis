@@ -14,6 +14,8 @@ The preprocessing pipeline follows a three-tier data lake architecture:
 ├─────────────────────────────────────────────────────────────────┤
 │ • Raw TXT files converted to Parquet                            │
 │ • Location: s3://pgxdatalake/bronze/{pharmacy|medical}/         │
+│ • Vendor .txt and silver/ were removed 26 Sep 2026; bronze      │
+│   parquet is the full-column extract (README_datasources.md)    │
 │ • Scripts: 0_txt_to_parquet.py, 1a_reprocess_txt_to_parquet.py  │
 │                                                                 │
 │ Part Files Processing:                                          │
