@@ -16,7 +16,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$env:DASHBOARD_URL = "https://jerome-dixon.io/vcu/pgx-risk-calculator/index.html"
+$env:DASHBOARD_URL = "https://pgx.jerome-dixon.io/"
 $env:API_BASE_URL  = "https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod"
 
 $puppeteerDir = Join-Path $PSScriptRoot "puppeteer"

@@ -200,7 +200,7 @@
         cpicLevel: drug.cpic_level || "",
         fdaLabel: drug.fda_label || drug.pgx_on_fda_label || "",
         evidenceType: action === "INSUFFICIENT_GENOTYPE_RESOLUTION" ? "Indeterminate genetic interpretation" : "CPIC-guideline action",
-        inRegimen: selected.size ? selected.has(norm(name)) : false
+        inRegimen: selected.size ? [...selected].some((n) => nameMatches(name, n)) : false
       });
     });
     recs.sort((a, b) => {
@@ -212,9 +212,36 @@
     return recs;
   }
 
+  function comboKeyTokens(name) {
+    return norm(displayName(name)).replace(/\s*\/\s*/g, " ").split(/\s+/).filter(Boolean).sort().join(" ");
+  }
+
+  function lookupComboParts(name) {
+    const raw = displayName(name);
+    const key = norm(raw);
+    if (state.combinations[key]) return state.combinations[key];
+    if (state.combinations[raw]) return state.combinations[raw];
+    const want = comboKeyTokens(raw);
+    const keys = Object.keys(state.combinations);
+    for (let i = 0; i < keys.length; i++) {
+      if (comboKeyTokens(keys[i]) === want) return state.combinations[keys[i]];
+    }
+    return null;
+  }
+
+  function nameMatches(recName, selectedName) {
+    const rec = norm(displayName(recName));
+    const sel = norm(displayName(selectedName));
+    if (!rec || !sel) return false;
+    if (rec === sel) return true;
+    const recTok = rec.split(/[^a-z0-9]+/).filter(Boolean);
+    const selTok = sel.split(/[^a-z0-9]+/).filter(Boolean);
+    if (selTok.includes(rec) || recTok.includes(sel)) return true;
+    return recTok.length > 0 && recTok.every((t) => selTok.includes(t));
+  }
+
   function expandCombination(name) {
-    const key = norm(displayName(name));
-    const parts = state.combinations[key] || state.combinations[displayName(name)];
+    const parts = lookupComboParts(name);
     if (!parts || !parts.length) {
       return [{
         apcdDrugId: slug(name),
@@ -271,10 +298,10 @@
 
   function visibleRecs(recs) {
     const scope = state.drugScope;
-    const names = new Set(currentIngredientNames().map(norm));
+    const names = currentIngredientNames();
     if (scope === "ALL_MATCHED") return recs;
-    if (!names.size) return recs.filter((r) => r.inRegimen);
-    return recs.filter((r) => names.has(norm(r.formattedGenericName)));
+    if (!names.length) return recs.filter((r) => r.inRegimen);
+    return recs.filter((r) => names.some((n) => nameMatches(r.formattedGenericName, n)));
   }
 
   function classHit(name, klass) {
@@ -307,17 +334,18 @@
     return out;
   }
 
+  const MAX_TRIPLET_ALERTS = 250;
+
   function scopedTripletNames() {
-    if (state.drugScope === "ALL_MATCHED" && state.lastRecs && state.lastRecs.length) {
-      return uniqueDisplayNames(state.lastRecs.map((r) => r.formattedGenericName));
-    }
+    // Triplets enumerate the patient's regimen, never every CPIC-matched drug.
+    // ALL_MATCHED can return 90+ generics (C(90,3) > 100k rows) and freeze the tab.
     return uniqueDisplayNames(currentIngredientNames());
   }
 
   function buildTripletAlerts(ingredientNames) {
     const names = uniqueDisplayNames(ingredientNames);
     if (names.length < 3) return [];
-    return combinations3(names).map((picked) => {
+    const alerts = combinations3(names).map((picked) => {
       const cns = picked.some((p) => classHit(p, CNS_OPIOIDS))
         && picked.some((p) => classHit(p, CNS_GABAS))
         && picked.some((p) => classHit(p, CNS_BENZOS));
@@ -337,6 +365,12 @@
       if (a.signalLevel !== b.signalLevel) return a.signalLevel === "HIGH" ? -1 : 1;
       return a.ingredientGenericNames.join(" ").localeCompare(b.ingredientGenericNames.join(" "));
     });
+    if (alerts.length > MAX_TRIPLET_ALERTS) {
+      const truncated = alerts.slice(0, MAX_TRIPLET_ALERTS);
+      truncated._truncatedFrom = alerts.length;
+      return truncated;
+    }
+    return alerts;
   }
 
   function renderHeader(payload, calls) {
@@ -457,9 +491,10 @@
     const el = document.getElementById("pgx-triplet-panel");
     if (!el) return;
     if (!alerts.length) {
-      el.innerHTML = '<p class="pgx-empty">No three-way medication matches in the current drug scope.</p>';
+      el.innerHTML = '<p class="pgx-empty">No three-way medication matches in the current drug scope. Select at least three APCD generics to enumerate triplets.</p>';
       return;
     }
+    const truncatedFrom = alerts._truncatedFrom;
     const rows = alerts.map((a) => (
       '<tr class="' + (a.signalLevel === "HIGH" ? "pgx-triplet-high" : "pgx-triplet-mod") + '">' +
       "<td>" + a.ingredientGenericNames.join(" + ") + "</td>" +
@@ -468,8 +503,10 @@
       "</tr>"
     )).join("");
     el.innerHTML =
-      '<p class="subtitle"><small>' + alerts.length.toLocaleString() +
-      " three-way match" + (alerts.length === 1 ? "" : "es") +
+      '<p class="subtitle"><small>' +
+      (truncatedFrom
+        ? "Showing " + alerts.length.toLocaleString() + " of " + truncatedFrom.toLocaleString() + " three-way matches"
+        : alerts.length.toLocaleString() + " three-way match" + (alerts.length === 1 ? "" : "es")) +
       " in the current scope. Separate from CPIC actions.</small></p>" +
       '<div class="pgx-triplet-scroll"><table class="pgx-matrix pgx-triplet-table">' +
       "<thead><tr><th>Medications</th><th>Signal</th><th>Pattern</th></tr></thead><tbody>" +
