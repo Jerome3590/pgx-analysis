@@ -22,8 +22,9 @@ June 2026 cohort QA identified two separate leakage classes: `opioid_ed` had a t
 11. [Event Filter Placement](#event-filter-placement) — Step 1b before cohort creation
 12. [Temporal Validation Strategy](#temporal-validation-strategy) — 2016-2018 train, 2019 holdout, 2020 excluded
 13. [Drug Event Explosion Strategy](#drug-event-explosion-strategy)
-14. [Cursor Notebook Stability — Final Production Workflow (July 2026)](#cursor-notebook-stability--final-production-workflow-july-2026)
+14. [Notebook Tab Stability — Final Production Workflow (July 2026)](#notebook-tab-stability--final-production-workflow-july-2026)
 15. [Document Final Production Workflow; Remove Intermediates](#document-final-production-workflow-remove-intermediates)
+16. [EC2 From-Scratch Sessions — Final Production Workflow (September 2026)](#ec2-from-scratch-sessions--final-production-workflow-september-2026)
 
 ---
 
@@ -780,17 +781,17 @@ When investigating row count issues:
 
 **Result:** Natural representation for sequence methods while maintaining temporal information needed for symbolic reasoning and rule extraction.
 
-### Cursor Notebook Stability — Final Production Workflow (July 2026)
+### Notebook Tab Stability — Final Production Workflow (July 2026)
 
-**Problem:** Cursor notebook tabs blanked, froze, or reload-looped on Windows. An intermediate response was a mandatory `notebooks/dev/` vs `notebooks/published|production/` layout plus `.cursorignore` of “heavy” notebooks.
+**Problem:** Notebook tabs blanked, froze, or reload-looped on Windows. An intermediate response was a mandatory `notebooks/dev/` vs `notebooks/published|production/` layout plus ignore rules for “heavy” notebooks.
 
 **Root cause (confirmed):** Not folder layout. Three hygiene failures:
 
-1. Jupyter / notebook `settings.json` — Cursor Tab, Cursor CPP, and format / code-actions-on-save fighting the notebook document model (and `python-envs.defaultEnvManager: system` delaying kernel discovery).
+1. Jupyter / notebook `settings.json` — inline completion and format / code-actions-on-save fighting the notebook document model (and `python-envs.defaultEnvManager: system` delaying kernel discovery).
 2. CRLF + `.gitattributes` / broken `nbstripout` filter — Windows filter pointing at WSL `/usr/bin/python3` or missing `*.ipynb text eol=lf`, corrupting notebook JSON on checkout/commit.
 3. Conflicting Python / Jupyter extensions — duplicate environment managers, missing Pylance, junk Store / WindowsApps interpreters stalling kernel detection.
 
-Canonical write-up: `C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md` → **Confirmed Cursor notebook crash causes**. Project entry: [`docs/NotebookDevelopmentWorkflow.md`](../NotebookDevelopmentWorkflow.md).
+Project entry: [`docs/NotebookDevelopmentWorkflow.md`](../NotebookDevelopmentWorkflow.md).
 
 **Final production workflow (keep this; drop the folder-split “fix”):**
 
@@ -803,9 +804,9 @@ Canonical write-up: `C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md` �
 | Extensions | MS Python + Jupyter + Pylance; disable competing env managers |
 | Docs | Document only this final path; mark or delete abandoned scaffolds |
 
-**Abandoned intermediate:** Requiring `notebooks/dev/` + `notebooks/published/` (or `production/`) as the Cursor hang mitigation. Ignore patterns for those paths may remain; they are not the diagnosis or the required tree.
+**Abandoned intermediate:** Requiring `notebooks/dev/` + `notebooks/published/` (or `production/`) as the hang mitigation. Ignore patterns for those paths may remain; they are not the diagnosis or the required tree.
 
-**Result:** Stable Cursor Jupyter depends on settings + line endings + extensions + script-first artifacts; organization follows the step directory without a permanent dual-notebook tree.
+**Result:** Stable Jupyter notebooks depend on settings + line endings + extensions + script-first artifacts; organization follows the step directory without a permanent dual-notebook tree.
 
 ### Document Final Production Workflow; Remove Intermediates
 
@@ -823,6 +824,33 @@ When a protocol or tooling path is chosen, **always** land the **final productio
 
 **Result:** Readers and agents follow one production path; crash fixes and analysis protocols stay discoverable without archaeology through intermediates.
 
+### EC2 From-Scratch Sessions — Final Production Workflow (September 2026)
+
+**Problem:** The 65-74 gold-cohort + bin-transition job spent a day on recoveries (AL2 glibc/GCC, R/`bupaverse` aborting cloud-init before Python, empty `aws-pgx-setup` submodule, missing `mlxtend`/`psutil`, waiter DuckDB downgrade, PyPI `phases` shadowing a local package, Git Bash `/c` user-data, no public IP).
+
+**Final production path (SSOT):** [`aws-pgx-setup/ec2/README_pgx_session.md`](../../aws-pgx-setup/ec2/README_pgx_session.md). OS decision: [`README_os_and_libraries.md`](../../aws-pgx-setup/ec2/README_os_and_libraries.md).
+
+| Layer | Production rule |
+|:------|:----------------|
+| OS | Amazon Linux 2023 because `requirements.txt` needs glibc 2.28+ and GCC 9.3+ |
+| R | `INSTALL_R=0` unless the job calls BupaR / `r_helpers` |
+| Clone | `clone_and_setup_pgx.sh` with `--recurse-submodules`; push the submodule pointer **before** launch |
+| Deps | Always `pip install -r requirements.txt` (includes `mlxtend`, `psutil`). Then `preflight_pgx_python.sh` |
+| Job wrap | `run_ec2_analysis_session.sh` → SES COMPLETE → cancel Spot → terminate → SES FINAL |
+| Size | One band: `x2iedn.2xlarge` (256 GiB). Bin transitions use gold cohorts, not `model_events` |
+| Artifacts | S3. No session AMI, no 197 GB root |
+
+**Abandoned intermediates (do not relaunch from these):**
+
+- Amazon Linux 2 + pin downgrades (`duckdb==1.1.3`, NumPy 1.26, `--only-binary`)
+- `utility_scripts/resume_python_no_r.sh` (AL2 emergency after R abort)
+- Compiling R on every boot
+- Overlay-copy of session scripts instead of a pushed submodule
+- `pip install <missing_name>` (PyPI `phases` hid `2_create_cohort/phases`)
+- Standing session AMI / warm 1 TB box
+
+**Result:** Next session follows one path; preflight fails before the job if the submodule or helper imports are missing.
+
 ---
 
 ## Related Documentation
@@ -830,9 +858,9 @@ When a protocol or tooling path is chosen, **always** land the **final productio
 - [README.md](../../README.md) - Main project documentation
 - [README_data_pipeline_architecture.md](README_data_pipeline_architecture.md) - Pipeline architecture
 - [README_data_pipeline_workflow.md](README_data_pipeline_workflow.md) - Workflow execution
-- [NotebookDevelopmentWorkflow.md](../NotebookDevelopmentWorkflow.md) - Final notebook / Cursor workflow
-- `C:\Projects\project_utility_scripts\CURSOR_DEV_RULES.md` - Shared Cursor crash mitigations
+- [NotebookDevelopmentWorkflow.md](../NotebookDevelopmentWorkflow.md) - Final notebook workflow (script-first; crash mitigations)
+- [README_pgx_session.md](../../aws-pgx-setup/ec2/README_pgx_session.md) - Final production EC2 session path
 
-**Version:** 2.3  
-**Last Updated:** July 2026  
+**Version:** 2.4  
+**Last Updated:** September 2026  
 **Maintainers:** PGx Data Engineering & Analytics Team

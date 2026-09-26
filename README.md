@@ -57,28 +57,33 @@ APCD **bronze** keeps all vendor columns; **gold** is the filtered modeling
 layer. Silver and FAERS copies were removed. See
 **[README_datasources.md](README_datasources.md)**.
 
-## EC2 (Mushin / aws-setup)
+## EC2 (Mushin / aws-pgx-setup)
 
 Compute runs in Mushin account `535362115856` (CLI profile `mushin` or `pgx`).
-Launch from **stock Amazon Linux 2** plus bootstrap. Do not keep a session AMI
-or a warm 197 GB root. Gold/cohorts come from S3.
+Launch **Amazon Linux 2023** so `requirements.txt` (DuckDB 1.4+ `httpfs`,
+NumPy 2, pandas 3) matches the OS. Do not keep a session AMI or a warm
+197 GB root. Gold/cohorts come from S3. See
+`aws-pgx-setup/ec2/README_os_and_libraries.md`.
 
 ```bash
-# from C:\Projects\aws-setup
-AWS_PROFILE=mushin bash ec2/scripts/bash/launch_pgx_session.sh
-# SSH as ec2-user / pgx3874 after bootstrap finishes (Python/DuckDB, often ~1 hour), then:
-bash ec2/scripts/bash/clone_and_setup_pgx.sh
+# Push aws-pgx-setup + this repo's submodule pointer before launch.
+# from aws-pgx-setup (submodule of this repo)
+AWS_PROFILE=mushin bash aws-pgx-setup/ec2/scripts/bash/launch_pgx_session.sh
+# SSH as ec2-user after bootstrap (Python/DuckDB). Then:
+bash aws-pgx-setup/ec2/scripts/bash/clone_and_setup_pgx.sh
+# preflight must print pgx-imports-ok (mlxtend, psutil, helpers)
 # Only if the job calls R (BupaR / r_helpers):
-# INSTALL_R=1 AWS_PROFILE=mushin bash ec2/scripts/bash/launch_pgx_session.sh
+# INSTALL_R=1 AWS_PROFILE=mushin bash aws-pgx-setup/ec2/scripts/bash/launch_pgx_session.sh
 ```
 
-- Bootstrap: `ec2/bootstrap/ec2_linux2_single.sh` as user-data (`INSTALL_R=0` by default)
+- Bootstrap: `aws-pgx-setup/ec2/bootstrap/ec2_al2023_session.sh` (`INSTALL_R=0` by default; `OS=al2` is legacy)
 - After clone: `/home/pgx3874/pgx-analysis` with `~/jupyter-env`
 - Idle stop: CloudWatch `sedvr-idle-stop-<instance-id>` (CPU < 5% for 45 min)
-- Session wrap: `bash utility_scripts/run_ec2_analysis_session.sh --job-name "..." -- <cmd>`
+- Session wrap: `bash aws-pgx-setup/ec2/scripts/bash/run_ec2_analysis_session.sh --job-name "..." -- <cmd>`
   emails a COMPLETE summary, then a FINAL confirmation after Spot cancel + terminate
 
-See `.cursor/rules/ec2.mdc` and `aws-pgx-setup/ec2/README.md`.
+See `aws-pgx-setup/ec2/README_pgx_session.md` and
+`aws-pgx-setup/ec2/README_os_and_libraries.md`.
 
 ## 🚀 Running the Workflow
 
@@ -165,7 +170,7 @@ pgx-analysis/
 ├── 9_dashboard_visuals/          # Step 9 (visual prep): BupaR, DTW, FP-Growth visualization generation
 ├── 10_risk_dashboard/            # Step 10 (build/deploy): Risk calculator, Lambda, API Gateway
 ├── 11_testing/                   # Integration and smoke tests for pipeline steps and dashboard visuals
-├── aws-pgx-setup/                # AWS infrastructure config (EC2, Lambda, ECR, IAM, CloudFront, S3)
+├── aws-pgx-setup/                # AWS infrastructure + EC2 session launch/teardown (see ec2/README_pgx_session.md)
 ├── pgx-patient-card/             # PGx patient card assets (drug cards, gene cards)
 ├── public-manuscript/            # Public article companion (CH1 SI + evidence-map CSVs; no APCD)
 ├── py_helpers/                   # Shared Python utilities (S3, DuckDB, logging)
