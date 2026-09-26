@@ -22,37 +22,14 @@ COHORT="opioid_ed"
 AGE_BAND="65-74"
 YEARS=(2016 2017 2018 2019)
 
-mount_nvme() {
-  if [[ -d /mnt/nvme ]] && mountpoint -q /mnt/nvme; then
-    echo "NVMe already mounted at /mnt/nvme"
-    return 0
-  fi
+MOUNT_SH="${MOUNT_NVME_SH:-$REPO/aws-pgx-setup/ec2/scripts/bash/mount_nvme.sh}"
+if [[ -f "$MOUNT_SH" ]]; then
+  bash "$MOUNT_SH"
+else
+  echo "WARN: $MOUNT_SH missing; sudo mkdir only (no format)"
   sudo mkdir -p /mnt/nvme
-  local dev=""
-  for d in /dev/nvme*n1; do
-    [[ -b "$d" ]] || continue
-    if mount | grep -q "^$d "; then
-      continue
-    fi
-    dev="$d"
-    break
-  done
-  if [[ -z "$dev" ]]; then
-    echo "WARN: no unused NVMe device; using /mnt/nvme on root disk"
-    sudo mkdir -p /mnt/nvme
-    sudo chown -R "$(id -u)":"$(id -g)" /mnt/nvme || true
-    return 0
-  fi
-  if ! blkid -o value -s TYPE "$dev" 2>/dev/null | grep -q .; then
-    echo "Formatting $dev as XFS"
-    sudo mkfs -t xfs "$dev"
-  fi
-  sudo mount "$dev" /mnt/nvme
-  sudo chown -R "$(id -u)":"$(id -g)" /mnt/nvme
-  echo "Mounted $dev at /mnt/nvme"
-}
-
-mount_nvme
+  sudo chown -R "$(id -u)":"$(id -g)" /mnt/nvme || true
+fi
 mkdir -p "$PGX_DATA_ROOT/gold/cohorts" "$PGX_DATA_ROOT/duckdb_tmp" \
          "$PGX_DATA_ROOT/pgx-analysis/logs"
 df -h /mnt/nvme || df -h /

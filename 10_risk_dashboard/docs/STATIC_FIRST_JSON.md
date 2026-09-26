@@ -75,5 +75,5 @@ After upload, invalidate CloudFront for the changed paths so the edge serves the
 ## References
 
 - Deployment: `10_risk_dashboard/deployment/README.md`
-- S3 URL format for assets: `.cursor/rules/dashboard-s3-url-format.mdc`
-- Cursor rule for this pattern: `.cursor/rules/dashboard-static-first-json.mdc`
+- S3 URL format for assets: `10_risk_dashboard/docs/DASHBOARD_TABS.md` (S3 URL format) and `10_risk_dashboard/docs/S3_DASHBOARD_OBJECTS_SCAN.md`
+- This static-first pattern: this file
