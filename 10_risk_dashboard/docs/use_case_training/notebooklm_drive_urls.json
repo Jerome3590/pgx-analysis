@@ -1,0 +1,435 @@
+{
+  "generated_at": "2026-09-26T22:44:14.031004+00:00",
+  "account_email": "jerome.dixon90@gmail.com",
+  "pack": "PGx_Dashboard_Use_Cases",
+  "url_kind": "drive_file_view",
+  "skip": [
+    "CHROME_DEBUG.md",
+    "NOTEBOOKLM_DRIVE_IMPORT.md",
+    "NOTEBOOKLM_NEXT_CLICK.md",
+    "NOTEBOOKLM_PROMPTS.md",
+    "NOTEBOOKLM_URL_PASTE.md",
+    "notebooklm/"
+  ],
+  "source": "drivefs",
+  "drivefs_account": "110518936715501675447",
+  "root_folder_id": "1GfDDtomOl2td_lZhXFVIyKx2fTG5A6ug",
+  "notebooks": [
+    {
+      "uc": "UC01_cohort_risk",
+      "title": "PGx UC01 \u2014 Cohort risk",
+      "file_count": 8,
+      "files": [
+        {
+          "rel": "UC01_cohort_risk/README.md",
+          "name": "README.md",
+          "id": "1X7BPzKhcEpvuX_TSn1VDCDEw4h0bGxGx",
+          "url": "https://drive.google.com/file/d/1X7BPzKhcEpvuX_TSn1VDCDEw4h0bGxGx/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC01_cohort_risk/screenshots/01-cohort-and-age.png",
+          "name": "01-cohort-and-age.png",
+          "id": "1L5DxQJloxBcej2g5XcpiERn82o3vxTr5",
+          "url": "https://drive.google.com/file/d/1L5DxQJloxBcej2g5XcpiERn82o3vxTr5/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC01_cohort_risk/screenshots/02-drugs-select.png",
+          "name": "02-drugs-select.png",
+          "id": "1_XUflb2_qB8XVdnFgKtggiJeLM97cQkj",
+          "url": "https://drive.google.com/file/d/1_XUflb2_qB8XVdnFgKtggiJeLM97cQkj/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC01_cohort_risk/screenshots/03-icd-cpt-codes.png",
+          "name": "03-icd-cpt-codes.png",
+          "id": "1OKirqbZk1KLLQ3JY2cGr6JSgdFMa2jUc",
+          "url": "https://drive.google.com/file/d/1OKirqbZk1KLLQ3JY2cGr6JSgdFMa2jUc/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC01_cohort_risk/screenshots/04-calculate-risk.png",
+          "name": "04-calculate-risk.png",
+          "id": "1B09KrMJxPMzGmCEOQ4v9qSTkf111qluJ",
+          "url": "https://drive.google.com/file/d/1B09KrMJxPMzGmCEOQ4v9qSTkf111qluJ/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC01_cohort_risk/screenshots/05-replace-swap-code.png",
+          "name": "05-replace-swap-code.png",
+          "id": "1rddfAaCOnkVDJSyhcgHI_EqEfARNh2Ij",
+          "url": "https://drive.google.com/file/d/1rddfAaCOnkVDJSyhcgHI_EqEfARNh2Ij/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC01_cohort_risk/screenshots/06-save-and-compare.png",
+          "name": "06-save-and-compare.png",
+          "id": "1UmINlJK0N07PzCA73gGJ_tqsmwv4ar1u",
+          "url": "https://drive.google.com/file/d/1UmINlJK0N07PzCA73gGJ_tqsmwv4ar1u/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC01_cohort_risk/screenshots/07-drug-contributions.png",
+          "name": "07-drug-contributions.png",
+          "id": "1qWNEy8k8S6xKORziSBQMAnqymWq0Yl2U",
+          "url": "https://drive.google.com/file/d/1qWNEy8k8S6xKORziSBQMAnqymWq0Yl2U/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC02_scenario_analysis",
+      "title": "PGx UC02 \u2014 Scenario analysis",
+      "file_count": 6,
+      "files": [
+        {
+          "rel": "UC02_scenario_analysis/README.md",
+          "name": "README.md",
+          "id": "1374ixrsb-s7XMd4rPbTL4X2exbb82osD",
+          "url": "https://drive.google.com/file/d/1374ixrsb-s7XMd4rPbTL4X2exbb82osD/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC02_scenario_analysis/screenshots/01-risk-context.png",
+          "name": "01-risk-context.png",
+          "id": "1AuCDUpVIwKliL4EReVvq0t0kQ_HDWZ-h",
+          "url": "https://drive.google.com/file/d/1AuCDUpVIwKliL4EReVvq0t0kQ_HDWZ-h/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC02_scenario_analysis/screenshots/02-scenario-tab.png",
+          "name": "02-scenario-tab.png",
+          "id": "1kXavHWaZ2adz37XiEm5DIL-GpeyaFNDl",
+          "url": "https://drive.google.com/file/d/1kXavHWaZ2adz37XiEm5DIL-GpeyaFNDl/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC02_scenario_analysis/screenshots/03-load-scenario-analysis.png",
+          "name": "03-load-scenario-analysis.png",
+          "id": "1YXpQA_3p9Ns4O5zsCLM0h7CctlK8Lsgt",
+          "url": "https://drive.google.com/file/d/1YXpQA_3p9Ns4O5zsCLM0h7CctlK8Lsgt/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC02_scenario_analysis/screenshots/04-ffa-shap-charts.png",
+          "name": "04-ffa-shap-charts.png",
+          "id": "1ahP1SxvNtaziiodSe-JDL8LsHIWViYq4",
+          "url": "https://drive.google.com/file/d/1ahP1SxvNtaziiodSe-JDL8LsHIWViYq4/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC02_scenario_analysis/screenshots/05-clear-filters.png",
+          "name": "05-clear-filters.png",
+          "id": "1Pf2X0TpmmBIYImOgkqeiW78FBlg2wBTv",
+          "url": "https://drive.google.com/file/d/1Pf2X0TpmmBIYImOgkqeiW78FBlg2wBTv/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC03_density_bin_exploration",
+      "title": "PGx UC03 \u2014 Density bin exploration",
+      "file_count": 7,
+      "files": [
+        {
+          "rel": "UC03_density_bin_exploration/README.md",
+          "name": "README.md",
+          "id": "1gAug226xyfdYq9DRrd8h4dAm_Bhi10tx",
+          "url": "https://drive.google.com/file/d/1gAug226xyfdYq9DRrd8h4dAm_Bhi10tx/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC03_density_bin_exploration/screenshots/01-event-density-badge.png",
+          "name": "01-event-density-badge.png",
+          "id": "1Xd5SZ8V288Lj82uqbUl0Gdz5A7KSRmu8",
+          "url": "https://drive.google.com/file/d/1Xd5SZ8V288Lj82uqbUl0Gdz5A7KSRmu8/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC03_density_bin_exploration/screenshots/02-bupar-loaded.png",
+          "name": "02-bupar-loaded.png",
+          "id": "1Tttg2psdZXax4Tfe_gNMsCz9RhdzLL_P",
+          "url": "https://drive.google.com/file/d/1Tttg2psdZXax4Tfe_gNMsCz9RhdzLL_P/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC03_density_bin_exploration/screenshots/03-dtw-loaded.png",
+          "name": "03-dtw-loaded.png",
+          "id": "1PgcFTbzvQGTMchBf-H3wtJZ6cGs3wGqZ",
+          "url": "https://drive.google.com/file/d/1PgcFTbzvQGTMchBf-H3wtJZ6cGs3wGqZ/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC03_density_bin_exploration/screenshots/04-fpgrowth-loaded.png",
+          "name": "04-fpgrowth-loaded.png",
+          "id": "1wGdzjB35h_BgWOkTHwYO5s4lzb5UJhd2",
+          "url": "https://drive.google.com/file/d/1wGdzjB35h_BgWOkTHwYO5s4lzb5UJhd2/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC03_density_bin_exploration/screenshots/05-pgx-cohort-loaded.png",
+          "name": "05-pgx-cohort-loaded.png",
+          "id": "19Lw6gO8JZj0MsGBxpBC1R_cwxzBW1myP",
+          "url": "https://drive.google.com/file/d/19Lw6gO8JZj0MsGBxpBC1R_cwxzBW1myP/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC03_density_bin_exploration/screenshots/06-pgx-card-cohort-profile.png",
+          "name": "06-pgx-card-cohort-profile.png",
+          "id": "1_tCU2oLA4L5ouE7sXAE0MqiuIl_exWei",
+          "url": "https://drive.google.com/file/d/1_tCU2oLA4L5ouE7sXAE0MqiuIl_exWei/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC04_feature_importance",
+      "title": "PGx UC04 \u2014 Feature importance",
+      "file_count": 4,
+      "files": [
+        {
+          "rel": "UC04_feature_importance/README.md",
+          "name": "README.md",
+          "id": "1V46P5ro6NcV8900r_wZT07Ss-DwZhYwN",
+          "url": "https://drive.google.com/file/d/1V46P5ro6NcV8900r_wZT07Ss-DwZhYwN/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC04_feature_importance/screenshots/01-feature-importance-tab.png",
+          "name": "01-feature-importance-tab.png",
+          "id": "1k9NwpedCEds591QJsut7iKHPpWupI66g",
+          "url": "https://drive.google.com/file/d/1k9NwpedCEds591QJsut7iKHPpWupI66g/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC04_feature_importance/screenshots/02-view-and-top-n.png",
+          "name": "02-view-and-top-n.png",
+          "id": "1vF5TDAiE9ClwFTTrQVxvFW1TC5su6Qbq",
+          "url": "https://drive.google.com/file/d/1vF5TDAiE9ClwFTTrQVxvFW1TC5su6Qbq/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC04_feature_importance/screenshots/03-heatmap-loaded.png",
+          "name": "03-heatmap-loaded.png",
+          "id": "1SFc63RELV5TCEIJGYCwXL5ELoONaUUtI",
+          "url": "https://drive.google.com/file/d/1SFc63RELV5TCEIJGYCwXL5ELoONaUUtI/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC05_pattern_process",
+      "title": "PGx UC05 \u2014 Pattern and process",
+      "file_count": 5,
+      "files": [
+        {
+          "rel": "UC05_pattern_process/README.md",
+          "name": "README.md",
+          "id": "1Z0SkJktlq3LJk5IQFrB5vP4p9kn3_UVR",
+          "url": "https://drive.google.com/file/d/1Z0SkJktlq3LJk5IQFrB5vP4p9kn3_UVR/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC05_pattern_process/screenshots/01-bupar.png",
+          "name": "01-bupar.png",
+          "id": "1VqdJipmc9cVPHAvkUYzReFzi_DKDDwMg",
+          "url": "https://drive.google.com/file/d/1VqdJipmc9cVPHAvkUYzReFzi_DKDDwMg/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC05_pattern_process/screenshots/02-dtw.png",
+          "name": "02-dtw.png",
+          "id": "1AqC89-Dl56eeGaWk6xJeEflotvMfE__v",
+          "url": "https://drive.google.com/file/d/1AqC89-Dl56eeGaWk6xJeEflotvMfE__v/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC05_pattern_process/screenshots/03-fpgrowth.png",
+          "name": "03-fpgrowth.png",
+          "id": "1aysBEyf787LkeAu8LTa6Ng61ADAjU30a",
+          "url": "https://drive.google.com/file/d/1aysBEyf787LkeAu8LTa6Ng61ADAjU30a/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC05_pattern_process/screenshots/04-drug-networks.png",
+          "name": "04-drug-networks.png",
+          "id": "1Zk_NLUlznCyettjPBmaNDVuq_xB3YBfs",
+          "url": "https://drive.google.com/file/d/1Zk_NLUlznCyettjPBmaNDVuq_xB3YBfs/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC06_claims_pgx_card",
+      "title": "PGx UC06 \u2014 Claims PGx card",
+      "file_count": 4,
+      "files": [
+        {
+          "rel": "UC06_claims_pgx_card/README.md",
+          "name": "README.md",
+          "id": "1CWq_TpZkzBq4B6YnA1gasZk6-TiuynVR",
+          "url": "https://drive.google.com/file/d/1CWq_TpZkzBq4B6YnA1gasZk6-TiuynVR/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC06_claims_pgx_card/screenshots/01-view-pgx-card.png",
+          "name": "01-view-pgx-card.png",
+          "id": "1KJe1PGZbCVTyL-9-H81n1J841-asLWKt",
+          "url": "https://drive.google.com/file/d/1KJe1PGZbCVTyL-9-H81n1J841-asLWKt/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC06_claims_pgx_card/screenshots/02-load-cohort-profile.png",
+          "name": "02-load-cohort-profile.png",
+          "id": "1scR772ZPjKbnfSgl20PTTunWzm4pAUa3",
+          "url": "https://drive.google.com/file/d/1scR772ZPjKbnfSgl20PTTunWzm4pAUa3/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC06_claims_pgx_card/screenshots/03-radar-and-genes.png",
+          "name": "03-radar-and-genes.png",
+          "id": "1CvrjVDsR1Jwht08dXK6ELYUDl39oUFbd",
+          "url": "https://drive.google.com/file/d/1CvrjVDsR1Jwht08dXK6ELYUDl39oUFbd/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC07_personalized_pgx_card",
+      "title": "PGx UC07 \u2014 Personalized PGx card",
+      "file_count": 6,
+      "files": [
+        {
+          "rel": "UC07_personalized_pgx_card/README.md",
+          "name": "README.md",
+          "id": "103aMP5O3E1uFR_VQui7tXLMAv-ItnjfI",
+          "url": "https://drive.google.com/file/d/103aMP5O3E1uFR_VQui7tXLMAv-ItnjfI/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC07_personalized_pgx_card/screenshots/01-gene-data-entry.png",
+          "name": "01-gene-data-entry.png",
+          "id": "13a5gBZxCxox72kBVfT0HoOq-plNT5oDu",
+          "url": "https://drive.google.com/file/d/13a5gBZxCxox72kBVfT0HoOq-plNT5oDu/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC07_personalized_pgx_card/screenshots/02-apcd-meds-and-scope.png",
+          "name": "02-apcd-meds-and-scope.png",
+          "id": "1tIH3FLdR0wIbvm2Vg_0FogDv3KlFrhR9",
+          "url": "https://drive.google.com/file/d/1tIH3FLdR0wIbvm2Vg_0FogDv3KlFrhR9/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC07_personalized_pgx_card/screenshots/03-generate-pgx-results.png",
+          "name": "03-generate-pgx-results.png",
+          "id": "1epEZthuQTBkMT9o5ooDcmMYqlcQbA3FY",
+          "url": "https://drive.google.com/file/d/1epEZthuQTBkMT9o5ooDcmMYqlcQbA3FY/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC07_personalized_pgx_card/screenshots/04-action-queue-matrix.png",
+          "name": "04-action-queue-matrix.png",
+          "id": "1V2-CMkd5pFNSxkDqr8WcSKyip5Da9m6k",
+          "url": "https://drive.google.com/file/d/1V2-CMkd5pFNSxkDqr8WcSKyip5Da9m6k/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC07_personalized_pgx_card/screenshots/05-exports.png",
+          "name": "05-exports.png",
+          "id": "1furrBTVKN1Uh82hjFPbcpAiL9EHVHSxh",
+          "url": "https://drive.google.com/file/d/1furrBTVKN1Uh82hjFPbcpAiL9EHVHSxh/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC08_cohort_vs_card",
+      "title": "PGx UC08 \u2014 Cohort vs card",
+      "file_count": 4,
+      "files": [
+        {
+          "rel": "UC08_cohort_vs_card/README.md",
+          "name": "README.md",
+          "id": "1mhJyjpPnN2Pjlzbb3P5fKuqLQpG2lvDb",
+          "url": "https://drive.google.com/file/d/1mhJyjpPnN2Pjlzbb3P5fKuqLQpG2lvDb/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC08_cohort_vs_card/screenshots/01-pgx-cohort-network.png",
+          "name": "01-pgx-cohort-network.png",
+          "id": "1v3bVejMsMXupejmdVGtokGtk4cqhk-eN",
+          "url": "https://drive.google.com/file/d/1v3bVejMsMXupejmdVGtokGtk4cqhk-eN/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC08_cohort_vs_card/screenshots/02-pgx-card-patient.png",
+          "name": "02-pgx-card-patient.png",
+          "id": "12QmbDchlS2Ap9Gx5Qnf6RkQnhR65C7bh",
+          "url": "https://drive.google.com/file/d/12QmbDchlS2Ap9Gx5Qnf6RkQnhR65C7bh/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC08_cohort_vs_card/screenshots/03-roles-compared.png",
+          "name": "03-roles-compared.png",
+          "id": "1Wqs4JzR_iUkuUEjGaJzDj7zF4t5Gjaq1",
+          "url": "https://drive.google.com/file/d/1Wqs4JzR_iUkuUEjGaJzDj7zF4t5Gjaq1/view",
+          "mime": "image/png"
+        }
+      ]
+    },
+    {
+      "uc": "UC09_documentation",
+      "title": "PGx UC09 \u2014 Documentation",
+      "file_count": 5,
+      "files": [
+        {
+          "rel": "UC09_documentation/README.md",
+          "name": "README.md",
+          "id": "1jWoy9kH-00fz3-yviVLu2c-zxU-5Xae7",
+          "url": "https://drive.google.com/file/d/1jWoy9kH-00fz3-yviVLu2c-zxU-5Xae7/view",
+          "mime": "text/markdown"
+        },
+        {
+          "rel": "UC09_documentation/screenshots/01-documentation-how-to.png",
+          "name": "01-documentation-how-to.png",
+          "id": "1IJUb7Z65u5dXHbFhZHh4VSrsDgVU7h4r",
+          "url": "https://drive.google.com/file/d/1IJUb7Z65u5dXHbFhZHh4VSrsDgVU7h4r/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC09_documentation/screenshots/02-model-performance.png",
+          "name": "02-model-performance.png",
+          "id": "1WvaYQM24ievmYZ72t3EyHzoInB4i4u69",
+          "url": "https://drive.google.com/file/d/1WvaYQM24ievmYZ72t3EyHzoInB4i4u69/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC09_documentation/screenshots/03-visual-artifacts.png",
+          "name": "03-visual-artifacts.png",
+          "id": "119xDHQ6tMZsrZDW2o5ZAoIK_Rh0T66bs",
+          "url": "https://drive.google.com/file/d/119xDHQ6tMZsrZDW2o5ZAoIK_Rh0T66bs/view",
+          "mime": "image/png"
+        },
+        {
+          "rel": "UC09_documentation/screenshots/04-density-bins.png",
+          "name": "04-density-bins.png",
+          "id": "15qK2J4851mYMHyCAlXAxiUtV_9pqHWt1",
+          "url": "https://drive.google.com/file/d/15qK2J4851mYMHyCAlXAxiUtV_9pqHWt1/view",
+          "mime": "image/png"
+        }
+      ]
+    }
+  ],
+  "unassigned": [
+    {
+      "rel": "README.md",
+      "name": "README.md",
+      "id": "1eT4Sou6SZt7gJSzxh4NjRfxWwwsQ7xHK",
+      "url": "https://drive.google.com/file/d/1eT4Sou6SZt7gJSzxh4NjRfxWwwsQ7xHK/view",
+      "mime": "text/markdown"
+    }
+  ],
+  "missing_vs_g_pack": []
+}
