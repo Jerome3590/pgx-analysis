@@ -1,5 +1,7 @@
 # PGx Patient Card Integration
 
+> **Superseded for live tab names and workflows.** The live tab is **PGx Card**. Buttons are **Load Cohort PGx Profile** and **Generate PGx results** (not “Generate Personalized Card”). VCF remains an unphased rsid → star map with no full haplotype calling. Current product: [DASHBOARD_USE_CASES.md](../../10_risk_dashboard/docs/DASHBOARD_USE_CASES.md). Keep this file as historical Step 9 notes.
+
 ## Overview
 
 The PGx Patient Card feature has been integrated into the dashboard as a second tab. Users can enter their ancestry report with SNPs and receive a personalized PGx card showing potential drug interactions based on genetic variants.

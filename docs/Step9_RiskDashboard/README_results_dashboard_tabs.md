@@ -1,5 +1,7 @@
 # Step 9: Dashboard Tab Organization & API Endpoints
 
+> **Superseded for live tab names and workflows.** This document describes the older four-tab plan (Risk Score & Causal Analysis, PGx Patient Card). Current product: [DASHBOARD_USE_CASES.md](../../10_risk_dashboard/docs/DASHBOARD_USE_CASES.md) — **PGx Card**, **Scenario Analysis (FFA/SHAP)**, **Drug Networks**, plus Documentation, Feature Importance, and PGx Cohort. Keep this file as historical Step 9 notes; do not treat the tab numbers below as the live UI.
+
 ## Overview
 
 The PGx Risk Assessment Dashboard is a production-ready web application that provides risk prediction, causal analysis, and advanced visualizations for **Opioid ED** and **Polypharmacy** cohorts. Users select the cohort via **Opioid ED** or **Polypharmacy** tabs; both cohorts use the full set of age bands (0-12 through 85-114).

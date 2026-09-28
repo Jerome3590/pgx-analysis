@@ -28,13 +28,13 @@ Not all tabs use the user’s selected drugs, ICDs, or CPTs from the Drugs / ICD
 | Tab | Filterable by selected codes? | How |
 |-----|-------------------------------|-----|
 | **Risk Assessment** | ✅ Yes | Risk score uses selected `drugs`, `icds`, `cpts` in `POST /risk`. |
-| **Causal Analysis** | ✅ Yes (or SHAP/FFA default) | Optional query params `drugs`, `icds`, `cpts`. When present, causal and SHAP charts show only those features. When absent, Lambda restricts to **top 500 SHAP/FFA important features** (same importance-driven view as other tabs). |
+| **Scenario Analysis (FFA/SHAP)** | ✅ Yes (or SHAP/FFA default) | Optional query params `drugs`, `icds`, `cpts`. When present, FFA/SHAP charts show only those features. When absent, Lambda restricts to **top 500 SHAP/FFA important features** (same importance-driven view as other tabs). |
 | **Drugs / ICD / CPT tabs** | N/A | These tabs are where the user makes the selections; they don’t “filter” another dataset. |
 | **BupaR Process Mining** | ❌ No (SHAP/FFA at pipeline) | Cohort and age band. Pipeline filters event log to **SHAP/FFA important codes** (see `allowed_codes_shap_ffa_*.json`); no per-request code list. |
 | **DTW Trajectories** | ❌ No (SHAP/FFA at pipeline) | Cohort and age band. Pipeline filters trajectories to **SHAP/FFA important codes** in `create_dtw_features.py`; no per-request code list. |
 | **FP-Growth Patterns** | ✅ By cohort, age band, item type | Filters by **cohort**, **age band**, and **item type** (Drug Names, ICD Codes, CPT Codes, Medical Codes), not by the user’s specific selected code list. Optional future: pass selected codes to highlight or filter itemsets. |
 
-**To get Causal charts filtered to your selections:** Select drugs and/or ICD/CPT codes in the Drugs and ICD/CPT tabs, then open the Causal Analysis tab and click “Load Causal Analysis.” The status line will show “(filtered to your selected codes)” when a filter was applied.
+**To get Scenario Analysis charts filtered to your selections:** Select drugs and/or ICD/CPT codes in the Drugs and ICD/CPT tabs, then open the **Scenario Analysis (FFA/SHAP)** tab and click **Load Scenario Analysis**. The status line will show “(filtered to your selected codes)” when a filter was applied.
 
 ---
 
@@ -137,13 +137,13 @@ Not all tabs use the user’s selected drugs, ICDs, or CPTs from the Drugs / ICD
 
 ## Tab 5: PGx Card
 
-**Purpose:** Generate a PGx patient card from gene/variant input.
+**Purpose:** Claims radar, an exploratory report from consumer raw DNA, or a lab allele review. This tab is request-time Lambda output. It is not a saved visualization artifact.
 
 | Item | Detail |
 |------|--------|
-| **API** | `POST /pgx/card` (body: e.g. `variants: [{ gene, variants[] }]`) |
-| **Data sources** | CPIC/clinical logic in Lambda; may use bundled Excel/JSON |
-| **Frontend elements** | Form for gene/variants, card layout (drug–gene interactions, recommendations) |
+| **API** | `POST /pgx/card`. Array body uses `genotypes` (rsid, genotype, chromosome, position). Lab body uses `variants` (`Gene,*allele`). |
+| **Data sources** | Array rows: DuckDB writes ephemeral Snappy Parquet and joins positions to CPIC gene intervals. Lab alleles: official diplotype-to-phenotype table in the container. Claims radar: cohort profile already on the card. |
+| **Frontend elements** | Gene form and file picker (parsed in the browser). Array results: detected variants, gene-coverage percent, clinical-test referral, physician summary. Lab alleles: action queue and gene–drug matrix. |
 
 ### Visuals / outputs
 
@@ -151,15 +151,17 @@ Not all tabs use the user’s selected drugs, ICDs, or CPTs from the Drugs / ICD
 |--------|------|-----------|--------|
 | PGx card content | Card / sections | Lambda `POST /pgx/card` | ✅ Implemented |
 | Gene/variant form | Form | Client | ✅ Implemented |
+| Cohort radar | Chart | **Load Cohort PGx Profile** | ✅ Implemented |
 
 ### Implementation checklist
 
-- [ ] Card request sends correct body; response rendered in PGx Card tab.
-- [ ] Drug–gene interactions and recommendations clearly shown.
+- [ ] Card request sends parsed rsids or lab alleles, not the raw genome file.
+- [ ] Array-file responses show coverage and a referral, and do not show a diplotype or a dose.
+- [ ] Lab-allele responses show action categories and guideline URLs.
 
 ---
 
-## Tab 6: Causal Analysis (visualization tab)
+## Tab 6: Scenario Analysis (FFA/SHAP) (visualization tab)
 
 **Purpose:** Show what features drive the target outcome and how they relate; support “what drug combinations drive polypharmacy ED?”
 
@@ -167,7 +169,7 @@ Not all tabs use the user’s selected drugs, ICDs, or CPTs from the Drugs / ICD
 |------|--------|
 | **API** | `GET /visualizations/causal?cohort=...&age_band=...` |
 | **Data sources** | FFA: `gold/ffa_analysis/{cohort}/{age_band}/xgboost/causal_importance.parquet`; SHAP: `gold/shap_analysis/{cohort}/{age_band}/*_shap_global_importance_xgboost.csv` |
-| **Frontend trigger** | “Load Causal Analysis” with cohort + age band selected |
+| **Frontend trigger** | **Load Scenario Analysis** with cohort + age band selected |
 
 ### Visuals
 
@@ -310,7 +312,7 @@ Update this section when the chosen approach is implemented.
 
 | Tab | API endpoint | Key S3/data paths | Filter by drug/ICD/CPT? |
 |-----|--------------|-------------------|-------------------------|
-| Causal Analysis | `GET /visualizations/causal?cohort=&age_band=[&drugs=&icds=&cpts=]` | `gold/ffa_analysis/`, `gold/shap_analysis/` | ✅ Optional `drugs`, `icds`, `cpts` (comma-separated) |
+| Scenario Analysis (FFA/SHAP) | `GET /visualizations/causal?cohort=&age_band=[&drugs=&icds=&cpts=]` | `gold/ffa_analysis/`, `gold/shap_analysis/` | ✅ Optional `drugs`, `icds`, `cpts` (comma-separated) |
 | BupaR | `GET /visualizations/bupar?cohort=&age_band=` | `gold/feature_importance/{cohort}/{age_band}/plots/` (BupaR PNGs) | ❌ No |
 | DTW | `GET /visualizations/dtw?cohort=&age_band=` | `gold/feature_importance/.../plots/` (PNGs), `gold/feature_engineering/6_dtw/` (CSV) | ❌ No |
 | FP-Growth | `GET /visualizations/fpgrowth?cohort=&age_band=&item_type=` | `gold/fpgrowth/{cohort}/{age_band}/plots/` | ✅ By cohort, age band, and item type (drug vs ICD vs CPT) |

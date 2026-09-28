@@ -6,16 +6,26 @@ This directory contains the **production-ready risk assessment dashboard** and d
 - **Live:** [https://pgx.jerome-dixon.io/](https://pgx.jerome-dixon.io/) (legacy apex `/vcu/pgx-risk-calculator/` → 301 here)
 - **S3:** `s3://jerome-dixon.io/pgx/` — frontend and static assets (CloudFront `EOX9GAQHM85DQ`, Origin Path `/pgx`).
 
+**How to use (persona → tab → numbered steps):** [docs/DASHBOARD_USE_CASES.md](docs/DASHBOARD_USE_CASES.md) — live UI names for clinician, researcher, and patient workflows. In-app **User Guide** embeds a compact summary plus a training table (video / slides / audio).
+
 ## Quick Overview
 
-The dashboard provides multiple capabilities:
+The dashboard provides multiple capabilities (live tab names):
 
-1. **Risk Assessment Dashboard** - Predict risk for **Opioid ED** or **Polypharmacy** (select cohort via tabs); both cohorts use the full set of age bands (0-12 through 85-114)
-2. **Causal Analysis** - Explore FFA causal factors and SHAP importance
-3. **DTW Trajectories** - View patient trajectory patterns
-4. **FP-Growth Patterns** - Explore frequent itemsets and association rules
-5. **BupaR Process Mining** - View process flows and activity sequences
-6. **PGx Patient Card Generator** - Generate pharmacogenomic cards from genetic variants
+**Primary:** User Guide · Risk Assessment · Drugs · ICD Codes · CPT Codes · **PGx Card**
+
+**Visualizations:** Feature Importance · Scenario Analysis (FFA/SHAP) · BupaR Process Mining · DTW Trajectories · FP-Growth Patterns · Drug Networks · PGx Cohort
+
+1. **User Guide** — Training table (video / slides / audio per use case) plus how to use, research-question coverage, model performance, and visual-artifact trust notes
+2. **Risk Assessment** — Predict risk for **Opioid ED** or **Polypharmacy** (select cohort via tabs); scoring requires age 13–114 (band 0–12 is excluded)
+3. **Scenario Analysis (FFA/SHAP)** — FFA interaction factors and SHAP importance (does **not** recalculate ensemble risk)
+4. **Feature Importance** — Population feature-importance heatmap by age band
+5. **DTW Trajectories** — Patient trajectory patterns
+6. **FP-Growth Patterns** — Frequent itemsets and association rules
+7. **BupaR Process Mining** — Process flows and activity sequences
+8. **Drug Networks** — Interactive FI-filtered drug association graph (Cytoscape HTML; tab name is Drug Networks)
+9. **PGx Cohort** — Population gene–drug–phenotype topology
+10. **PGx Card** — Claims radar (**Load Cohort PGx Profile**) plus an exploratory card from consumer raw DNA (**Generate PGx results**). AncestryDNA, 23andMe, MyHeritage, and unphased VCF stay in the browser. Lambda writes those rows with DuckDB to ephemeral Snappy Parquet and joins them to CPIC gene intervals. The report lists detected variants and gene coverage. Missing sites are **Data Not Present in File** and are not called `*1`. That path does not assign a diplotype, metabolizer status, or dose; it opens a clinical-test referral. A lab line such as `CYP2C19,*1,*2` still uses the official phenotype table. See User Guide → **Unphased DNA files and star alleles**.
 
 ## Actionable Intelligence Loop
 
@@ -30,7 +40,7 @@ flowchart TD
 
     subgraph PIPELINE["Data Pipeline · EC2 / Notebooks 3-4"]
         B["Per-bin Model Training\nXGBoost · CatBoost · XGBoost RF\nlow / medium / high / extreme"]
-        C["SHAP + FFA Causal Analysis\ncombined_importance.csv · top causal drugs"]
+        C["SHAP + FFA combine\ncombined_importance.csv · top drivers"]
         D["CPIC Drug → Gene Mapping\nPharmGKB VIP Reports"]
         E["Drug-anchored PubMed Queries\ngene_scores · pgx_radar_data.json"]
     end
@@ -40,8 +50,8 @@ flowchart TD
 
     subgraph OBSERVE["① OBSERVE · Risk Assessment"]
         F["Age + drug / ICD / CPT codes"]
-        G["Risk Score + n_event_bin\n+ per-bin causal factors"]
-        H["What-if Simulation\nΔ risk if codes change"]
+        G["Calculate Risk Score\n+ Event Density badge"]
+        H["Replace / swap · Compare Scenarios\nDrug contributions"]
     end
 
     subgraph ORIENT["② ORIENT · PGx Evidence"]
@@ -50,11 +60,11 @@ flowchart TD
     end
 
     subgraph DECIDE["③ DECIDE · Clinical Validity"]
-        K["CPIC Gene Classification\nDosing Guideline Availability\nOptional SNP Refinement"]
+        K["CPIC Gene Classification\nDosing Guideline Availability\nOptional array coverage or lab alleles"]
     end
 
     subgraph ACT["④ ACT · Personalized Guidance"]
-        L["Personalized PGx Card\nCPIC dosing guidance per allele\n→ prescribing change / genetic test order"]
+        L["PGx Card\nLoad Cohort PGx Profile · Generate PGx results\narray: coverage + referral\nlab alleles: categories + URLs"]
     end
 
     B -->|"Lambda inference\n(per-bin model)"| F
@@ -65,15 +75,17 @@ flowchart TD
     L -. "next encounter\nupdates risk" .-> F
 
     subgraph RQ["Research Analysis Tabs · RQ Coverage"]
-        M["Causal Analysis\nN5 · N6 · RQ1 · RQ2"]
+        M["Scenario Analysis\nN5 · N6 · RQ1 · RQ2"]
         N["BupaR Process Mining\nN2 · N3"]
         O["DTW Trajectories\nN1 · RQ2"]
         P["FP-Growth Patterns\nN4"]
+        S["Drug Networks\nN4 FI-filtered rules"]
         Q["PGx Cohort Network\ngene–drug–phenotype topology"]
         R["Feature Importance\nage-band heatmap"]
     end
 
     G -. "same cohort / age / bin" .-> M & N & O & P
+    G -. "same cohort / age" .-> S
     E --> Q
     B --> R
 ```
@@ -93,22 +105,26 @@ flowchart LR
     N5["N5 · Feature drivers\n+ relationships?"]
     N6["N6 · Drug combinations\n→ polypharmacy?"]
 
-    RA["Causal Analysis\nFFA + SHAP + radar"]
-    FP["FP-Growth\ndrug itemsets + network"]
+    RA["Scenario Analysis (FFA/SHAP)\nFFA + SHAP + radar"]
+    FI["Feature Importance\nage-band heatmap"]
+    FP["FP-Growth Patterns\ndrug itemsets + network"]
+    DN["Drug Networks\nFI-filtered rules"]
     BP["BupaR Process Mining\nsequences + Gantt"]
     DT["DTW Trajectories\nclusters + high-risk"]
     PG["PGx Cohort\ngene network + radar"]
-    RS["Risk Assessment\nscore + what-if"]
+    RS["Risk Assessment\nCalculate Risk Score"]
+    PC["PGx Card\ncohort radar + exploratory card"]
 
-    RQ1 --> RA & FP & BP & RS
-    RQ2 --> RA & FP & BP & DT & RS
+    RQ1 --> RA & FP & DN & BP & RS
+    RQ2 --> RA & FP & DN & BP & DT & RS
     N1  --> DT
     N2  --> BP
     N3  --> BP & DT
-    N4  --> FP
-    N5  --> RA
+    N4  --> FP & DN
+    N5  --> RA & FI
     N6  --> RA & BP
     RA  --> PG
+    RS  --> PC
 ```
 
 ## Directory Structure
@@ -122,6 +138,8 @@ flowchart LR
 │
 ├── backend/                           # Backend API (Lambda function)
 │   ├── lambda_function.py             # AWS Lambda handler (API endpoints)
+│   ├── cpic_allele_resolver.py        # Exploratory rsid matcher (no diplotype from array files)
+│   ├── pgx_exploratory_pipeline.py    # DuckDB Snappy Parquet ingest and CPIC interval join
 │   ├── lambda_api_template.py         # API Gateway integration template
 │   ├── requirements.txt               # Python dependencies
 │   ├── Dockerfile                     # Docker container for Lambda (ECR)
@@ -182,6 +200,7 @@ flowchart LR
 │       └── bupar/
 │
 └── docs/                              # Additional documentation
+    ├── DASHBOARD_USE_CASES.md         # Canonical: persona → tab → numbered workflows (live names)
     ├── API.md                         # API endpoint documentation
     ├── DEPLOYMENT.md                  # Deployment guide
     ├── VISUALIZATIONS.md              # Visualization guide
@@ -213,12 +232,17 @@ This structure follows a **separation of concerns** approach:
 
 **Key Files**:
 - `index.html` - Main dashboard with all tabs:
-  - **Risk Assessment** - Calculate risk scores for **Opioid ED** or **Polypharmacy** (select cohort via tabs); both use full age bands (0-12 through 85-114)
-  - **Causal Analysis** - FFA causal factors and SHAP importance with interactive charts
+  - **User Guide** - Training table (video / slides / audio) plus how to use, research-question coverage, model performance
+  - **Risk Assessment** - Calculate risk scores for **Opioid ED** or **Polypharmacy** (select cohort via tabs); scoring requires age 13–114
+  - **Drugs** / **ICD Codes** / **CPT Codes** - Code selection (ICD/CPT hidden on Polypharmacy)
+  - **PGx Card** - Claims radar, plus an exploratory raw-DNA report (DuckDB Parquet coverage join) or a lab `Gene,Allele` phenotype lookup
+  - **Feature Importance** - Population feature-importance heatmap by age band
+  - **Scenario Analysis (FFA/SHAP)** - FFA interaction factors and SHAP importance with interactive charts
   - **DTW Trajectories** - Patient trajectory patterns, temporal metrics, and sample trajectories
   - **FP-Growth Patterns** - Frequent itemsets, support distributions, and co-occurrence networks
+  - **Drug Networks** - Interactive FI-filtered drug association graph (tab name is Drug Networks; renderer is Cytoscape HTML)
   - **BupaR Process Mining** - Process flows, activity frequencies, and sequence patterns
-  - **PGx Patient Card** - Generate pharmacogenomic cards from genetic variants
+  - **PGx Cohort** - Population gene–drug–phenotype topology
 
 **Features**:
 - Interactive forms with searchable dropdowns
@@ -283,10 +307,13 @@ This structure follows a **separation of concerns** approach:
 
 The dashboard includes the following visualization tabs:
 
-- **Causal Analysis Tab**: Displays FFA causal factors and SHAP importance with interactive charts
+- **Feature Importance Tab**: Population feature-importance heatmap by age band
+- **Scenario Analysis (FFA/SHAP) Tab**: Displays FFA interaction factors and SHAP importance with interactive charts
 - **DTW Trajectories Tab**: Shows patient trajectory patterns, temporal metrics, and sample trajectories
 - **FP-Growth Patterns Tab**: Displays frequent itemsets, support distributions, and co-occurrence networks
+- **Drug Networks Tab**: Interactive FI-filtered drug association graph (tab name is Drug Networks; renderer is Cytoscape HTML)
 - **BupaR Process Mining Tab**: Shows process flows, activity frequencies, Gantt charts, and sequence patterns
+- **PGx Cohort Tab**: Population gene–drug–phenotype topology, figure pack, and cohort radar
 
 ### Data Preparation
 
@@ -412,11 +439,11 @@ sequenceDiagram
     end
 
     Note over User,S3: PGx Card - optional
-    opt User submits gene variants on PGx Card tab
-        JS->>APIGW: POST /pgx/card with cohort, age_band, variants
+    opt User submits parsed rsids or lab alleles on PGx Card tab
+        JS->>APIGW: POST /pgx/card
         APIGW->>Lambda: forward
-        Lambda->>Lambda: CPIC lookup, gene actionability, drug interactions
-        Lambda-->>JS: genes, drugs, actionability
+        Lambda->>Lambda: DuckDB Parquet join for array rows; phenotype table for lab alleles
+        Lambda-->>JS: coverage and referral, or genes and action categories
         JS->>User: render pharmacogenomic card
     end
 ```
@@ -517,6 +544,8 @@ For each cohort × age-band the test:
 
 ### Per-Tab Execution Workflows
 
+Numbered persona workflows with **live button and tab names** (including Drug Networks and replace-and-compare): [docs/DASHBOARD_USE_CASES.md](docs/DASHBOARD_USE_CASES.md). Diagrams below stay as implementation flowcharts.
+
 #### Tab: Risk Assessment
 
 ```mermaid
@@ -525,7 +554,9 @@ flowchart TD
     B --> C[codes-summary-group\nshows selected code count\nfrom Drugs / ICD / CPT tabs]
     C --> D{Action}
     D -->|Calculate Risk Score| E[calculateRisk\nsee flowchart above]
-    D -->|Compare Scenarios| F[compareScenarios\nPOST /risk/comparison\nadd to comparison panel]
+    D -->|Compare Scenarios| F[compareScenarios\nPOST /risk/comparison\n2+ saved sets or baseline vs current]
+    D -->|Drug contributions| P[loadDrugContributions\nPOST /risk/drug_contributions]
+    D -->|Replace / swap| Q[replacePatientCode\nthen Calculate Risk Score]
     D -->|Reset| G[resetForm\nclear all inputs and results]
     E --> H{HTTP 200?}
     H -->|Error| I[setStatus error\nshow API message]
@@ -574,28 +605,29 @@ Two-phase: load cohort-level profile first, then optionally refine with patient 
 
 ```mermaid
 flowchart TD
-    A([PGx Card tab]) --> B[Select cohort · age band\nOptional: event density bin\nauto-set from Risk Assessment]
+    A([PGx Card tab]) --> B[Select cohort · age band\nEvent Density auto-set from Risk Assessment]
     B --> C[Click Load Cohort PGx Profile\nbtnLoadPgxCardProfile]
     C --> D[POST /pgx/card\nor GET /visualizations/cohort_pgx\ncohort + age_band + bin]
     D --> E{HTTP 200?}
     E -->|Error| F[pgx-card-status error]
-    E -->|200| G[pgx-cohort-profile-section shown\nGene Actionability Radar\nIdentified PGx Genes list]
-    G --> H[pgx-snp-refine-section shown\nOptional SNP refinement]
+    E -->|200| G[Gene Actionability Profile radar\nIdentified PGx Genes]
+    G --> H[1. Gene data · 2. Virginia APCD medications]
     H --> I{Personalize?}
     I -->|No| J([Cohort-level card done])
-    I -->|Yes| K[Enter gene variants\nin #snp-input textarea\nFormat: Gene Variant1 Variant2\nor upload .csv / .xlsx / .txt]
-    K --> L[Optional: enter\nPatient ID]
-    L --> M[Click Generate Personalized Card\nbtnGenerateCard]
-    M --> N[POST /pgx/card\ncohort · age_band · variants]
+    I -->|Yes| K[Lab Gene,Allele lines\nor Ancestry / 23andMe / MyHeritage / VCF\nparsed in the browser]
+    K --> L[Drug scope: Active medications /\nSelected drugs / All matched drugs\nActionable only · Patient or Clinician / pharmacist]
+    L --> M[Click Generate PGx results\nbtnGenerateCard]
+    M --> N[POST /pgx/card\nrsid rows or lab alleles\nnot the raw genome file]
     N --> O{HTTP 200?}
     O -->|Error| P[pgx-status error]
-    O -->|200| Q[pgx-card-display shown\nGenes Tested list\nDrugs Requiring Dosing Modifications\nGene Details with CPIC guidance]
-    Q --> R([Personalized PGx Card])
+    O -->|200| Q[Array file: coverage + referral\nLab alleles: action queue and matrix\nTriplets stay separate]
+    Q --> R[Exports include physician summary PDF\nPrint · JSON · CSV · PNG · PDF]
+    R --> S([PGx Card])
 
     style F fill:#fee2e2
     style P fill:#fee2e2
     style J fill:#dcfce7
-    style R fill:#dcfce7
+    style S fill:#dcfce7
 ```
 
 ---
@@ -624,17 +656,17 @@ flowchart TD
 
 ---
 
-#### Tab: Causal Analysis
+#### Tab: Scenario Analysis (FFA/SHAP)
 
-Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional what-if comparison and density-bin filter.
+Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional what-if comparison and density-bin filter. Charts are FFA/SHAP signals — they do not recalculate ensemble risk.
 
 ```mermaid
 flowchart TD
-    A([Causal Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first]
-    B --> C[Optional: enter what-if codes\ncausal-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE]
+    A([Scenario Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first]
+    B --> C[Optional: enter what-if codes\nscenario-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE]
     C --> D[Optional: filter top-N features\n10 · 20 · All]
     D --> E[Optional: filter by event density bin\nAll · low · medium · high · extreme\nAuto-synced from Risk n_event_bin on tab open]
-    E --> F[Click Load Causal Analysis\nbtnLoadCausal]
+    E --> F[Click Load Scenario Analysis\nbtnLoadScenario]
     F --> G{n_event_bin\nselected?}
     G -->|Yes bin| H[GET static causal_data.json\nCloudFront: visualizations/causal/\ncohort/ageBand/bin/causal_data.json]
     G -->|All bins| I[GET manifest entry OR\ndefault static path\nvisualization/causal/cohort/ageBand/]
@@ -642,10 +674,10 @@ flowchart TD
     I --> J
     J -->|200| K[Client-side filter:\nfilter top_causal_factors by\nselectedFeatureSet drugs/ICDs/CPTs]
     J -->|4xx/5xx| L[Fallback: GET Lambda\n/visualizations/causal\n?cohort=&age_band=&n_event_bin=]
-    K --> M[causal-factors-chart\nPlotly bar: Top Causal Factors FFA]
+    K --> M[scenario-factors-chart\nPlotly bar: Top Interaction Factors FFA]
     L --> M
     M --> N[shap-importance-chart\nPlotly bar: SHAP Feature Importance]
-    N --> O[causal-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect]
+    N --> O[scenario-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect]
     O --> P{What-if codes\nentered?}
     P -->|Yes| Q[second trace overlaid\non each chart]
     P -->|No| R([Three charts displayed])
@@ -761,10 +793,13 @@ flowchart TD
 - **SHAP + FFA Combination**: Comprehensive patient-level explanations combining quantitative (SHAP) and logical (FFA) methods
 - **Consensus Features**: High-confidence features identified by both SHAP and FFA analysis
 - **Visualization Tabs**:
-  - **Causal Analysis**: FFA causal factors and SHAP importance
+  - **Feature Importance**: Population feature-importance heatmap by age band
+  - **Scenario Analysis (FFA/SHAP)**: FFA interaction factors and SHAP importance
   - **DTW Trajectories**: Patient trajectory patterns and temporal metrics
   - **FP-Growth Patterns**: Frequent itemsets, association rules, and co-occurrence networks
+  - **Drug Networks**: Interactive FI-filtered drug association graph (tab name is Drug Networks; renderer is Cytoscape HTML)
   - **BupaR Process Mining**: Process flows, activity sequences, activity frequency, trace explorer
+  - **PGx Cohort**: Population gene–drug–phenotype topology
 
 ## API Endpoints
 
@@ -789,7 +824,7 @@ flowchart TD
 
 - **`POST /risk/comparison`** - Compare risk scenarios
 
-- **`POST /pgx/card`** - Generate PGx patient card from genetic variants
+- **`POST /pgx/card`** - Claims-independent gene card. Array rows (`genotypes`) go through DuckDB to Snappy Parquet and a CPIC interval join, then an exploratory coverage report and clinical-test referral. Lab `Gene,Allele` lines still use the official diplotype-to-phenotype table. The raw genome file is not uploaded.
 
 ### Visualization Endpoints
 
@@ -809,7 +844,7 @@ flowchart TD
   - Query params: `cohort`, `age_band`
   - Returns: S3 paths to BupaR visualization images
 
-See [README_results_dashboard.md](../docs/Step10_Results/README_results_dashboard.md) for complete API documentation.
+See [README_results_dashboard.md](../docs/Step9_RiskDashboard/README_results_dashboard.md) for complete API documentation.
 
 ## Data Sources
 
@@ -854,7 +889,7 @@ FP-Growth network visualizations show (**drug names only**; research focus on dr
 - **Association rules**: Directed relationships between drug items (antecedent → consequent)
 - **Pattern strength**: Support, confidence, and lift metrics for drug patterns
 
-### Integration with Causal Analysis
+### Integration with Scenario Analysis (FFA/SHAP)
 
 FP-Growth networks complement FFA/SHAP causal analysis by:
 1. **Visualizing Feature Relationships**: Show how causal features (from FFA/SHAP) relate to each other
@@ -889,7 +924,7 @@ FP-Growth networks complement FFA/SHAP causal analysis by:
 
 The dashboard calls `GET /visualizations/fpgrowth?cohort=&age_band=`; the API returns S3 URLs for **drug_name** itemsets and network only (no item_type selector).
 
-#### Option 3: Combine with Causal Analysis
+#### Option 3: Combine with Scenario Analysis (FFA/SHAP)
 
 Show FP-Growth drug network alongside FFA/SHAP results for drug-focused pattern context.
 
@@ -909,7 +944,7 @@ Show FP-Growth drug network alongside FFA/SHAP results for drug-focused pattern 
 
 ### Use Cases
 
-1. **Causal Analysis Visualization**
+1. **Scenario Analysis visualization**
    - Show FP-Growth network alongside FFA/SHAP feature importance
    - Highlight features that appear in both analyses
    - Visualize relationships between high-importance features
@@ -967,26 +1002,28 @@ Test files: `11_testing/puppeteer/tests/tabs/`
 
 ## Documentation
 
-For detailed documentation, see [`docs/Step10_Results/`](../docs/Step10_Results/):
+**Live workflows (canonical):** [docs/DASHBOARD_USE_CASES.md](docs/DASHBOARD_USE_CASES.md) — persona → tab → numbered steps with live button names.
+
+Historical Step 9 notes (older four-tab plan) live under [`docs/Step9_RiskDashboard/`](../docs/Step9_RiskDashboard/):
 
 **Main Documentation**:
-- **[README_results_dashboard.md](../docs/Step10_Results/README_results_dashboard.md)** - Complete dashboard system overview
-- **[README_results_value_proposition.md](../docs/Step10_Results/README_results_value_proposition.md)** - Business value and use cases
-- **[README_results_deployment.md](../docs/Step10_Results/README_results_deployment.md)** - Complete deployment guide (architecture, steps, security)
-- **[README_results_prediction.md](../docs/Step10_Results/README_results_prediction.md)** - Prediction workflow and technical details
-- **[README_results_quickstart.md](../docs/Step10_Results/README_results_quickstart.md)** - Quick start guide for predictions
+- **[README_results_dashboard.md](../docs/Step9_RiskDashboard/README_results_dashboard.md)** - Complete dashboard system overview
+- **[README_results_value_proposition.md](../docs/Step9_RiskDashboard/README_results_value_proposition.md)** - Business value and use cases
+- **[README_results_deployment.md](../docs/Step9_RiskDashboard/README_results_deployment.md)** - Complete deployment guide (architecture, steps, security)
+- **[README_results_prediction.md](../docs/Step9_RiskDashboard/README_results_prediction.md)** - Prediction workflow and technical details
+- **[README_results_quickstart.md](../docs/Step9_RiskDashboard/README_results_quickstart.md)** - Quick start guide for predictions
 
 **Feature Documentation**:
-- **[README_results_pgx_card.md](../docs/Step10_Results/README_results_pgx_card.md)** - PGx Patient Card feature
-- **[README_results_ensemble.md](../docs/Step10_Results/README_results_ensemble.md)** - Ensemble model approach
-- **[README_results_model_weights.md](../docs/Step10_Results/README_results_model_weights.md)** - Performance-based model weighting
+- **[README_results_pgx_card.md](../docs/Step9_RiskDashboard/README_results_pgx_card.md)** - Historical PGx Card notes (superseded for live workflows by [docs/DASHBOARD_USE_CASES.md](docs/DASHBOARD_USE_CASES.md))
+- **[README_results_ensemble.md](../docs/Step9_RiskDashboard/README_results_ensemble.md)** - Ensemble model approach
+- **[README_results_model_weights.md](../docs/Step9_RiskDashboard/README_results_model_weights.md)** - Performance-based model weighting
 
 **Deployment Guides**:
-- **[README_results_deployment_ecr.md](../docs/Step10_Results/README_results_deployment_ecr.md)** - Lambda ECR container deployment
-- **[README_results_deployment_cpic.md](../docs/Step10_Results/README_results_deployment_cpic.md)** - CPIC data deployment
+- **[README_results_deployment_ecr.md](../docs/Step9_RiskDashboard/README_results_deployment_ecr.md)** - Lambda ECR container deployment
+- **[README_results_deployment_cpic.md](../docs/Step9_RiskDashboard/README_results_deployment_cpic.md)** - CPIC data deployment
 
 **Reference**:
-- **[README_results_storage.md](../docs/Step10_Results/README_results_storage.md)** - Storage analysis and container sizing
-- **[README_results_age_bands.md](../docs/Step10_Results/README_results_age_bands.md)** - Supported age bands and mappings
+- **[README_results_storage.md](../docs/Step9_RiskDashboard/README_results_storage.md)** - Storage analysis and container sizing
+- **[README_results_age_bands.md](../docs/Step9_RiskDashboard/README_results_age_bands.md)** - Supported age bands and mappings
 
-See [`docs/Step10_Results/README.md`](../docs/Step10_Results/README.md) for complete documentation index.
+See [`docs/Step9_RiskDashboard/README_results_overview.md`](../docs/Step9_RiskDashboard/README_results_overview.md) for the historical documentation index.

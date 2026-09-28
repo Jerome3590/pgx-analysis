@@ -37,7 +37,7 @@ Pipeline for these: run on EC2 → write HTML → upload to dashboard bucket →
 | Tab | JSON (inline from API) | Fallback / other |
 |-----|------------------------|------------------|
 | **Feature Importance** | `heatmap_data` (aggregated FI heatmap) | `heatmap_url` (PNG) |
-| **Causal Analysis** | `causal_data` (raw JSON) + `chart_data` (Lambda-filtered: causal_factors, shap_importance, whatif, feature_interactions) | Same pattern as Feature Importance: Lambda loads JSON, applies drugs/icds/cpts/whatif filters, returns chart_data for bar charts, radar, and interactions. |
+| **Scenario Analysis (FFA/SHAP)** | `causal_data` (raw JSON) + `chart_data` (Lambda-filtered: causal_factors, shap_importance, whatif, feature_interactions) | Same pattern as Feature Importance: Lambda loads JSON, applies drugs/icds/cpts/whatif filters, returns chart_data for bar charts, radar, and interactions. |
 | **BupaR Process Mining** | `trace_explorer_plot`, `process_matrix_drug_drug`, activity_frequency (separate endpoint) | Image/iframe URLs for sequence, trace pre, process matrix combined, frequency map |
 | **DTW Trajectories** | `chart_data`, `sequence_heatmap`, `trajectory_overview_plot` | Image URLs for overview/sample when JSON missing |
 | **FP-Growth Patterns** | `itemsets_data` (itemsets JSON for client Plotly) | **Network: HTML only** (EC2). Itemsets PNG/HTML URLs. |

@@ -12,7 +12,7 @@ Scripts and configurations for deploying the dashboard to AWS.
 - **`apply_api_gateway_cors.py`** - Add CORS headers to API Gateway **gateway responses** (4XX, 5XX, DEFAULT) so the browser receives `Access-Control-Allow-Origin` even when Lambda errors or times out. Run once per API (e.g. `python apply_api_gateway_cors.py --api-id cmv0qislq3`). See [CORS blocked from jerome-dixon.io](#cors-blocked-from-jeromedixonio) below.
 - **`scripts/`** - Additional deployment helper scripts
 
-**Dashboard tabs ↔ data sources:** See [../docs/DASHBOARD_TABS.md](../docs/DASHBOARD_TABS.md) for which API/S3 path feeds each tab (Feature Importance, Causal Analysis, BupaR, DTW, FP-Growth, PGx Cohort, etc.). That doc also documents the **required S3 URL format** for assets: path-style `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. **Age bands:** EC2 paths use underscore (e.g. `25_44`); S3 paths use hyphen (e.g. `25-44`). Use `sync_cohort_pgx_to_s3.py` for Cohort PGx so S3 keys use hyphen.
+**Dashboard tabs ↔ data sources:** See [../docs/DASHBOARD_USE_CASES.md](../docs/DASHBOARD_USE_CASES.md) and [../docs/README_dashboard_visual_artifact_paths.md](../docs/README_dashboard_visual_artifact_paths.md) for which API/S3 path feeds each tab (Feature Importance, Scenario Analysis (FFA/SHAP), BupaR, DTW, FP-Growth, Drug Networks, PGx Cohort, etc.). Artifact-path docs also record the **required S3 URL format** for assets: path-style `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/{key}`. **Age bands:** EC2 paths use underscore (e.g. `25_44`); S3 paths use hyphen (e.g. `25-44`). Use `sync_cohort_pgx_to_s3.py` for Cohort PGx so S3 keys use hyphen.
 
 **Target S3 path for BupaR (Lambda reads this):** The API expects BupaR plots under `{prefix}/visualizations/bupar/{cohort}/{age_band}/plots/`. Example: `s3://jerome-dixon.io/pgx/visualizations/bupar/opioid_ed/45-54/plots/`. Step 6 in notebook 5 promotes from `.../visualizations/bupar/builds/` to this path.
 
@@ -69,19 +69,42 @@ powershell -ExecutionPolicy Bypass -File "C:\Projects\pgx-analysis\10_risk_dashb
 
 ---
 
-### Windows (Local) — Code-Only Lambda Update (Fastest)
+### Windows (Local) — Bake Python into the image (preferred)
 
-Use when only `lambda_function.py` changed — no model or artifact changes:
+Use when dashboard Python changed and models did not. This layers the current modules onto the live image and does not rebuild models. After Lambda points at the new image, cold starts use the baked files. They do not download Python from S3 unless `CODE_S3_OVERRIDE=true`.
+
+```powershell
+cd C:\Projects\pgx-analysis\10_risk_dashboard
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 535362115856.dkr.ecr.us-east-1.amazonaws.com
+docker build --provenance=false --sbom=false --platform linux/amd64 -f deployment/Dockerfile.overlay -t pgx-risk-calculator:baked .
+docker tag pgx-risk-calculator:baked 535362115856.dkr.ecr.us-east-1.amazonaws.com/pgx-risk-calculator:latest
+docker push 535362115856.dkr.ecr.us-east-1.amazonaws.com/pgx-risk-calculator:latest
+aws lambda update-function-code --function-name pgx-risk-calculator --image-uri 535362115856.dkr.ecr.us-east-1.amazonaws.com/pgx-risk-calculator:latest
+```
+
+Leave `CODE_S3_KEY`, `CPIC_RESOLVER_S3_KEY`, and `PGX_PIPELINE_S3_KEY` in place. They are unused until `CODE_S3_OVERRIDE=true`. `PREFER_S3=true` still applies to dashboard data, not to this Python.
+
+### Windows (Local) — S3 code override (opt-in)
+
+Use only when you need a Python change before the next image. Set `CODE_S3_OVERRIDE=true` on the function, upload the modules, and bump `DEPLOY_TS` on the existing configuration. Do not replace the environment with only the variables in an example. The card path needs all three files:
+
+- `gold/dashboard/code/lambda_function.py` (`CODE_S3_KEY`)
+- `gold/dashboard/code/cpic_allele_resolver.py` (`CPIC_RESOLVER_S3_KEY`)
+- `gold/dashboard/code/pgx_exploratory_pipeline.py` (`PGX_PIPELINE_S3_KEY`)
+
+`pgx_exploratory_pipeline.py` is the DuckDB Snappy Parquet ingest and CPIC interval join for consumer array rows. Keep `PREFER_S3=true` and the rest of the current variables.
 
 ```powershell
 # 1. Upload updated code to S3
 aws s3 cp C:\Projects\pgx-analysis\10_risk_dashboard\backend\lambda_function.py `
     s3://pgxdatalake/gold/dashboard/code/lambda_function.py
+aws s3 cp C:\Projects\pgx-analysis\10_risk_dashboard\backend\cpic_allele_resolver.py `
+    s3://pgxdatalake/gold/dashboard/code/cpic_allele_resolver.py
+aws s3 cp C:\Projects\pgx-analysis\10_risk_dashboard\backend\pgx_exploratory_pipeline.py `
+    s3://pgxdatalake/gold/dashboard/code/pgx_exploratory_pipeline.py
 
-# 2. Trigger cold start (Lambda downloads new code on next invocation)
-aws lambda update-function-configuration `
-    --function-name pgx-risk-calculator `
-    --environment 'Variables={S3_BUCKET=pgxdatalake,CODE_S3_KEY=gold/dashboard/code/lambda_function.py,PREFER_S3=false,PGX_RESULTS_BUCKET=pgxdatalake}'
+# 2. Trigger cold start by updating DEPLOY_TS on the current environment.
+#    Read the live variables first and merge. Do not drop S3 keys or PREFER_S3.
 ```
 
 Lambda cold start takes ~20 s. Verify with an API call after waiting:

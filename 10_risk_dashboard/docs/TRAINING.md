@@ -1,10 +1,18 @@
 # Dashboard use-case training pack
 
-Canonical workflows: [DASHBOARD_USE_CASES.md](DASHBOARD_USE_CASES.md). In-app user guide: Documentation tab on [https://pgx.jerome-dixon.io/](https://pgx.jerome-dixon.io/) (section **Unphased DNA files and star alleles**).
+Canonical workflows: [DASHBOARD_USE_CASES.md](DASHBOARD_USE_CASES.md). In-app user guide: **User Guide** tab on [https://pgx.jerome-dixon.io/](https://pgx.jerome-dixon.io/) (Training table + section **Unphased DNA files and star alleles**). That section describes the DuckDB Parquet coverage path for AncestryDNA, 23andMe, MyHeritage, and unphased VCF, and the clinical-test referral. Lab `Gene,Allele` lines are the path that still uses the phenotype table.
 
-## Google Drive layout
+## Public artifacts folder
 
-Local Google Drive desktop sync path (this machine):
+Publish video, slides, and audio (and any other finished training files) here:
+
+https://drive.google.com/drive/folders/1cGbdoH-HDEooRyqWnhS6btWyhD4XOKQt?usp=drive_link
+
+Formatted posting files live at the folder root as `{nn}_{use_case}.mp4` / `.pdf` / `.m4a`. The User Guide Training table links to those files.
+
+## Google Drive layout (working pack)
+
+Local Google Drive desktop sync path for screenshots and UC READMEs (this machine):
 
 `G:\My Drive\PGx_Dashboard_Use_Cases\`
 
@@ -32,4 +40,4 @@ Studio outputs were **not** generated in this pass (Google login / IDE browser s
 
 Custom instruction for every notebook: [NOTEBOOKLM_PROMPTS.md](use_case_training/NOTEBOOKLM_PROMPTS.md) — use only the uploaded screenshots; do not generate dashboard images, synthetic UI, or illustrative mockups.
 
-Next click: open https://notebooklm.google.com/ → **Create new notebook** → add that UC’s `README.md` + `screenshots/*.png` → paste the prompt → generate Audio / Video / Slides → download into `notebooklm/`.
+Next click: open https://notebooklm.google.com/ → **Create new notebook** → add that UC’s `README.md` + `screenshots/*.png` → paste the prompt → generate Audio / Video / Slides → download into the [public artifacts folder](https://drive.google.com/drive/folders/1cGbdoH-HDEooRyqWnhS6btWyhD4XOKQt?usp=drive_link) (and optionally `notebooklm/` in the working pack).

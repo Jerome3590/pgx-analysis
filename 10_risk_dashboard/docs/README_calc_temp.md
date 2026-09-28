@@ -18,7 +18,7 @@ The workflow runs in this order:
 1. **Verify inputs** – Feature importance (Step 3 or 3b) and final models (Step 6) for each cohort/age_band.
 2. **Generate metadata** – Extract valid codes from feature importance for dashboard dropdowns (`data_preparation/generate_metadata.py`).
 3. **Prepare models** – Package models and feature schemas from `6_final_model/outputs` (`data_preparation/prepare_models.py`).
-4. **(Optional) Combine SHAP/FFA** – For the Causal Analysis tab (`data_preparation/combine_shap_ffa_results.py`).
+4. **(Optional) Combine SHAP/FFA** – For the Scenario Analysis (FFA/SHAP) tab (`data_preparation/combine_shap_ffa_results.py`).
 5. **Prepare Lambda directory** – Assemble `lambda_dir` for Docker (`deployment/prepare_lambda_dir.py`).
 6. **Verify & deploy** – Verify `lambda_dir`, then build Docker image and deploy (e.g. `deployment/docker_build.sh`).
 

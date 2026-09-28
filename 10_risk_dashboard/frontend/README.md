@@ -11,12 +11,25 @@ The frontend dashboard is a single-page application (SPA) built with vanilla HTM
 
 ## Tabs
 
-1. **Risk Assessment** - Calculate risk scores for opioid ED visits or polypharmacy
-2. **Scenario Analysis (FFA/SHAP)** - Explore FFA interaction factors and SHAP importance
-3. **DTW Trajectories** - View patient trajectory patterns
-4. **FP-Growth Patterns** - Explore drug-name itemsets and association rules (drugs only)
-5. **BupaR Process Mining** - View process flows, activity sequences, and Drug × Drug process matrix
-6. **PGx Patient Card** - Generate pharmacogenomic cards
+Live names match `index.html` and [DASHBOARD_USE_CASES.md](../docs/DASHBOARD_USE_CASES.md).
+
+**Cohort:** Opioid ED · Polypharmacy
+
+**Primary:** User Guide · Risk Assessment · Drugs · ICD Codes · CPT Codes · **PGx Card**
+
+**Visualizations:** Feature Importance · Scenario Analysis (FFA/SHAP) · BupaR Process Mining · DTW Trajectories · FP-Growth Patterns · Drug Networks · PGx Cohort
+
+1. **User Guide** — Training table (video / slides / audio per use case) plus how to use, research-question coverage, model performance
+2. **Risk Assessment** — Calculate risk scores for opioid ED visits or polypharmacy (age 13–114)
+3. **Drugs / ICD Codes / CPT Codes** — Code selection (ICD/CPT hidden on Polypharmacy)
+4. **PGx Card** — Claims radar (**Load Cohort PGx Profile**) and **Generate PGx results**. Consumer array files (AncestryDNA, 23andMe, MyHeritage, unphased VCF) are parsed in the browser. The server uses DuckDB and Snappy Parquet to report detected variants and gene coverage, then a clinical-test referral. It does not assign a diplotype or a dose from those files. Lab `Gene,*allele` lines still use the official phenotype table.
+5. **Feature Importance** — Population feature-importance heatmap by age band
+6. **Scenario Analysis (FFA/SHAP)** — FFA interaction factors and SHAP importance (does not recalculate ensemble risk)
+7. **BupaR Process Mining** — Process flows, activity sequences, and Drug × Drug process matrix
+8. **DTW Trajectories** — Patient trajectory patterns
+9. **FP-Growth Patterns** — Drug-name itemsets and association rules
+10. **Drug Networks** — Interactive FI-filtered drug association graph (Cytoscape HTML)
+11. **PGx Cohort** — Population gene–drug–phenotype topology
 
 ## Dependencies
 
@@ -43,6 +56,7 @@ The manifest is the single source of truth for **all data visual requirements**:
 | **Scenario Analysis (FFA/SHAP)** | `scenario_data.json` per cohort/age_band | Static path from manifest; API fallback. |
 | **Feature Importance** | `aggregated_fi_heatmap.json` / `.png` per cohort; combined heatmap | Manifest paths; API fallback. |
 | **PGx Cohort** | `network_topology.html` | Manifest path under `visualizations/cohort_pgx/networks/{cohort}/{age_band}/`. |
+| **Drug Networks** | Cytoscape HTML under `visualizations/cytoscape/{cohort}/{age_band}/` | Same FI-gated FP-Growth rules as the FP-Growth tab; not Plotly. |
 
 All asset URLs use **path-style** S3 (same-origin or `https://s3.{region}.amazonaws.com/{bucket}/{prefix}/...`). See [README_dashboard_visual_artifact_paths.md](../docs/README_dashboard_visual_artifact_paths.md) and [README_dashboard_validation.md](../../README_dashboard_validation.md).
 

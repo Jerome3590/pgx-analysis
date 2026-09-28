@@ -8,9 +8,9 @@ Each `UC##_*` folder has:
 
 - `README.md` — title, persona, numbered live steps, button names, screenshot index
 - `screenshots/` — captured PNGs from the live dashboard (not AI mockups)
-- `notebooklm/` — Audio / Video / Slides downloads if NotebookLM generation succeeded
+- `notebooklm/` — optional local copy of Audio / Video / Slides. Canonical public copies go in [this Drive folder](https://drive.google.com/drive/folders/1cGbdoH-HDEooRyqWnhS6btWyhD4XOKQt?usp=drive_link).
 
-Do not treat Scenario Analysis as a second risk calculator. Do not invent CPIC prose.
+Do not treat Scenario Analysis as a second risk calculator. Do not invent CPIC prose. Do not describe consumer array uploads as diplotype or dose calls.
 
 NotebookLM automation (jerome.dixon90, Drive URL paste): `NOTEBOOKLM_URL_PASTE.md`.
 

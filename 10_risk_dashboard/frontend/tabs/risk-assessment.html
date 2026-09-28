@@ -57,8 +57,46 @@
         <div class="button-row">
           <button id="btnRisk">Calculate Risk Score</button>
           <button id="btnComparison" class="button-secondary">Compare Scenarios</button>
+          <button id="btnContributions" class="button-secondary">Drug contributions</button>
           <button id="btnReset" class="button-secondary">Reset</button>
         </div>
+      </div>
+    </div>
+
+    <div class="scenario-modeling" id="scenario-modeling">
+      <div class="replace-panel" id="replace-panel">
+        <h3>Replace / swap a code</h3>
+        <p class="scenario-help">Swap one selected drug, ICD, or CPT for another, then Calculate Risk Score to see the new probability. This is the modeled replacement path — not only deselect + select.</p>
+        <div class="replace-row">
+          <label for="replace-type">Type</label>
+          <select id="replace-type" aria-label="Code type to replace">
+            <option value="drug">Drug</option>
+            <option value="icd">ICD</option>
+            <option value="cpt">CPT</option>
+          </select>
+          <label for="replace-from">Remove</label>
+          <select id="replace-from" aria-label="Selected code to replace"></select>
+          <label for="replace-to">Add</label>
+          <input type="text" id="replace-to-search" placeholder="Search replacement…" aria-label="Filter replacement codes" />
+          <select id="replace-to" aria-label="Replacement code"></select>
+          <button type="button" id="btnReplaceCode">Replace</button>
+        </div>
+      </div>
+
+      <div class="saved-scenarios-panel" id="saved-scenarios-panel">
+        <h3>Saved scenarios</h3>
+        <p class="scenario-help">Save at least two code sets, then Compare Scenarios to score them side-by-side. With no saved sets, Compare uses empty baseline vs current selection.</p>
+        <div class="replace-row">
+          <label for="scenario-name-input">Name</label>
+          <input type="text" id="scenario-name-input" placeholder="e.g. Current meds" aria-label="Scenario name" />
+          <button type="button" id="btnSaveScenario">Save current selection</button>
+          <button type="button" id="btnClearScenarios" class="button-secondary">Clear saved</button>
+          <label class="pgx-inline-check" for="include-baseline">
+            <input type="checkbox" id="include-baseline" checked />
+            Include empty baseline
+          </label>
+        </div>
+        <div id="saved-scenarios-list" class="saved-scenario-list"></div>
       </div>
     </div>
 
@@ -100,7 +138,17 @@
     <div class="comparison-mode" id="comparison-mode">
       <div class="panel">
         <h2>Scenario Comparison</h2>
+        <p class="scenario-help">Each card is an ensemble risk score from POST /risk/comparison. Deltas are versus the reference (empty baseline or the first saved set).</p>
         <div class="comparison-scenarios" id="comparison-scenarios"></div>
+      </div>
+    </div>
+
+    <div class="comparison-mode" id="contributions-mode">
+      <div class="panel">
+        <h2>Leave-one-out drug contributions</h2>
+        <p class="scenario-help">Δp̂ = base risk − risk without that drug. Positive Δp̂ means removing the drug lowers predicted risk. ICD/CPT stay in the feature vector.</p>
+        <div id="contributions-summary" class="scenario-help"></div>
+        <div id="contributions-table"></div>
       </div>
     </div>
     

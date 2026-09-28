@@ -1,0 +1,16 @@
+# Code-only overlay on the live production image. Does not rebuild models.
+# Bakes lambda_function.py, the allele resolver, the DuckDB pipeline, and an
+# entrypoint that uses that image code unless CODE_S3_OVERRIDE=true.
+# Build: docker build --provenance=false --sbom=false --platform linux/amd64 \
+#   -f deployment/Dockerfile.overlay -t pgx-risk-calculator:latest .
+FROM 535362115856.dkr.ecr.us-east-1.amazonaws.com/pgx-risk-calculator:latest
+
+COPY backend/lambda_function.py ${LAMBDA_TASK_ROOT}/lambda_function.py
+COPY backend/cpic_allele_resolver.py ${LAMBDA_TASK_ROOT}/cpic_allele_resolver.py
+COPY backend/pgx_exploratory_pipeline.py ${LAMBDA_TASK_ROOT}/pgx_exploratory_pipeline.py
+COPY backend/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+# DuckDB is the ingestion and Parquet engine. The base image predates it.
+RUN pip install --no-cache-dir --prefer-binary "duckdb>=1.1.0" -t ${LAMBDA_TASK_ROOT}
+
+CMD [ "lambda_function.lambda_handler" ]

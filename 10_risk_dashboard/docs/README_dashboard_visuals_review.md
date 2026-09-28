@@ -22,8 +22,8 @@ The dashboard visuals **effectively address all core research questions** with a
 | **RQ2:** Sequences leading to target outcomes | BupaR Process Mining | Top traces, activity sequences, pre-target frequency | ✅ **Well-addressed** |
 | **RQ3:** Time intervals between sequences | DTW, BupaR | DTW: time-between and time-to-target for **aligned** sequences (more accurate than straight BupaR: alignment makes intervals comparable across patients; BupaR straight aggregate mixes stages). BupaR: activity frequency, trace explorer, sequences. | ✅ **Well-addressed** |
 | **RQ4:** ICD/CPT/Drug connections → target | FP-Growth Patterns | Co-occurrence networks, itemsets by type | ✅ **Well-addressed** |
-| **RQ5:** Features driving outcome & relationships | Causal Analysis | FFA + SHAP importance, feature interactions | ✅ **Well-addressed** |
-| **RQ6:** Drug combinations → polypharmacy ED | Causal Analysis + BupaR | Drug-focused causal factors, sequence analysis | ✅ **Well-addressed** |
+| **RQ5:** Features driving outcome & relationships | Scenario Analysis (FFA/SHAP) | FFA + SHAP importance, feature interactions | ✅ **Well-addressed** |
+| **RQ6:** Drug combinations → polypharmacy ED | Scenario Analysis (FFA/SHAP) + BupaR | Drug-focused FFA/SHAP factors, sequence analysis | ✅ **Well-addressed** |
 
 ### ⚠️ DTW Processing: VISUALIZATION-ONLY APPROACH (BY DESIGN)
 
@@ -79,7 +79,7 @@ The dashboard visuals **effectively address all core research questions** with a
 - **Recommendation:** ✅ Directly addresses question with appropriate network visualizations
 
 **Causal Features & Relationships (RQ5 & RQ6)**
-- Location: Causal Analysis tab
+- Location: Scenario Analysis (FFA/SHAP) tab
 - Components:
   - FFA causal importance (from Step 8)
   - SHAP feature importance (from Step 7)

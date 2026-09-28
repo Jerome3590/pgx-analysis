@@ -13,11 +13,11 @@
 | **N1** | Routine vs utilization appointments → outcomes? (How do routine screenings reduce extreme outcomes?) | DTW Trajectories | `chart_data.json`: `routine_comparison`, `routine_comparison_counts`, `routine_by_medical_utilization`. Trajectory overview image (drug-only), sample trajectories image when present. |
 | **N2** | What sequences lead to target outcomes? | BupaR Process Mining | Sequences to target: `*_activity_sequence_top.png`. Pre-target activity: `*_activity_frequency.json`, `*_pre_target_activity_frequency.json`, `*_post_target_activity_frequency.json`; `*_overall_activity_frequency.png` (optional fallback). Trace explorer: `*_trace_explorer_plot.json` or `*_trace_explorer_interactive.html`, `*_trace_explorer_pre_f1120.png` / `*_trace_explorer_pre_hcg.png`. |
 | **N3** | What times between sequences lead to target outcomes? | DTW Trajectories | DTW provides time-between and time-to-target for **aligned** sequences—more accurate than a straight BupaR comparison because alignment makes intervals comparable across patients (like-with-like); BupaR straight aggregate mixes stages. `chart_data.json`: `times_between_sequences`, `time_to_target_sequences` (when present). DTW overview/sample images for trajectory context. |
-| **N4** | Drug connections → target? (Risk-predictive co-occurrence) | FP-Growth Patterns | `*_combined_rules_network.html` (drug association network). `*_drug_name_combined_top_itemsets.png`. `.../data/drug_name_itemsets.json` (client Plotly). |
-| **N5** | What features drive outcome and how do they relate? | Causal Analysis, Feature Importance | **Causal:** `dashboard_data.json` → `causal_data`, `chart_data` (causal_factors, shap_importance, feature_interactions, radar). S3: `visualizations/causal/{cohort}/{age_band}/causal_data.json` (age_band with hyphen). **Feature Importance:** `aggregated_fi_heatmap.png`, `aggregated_fi_heatmap.json` (per cohort or combined). S3: `visualizations/feature_importance/{cohort}/...`, `visualizations/feature_importance/combined/...`. |
-| **N6** | What drug combinations drive polypharmacy ED? | Causal Analysis, BupaR | **Causal:** Same as N5 (drug-focused factors). **BupaR:** Drug × Drug process matrix: `*_process_matrix_drug_drug.png`, `*_process_matrix_drug_drug.json` (when present). Sequences and pre-target activity (same as N2). |
+| **N4** | Drug connections → target? (Risk-predictive co-occurrence) | FP-Growth Patterns, Drug Networks | **FP-Growth:** `*_combined_rules_network.html` (drug association network). `*_drug_name_combined_top_itemsets.png`. `.../data/drug_name_itemsets.json` (client Plotly). **Drug Networks:** same FI-gated rule set rendered as Cytoscape HTML (`visualizations/cytoscape/`). |
+| **N5** | What features drive outcome and how do they relate? | Scenario Analysis (FFA/SHAP), Feature Importance | **Scenario Analysis:** `dashboard_data.json` → `causal_data`, `chart_data` (causal_factors, shap_importance, feature_interactions, radar). S3: `visualizations/causal/{cohort}/{age_band}/causal_data.json` (age_band with hyphen). **Feature Importance:** `aggregated_fi_heatmap.png`, `aggregated_fi_heatmap.json` (per cohort or combined). S3: `visualizations/feature_importance/{cohort}/...`, `visualizations/feature_importance/combined/...`. |
+| **N6** | What drug combinations drive polypharmacy ED? | Scenario Analysis (FFA/SHAP), BupaR | **Scenario Analysis:** Same as N5 (drug-focused factors). **BupaR:** Drug × Drug process matrix: `*_process_matrix_drug_drug.png`, `*_process_matrix_drug_drug.json` (when present). Sequences and pre-target activity (same as N2). |
 
-**Cohort-level (RQ1/RQ2):** Risk Assessment, Drugs, ICD, CPT, Causal, and the above tabs together address RQ1 (polypharmacy) and RQ2 (opioid ED). No separate artifact list; they use the same tabs and metadata (e.g. `metadata_{cohort}.json`, models).
+**Cohort-level (RQ1/RQ2):** Risk Assessment, Drugs, ICD, CPT, Scenario Analysis (FFA/SHAP), and the above tabs together address RQ1 (polypharmacy) and RQ2 (opioid ED). No separate artifact list; they use the same tabs and metadata (e.g. `metadata_{cohort}.json`, models).
 
 ---
 
@@ -30,7 +30,7 @@
 - **Keep:** `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.png`, `.json`; `visualizations/feature_importance/combined_cohorts_feature_importance_heatmap.png` (and JSON when present).
 - **API:** `GET /visualizations/feature_importance?cohort=`
 
-### Causal Analysis (N5, N6)
+### Scenario Analysis (FFA/SHAP) (N5, N6)
 - **Keep:** `visualizations/causal/{cohort}/{age_band}/causal_data.json` (S3 path uses hyphen; EC2 has `10_risk_dashboard/visualizations/causal/{cohort}/{age_band_fname}/`). Lambda returns `chart_data` (causal_factors, shap_importance, feature_interactions, whatif).
 - **API:** `GET /visualizations/causal?cohort=&age_band=`
 
@@ -53,6 +53,11 @@
 - **Keep:** `*_combined_rules_network.html`, `*_drug_name_combined_top_itemsets.png`, `.../data/drug_name_itemsets.json`. Drug names only; no ICD/CPT itemset artifacts used.
 - **Location:** `fpgrowth/{cohort}/{age_band}/plots/`, `.../data/`
 - **API:** `GET /visualizations/fpgrowth`, `GET /visualizations/fpgrowth/network_html`
+
+### Drug Networks (N4)
+- **Keep:** Cytoscape HTML of the same FI-filtered FP-Growth rules (not Plotly). Cohort × age; combined train window; no Event density dropdown.
+- **Location:** `visualizations/cytoscape/{cohort}/{age_band}/`
+- **Live tab name:** Drug Networks (not “Cytoscape Networks”).
 
 ### PGx Cohort
 - **Keep:** `cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` (S3 path uses hyphen; EC2 dirs use `age_band_fname`)
@@ -82,9 +87,9 @@ When adding a new visual or artifact, add it to this table and the per-tab list,
 | Phase | Dashboard role |
 |-------|----------------|
 | **Observe** | Risk Assessment (score, band, model agreement); optional inputs (age, drugs, ICD, CPT); exploratory tabs show *why* similar patients experienced outcomes in training data. |
-| **Orient** | Feature Importance, Causal Analysis, BupaR, DTW, FP-Growth, PGx Cohort: connect individual risk to **interpretable** pathways, timing, co-occurrence, and gene–drug evidence. |
-| **Decide** | Causal / What-If style reasoning (risk deltas), FP-Growth hubs (deprescribing leverage), DTW windows (intervention timing), PGx Card (CPIC level A/B). |
-| **Act** | PGx Patient Card PDF; prescribing / test-order actions implied by CPIC; follow-up encounters refresh **Observe** with new claims. |
+| **Orient** | Feature Importance, Scenario Analysis (FFA/SHAP), BupaR, DTW, FP-Growth, Drug Networks, PGx Cohort: connect individual risk to **interpretable** pathways, timing, co-occurrence, and gene–drug evidence. |
+| **Decide** | Replace / Compare Scenarios / Drug contributions on Risk Assessment; Scenario Analysis (FFA/SHAP) explains drivers (does not recalculate ensemble p̂); FP-Growth / Drug Networks hubs; DTW windows; PGx Card lab-allele action categories, or an array-file coverage finding. |
+| **Act** | PGx Card exports (Print / JSON / CSV / PNG / PDF / physician summary / Pharmacy handoff). Array files refer to a clinical test. Lab alleles list categories and guideline URLs. Follow-up encounters refresh **Observe** with new claims. |
 
 ---
 
@@ -106,7 +111,7 @@ When adding a new visual or artifact, add it to this table and the per-tab list,
 
 ---
 
-### Causal Analysis (`causal_data.json` / dashboard_data) (**N5**, **N6**; **RQ1**, **RQ2**)
+### Scenario Analysis (FFA/SHAP) (`causal_data.json` / dashboard_data) (**N5**, **N6**; **RQ1**, **RQ2**)
 
 | Element | RQ | OODA / comment |
 |---------|----|----------------|
@@ -154,11 +159,13 @@ When adding a new visual or artifact, add it to this table and the per-tab list,
 
 ---
 
-### PGx Patient Card (Tab; CPIC snapshot in container)
+### PGx Card (Tab; request-time, not a saved visual)
 
 | Element | RQ | OODA / comment |
 |---------|----|----------------|
-| **SNP → phenotype → CPIC** | **RQ1** (precision layer) | **Decide → Act:** Converts **Orient** evidence into guideline-ready dosing statements—closes the loop from population models to individual allele-informed therapy. |
+| **Claims radar** | **RQ1** (precision layer) | **Orient:** Cohort gene profile for the scored density bin. |
+| **Array file** | **RQ1** (precision layer) | **Decide → Act:** DuckDB Parquet coverage and a clinical-test referral. Detected variants and gene-coverage percent only. No diplotype, metabolizer status, or dose. |
+| **Lab alleles** | **RQ1** (precision layer) | **Decide → Act:** Official diplotype-to-phenotype table, action categories, and guideline URLs. |
 
 ---
 

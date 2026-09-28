@@ -47,6 +47,7 @@ If you prefer to scope access to only the paths Lambda uses:
       "Action": ["s3:GetObject"],
       "Resource": [
         "arn:aws:s3:::pgxdatalake/gold/dashboard/*",
+        "arn:aws:s3:::pgxdatalake/gold/reference/*",
         "arn:aws:s3:::pgxdatalake/gold/ffa_analysis/*",
         "arn:aws:s3:::pgxdatalake/gold/shap_analysis/*",
         "arn:aws:s3:::pgxdatalake/gold/final_model/*"
@@ -71,7 +72,9 @@ aws iam put-role-policy \
 |--------|---------|
 | `gold/dashboard/models/` | Models, risk_distribution_2019.json, feature_schema.json, n_event_bin_thresholds |
 | `gold/dashboard/metadata/` | metadata_{cohort}.json, model_performance_metrics.json |
-| `gold/dashboard/data/` | cpic_gene-drug_pairs (PGx card) |
+| `gold/dashboard/data/` | cpic_gene-drug_pairs (PGx card mirror) |
+| `gold/reference/cpic/` | Canonical CPIC Parquet + `manifest.json` (`cpicKnowledgeVersion`) |
+| `gold/reference/pharmgkb/` | Official ClinPGx/PharmGKB tables when present |
 | `gold/ffa_analysis/` | causal_importance.parquet, interaction_analysis |
 | `gold/shap_analysis/` | SHAP importance CSVs |
 | `gold/final_model/` | Per-bin feature importance (fallback) |

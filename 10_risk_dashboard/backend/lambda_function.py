@@ -24,12 +24,14 @@ Environment Variables:
 - MODEL_BASE_PATH: Path to models in container (default: /var/task/models)
 """
 
+import importlib.util
 import json
 import os
+import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from io import BytesIO
 
 import boto3
@@ -102,6 +104,62 @@ _cache_timestamps: Dict[str, float] = {}
 
 # Dashboard manifest cache (single source of truth for viz paths; same JSON the frontend loads)
 _dashboard_manifest: Optional[Dict[str, Any]] = None
+
+# In-process CPIC cache so /pgx/card does not reload S3 on every request.
+_cpic_runtime_cache: Optional[Dict[str, Any]] = None
+_cpic_runtime_cache_ts: float = 0.0
+# Official diplotype→phenotype map when gold/reference/cpic parquet is present; else None
+# and _pgx_phenotype keeps the hardcoded 10-gene table. Never invent mappings.
+_OFFICIAL_PHENOTYPE_TABLE: Optional[Dict[str, Dict[str, str]]] = None
+
+CPIC_S3_PAIRS_PARQUET_KEYS = (
+    "gold/dashboard/data/cpic_gene-drug_pairs.parquet",
+    "gold/reference/cpic/cpic_gene-drug_pairs.parquet",
+)
+CPIC_S3_PAIRS_EXCEL_KEYS = (
+    "gold/dashboard/data/cpic_gene-drug_pairs.xlsx",
+    "gold/reference/cpic/cpic_gene-drug_pairs.xlsx",
+)
+CPIC_S3_MANIFEST_KEYS = (
+    "gold/reference/cpic/manifest.json",
+    "gold/dashboard/data/cpic/manifest.json",
+)
+CPIC_S3_PHENOTYPE_KEYS = (
+    "gold/reference/cpic/cpic_diplotype_phenotype.parquet",
+    "gold/dashboard/data/cpic/cpic_diplotype_phenotype.parquet",
+)
+CPIC_S3_ALLELE_RSID_KEYS = (
+    "gold/reference/cpic/cpic_allele_rsid.csv",
+    "gold/dashboard/data/cpic/cpic_allele_rsid.csv",
+    "gold/reference/cpic/cpic_allele_rsid.parquet",
+    "gold/dashboard/data/cpic/cpic_allele_rsid.parquet",
+)
+CPIC_S3_PHENOTYPE_CSV_KEYS = (
+    "gold/reference/cpic/cpic_diplotype_phenotype.csv",
+    "gold/dashboard/data/cpic/cpic_diplotype_phenotype.csv",
+)
+CPIC_S3_RECOMMENDATION_KEYS = (
+    "gold/reference/cpic/cpic_recommendation.parquet",
+    "gold/dashboard/data/cpic/cpic_recommendation.parquet",
+    "gold/reference/cpic/cpic_recommendation.csv",
+    "gold/dashboard/data/cpic/cpic_recommendation.csv",
+)
+CPIC_RESOLVER_S3_KEY = os.environ.get(
+    "CPIC_RESOLVER_S3_KEY",
+    "gold/dashboard/code/cpic_allele_resolver.py",
+)
+PGX_PIPELINE_S3_KEY = os.environ.get(
+    "PGX_PIPELINE_S3_KEY",
+    "gold/dashboard/code/pgx_exploratory_pipeline.py",
+)
+DEFAULT_CPIC_KNOWLEDGE_VERSION = "cpic-gene-drug-pairs-dashboard"
+DEFAULT_PHENOTYPE_TABLE_VERSION = "pgx-phenotype-v1"
+DEFAULT_ALLELE_DEFINITION_VERSION = "cpic-allele-rsid-unavailable"
+
+# Loaded on first use; S3 override path works even when the container image
+# was built before cpic_allele_resolver.py existed.
+_allele_resolver_mod = None
+_exploratory_pipeline_mod = None
 
 s3_client = boto3.client("s3")
 
@@ -1305,6 +1363,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_available(event)
         elif method == "GET" and path.endswith("/performance"):
             return handle_performance(event)
+        elif method == "GET" and path.endswith("/pgx/allele_rsids"):
+            return handle_pgx_allele_rsids(event)
+        elif method == "POST" and path.endswith("/pgx/resolve_alleles"):
+            return handle_pgx_resolve_alleles(event)
         elif method == "POST" and path.endswith("/pgx/card"):
             return handle_pgx_card(event)
         elif method == "POST" and path.endswith("/risk/drug_contributions"):
@@ -1907,33 +1969,58 @@ def handle_drug_contributions(event: Dict[str, Any]) -> Dict[str, Any]:
         return _response(500, {"error": str(e), "traceback": traceback.format_exc()})
 
 
+def _request_ip(event: Dict[str, Any]) -> str:
+    return (
+        event.get("requestContext", {}).get("identity", {}).get("sourceIp") or
+        event.get("headers", {}).get("X-Forwarded-For", "").split(",")[0].strip() or
+        event.get("headers", {}).get("x-forwarded-for", "").split(",")[0].strip() or
+        "Unknown"
+    )
+
+
 def handle_pgx_card(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     Handle PGx card generation request.
-    Generates anonymous, generic card with timestamp and IP address.
-    Patient ID is optional and not required for privacy.
+    Accepts manual Gene,*star variants and/or {rsid, genotype} rows.
+    Raw genomes are never uploaded; only parsed genotypes reach this handler.
     """
     try:
-        body = json.loads(event.get("body", "{}"))
-        variants = body.get("variants", [])
-        patient_id = body.get("patient_id")  # Optional, can be None
+        body = json.loads(event.get("body", "{}") or "{}")
+        variants = list(body.get("variants") or [])
+        genotypes = list(body.get("genotypes") or [])
+        patient_id = body.get("patient_id")
         
-        if not variants:
-            return _response(400, {"error": "No variants provided"})
+        if not variants and not genotypes:
+            return _response(400, {"error": "No variants or genotypes provided"})
+
+        calling_meta = None
+        if genotypes:
+            try:
+                variants, calling_meta = _merge_resolved_genotypes(variants, genotypes)
+            except FileNotFoundError as exc:
+                if not variants:
+                    return _response(503, {"error": str(exc)})
+                calling_meta = {
+                    "callingAlgorithm": None,
+                    "limitations": [str(exc)],
+                }
         
-        # Extract IP address from event (API Gateway provides this)
-        ip_address = (
-            event.get("requestContext", {}).get("identity", {}).get("sourceIp") or
-            event.get("headers", {}).get("X-Forwarded-For", "").split(",")[0].strip() or
-            event.get("headers", {}).get("x-forwarded-for", "").split(",")[0].strip() or
-            "Unknown"
-        )
-        
-        # Generate timestamp
         from datetime import datetime
         timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-        
-        card_data = generate_pgx_card(variants, timestamp, ip_address, patient_id)
+        card_data = generate_pgx_card(
+            variants,
+            timestamp,
+            _request_ip(event),
+            patient_id,
+            calling_meta=calling_meta,
+            selected_apcd_drugs=body.get("selected_apcd_drugs") or [],
+            drug_scope=body.get("drug_scope"),
+        )
+        if genotypes:
+            card_data["pipeline"] = _run_pgx_pipeline(genotypes, card_data.get("gene_calls") or [])
+            pipeline_nudges = (card_data["pipeline"] or {}).get("clinicalNudges") or []
+            if pipeline_nudges:
+                card_data["clinicalNudges"] = pipeline_nudges
         return _response(200, card_data)
     
     except Exception as e:
@@ -1942,6 +2029,80 @@ def handle_pgx_card(event: Dict[str, Any]) -> Dict[str, Any]:
             "error": str(e),
             "traceback": traceback.format_exc()
         })
+
+
+def handle_pgx_allele_rsids(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Official CPIC rsids only — allowlist for in-browser filtering. No mappings."""
+    try:
+        load_cpic_data()
+        resolver = _load_allele_resolver()
+        index = (_cpic_runtime_cache or {}).get("allele_index") or {}
+        rsids = resolver.official_rsids(index) if resolver else []
+        return _response(200, {
+            "rsids": rsids,
+            "count": len(rsids),
+            "source": get_allele_definition_version(),
+            "callingAlgorithm": getattr(resolver, "CALLING_ALGORITHM", None),
+        })
+    except Exception as exc:
+        import traceback
+        return _response(500, {"error": str(exc), "traceback": traceback.format_exc()})
+
+
+def handle_pgx_resolve_alleles(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve {rsid, genotype} rows to official star calls without building the full card."""
+    try:
+        body = json.loads(event.get("body", "{}") or "{}")
+        genotypes = list(body.get("genotypes") or [])
+        if not genotypes:
+            return _response(400, {"error": "No genotypes provided"})
+        resolver = _load_allele_resolver()
+        index = _get_allele_index()
+        if resolver is None or not index:
+            return _response(503, {"error": "Official CPIC allele definitions are not loaded"})
+        calls = resolver.resolve_star_alleles(genotypes, index)
+        return _response(200, {
+            "gene_calls": calls,
+            "count": len(calls),
+            "versions": {
+                "alleleDefinitionVersion": get_allele_definition_version(),
+                "phenotypeTableVersion": get_phenotype_table_version(),
+                "callingAlgorithm": resolver.CALLING_ALGORITHM,
+            },
+            "unphasedNotice": resolver.UNPHASED_NOTICE,
+        })
+    except Exception as exc:
+        import traceback
+        return _response(500, {"error": str(exc), "traceback": traceback.format_exc()})
+
+
+def _merge_resolved_genotypes(
+    variants: List[Dict[str, Any]],
+    genotypes: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    resolver = _load_allele_resolver()
+    index = _get_allele_index()
+    if resolver is None or not index:
+        raise FileNotFoundError(
+            "Official CPIC allele-definition tables are not loaded; cannot resolve rsids to star alleles."
+        )
+    calls = resolver.resolve_star_alleles(genotypes, index)
+    resolved = resolver.resolved_to_variants(calls)
+    manual_genes = {(v.get("gene") or "").upper() for v in variants if v.get("gene")}
+    merged = list(variants)
+    added = 0
+    for item in resolved:
+        if item["gene"] in manual_genes:
+            continue
+        merged.append(item)
+        added += 1
+    return merged, {
+        "callingAlgorithm": resolver.CALLING_ALGORITHM,
+        "unphasedNotice": resolver.UNPHASED_NOTICE,
+        "genotypeCount": len(genotypes),
+        "genesResolved": added,
+        "alleleDefinitionVersion": get_allele_definition_version(),
+    }
 
 
 def _pgx_diplotype(alleles: List[str]) -> Optional[str]:
@@ -1960,7 +2121,10 @@ def _pgx_diplotype(alleles: List[str]) -> Optional[str]:
 
 def _pgx_phenotype(gene: str, alleles: List[str]) -> Dict[str, Any]:
     """Translate alleles to phenotype. Unlisted pairs are indeterminate, never normal."""
-    table = {
+    if _OFFICIAL_PHENOTYPE_TABLE:
+        table = _OFFICIAL_PHENOTYPE_TABLE
+    else:
+        table = {
         "CYP2C19": {
             "*2/*2": "Poor metabolizer", "*2/*3": "Poor metabolizer", "*3/*3": "Poor metabolizer",
             "*1/*2": "Intermediate metabolizer", "*1/*3": "Intermediate metabolizer",
@@ -2017,6 +2181,66 @@ def _pgx_phenotype(gene: str, alleles: List[str]) -> Dict[str, Any]:
     return {"diplotype": dip, "phenotype": ph, "phenotypeConfidence": "MODERATE", "limitations": []}
 
 
+def _translate_gene_call(gene: str, variant: Dict[str, Any]) -> Dict[str, Any]:
+    """Phenotype from official table. Consumer raw-DNA calls stay exploratory."""
+    if variant.get("analysisMode") == "exploratory" or variant.get("phenotypeConfidence") == "EXPLORATORY":
+        return {
+            "diplotype": None,
+            "phenotype": None,
+            "phenotypeConfidence": "EXPLORATORY",
+            "analysisMode": "exploratory",
+            "limitations": list(variant.get("limitations") or []),
+            "candidateAlleles": list(variant.get("candidateAlleles") or []),
+            "observedSites": list(variant.get("observedSites") or []),
+            "exploratorySummary": variant.get("exploratorySummary"),
+            "clinicalNudge": bool(variant.get("clinicalNudge")),
+            "cnvMeasured": False,
+            "cpicBoundary": variant.get("cpicBoundary"),
+        }
+    alleles = variant.get("variants") or variant.get("alleleCalls") or []
+    if variant.get("resolved"):
+        extra = list(variant.get("limitations") or [])
+        dip = variant.get("diplotype")
+        if not dip:
+            return {
+                "diplotype": None,
+                "phenotype": None,
+                "phenotypeConfidence": "INDETERMINATE",
+                "limitations": extra or ["No unique star-allele assignment"],
+                "candidateAlleles": list(variant.get("candidateAlleles") or []),
+            }
+        looked = _pgx_phenotype(gene, alleles)
+        limitations = extra + [item for item in looked.get("limitations") or [] if item not in extra]
+        if looked.get("phenotype"):
+            return {
+                "diplotype": looked.get("diplotype") or dip,
+                "phenotype": looked["phenotype"],
+                "phenotypeConfidence": variant.get("phenotypeConfidence") or looked["phenotypeConfidence"],
+                "limitations": limitations,
+                "candidateAlleles": list(variant.get("candidateAlleles") or []),
+            }
+        return {
+            "diplotype": dip,
+            "phenotype": None,
+            "phenotypeConfidence": "INDETERMINATE",
+            "limitations": limitations,
+            "candidateAlleles": list(variant.get("candidateAlleles") or []),
+        }
+    result = _pgx_phenotype(gene, alleles)
+    result["candidateAlleles"] = list(alleles)
+    return result
+
+
+def _official_recommendation_text(gene: str, drug: str, phenotype: Optional[str]) -> Optional[str]:
+    table = (_cpic_runtime_cache or {}).get("recommendation_text") or {}
+    if not table or not phenotype:
+        return None
+    g = (gene or "").upper().strip()
+    d = " ".join(str(drug or "").lower().split())
+    p = " ".join(str(phenotype or "").lower().split())
+    return table.get((g, d, p))
+
+
 def _pgx_action(gene: str, phenotype: Optional[str], drug: str) -> str:
     if not phenotype:
         return "INSUFFICIENT_GENOTYPE_RESOLUTION"
@@ -2049,32 +2273,64 @@ def _pgx_action(gene: str, phenotype: Optional[str], drug: str) -> str:
     return "STANDARD_PRESCRIBING"
 
 
-def generate_pgx_card(variants: List[Dict[str, Any]], timestamp: str, ip_address: str, patient_id: Optional[str] = None) -> Dict[str, Any]:
+def _norm_drug_token(value: Any) -> str:
+    return "".join(ch for ch in str(value or "").lower() if ch.isalnum())
+
+
+def _drug_in_regimen(drug_name: str, selected_drugs: Sequence[Any]) -> bool:
+    needle = _norm_drug_token(drug_name)
+    if not needle:
+        return False
+    for raw in selected_drugs or []:
+        token = _norm_drug_token(raw)
+        if token and (token == needle or token in needle or needle in token):
+            return True
+    return False
+
+
+def generate_pgx_card(
+    variants: List[Dict[str, Any]],
+    timestamp: str,
+    ip_address: str,
+    patient_id: Optional[str] = None,
+    calling_meta: Optional[Dict[str, Any]] = None,
+    selected_apcd_drugs: Optional[Sequence[Any]] = None,
+    drug_scope: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Generate anonymous PGx card. CPIC actions require a resolved phenotype.
     Unlisted allele pairs stay indeterminate (never assumed normal).
     """
     cpic_data = load_cpic_data()
+    resolver = _load_allele_resolver()
     versions = {
         "apcdVocabularyVersion": "apcd-generic-v1",
-        "cpicKnowledgeVersion": "cpic-gene-drug-pairs-dashboard",
-        "phenotypeTableVersion": "pgx-phenotype-v1",
+        "cpicKnowledgeVersion": get_cpic_knowledge_version(),
+        "phenotypeTableVersion": get_phenotype_table_version(),
+        "alleleDefinitionVersion": get_allele_definition_version(),
+        "callingAlgorithm": (calling_meta or {}).get("callingAlgorithm")
+        or ("manual-diplotype" if any(not v.get("resolved") for v in variants) else None),
         "crosswalkVersion": "apcd-cpic-crosswalk-v1",
         "tripletModelVersion": "regimen-three-way-v1",
         "thresholdVersion": "triplet-threshold-v1",
         "exportRendererVersion": "pgx-card-export-v1",
     }
+    if resolver and not versions["callingAlgorithm"]:
+        versions["callingAlgorithm"] = resolver.CALLING_ALGORITHM
     genes_processed = []
     gene_calls = []
     drugs_found = []
     recommendations = []
+    clinical_nudges = []
 
     for variant in variants:
         gene = variant.get("gene", "").upper()
-        variant_list = variant.get("variants", [])
-        if not gene or not variant_list:
+        variant_list = variant.get("variants") or variant.get("alleleCalls") or []
+        if not gene:
             continue
-        translated = _pgx_phenotype(gene, variant_list)
+        if not variant_list and not variant.get("resolved"):
+            continue
+        translated = _translate_gene_call(gene, variant)
         genes_processed.append({
             "gene": gene,
             "variants": variant_list,
@@ -2082,17 +2338,58 @@ def generate_pgx_card(variants: List[Dict[str, Any]], timestamp: str, ip_address
             "diplotype": translated["diplotype"],
             "phenotype": translated["phenotype"],
             "phenotypeConfidence": translated["phenotypeConfidence"],
+            "candidateAlleles": translated.get("candidateAlleles") or [],
+            "observedSites": translated.get("observedSites") or [],
+            "exploratorySummary": translated.get("exploratorySummary"),
+            "clinicalNudge": bool(translated.get("clinicalNudge")),
+            "analysisMode": translated.get("analysisMode") or "clinical",
         })
         gene_calls.append({
             "gene": gene,
             "sourceVariants": variant_list,
-            "alleleCalls": variant_list,
+            "alleleCalls": variant_list if translated.get("analysisMode") != "exploratory" else [],
             "diplotype": translated["diplotype"],
             "phenotype": translated["phenotype"],
             "phenotypeConfidence": translated["phenotypeConfidence"],
+            "analysisMode": translated.get("analysisMode") or "clinical",
             "limitations": translated["limitations"],
+            "candidateAlleles": translated.get("candidateAlleles") or [],
+            "observedSites": translated.get("observedSites") or [],
+            "exploratorySummary": translated.get("exploratorySummary"),
+            "clinicalNudge": bool(translated.get("clinicalNudge")),
+            "cnvMeasured": bool(translated.get("cnvMeasured")),
+            "cpicBoundary": translated.get("cpicBoundary"),
             "phenotypeTableVersion": versions["phenotypeTableVersion"],
+            "callingAlgorithm": variant.get("callingAlgorithm") or versions.get("callingAlgorithm"),
         })
+        if translated.get("phenotypeConfidence") == "EXPLORATORY":
+            if translated.get("clinicalNudge"):
+                hits = [
+                    site for site in (translated.get("observedSites") or [])
+                    if site.get("variantAlleleObserved")
+                ]
+                rsids = [str(site.get("rsid")) for site in hits if site.get("rsid")]
+                clinical_nudges.append({
+                    "gene": gene,
+                    "title": f"Exploratory finding: {gene} gene region",
+                    "status": (
+                        f"{len(rsids)} variant{'s' if len(rsids) != 1 else ''} detected in uploaded file"
+                        + (f" ({', '.join(rsids)})" if rsids else "")
+                    ),
+                    "summary": translated.get("exploratorySummary"),
+                    "limitation": (
+                        "Consumer raw data is unphased. The system cannot confirm whether these "
+                        "variants are on the same chromosome or opposite chromosomes, preventing a "
+                        "definitive CPIC star-allele diplotype assignment."
+                    ),
+                    "nextStep": (
+                        "Order a clinical pharmacogenomic (PGx) panel. A CLIA/CAP-certified test "
+                        "provides phased diplotype calling, copy-number validation, and actionable "
+                        "prescription guidance."
+                    ),
+                    "observedRsids": rsids,
+                })
+            continue
         for drug_info in cpic_data.get(gene, []):
             drug_name = drug_info["drug"]
             if any(d["drug"] == drug_name and d["gene"] == gene for d in drugs_found):
@@ -2105,6 +2402,7 @@ def generate_pgx_card(variants: List[Dict[str, Any]], timestamp: str, ip_address
                 "fda_label": drug_info.get("pgx_on_fda_label", ""),
             })
             action = _pgx_action(gene, translated["phenotype"], drug_name)
+            official_text = _official_recommendation_text(gene, drug_name, translated["phenotype"])
             recommendations.append({
                 "patientGeneCallId": gene,
                 "apcdDrugId": "".join(ch if ch.isalnum() else "-" for ch in drug_name.lower()).strip("-"),
@@ -2115,11 +2413,21 @@ def generate_pgx_card(variants: List[Dict[str, Any]], timestamp: str, ip_address
                 "cpicGuidelineId": drug_info.get("guideline", ""),
                 "cpicGuidelineVersion": versions["cpicKnowledgeVersion"],
                 "actionCategory": action,
-                "recommendationText": action.replace("_", " ").title(),
+                "recommendationText": official_text or action.replace("_", " ").title(),
+                "recommendationTextSource": "cpic_recommendation" if official_text else "action-category",
                 "cpicMappingStatus": "VERIFIED",
                 "sourceUrl": drug_info.get("guideline", ""),
+                "inRegimen": _drug_in_regimen(drug_name, selected_apcd_drugs or []),
             })
 
+    exploratory = any(call.get("analysisMode") == "exploratory" for call in gene_calls)
+    clinical = any(call.get("analysisMode") != "exploratory" for call in gene_calls)
+    if exploratory and clinical:
+        analysis_mode = "mixed"
+    elif exploratory:
+        analysis_mode = "exploratory"
+    else:
+        analysis_mode = "clinical"
     result = {
         "timestamp": timestamp,
         "ip_address": ip_address,
@@ -2127,10 +2435,22 @@ def generate_pgx_card(variants: List[Dict[str, Any]], timestamp: str, ip_address
         "drugs": drugs_found,
         "gene_calls": gene_calls,
         "recommendations": recommendations,
+        "clinicalNudges": clinical_nudges,
+        "analysisMode": analysis_mode,
         "versions": versions,
+        "unphasedNotice": (calling_meta or {}).get("unphasedNotice"),
+        "disclaimer": (
+            "For informational and exploratory purposes only. This platform does not provide "
+            "medical advice, diagnosis, or clinical pharmacogenomic recommendations. "
+            "Do not start, stop, or adjust any prescription based on this report."
+        ),
+        "drugScope": drug_scope or "ALL_MATCHED",
+        "selectedApcdDrugs": list(selected_apcd_drugs or []),
     }
     if patient_id:
         result["patient_id"] = patient_id
+    if calling_meta:
+        result["calling"] = calling_meta
     return result
 
 
@@ -2173,36 +2493,376 @@ def _dataframe_to_cpic_dict(df: Any) -> Dict[str, List[Dict[str, Any]]]:
     return cpic_data
 
 
-def load_cpic_data() -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Load CPIC gene-drug pairs. Prefers Parquet via DuckDB (faster), then Excel.
-    Tries: container parquet -> container Excel -> S3 parquet -> S3 Excel.
-    """
+def _read_parquet_df(path: Optional[str] = None, body: Optional[bytes] = None) -> Any:
+    """Read Parquet via DuckDB when available, else pandas. COUNT-safe (no COUNT here)."""
+    import pandas as pd
+
+    if path and DUCKDB_AVAILABLE:
+        con = duckdb.connect(":memory:")
+        try:
+            return con.execute("SELECT * FROM read_parquet(?)", [path]).fetchdf()
+        finally:
+            con.close()
+    if body is not None:
+        if DUCKDB_AVAILABLE:
+            tmp = None
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as handle:
+                    handle.write(body)
+                    tmp = handle.name
+                con = duckdb.connect(":memory:")
+                try:
+                    return con.execute("SELECT * FROM read_parquet(?)", [tmp]).fetchdf()
+                finally:
+                    con.close()
+            except Exception as exc:
+                print(f"DuckDB parquet read failed, trying pandas: {exc}")
+            finally:
+                if tmp:
+                    try:
+                        os.remove(tmp)
+                    except OSError:
+                        pass
+        return pd.read_parquet(BytesIO(body))
+    if path:
+        return pd.read_parquet(path)
+    raise ValueError("path or body is required")
+
+
+def _s3_read_df(keys: Sequence[str]) -> Tuple[Optional[Any], str]:
+    """Read official CPIC CSV or Parquet. CSV first is required on the live image (no pyarrow)."""
+    import pandas as pd
+
+    for key in keys:
+        body = _s3_get_bytes(key)
+        if not body:
+            continue
+        try:
+            if str(key).lower().endswith(".csv"):
+                df = pd.read_csv(BytesIO(body))
+            else:
+                df = _read_parquet_df(body=body)
+            if df is not None and not getattr(df, "empty", True):
+                return df, key
+        except Exception as exc:
+            print(f"CPIC table {key} failed: {exc}")
+    return None, ""
+
+
+def _s3_get_bytes(key: str) -> Optional[bytes]:
+    try:
+        obj = s3_client.get_object(Bucket=S3_BUCKET, Key=key)
+        return obj["Body"].read()
+    except ClientError as exc:
+        code = exc.response.get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "404", "NotFound", "AccessDenied", "403"):
+            return None
+        raise
+    except Exception as exc:
+        print(f"CPIC S3 get failed for {key}: {exc}")
+        return None
+
+
+def _load_cpic_manifest() -> Dict[str, Any]:
+    for key in CPIC_S3_MANIFEST_KEYS:
+        body = _s3_get_bytes(key)
+        if not body:
+            continue
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            if isinstance(payload, dict):
+                payload["_manifest_key"] = key
+                return payload
+        except Exception as exc:
+            print(f"CPIC manifest parse failed for {key}: {exc}")
+    return {}
+
+
+def _official_phenotype_from_df(df: Any) -> Dict[str, Dict[str, str]]:
+    """Map official gene + diplotype columns to phenotype. No invented rows."""
+    gene_col = None
+    dip_col = None
+    pheno_col = None
+    for col in df.columns:
+        lower = str(col).lower().replace(" ", "")
+        if gene_col is None and lower in ("genesymbol", "gene", "genesymbolname"):
+            gene_col = col
+        elif dip_col is None and lower in ("diplotype", "diplotypekey", "lookupkey", "dip"):
+            dip_col = col
+        elif pheno_col is None and lower in (
+            "phenotype",
+            "generesult",
+            "generesultname",
+            "cpt_code",
+            "ehrpriority",
+        ):
+            if lower in ("phenotype", "generesult", "generesultname"):
+                pheno_col = col
+    if not gene_col or not dip_col or not pheno_col:
+        print(
+            "Official phenotype parquet present but gene/diplotype/phenotype columns "
+            "were not found; keeping hardcoded 10-gene table."
+        )
+        return {}
+    out: Dict[str, Dict[str, str]] = {}
+    for _, row in df.iterrows():
+        gene = str(row.get(gene_col, "")).upper().strip()
+        dip = str(row.get(dip_col, "")).strip()
+        pheno = str(row.get(pheno_col, "")).strip()
+        if not gene or not dip or not pheno or gene == "NAN" or dip == "NAN" or pheno == "NAN":
+            continue
+        out.setdefault(gene, {})
+        out[gene].setdefault(dip, pheno)
+    return out
+
+
+def _load_allele_resolver():
+    """Import resolver from the image, else download the S3 code override."""
+    global _allele_resolver_mod
+    if _allele_resolver_mod is not None:
+        return _allele_resolver_mod
+    try:
+        import cpic_allele_resolver as mod
+        _allele_resolver_mod = mod
+        return mod
+    except ImportError:
+        pass
+    body = _s3_get_bytes(CPIC_RESOLVER_S3_KEY)
+    if not body:
+        print(f"cpic_allele_resolver.py not in container or s3://{S3_BUCKET}/{CPIC_RESOLVER_S3_KEY}")
+        return None
+    dest = Path(tempfile.gettempdir()) / "cpic_allele_resolver.py"
+    dest.write_bytes(body)
+    spec = importlib.util.spec_from_file_location("cpic_allele_resolver", dest)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["cpic_allele_resolver"] = mod
+    spec.loader.exec_module(mod)
+    _allele_resolver_mod = mod
+    print(f"Loaded cpic_allele_resolver.py from s3://{S3_BUCKET}/{CPIC_RESOLVER_S3_KEY}")
+    return mod
+
+
+def _load_exploratory_pipeline():
+    """Import the raw-DNA pipeline from the image, else the S3 code override."""
+    global _exploratory_pipeline_mod
+    if _exploratory_pipeline_mod is not None:
+        return _exploratory_pipeline_mod
+    try:
+        import pgx_exploratory_pipeline as mod
+        _exploratory_pipeline_mod = mod
+        return mod
+    except ImportError:
+        pass
+    body = _s3_get_bytes(PGX_PIPELINE_S3_KEY)
+    if not body:
+        print(f"pgx_exploratory_pipeline.py not in container or s3://{S3_BUCKET}/{PGX_PIPELINE_S3_KEY}")
+        return None
+    dest = Path(tempfile.gettempdir()) / "pgx_exploratory_pipeline.py"
+    dest.write_bytes(body)
+    spec = importlib.util.spec_from_file_location("pgx_exploratory_pipeline", dest)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["pgx_exploratory_pipeline"] = mod
+    spec.loader.exec_module(mod)
+    _exploratory_pipeline_mod = mod
+    print(f"Loaded pgx_exploratory_pipeline.py from s3://{S3_BUCKET}/{PGX_PIPELINE_S3_KEY}")
+    return mod
+
+
+def _run_pgx_pipeline(genotypes: List[Dict[str, Any]], gene_calls: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Coordinate coverage, PharmGKB/ClinPGx, and CPIC/PharmVar, then the referral report."""
+    pipeline = _load_exploratory_pipeline()
+    if pipeline is None:
+        return {
+            "id": "pgx-exploratory-pipeline-unavailable",
+            "stages": {"report": {"status": "unavailable"}},
+            "findings": [],
+            "clinicalNudges": [],
+        }
+    try:
+        load_cpic_data()
+        pairs = {}
+        # load_cpic_data returns the gene→drug map used by the card.
+        cpic_map = load_cpic_data()
+        if isinstance(cpic_map, dict):
+            pairs = cpic_map
+        return pipeline.run_exploratory_pipeline(genotypes, gene_calls, local_pairs=pairs, fetch=True)
+    except Exception as exc:
+        print(f"Exploratory pipeline failed: {exc}")
+        return {
+            "id": "pgx-exploratory-pipeline-error",
+            "stages": {"report": {"status": "error", "error": str(exc)}},
+            "findings": [],
+            "clinicalNudges": [],
+        }
+
+
+def _load_official_allele_index() -> Tuple[Dict[str, Any], str]:
+    resolver = _load_allele_resolver()
+    if resolver is None:
+        return {}, DEFAULT_ALLELE_DEFINITION_VERSION
+    df, key = _s3_read_df(CPIC_S3_ALLELE_RSID_KEYS)
+    if df is None:
+        return {}, DEFAULT_ALLELE_DEFINITION_VERSION
+    try:
+        index = resolver.allele_index_from_df(df)
+        if index:
+            n_alleles = sum(len(alleles) for alleles in index.values())
+            print(
+                f"Loaded official CPIC allele definitions from s3://{S3_BUCKET}/{key} "
+                f"({len(index)} genes, {n_alleles} alleles)"
+            )
+            return index, f"cpic-allele-rsid:{Path(key).name}"
+    except Exception as exc:
+        print(f"Official allele table {key} failed: {exc}")
+    return {}, DEFAULT_ALLELE_DEFINITION_VERSION
+
+
+def _official_recommendation_from_df(df: Any) -> Dict[Tuple[str, str, str], str]:
+    """Official gene + drug + phenotype → recommendation text. No invented rows."""
+    if df is None or getattr(df, "empty", True):
+        return {}
+    gene_col = drug_col = pheno_col = text_col = lookup_col = None
+    for col in df.columns:
+        lower = str(col).lower().replace(" ", "").replace("_", "")
+        if gene_col is None and lower in ("genesymbol", "gene"):
+            gene_col = col
+        elif drug_col is None and lower in ("drugname", "drug", "drugidname"):
+            drug_col = col
+        elif pheno_col is None and lower in (
+            "phenotypename", "phenotype", "phenotypes", "generesult", "generesultname"
+        ):
+            pheno_col = col
+        elif text_col is None and lower in (
+            "drugrecommendation", "recommendation", "recommendationtext"
+        ):
+            text_col = col
+        elif lookup_col is None and lower in ("lookupkey", "lookup"):
+            lookup_col = col
+    if not drug_col or not text_col:
+        print("Official recommendation table present but drug/text columns were not found.")
+        return {}
+    out: Dict[Tuple[str, str, str], str] = {}
+    for _, row in df.iterrows():
+        drug = " ".join(str(row.get(drug_col, "")).lower().split())
+        text = str(row.get(text_col, "")).strip()
+        if not drug or not text or text.lower() == "nan":
+            continue
+        gene = str(row.get(gene_col, "")).upper().strip() if gene_col else ""
+        pheno = " ".join(str(row.get(pheno_col, "")).lower().split()) if pheno_col else ""
+        if (not gene or gene == "NAN" or pheno.startswith("{")) and lookup_col:
+            raw = row.get(lookup_col)
+            parsed = None
+            try:
+                parsed = json.loads(raw) if isinstance(raw, str) else raw
+            except Exception:
+                parsed = None
+            if isinstance(parsed, dict) and len(parsed) == 1:
+                gene = str(next(iter(parsed.keys()))).upper().strip()
+                if not pheno or pheno.startswith("{"):
+                    pheno = " ".join(str(next(iter(parsed.values()))).lower().split())
+            elif isinstance(parsed, dict):
+                continue
+        if pheno.startswith("{") and pheno_col:
+            try:
+                parsed_ph = json.loads(row.get(pheno_col)) if isinstance(row.get(pheno_col), str) else row.get(pheno_col)
+            except Exception:
+                parsed_ph = None
+            if isinstance(parsed_ph, dict) and gene in {str(k).upper() for k in parsed_ph.keys()} and len(parsed_ph) == 1:
+                pheno = " ".join(str(next(iter(parsed_ph.values()))).lower().split())
+            else:
+                continue
+        if not gene or not pheno or gene == "NAN":
+            continue
+        out.setdefault((gene, drug, pheno), text)
+    return out
+
+
+def _load_official_recommendation_text() -> Dict[Tuple[str, str, str], str]:
+    df, key = _s3_read_df(CPIC_S3_RECOMMENDATION_KEYS)
+    if df is None:
+        return {}
+    table = _official_recommendation_from_df(df)
+    if table:
+        print(f"Loaded official CPIC recommendation text from s3://{S3_BUCKET}/{key} ({len(table)} rows)")
+    return table
+
+
+def _get_allele_index() -> Dict[str, Any]:
+    load_cpic_data()
+    return (_cpic_runtime_cache or {}).get("allele_index") or {}
+
+
+def get_allele_definition_version() -> str:
+    if _cpic_runtime_cache and _cpic_runtime_cache.get("alleleDefinitionVersion"):
+        return str(_cpic_runtime_cache["alleleDefinitionVersion"])
+    return DEFAULT_ALLELE_DEFINITION_VERSION
+
+
+def _load_official_phenotype_table() -> Tuple[Optional[Dict[str, Dict[str, str]]], str]:
+    df, key = _s3_read_df(CPIC_S3_PHENOTYPE_CSV_KEYS + CPIC_S3_PHENOTYPE_KEYS)
+    if df is None:
+        return None, DEFAULT_PHENOTYPE_TABLE_VERSION
+    table = _official_phenotype_from_df(df)
+    if table:
+        print(f"Loaded official CPIC phenotype table from s3://{S3_BUCKET}/{key} ({len(table)} genes)")
+        return table, f"cpic-diplotype-phenotype:{Path(key).name}"
+    return None, DEFAULT_PHENOTYPE_TABLE_VERSION
+
+
+def _load_cpic_pairs_from_s3() -> Optional[Dict[str, List[Dict[str, Any]]]]:
+    import pandas as pd
+
+    for key in CPIC_S3_PAIRS_PARQUET_KEYS:
+        body = _s3_get_bytes(key)
+        if not body:
+            continue
+        try:
+            df = _read_parquet_df(body=body)
+            cpic_data = _dataframe_to_cpic_dict(df)
+            if cpic_data:
+                n = sum(len(drugs) for drugs in cpic_data.values())
+                print(f"Loaded {n} gene-drug pairs from Parquet (S3 {key})")
+                return cpic_data
+        except Exception as exc:
+            print(f"CPIC Parquet (S3 {key}) failed: {exc}")
+    if not EXCEL_AVAILABLE:
+        return None
+    for key in CPIC_S3_PAIRS_EXCEL_KEYS:
+        body = _s3_get_bytes(key)
+        if not body:
+            continue
+        try:
+            df = pd.read_excel(BytesIO(body), engine="openpyxl")
+            cpic_data = _dataframe_to_cpic_dict(df)
+            if cpic_data:
+                n = sum(len(drugs) for drugs in cpic_data.values())
+                print(f"Loaded {n} gene-drug pairs from Excel (S3 {key})")
+                return cpic_data
+        except Exception as exc:
+            print(f"CPIC Excel (S3 {key}) failed: {exc}")
+    return None
+
+
+def _load_cpic_pairs_from_container() -> Optional[Dict[str, List[Dict[str, Any]]]]:
     import pandas as pd
 
     base_data_dir = OFFLINE_DATA_PATH or "/var/task/data"
     container_parquet = os.path.join(base_data_dir, "cpic_gene-drug_pairs.parquet")
     container_excel = os.path.join(base_data_dir, "cpic_gene-drug_pairs.xlsx")
-
-    # CPIC data is stored under gold/dashboard/data (not metadata)
-    s3_parquet_key = "gold/dashboard/data/cpic_gene-drug_pairs.parquet"
-    s3_excel_key = "gold/dashboard/data/cpic_gene-drug_pairs.xlsx"
-
-    # 1) Container Parquet (DuckDB)
-    if DUCKDB_AVAILABLE and os.path.exists(container_parquet):
+    if os.path.exists(container_parquet):
         try:
-            con = duckdb.connect(":memory:")
-            df = con.execute("SELECT * FROM read_parquet(?)", [container_parquet]).fetchdf()
-            con.close()
+            df = _read_parquet_df(path=container_parquet)
             cpic_data = _dataframe_to_cpic_dict(df)
             if cpic_data:
                 n = sum(len(drugs) for drugs in cpic_data.values())
-                print(f"Loaded {n} gene-drug pairs from Parquet (DuckDB)")
+                print(f"Loaded {n} gene-drug pairs from Parquet (container)")
                 return cpic_data
-        except Exception as e:
-            print(f"CPIC Parquet (container) failed: {e}, trying Excel...")
-
-    # 2) Container Excel
+        except Exception as exc:
+            print(f"CPIC Parquet (container) failed: {exc}")
     if EXCEL_AVAILABLE and os.path.exists(container_excel):
         try:
             df = pd.read_excel(container_excel, engine="openpyxl")
@@ -2211,52 +2871,83 @@ def load_cpic_data() -> Dict[str, List[Dict[str, Any]]]:
                 n = sum(len(drugs) for drugs in cpic_data.values())
                 print(f"Loaded {n} gene-drug pairs from Excel (container)")
                 return cpic_data
-        except Exception as e:
-            print(f"CPIC Excel (container) failed: {e}")
+        except Exception as exc:
+            print(f"CPIC Excel (container) failed: {exc}")
+    return None
 
-    # 3) S3 Parquet (DuckDB)
-    if DUCKDB_AVAILABLE:
-        try:
-            s3 = boto3.client("s3")
-            obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_parquet_key)
-            body = obj["Body"].read()
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".parquet") as f:
-                f.write(body)
-                tmp = f.name
-            try:
-                con = duckdb.connect(":memory:")
-                df = con.execute("SELECT * FROM read_parquet(?)", [tmp]).fetchdf()
-                con.close()
-                cpic_data = _dataframe_to_cpic_dict(df)
-                if cpic_data:
-                    n = sum(len(drugs) for drugs in cpic_data.values())
-                    print(f"Loaded {n} gene-drug pairs from Parquet (S3)")
-                    return cpic_data
-            finally:
-                try:
-                    os.remove(tmp)
-                except OSError:
-                    pass
-        except Exception as e:
-            print(f"CPIC Parquet (S3) failed: {e}, trying S3 Excel...")
 
-    # 4) S3 Excel
-    try:
-        s3 = boto3.client("s3")
-        obj = s3.get_object(Bucket=S3_BUCKET, Key=s3_excel_key)
-        df = pd.read_excel(BytesIO(obj["Body"].read()), engine="openpyxl")
-        cpic_data = _dataframe_to_cpic_dict(df)
-        if cpic_data:
-            n = sum(len(drugs) for drugs in cpic_data.values())
-            print(f"Loaded {n} gene-drug pairs from Excel (S3)")
-            return cpic_data
-    except Exception as e:
-        print(f"CPIC Excel (S3) failed: {e}")
+def get_cpic_knowledge_version() -> str:
+    if _cpic_runtime_cache and _cpic_runtime_cache.get("cpicKnowledgeVersion"):
+        return str(_cpic_runtime_cache["cpicKnowledgeVersion"])
+    return DEFAULT_CPIC_KNOWLEDGE_VERSION
 
-    raise FileNotFoundError(
-        "CPIC data not found. Ensure cpic_gene-drug_pairs.parquet or cpic_gene-drug_pairs.xlsx "
-        "is in container data/ or S3 under gold/dashboard/data/."
+
+def get_phenotype_table_version() -> str:
+    if _cpic_runtime_cache and _cpic_runtime_cache.get("phenotypeTableVersion"):
+        return str(_cpic_runtime_cache["phenotypeTableVersion"])
+    return DEFAULT_PHENOTYPE_TABLE_VERSION
+
+
+def load_cpic_data() -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Load CPIC gene-drug pairs. Honors PREFER_S3 (S3 first when true).
+    Cached in-process so /pgx/card does not reload S3 every request.
+    Surfaces cpicKnowledgeVersion from gold/reference/cpic/manifest.json when present.
+    """
+    global _cpic_runtime_cache, _cpic_runtime_cache_ts, _OFFICIAL_PHENOTYPE_TABLE
+
+    if _cpic_runtime_cache and (time.time() - _cpic_runtime_cache_ts) < MODEL_CACHE_TTL:
+        _OFFICIAL_PHENOTYPE_TABLE = _cpic_runtime_cache.get("phenotype_table")
+        if not _cpic_runtime_cache.get("allele_index"):
+            index, ver = _load_official_allele_index()
+            if index:
+                _cpic_runtime_cache["allele_index"] = index
+                _cpic_runtime_cache["alleleDefinitionVersion"] = ver
+        return _cpic_runtime_cache["pairs"]
+
+    cpic_data: Optional[Dict[str, List[Dict[str, Any]]]] = None
+    source = None
+    if PREFER_S3:
+        cpic_data = _load_cpic_pairs_from_s3()
+        source = "s3" if cpic_data else None
+        if cpic_data is None:
+            cpic_data = _load_cpic_pairs_from_container()
+            source = "container" if cpic_data else None
+    else:
+        cpic_data = _load_cpic_pairs_from_container()
+        source = "container" if cpic_data else None
+        if cpic_data is None:
+            cpic_data = _load_cpic_pairs_from_s3()
+            source = "s3" if cpic_data else None
+
+    if not cpic_data:
+        raise FileNotFoundError(
+            "CPIC data not found. Ensure cpic_gene-drug_pairs.parquet or .xlsx is in "
+            "container data/ or S3 under gold/dashboard/data/ or gold/reference/cpic/."
+        )
+
+    manifest = _load_cpic_manifest()
+    knowledge = (
+        manifest.get("cpicKnowledgeVersion")
+        or DEFAULT_CPIC_KNOWLEDGE_VERSION
     )
+    phenotype_table, phenotype_version = _load_official_phenotype_table()
+    allele_index, allele_version = _load_official_allele_index()
+    recommendation_text = _load_official_recommendation_text()
+    _OFFICIAL_PHENOTYPE_TABLE = phenotype_table
+    _cpic_runtime_cache = {
+        "pairs": cpic_data,
+        "source": source,
+        "cpicKnowledgeVersion": knowledge,
+        "phenotype_table": phenotype_table,
+        "phenotypeTableVersion": phenotype_version if phenotype_table else DEFAULT_PHENOTYPE_TABLE_VERSION,
+        "allele_index": allele_index,
+        "alleleDefinitionVersion": allele_version if allele_index else DEFAULT_ALLELE_DEFINITION_VERSION,
+        "recommendation_text": recommendation_text,
+        "manifest_key": manifest.get("_manifest_key"),
+    }
+    _cpic_runtime_cache_ts = time.time()
+    return cpic_data
 
 
 def load_interaction_analysis(cohort: str, age_band: str, model_type: str = "xgboost") -> pd.DataFrame:

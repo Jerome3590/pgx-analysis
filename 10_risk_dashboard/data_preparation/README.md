@@ -121,9 +121,19 @@ python generate_metrics.py --download-s3   # Fallback to S3 if local CSVs missin
 - S3 (pgxdatalake): `gold/dashboard/metadata/model_performance_metrics.json` (Lambda fallback)
 - Dashboard deploy (5_build_and_deploy) uploads this file to the **dashboard bucket** at `{S3_DASHBOARD_PREFIX}/metadata/model_performance_metrics.json` so the frontend can fetch it same-origin (no API call; better performance).
 
+### Monthly official refresh (S3)
+
+`utility_scripts/refresh_cpic_reference.py` HEADs official CPIC/ClinPGx files and writes:
+
+- `s3://pgxdatalake/gold/reference/cpic/` (+ `manifest.json`, versioned snapshots)
+- `s3://pgxdatalake/gold/reference/pharmgkb/` when official tables exist
+- mirror `gold/dashboard/data/cpic_gene-drug_pairs.parquet` for Lambda `/pgx/card`
+
+One-shot table ingest (same prefixes): `ingest_cpic_pharmgkb_reference.py`. EventBridge/IAM: `aws-pgx-setup/lambda/cpic_refresh/README.md`.
+
 ### `prepare_cpic_data.py`
 
-Prepares CPIC (Clinical Pharmacogenomics Implementation Consortium) data for PGx cards.
+Prepares CPIC (Clinical Pharmacogenomics Implementation Consortium) data for PGx cards (container fallback).
 
 **Usage:**
 ```bash

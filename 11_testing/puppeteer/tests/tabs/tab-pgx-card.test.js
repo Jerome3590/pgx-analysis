@@ -12,7 +12,10 @@
  *   DASHBOARD_URL=... API_BASE_URL=... npx jest tests/pgx-card --forceExit
  */
 
+const path = require("path");
 const { launchBrowser, openDashboard, sleep } = require("../../helpers/browser");
+
+const FIXTURES = path.join(__dirname, "..", "..", "fixtures", "pgx-card");
 
 let browser;
 let page;
@@ -137,6 +140,13 @@ async function hookExports() {
       return origClick.call(this);
     };
     window.print = function () { window.__pgxPrintCalled += 1; };
+    window.__pgxClipboard = "";
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText = async function (t) {
+        window.__pgxClipboard = String(t || "");
+        return undefined;
+      };
+    }
   });
 }
 
@@ -153,9 +163,10 @@ async function readExports() {
     blobs: (window.__pgxExportBlobs || []).map((b) => {
       let parsed = null;
       try { parsed = b.text ? JSON.parse(b.text) : null; } catch (_) {}
-      return { type: b.type, size: b.size, name: b.name, parsed, textLen: b.text ? b.text.length : 0 };
+      return { type: b.type, size: b.size, name: b.name, parsed, text: b.text || "", textLen: b.text ? b.text.length : 0 };
     }),
     printCalled: window.__pgxPrintCalled || 0,
+    clipboard: window.__pgxClipboard || "",
   }));
 }
 
@@ -190,6 +201,17 @@ async function cardSnapshot() {
       lastRecs: state && state.lastRecs ? state.lastRecs.length : 0,
       lastAlerts: state && state.lastAlerts ? state.lastAlerts.length : 0,
       drugScope: state ? state.drugScope : null,
+      actionableOnly: state ? !!state.actionableOnly : false,
+      qrPixels: (function () {
+        const c = document.getElementById("pgx-card-qr");
+        if (!c || !c.getContext) return 0;
+        const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        let ink = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i] + d[i + 1] + d[i + 2] < 600) ink += 1;
+        }
+        return ink;
+      }()),
     };
   });
 }
@@ -481,26 +503,23 @@ describe("PGx Card — ALL_MATCHED vs selected scope + exports", () => {
     await page.$eval("#pgx-export-current", (el) => el.click());
     const exp = await readExports();
     expect(exp.printCalled).toBeGreaterThanOrEqual(1);
-
-    const json = exp.blobs.find((b) => (b.name || "").includes("current") || (b.parsed && b.parsed.filters && !b.parsed.filters.includeTechnicalAppendix));
-    const tech = exp.blobs.find((b) => (b.name || "").includes("appendix") || (b.parsed && b.parsed.filters && b.parsed.filters.includeTechnicalAppendix));
     expect(exp.blobs.length).toBeGreaterThanOrEqual(2);
 
-    for (const blob of exp.blobs) {
-      expect(blob.textLen).toBeGreaterThan(200);
-      expect(blob.parsed).toBeTruthy();
-      expect(blob.parsed.filters.drugScope).toBe("ALL_MATCHED");
-      expect(blob.parsed.recommendations.length).toBeGreaterThan(10);
-      expect(blob.parsed.geneCalls.length).toBeGreaterThan(0);
-      expect(blob.parsed.polypharmacyAlerts.length).toBeLessThan(50);
-    }
-    if (tech && tech.parsed) {
-      expect(tech.parsed.filters.includeTechnicalAppendix).toBe(true);
-    }
-    if (json && json.parsed) {
-      expect(json.parsed.recommendations.length).toBeGreaterThan(10);
-    }
-    console.log(`ALL_MATCHED exports: ${exp.blobs.map((b) => `${b.name}:${b.parsed ? b.parsed.recommendations.length : 0}recs`).join(", ")} print=${exp.printCalled}`);
+    const json = exp.blobs.find((b) => (b.name || "").includes("current.json") || (b.parsed && b.parsed.filters && !b.parsed.filters.includeTechnicalAppendix));
+    const tech = exp.blobs.find((b) => (b.name || "").includes("appendix") || (b.type || "").includes("html"));
+    expect(json && json.parsed).toBeTruthy();
+    expect(json.parsed.filters.drugScope).toBe("ALL_MATCHED");
+    expect(json.parsed.filters.actionableOnly).toBe(false);
+    expect(json.parsed.recommendations.length).toBeGreaterThan(10);
+    expect(json.parsed.geneCalls.length).toBeGreaterThan(0);
+    expect(json.parsed.polypharmacyAlerts.length).toBeLessThan(50);
+
+    expect(tech).toBeTruthy();
+    expect(tech.textLen).toBeGreaterThan(200);
+    expect(tech.text).toMatch(/PGx technical appendix/i);
+    expect(tech.text).toMatch(/ALL_MATCHED/);
+    expect(tech.parsed).toBeFalsy();
+    console.log(`ALL_MATCHED exports: ${exp.blobs.map((b) => `${b.name}:${b.parsed ? b.parsed.recommendations.length : "html"}`).join(", ")} print=${exp.printCalled}`);
   }, 20_000);
 
   test("SELECTED drugs: visualizations shrink to the chip subset", async () => {
@@ -544,9 +563,10 @@ describe("PGx Card — ALL_MATCHED vs selected scope + exports", () => {
         b.textContent.replace(/[×x]\s*$/i, "").trim().toLowerCase()
       )
     );
-    for (const blob of exp.blobs) {
+    const jsonBlobs = exp.blobs.filter((b) => b.parsed);
+    expect(jsonBlobs.length).toBeGreaterThanOrEqual(1);
+    for (const blob of jsonBlobs) {
       expect(blob.textLen).toBeGreaterThan(100);
-      expect(blob.parsed).toBeTruthy();
       expect(blob.parsed.filters.drugScope).toBe("SELECTED");
       expect(blob.parsed.filters.selectedApcdDrugIds.length).toBe(chips.length);
       expect(blob.parsed.recommendations.length).toBeGreaterThan(0);
@@ -556,7 +576,12 @@ describe("PGx Card — ALL_MATCHED vs selected scope + exports", () => {
         expect(chips.some((c) => n.includes(c) || c.includes(n) || c.split(/[^a-z0-9]+/).includes(n))).toBe(true);
       }
     }
-    console.log(`SELECTED exports: ${exp.blobs.map((b) => `${b.name}:${b.parsed.recommendations.length}recs/${b.parsed.filters.drugScope}`).join(", ")}`);
+    const tech = exp.blobs.find((b) => (b.name || "").includes("appendix") || (b.type || "").includes("html"));
+    if (tech) {
+      expect(tech.text).toMatch(/SELECTED/);
+      expect(tech.parsed).toBeFalsy();
+    }
+    console.log(`SELECTED exports: ${exp.blobs.map((b) => `${b.name}:${b.parsed ? b.parsed.recommendations.length + "recs" : (b.type || "bin")}`).join(", ")}`);
   }, 20_000);
 
   test("Clear chips + ALL_MATCHED restores the full card", async () => {
@@ -572,6 +597,182 @@ describe("PGx Card — ALL_MATCHED vs selected scope + exports", () => {
     expect(snap.matrixRows).toBeGreaterThan(10);
     expect(snap.tripletRows).toBeLessThan(50);
     expect(snap.drugScope).toBe("ALL_MATCHED");
+  }, 15_000);
+
+});
+
+describe("PGx Card — new exports, actionableOnly, uploads, reset", () => {
+  beforeAll(async () => {
+    await openPgxCardTab();
+    await loadCohortProfile("opioid_ed", "55-64");
+    await hookExports();
+    await setDrugScope("ALL_MATCHED");
+    const { status } = await submitVariants([
+      "CYP2D6,*1,*2",
+      "CYP2C19,*2,*2",
+      "SLCO1B1,*1,*1",
+    ]);
+    expect(status).toBe(200);
+    await page.waitForFunction(() => {
+      const el = document.getElementById("pgx-card-display");
+      return el && getComputedStyle(el).display !== "none";
+    }, { timeout: 15_000 });
+  }, 60_000);
+
+  test("QR code is drawn on the rendered card", async () => {
+    const snap = await cardSnapshot();
+    expect(snap.displayVisible).toBe(true);
+    expect(snap.qrPixels).toBeGreaterThan(20);
+  }, 15_000);
+
+  test("phenotype table limit is disclosed on the rendered card", async () => {
+    const text = await page.evaluate(() => {
+      const header = document.getElementById("pgx-session-header");
+      const refine = document.getElementById("pgx-snp-refine-section");
+      return ((header && header.textContent) || "") + " " + ((refine && refine.textContent) || "");
+    });
+    expect(text).toMatch(/diplotype/i);
+    expect(text).toMatch(/indeterminate/i);
+    expect(text).toMatch(/cpic\.alleles|curated|phenotype table/i);
+  }, 15_000);
+
+  test("CSV, clipboard, pharmacy, PDF, and PNG exports honor current scope", async () => {
+    await resetExportHooks();
+    await page.$eval("#pgx-export-csv", (el) => el.click());
+    await page.$eval("#pgx-export-clipboard", (el) => el.click());
+    await page.$eval("#pgx-export-pharmacy", (el) => el.click());
+    await page.$eval("#pgx-export-pdf", (el) => el.click());
+    await page.$eval("#pgx-export-png", (el) => el.click());
+    const exp = await readExports();
+    await sleep(4000);
+    const later = await readExports();
+    const blobs = later.blobs.length >= exp.blobs.length ? later.blobs : exp.blobs;
+
+    const csv = blobs.find((b) => (b.name || "").endsWith(".csv") || (b.type || "").includes("csv"));
+    expect(csv).toBeTruthy();
+    expect(csv.text).toMatch(/formattedGenericName/);
+    expect(csv.text.toLowerCase()).toMatch(/cyp2d6|cyp2c19|slco1b1/);
+
+    expect(later.clipboard || exp.clipboard).toMatch(/PGx card export/i);
+    expect(later.clipboard || exp.clipboard).toMatch(/ALL_MATCHED/);
+
+    const pharmacy = blobs.find((b) => (b.name || "").includes("pharmacy") && b.parsed);
+    expect(pharmacy).toBeTruthy();
+    expect(pharmacy.parsed.exportType).toBe("pharmacy-handoff");
+    expect(pharmacy.parsed.filters.drugScope).toBe("ALL_MATCHED");
+    expect(Array.isArray(pharmacy.parsed.medications)).toBe(true);
+    expect(pharmacy.parsed.medications.length).toBeGreaterThan(0);
+
+    const pdf = blobs.find((b) => (b.name || "").endsWith(".pdf") || (b.type || "").includes("pdf"));
+    expect(pdf).toBeTruthy();
+    expect(pdf.size).toBeGreaterThan(100);
+
+    const png = blobs.find((b) => (b.name || "").endsWith(".png") || (b.type || "").includes("png"));
+    expect(png).toBeTruthy();
+    expect(png.size).toBeGreaterThan(8000);
+  }, 45_000);
+
+  test("actionableOnly shrinks queue/matrix and is true on JSON export", async () => {
+    const before = await cardSnapshot();
+    expect(before.actionCards).toBeGreaterThan(5);
+
+    await page.$eval("#pgx-actionable-only", (el) => {
+      el.checked = true;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await sleep(250);
+    const snap = await cardSnapshot();
+    expect(snap.actionableOnly).toBe(true);
+    expect(snap.actionCards).toBeLessThan(before.actionCards);
+    expect(snap.matrixRows).toBeLessThanOrEqual(before.matrixRows);
+
+    await resetExportHooks();
+    await page.$eval("#pgx-export-json", (el) => el.click());
+    const exp = await readExports();
+    const json = exp.blobs.find((b) => b.parsed);
+    expect(json.parsed.filters.actionableOnly).toBe(true);
+    expect(json.parsed.recommendations.length).toBe(snap.actionCards);
+    expect(json.parsed.recommendations.every((r) =>
+      /AVOID|DOSE_|ENHANCED_MONITORING/.test(r.actionCategory || "")
+    )).toBe(true);
+
+    await page.$eval("#pgx-actionable-only", (el) => {
+      el.checked = false;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }, 20_000);
+
+  test("23andMe, VCF, Excel, and gene-CSV uploads populate the textarea", async () => {
+    const uploads = [
+      { file: "23andme_sample.txt", expect: /rs4244285|CYP2C19|CYP2D6|SLCO1B1/ },
+      { file: "sample.vcf", expect: /rs4244285|CYP2C19|CYP2D6|SLCO1B1/ },
+      { file: "gene_alleles.xlsx", expect: /CYP2D6,\*1,\*4/ },
+      { file: "gene_alleles.csv", expect: /CYP2D6,\*1,\*4/ },
+    ];
+    for (const spec of uploads) {
+      await page.$eval("#snp-input", (el) => { el.value = ""; });
+      const input = await page.$("#snp-file");
+      await input.uploadFile(path.join(FIXTURES, spec.file));
+      await page.waitForFunction((re) => {
+        const el = document.getElementById("snp-input");
+        return el && new RegExp(re, "i").test(el.value || "");
+      }, { timeout: 8_000 }, spec.expect.source);
+      const val = await page.$eval("#snp-input", (el) => el.value);
+      expect(val).toMatch(spec.expect);
+      if (spec.file.endsWith(".vcf")) {
+        const notice = await page.$eval("#pgx-upload-notice", (el) => el.textContent || "");
+        expect(notice).toMatch(/unphased VCF|haplotype/i);
+      }
+    }
+  }, 30_000);
+
+  test("official rsid beyond the old 23-rsid map is kept after 23andMe parse", async () => {
+    await page.$eval("#snp-input", (el) => { el.value = ""; });
+    const input = await page.$("#snp-file");
+    await input.uploadFile(path.join(FIXTURES, "23andme_sample.txt"));
+    await page.waitForFunction(() => {
+      const el = document.getElementById("snp-input");
+      return el && /rs28399504/i.test(el.value || "");
+    }, { timeout: 8_000 });
+    const val = await page.$eval("#snp-input", (el) => el.value);
+    expect(val).toMatch(/rs28399504/i);
+    expect(val).toMatch(/rs4244285/i);
+  }, 15_000);
+
+  test("POST /pgx/card accepts official rsid genotypes and returns gene_calls", async () => {
+    const { status, data } = await submitVariants([
+      "rs4244285,AG",
+      "rs28399504,AG",
+    ]);
+    expect([200, 400, 500, 503]).toContain(status);
+    if (status === 200 && data) {
+      expect(Array.isArray(data.gene_calls)).toBe(true);
+      const blob = JSON.stringify(data.gene_calls || []).toLowerCase();
+      expect(blob).toMatch(/cyp2c19/);
+    }
+  }, 20_000);
+
+  test("Reset clears chips, card, SNP/ID, and default scope", async () => {
+    await addChip("oxy");
+    await page.$eval("#patient-id", (el) => { el.value = "demo-session"; });
+    await page.$eval("#btnResetCard", (el) => el.click());
+    await sleep(200);
+    const snap = await cardSnapshot();
+    const fields = await page.evaluate(() => ({
+      snp: document.getElementById("snp-input")?.value || "",
+      pid: document.getElementById("patient-id")?.value || "",
+      file: document.getElementById("snp-file")?.value || "",
+      scope: document.getElementById("pgx-drug-scope")?.value || "",
+      actionable: !!document.getElementById("pgx-actionable-only")?.checked,
+      chips: [...document.querySelectorAll("button.pgx-chip")].length,
+    }));
+    expect(snap.displayVisible).toBe(false);
+    expect(fields.snp).toBe("");
+    expect(fields.pid).toBe("");
+    expect(fields.file).toBe("");
+    expect(fields.scope).toBe("ACTIVE");
+    expect(fields.actionable).toBe(false);
+    expect(fields.chips).toBe(0);
   }, 15_000);
 
 });

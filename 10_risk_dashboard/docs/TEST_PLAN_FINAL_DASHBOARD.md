@@ -56,7 +56,7 @@ All paths below are relative to the deployed stage (e.g. `/prod/...`). API Gatew
 | GET | `/metrics` | — | 200 + model performance JSON or 404 |
 | POST | `/risk` | Body: cohort, age_band (or age), drugs[], icds[], cpts[] | 200 + risk score/band or 4xx/5xx |
 | POST | `/risk/comparison` | Body: base, scenarios[] | 200 + comparison or 4xx/5xx |
-| POST | `/pgx/card` | Body: patient_id?, variants[] | 200 + PGx card or 4xx/5xx |
+| POST | `/pgx/card` | Body: patient_id?, variants[] (lab alleles) and/or genotypes[] (array rsids) | 200 + PGx card or 4xx/5xx. Array rows: coverage and referral, no diplotype or dose. Lab alleles: phenotype table. |
 | POST | `/causal/importance` | Body: cohort, age_band, ... | 200 + importance or 4xx/5xx |
 | POST | `/causal/interactions` | Body: cohort, age_band, ... | 200 + interactions or 4xx/5xx |
 | GET | `/visualizations/causal` | cohort, age_band | 200 + causal/SHAP URLs or data |
@@ -74,7 +74,7 @@ All paths below are relative to the deployed stage (e.g. `/prod/...`). API Gatew
 | Tab | Data source | Automated check |
 |-----|-------------|-----------------|
 | Risk Assessment | GET /metadata, POST /risk, POST /risk/comparison | Metadata returns age_bands and codes; risk returns numeric score and band |
-| PGx Card | POST /pgx/card, CPIC Excel in Lambda | PGx card returns genes/drugs; CPIC present in container or S3 |
+| PGx Card | POST /pgx/card. Array rows use DuckDB Parquet in the request. Lab alleles use the CPIC phenotype table in the container or S3. | Array response has coverage and no diplotype or dose. Lab-allele response has action categories. |
 | Documentation | GET /metrics or same-origin metadata/model_performance_metrics.json | 200 and valid JSON with cohort metrics |
 | Feature Importance | GET /visualizations/feature_importance | 200 and URLs; optional: HEAD request to heatmap URL returns 200 |
 | BupaR Process Mining | GET /visualizations/bupar, GET /visualizations/bupar/activity_frequency | 200 and URLs; activity_frequency has overall/pre_target/post_target |
@@ -115,19 +115,19 @@ The suite:
 - [ ] Upload frontend to dashboard bucket; upload metadata and model_performance_metrics.json.
 - [ ] Run visualization pipeline (4_dashboard_visuals / run_dashboard_visuals) so BupaR, DTW, FP-Growth, Cohort PGx assets exist in dashboard bucket.
 - [ ] Run `pytest 11_testing/tests/ -v` with `BASE_URL` set; fix any failing endpoint or missing artifact.
-- [ ] **Dashboard errors review:** Open each tab referenced in `status/dashboard_errors/` (Causal Analysis, Feature Importance, BupaR, DTW, FP-Growth); run checks in Section 6 and fix any regressions.
+- [ ] **Dashboard errors review:** Open each tab referenced in `status/dashboard_errors/` (Scenario Analysis (FFA/SHAP), Feature Importance, BupaR, DTW, FP-Growth); run checks in Section 6 and fix any regressions.
 
 ---
 
 ## 6. Dashboard errors (status/dashboard_errors) – checks and fixes
 
-**Reference:** The folder `status/dashboard_errors/` contains evidence of past dashboard errors (screenshots/PDFs) for **Causal Analysis**, **Feature Importance**, **BupaR**, **DTW**, and **FP-Growth** tabs. Use this section to prevent regressions and to verify fixes.
+**Reference:** The folder `status/dashboard_errors/` contains evidence of past dashboard errors (screenshots/PDFs) for **Scenario Analysis (FFA/SHAP)** (legacy folder name: Causal Analysis), **Feature Importance**, **BupaR**, **DTW**, and **FP-Growth** tabs. Use this section to prevent regressions and to verify fixes.
 
 ### 6.1 Checks to run (per tab)
 
 | Tab | Evidence in status/dashboard_errors | Automated check | Manual / fix check |
 |-----|-------------------------------------|-----------------|---------------------|
-| **Causal Analysis** | `causal_analysis_tab.png` | GET /visualizations/causal returns 200 and dict; 400 when cohort/age_band missing. | Load tab with cohort/age_band; confirm either causal viz or clear status message (no uncaught error or blank panel). |
+| **Scenario Analysis (FFA/SHAP)** | `causal_analysis_tab.png` | GET /visualizations/causal returns 200 and dict; 400 when cohort/age_band missing. | Load tab with cohort/age_band; confirm either FFA/SHAP viz or clear status message (no uncaught error or blank panel). |
 | **Feature Importance** | `feature_importance_tab.png` | GET /visualizations/feature_importance returns 200 and heatmap_url/combined_url. Optional: HEAD to returned URL returns 200. | Load tab; if image fails, status must show "Cohort heatmap image not found. Upload aggregated_fi_heatmap.png to the dashboard bucket." (frontend `onerror`). |
 | **BupaR Process Mining** | `PGx Risk Assessment Dashboard_bupaR_tab.pdf` | GET /visualizations/bupar and /bupar/activity_frequency return 200 and expected shape; activity_frequency may have null overall/pre_target/post_target. | Load tab; confirm images or friendly message; activity frequency charts show data or "not found" message. |
 | **DTW Trajectories** | `PGx Risk Assessment Dashboard_dtw_tab.pdf` | GET /visualizations/dtw returns 200 and overview_image or chart_data_url or metrics. | Load tab; optional chart_data.json fetch failure must not break tab; status shows error message on API failure. |
@@ -144,7 +144,7 @@ The suite:
 ### 6.3 Manual regression pass (after deploy)
 
 1. Open the deployed dashboard URL.
-2. For each of **Causal Analysis**, **Feature Importance**, **BupaR**, **DTW**, **FP-Growth**, **PGx Cohort**: select a valid cohort and age band, click Load.
+2. For each of **Scenario Analysis (FFA/SHAP)**, **Feature Importance**, **BupaR**, **DTW**, **FP-Growth**, **Drug Networks**, **PGx Cohort**: select a valid cohort and age band, click Load.
 3. Confirm either (a) visualizations load, or (b) a clear status message is shown (e.g. "Plot not found", "Upload ... to the dashboard bucket", "Error: ..."). No blank panels or uncaught console errors.
 4. Compare with any screenshots in `status/dashboard_errors/` to ensure the same error no longer appears.
 
@@ -154,9 +154,9 @@ The suite:
 
 This section addresses the two primary errors that have surfaced in the PGx Risk Assessment Dashboard UI and the remediation steps (implemented where applicable; operational steps for pipeline operators).
 
-### 7.1 Error 1: Causal Analysis Tab (HTTP 500)
+### 7.1 Error 1: Scenario Analysis (FFA/SHAP) Tab (HTTP 500)
 
-**Symptom:** Loading Causal Analysis for a cohort/age band (e.g. Opioid ED, 25-44) returns a red banner: `Error: HTTP 500`.
+**Symptom:** Loading **Scenario Analysis (FFA/SHAP)** for a cohort/age band (e.g. Opioid ED, 25-44) returns a red banner: `Error: HTTP 500`.
 
 **Root cause:** The Lambda backend failed while processing `GET /visualizations/causal`. The Causal tab depends on **Step 7 (SHAP)** and **Step 8 (FFA)** outputs. If those artifacts are missing from S3, or the combination/consensus step was not run for that cohort/age band, the handler can raise and return 500.
 

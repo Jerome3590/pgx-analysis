@@ -25,3 +25,17 @@ class TestPgxCardTab:
             assert resp["statusCode"] in (200, 400, 404, 500)
             body = json.loads(resp.get("body", "{}"))
             assert isinstance(body, dict)
+
+        def test_pgx_card_accepts_rsid_genotypes(self):
+            event = query_event("POST", "/pgx/card", body={
+                "genotypes": [
+                    {"rsid": "rs4244285", "genotype": "AG"},
+                    {"rsid": "rs28399504", "genotype": "AG"},
+                ],
+            })
+            resp = lambda_handler(event, None)
+            assert resp["statusCode"] in (200, 400, 404, 500, 503)
+            body = json.loads(resp.get("body", "{}"))
+            assert isinstance(body, dict)
+            if resp["statusCode"] == 200:
+                assert "gene_calls" in body or "genes" in body
