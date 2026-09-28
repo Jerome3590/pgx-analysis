@@ -31,13 +31,13 @@ Optional refinement after (or instead of) the claims radar.
 
 ## Screenshot index
 
-PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-26 as **clipped sections** (the first pass used full-page shots; `04` and `05` were identical). They predate the exploratory raw-DNA boundary, so they may still show the older helper text or a dose queue. Live array-file behavior is gene coverage and a clinical-test referral. Lab `Gene,*allele` lines still use the phenotype table.
+PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-28 as **clipped sections**.
 
-- `01-gene-data-entry.png` — **1. Gene data** (2026-09-26): session label, `Gene,*allele` lines, **Or upload file**
-- `02-apcd-meds-and-scope.png` — **2. Virginia APCD medications**: drug scope and **Generate PGx results**
-- `03-generate-pgx-results.png` — **PGx results** header after generate (2026-09-26 capture)
-- `04-action-queue-matrix.png` — medication-first queue and gene–drug matrix (lab-allele path; 2026-09-26 capture)
-- `05-exports.png` — export row (2026-09-26 capture; live card also has **Download summary for your doctor**)
+- `01-gene-data-entry.png` — **1. Gene data**: genealogy-file notice, medical notice, session label, lab `Gene,*allele` lines plus `rs4149056,TC`, **Or upload file**
+- `02-apcd-meds-and-scope.png` — **2. Virginia APCD medications**: **Selected drugs**, three chips, **Generate PGx results**
+- `03-generate-pgx-results.png` — **PGx results** with the further-testing card: **Further clinical test recommended** for SLCO1B1, plus the genealogy-claim notice
+- `04-action-queue-matrix.png` — medication-first queue and gene–drug matrix for the lab-allele rows
+- `05-exports.png` — export row, including **Download summary for your doctor**
 - `06-triplets-genes-pharmacy.png` — triplets, **Genes tested**, **Send to pharmacy (coming soon)** disabled
 
 Not a separate PNG (covered elsewhere or not a screen): an actual 23andMe/VCF file chosen in the picker (the control is in `01`); Patient view (UC08 `02-pgx-card-patient.png`); downloaded export files.

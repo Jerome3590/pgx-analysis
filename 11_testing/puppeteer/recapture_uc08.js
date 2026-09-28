@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const puppeteer = require("puppeteer");
 
-const DASHBOARD = process.env.DASHBOARD_URL || "https://pgx.jerome-dixon.io/?v=20260927-unphased";
+const DASHBOARD = process.env.DASHBOARD_URL || "https://pgx.jerome-dixon.io/?v=20260928-genealogy-note";
 const DRIVE = process.env.PGX_UC_DRIVE_ROOT || "G:\\My Drive\\PGx_Dashboard_Use_Cases";
 const REPO = path.resolve(__dirname, "..", "..", "10_risk_dashboard", "docs", "use_case_training");
 const UC = "UC08_cohort_vs_card";
@@ -55,7 +55,7 @@ async function addDrug(page, query) {
   const browser = await puppeteer.launch({
     headless: "new",
     defaultViewport: { width: 1440, height: 1100 },
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   });
   const page = await browser.newPage();
   page.setDefaultTimeout(45000);
@@ -176,10 +176,20 @@ async function addDrug(page, query) {
     if (patient) patient.click();
   });
   await addDrug(page, "clopidogrel");
+  page.on("console", (msg) => console.log("PAGE", msg.type(), msg.text().slice(0, 300)));
+  page.on("request", (req) => {
+    if (req.method() === "POST") console.log("POST", req.url());
+  });
+  await page.$eval("#btnGenerateCard", (el) => el.scrollIntoView({ block: "center" }));
+  await sleep(300);
   await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/pgx/card") && r.request().method() === "POST", { timeout: 40000 }),
+    page.waitForResponse((r) => r.url().includes("/pgx/card") && r.request().method() === "POST", { timeout: 90000 }),
     page.click("#btnGenerateCard"),
-  ]);
+  ]).catch(async (err) => {
+    const status = await page.$eval("#pgx-status", (el) => (el.textContent || "").trim()).catch(() => "");
+    console.error("GENERATE_STATUS", status);
+    throw err;
+  });
   await page.waitForFunction(() => {
     const box = document.getElementById("pgx-card-display");
     return box && getComputedStyle(box).display !== "none";
@@ -195,12 +205,16 @@ async function addDrug(page, query) {
     );
     const card = document.getElementById("pgx-card-display");
     const header = card && card.querySelector(".pgx-card-header");
+    const notice = document.getElementById("pgx-report-notice");
+    const testing = document.getElementById("pgx-testing-card");
     const queue = document.getElementById("pgx-action-queue");
     const parent = (viewRow && viewRow.parentNode) || (card && card.parentNode);
     if (!parent) return;
     parent.insertBefore(clip, viewRow || card);
     if (viewRow) clip.appendChild(viewRow);
     if (header) clip.appendChild(header);
+    if (notice) clip.appendChild(notice);
+    if (testing) clip.appendChild(testing);
     if (queue) clip.appendChild(queue);
   });
   await page.$eval("#uc08-patient-clip", (el) => el.scrollIntoView({ block: "start" }));

@@ -22,13 +22,13 @@
 
 ## Screenshot index
 
-PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-26 as **clipped sections** (the first pass used full-page shots; `03` and `04` were identical).
+PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-28 as **clipped sections**.
 
 - `01-documentation-how-to.png` — **Overview** + **Tabs**
 - `02-model-performance.png` — **Model performance and at-risk identification**
 - `03-visual-artifacts.png` — **Dashboard visual artifacts (from manifest)**
 - `04-density-bins.png` — **Feature importance sources for visuals** + **Event density bins**
-- `05-unphased-dna.png` — **Unphased DNA files and star alleles**. Captured 2026-09-26, before the exploratory boundary. Live text is gene coverage, **Data Not Present in File**, and no dose from array files.
+- `05-unphased-dna.png` — **Unphased DNA files and star alleles**: genealogy files cannot support a prescribing claim; coverage and **Data Not Present in File**
 
 Canonical workflow text: repo `10_risk_dashboard/docs/DASHBOARD_USE_CASES.md`.
 
