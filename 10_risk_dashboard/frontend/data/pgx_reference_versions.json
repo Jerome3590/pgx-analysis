@@ -5,6 +5,6 @@
   "crosswalkVersion": "apcd-cpic-crosswalk-v1",
   "tripletModelVersion": "regimen-three-way-v1",
   "thresholdVersion": "triplet-threshold-v1",
-  "exportRendererVersion": "pgx-card-export-v1",
+  "exportRendererVersion": "pgx-card-export-v3",
   "updatedAt": "2026-09-26"
 }

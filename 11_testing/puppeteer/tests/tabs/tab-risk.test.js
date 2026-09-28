@@ -118,6 +118,85 @@ describe("Risk Assessment tab — n_event_bin badge (mermaid: J→M→N)", () =>
 
 // ---------------------------------------------------------------------------
 
+describe("Risk Assessment tab — replace, compare, and leave-one-out", () => {
+
+  test("replace / contributions / save-scenario controls are present", async () => {
+    await selectCohort(page, "opioid_ed");
+    await setAge(page, 35);
+    await page.evaluate(() => window.switchTab("risk-assessment"));
+    const ids = await page.evaluate(() => ({
+      replace: !!document.getElementById("btnReplaceCode"),
+      compare: !!document.getElementById("btnComparison"),
+      contrib: !!document.getElementById("btnContributions"),
+      save: !!document.getElementById("btnSaveScenario"),
+      from: !!document.getElementById("replace-from"),
+      to: !!document.getElementById("replace-to"),
+    }));
+    expect(ids.replace).toBe(true);
+    expect(ids.compare).toBe(true);
+    expect(ids.contrib).toBe(true);
+    expect(ids.save).toBe(true);
+    expect(ids.from).toBe(true);
+    expect(ids.to).toBe(true);
+  }, 20_000);
+
+  test("Drug contributions POSTs /risk/drug_contributions and renders Δp̂ rows", async () => {
+    await selectCohort(page, "opioid_ed");
+    await setAge(page, 60);
+    await page.evaluate(() => window.switchTab("drugs"));
+    await page.waitForFunction(
+      () => { const el = document.getElementById("drugs"); return el && el.options.length > 20; },
+      { timeout: 12_000 }
+    );
+    const selected = await page.evaluate(() => {
+      const sel = document.getElementById("drugs");
+      const tokens = ["OXYCODONE", "GABAPENTIN", "HYDROCODONE"];
+      const found = [];
+      for (const opt of sel.options) {
+        if (tokens.some((t) => opt.value.includes(t) || opt.text.includes(t))) {
+          opt.selected = true;
+          found.push(opt.value);
+        }
+        if (found.length >= 2) break;
+      }
+      sel.dispatchEvent(new Event("change"));
+      return found;
+    });
+    expect(selected.length).toBeGreaterThanOrEqual(2);
+
+    await page.evaluate(() => window.switchTab("risk-assessment"));
+    let contribData = null;
+    const handler = async (r) => {
+      if (r.url().includes("/risk/drug_contributions")) {
+        contribData = await r.json().catch(() => null);
+      }
+    };
+    page.on("response", handler);
+    await page.click("#btnContributions");
+    await sleep(10_000);
+    page.off("response", handler);
+
+    expect(contribData).not.toBeNull();
+    expect(typeof contribData.base_risk).toBe("number");
+    expect(Array.isArray(contribData.drug_contributions)).toBe(true);
+    expect(contribData.drug_contributions.length).toBeGreaterThanOrEqual(2);
+
+    const tableState = await page.evaluate(() => {
+      const mode = document.getElementById("contributions-mode");
+      const rows = document.querySelectorAll("#contributions-table tbody tr");
+      return {
+        active: !!(mode && mode.classList.contains("active")),
+        rows: rows.length,
+        text: document.getElementById("contributions-table")?.textContent || "",
+      };
+    });
+    expect(tableState.active).toBe(true);
+    expect(tableState.rows).toBeGreaterThanOrEqual(2);
+    expect(tableState.text).toMatch(/Δp̂|delta|risk without/i);
+  }, 40_000);
+
+});
+
 describe("Risk Assessment tab — error path (mermaid: B→ invalid age →C→ no API call)", () => {
 
   test("age 0 (invalid) → no 200 response, page remains alive", async () => {

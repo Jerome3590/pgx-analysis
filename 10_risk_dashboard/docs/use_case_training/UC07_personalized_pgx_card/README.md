@@ -11,13 +11,13 @@
 Optional refinement after (or instead of) the claims radar.
 
 1. Under **1. Gene data**, leave **Session / patient pseudonym** blank for an anonymous session, or enter a label.
-2. Enter **Gene / allele** lines (`CYP2D6,*1,*4`) **or** **Or upload file**: AncestryDNA or 23andMe (txt/csv/zip), Excel `.xlsx` (`Gene,Allele1,Allele2`), or VCF.
-3. Files are parsed **in this browser**. They are not uploaded to S3. Official CPIC tables resolve stars and phenotypes. A VCF or DTC file is **unphased**: it shows which variants are present, not which chromosome copy each one sits on. Single-SNP stars can often be called; multi-variant or overlapping official alleles stay **indeterminate** (candidate alleles listed) so the card does not invent a haplotype. Prefer `CYP2C19,*1,*2` when the diplotype is already known. This is **not** full haplotype calling.
-4. Under **2. Virginia APCD medications**, search generics (two characters), set **Drug scope** and **Actionable only**, and choose **Patient** or **Clinician / pharmacist**.
-5. Click **Generate PGx results**. The request is **POST `/pgx/card`** with **parsed variants** (plus selected APCD drugs and scope) — not the raw genome file.
-6. Review **Medication-first action queue**, **Gene–drug actionability matrix**, **Polypharmacy triplet engine**, and **Genes tested**. Rows are **action categories** plus guideline URLs. Unlisted allele pairs stay **indeterminate**, never “normal.”
-7. Export: **Print**, **Download JSON**, **Download CSV**, **Download PNG**, **Download PDF**, **Copy to clipboard**, **Technical appendix**, **Pharmacy handoff**.
-8. **Send to pharmacy (coming soon)** stays disabled. There is no live e-prescribe.
+2. Enter **Gene / allele** lines (`CYP2D6,*1,*4`) **or** **Or upload file**: AncestryDNA, 23andMe, or MyHeritage (txt/csv/zip), Excel `.xlsx` (`Gene,Allele1,Allele2`), or unphased VCF.
+3. Files are parsed **in this browser**. They are not uploaded to S3. Array rows go to `POST /pgx/card`, where DuckDB writes Snappy Parquet and joins positions to CPIC gene intervals. The card reports detected variants and gene coverage. Missing sites are **Data Not Present in File** and are not called `*1`. This path does not assign a diplotype, metabolizer status, or dose. A detected variant in `CYP2C19`, `CYP2D6`, `VKORC1`, `SLCO1B1`, or `HLA-B` opens a clinical-test referral. A lab line such as `CYP2C19,*1,*2` still uses the official phenotype table.
+4. Under **2. Virginia APCD medications**, search generics (two characters), set **Drug scope** and **Actionable only**, and choose **Patient** or **Clinician / pharmacist**. Those controls shape lab-allele medication rows. They do not turn an array file into a dose list.
+5. Click **Generate PGx results**. The request sends parsed rsid rows or lab alleles, plus selected APCD drugs and scope — not the raw genome file.
+6. For lab alleles, review **Medication-first action queue**, **Gene–drug actionability matrix**, **Polypharmacy triplet engine**, and **Genes tested**. Unlisted pairs stay **indeterminate**, never “normal.” For an array file, review the exploratory finding, coverage line, and referral.
+7. Export: **Print**, **Download JSON**, **Download CSV**, **Download PNG**, **Download PDF**, **Download summary for your doctor**, **Copy to clipboard**, **Technical appendix**, **Pharmacy handoff**.
+8. **Send to pharmacy (coming soon)** stays disabled. There is no live e-prescribe and no in-dashboard lab order.
 
 
 ## Live button names
@@ -27,18 +27,18 @@ Optional refinement after (or instead of) the claims radar.
 - **Drug scope**
 - **Actionable only**
 - **View (Patient / Clinician / pharmacist)**
-- **Print / Download JSON / CSV / PNG / PDF / Copy to clipboard / Technical appendix / Pharmacy handoff**
+- **Print / Download JSON / CSV / PNG / PDF / Download summary for your doctor / Copy to clipboard / Technical appendix / Pharmacy handoff**
 
 ## Screenshot index
 
-PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-26 as **clipped sections** (the first pass used full-page shots; `04` and `05` were identical).
+PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-26 as **clipped sections** (the first pass used full-page shots; `04` and `05` were identical). They predate the exploratory raw-DNA boundary, so they may still show the older helper text or a dose queue. Live array-file behavior is gene coverage and a clinical-test referral. Lab `Gene,*allele` lines still use the phenotype table.
 
-- `01-gene-data-entry.png` — **1. Gene data**: unphased-file helper, session label, `Gene,*allele` lines plus an official rsid genotype (`rs4149056,TC`), **Or upload file**
-- `02-apcd-meds-and-scope.png` — **2. Virginia APCD medications**: **Selected drugs**, three chips (clopidogrel, gabapentin, alprazolam), Clinician / pharmacist, **Generate PGx results** plus export buttons
-- `03-generate-pgx-results.png` — **PGx results** header after generate (session metadata, official phenotype-table / unphased notice, verification QR)
-- `04-action-queue-matrix.png` — **Medication-first action queue** + **Gene–drug actionability matrix**
-- `05-exports.png` — **Print / JSON / CSV / PNG / PDF / clipboard / Technical appendix / Pharmacy handoff**
-- `06-triplets-genes-pharmacy.png` — **Polypharmacy triplet engine** (regimen three-way, not CPIC), **Genes tested**, **Gene details** (unphased limitations), **Send to pharmacy (coming soon)** disabled
+- `01-gene-data-entry.png` — **1. Gene data** (2026-09-26): session label, `Gene,*allele` lines, **Or upload file**
+- `02-apcd-meds-and-scope.png` — **2. Virginia APCD medications**: drug scope and **Generate PGx results**
+- `03-generate-pgx-results.png` — **PGx results** header after generate (2026-09-26 capture)
+- `04-action-queue-matrix.png` — medication-first queue and gene–drug matrix (lab-allele path; 2026-09-26 capture)
+- `05-exports.png` — export row (2026-09-26 capture; live card also has **Download summary for your doctor**)
+- `06-triplets-genes-pharmacy.png` — triplets, **Genes tested**, **Send to pharmacy (coming soon)** disabled
 
 Not a separate PNG (covered elsewhere or not a screen): an actual 23andMe/VCF file chosen in the picker (the control is in `01`); Patient view (UC08 `02-pgx-card-patient.png`); downloaded export files.
 

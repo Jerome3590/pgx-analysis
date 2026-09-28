@@ -2,109 +2,85 @@
 
 ## Overview
 
-The PGx Patient Card feature uses the **master Excel file** from `5_pgx_analysis` as the primary data source for gene-drug interactions.
+The PGx Patient Card uses official CPIC gene–drug pairs. Monthly refresh writes Parquet to S3; Lambda honors `PREFER_S3` and an in-process cache so `/pgx/card` does not reload S3 on every request.
 
-## Master Excel File
+Official sources only — do not invent phenotype or recommendation rows.
 
-- **Source**: `5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx`
-- **Official Download**: https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx
-- **Content**: 573 gene-drug pairs, 300 drugs, 121 genes
-- **Format**: Excel (.xlsx) file with columns:
-  - Gene
-  - Drug
-  - Guideline (URL)
-  - CPIC Level
-  - CPIC Level Status
-  - PharmGKB Level of Evidence
-  - PGx on FDA Label
-  - CPIC Publications (PMID)
+## Canonical S3 layout
 
-## Preparation Steps
+| Object | Purpose |
+|---|---|
+| `s3://pgxdatalake/gold/reference/cpic/manifest.json` | Source URL, `retrieved_at`, ETag, `row_count`, `content_sha256`, `cpicKnowledgeVersion` |
+| `s3://pgxdatalake/gold/reference/cpic/*.parquet` | Official CPIC tables (pairs, diplotype/phenotype, recommendations, alleles, …) |
+| `s3://pgxdatalake/gold/reference/cpic/versions/{stamp}/` | Immutable snapshot of the same files |
+| `s3://pgxdatalake/gold/reference/pharmgkb/` | Official ClinPGx/PharmGKB tables when the ingest retrieved them |
+| `s3://pgxdatalake/gold/dashboard/data/cpic_gene-drug_pairs.parquet` | Live PGx Card mirror (also `.xlsx`) |
 
-### 1. Prepare CPIC Data
+Phenotype: if `gold/reference/cpic/cpic_diplotype_phenotype.parquet` exists, Lambda loads official gene + diplotype → phenotype columns only. Otherwise it keeps the hardcoded 10-gene table (`pgx-phenotype-v1`).
 
-From the **repository root**, run the preparation script (copies or downloads into `10_risk_dashboard/outputs/cpic/` for packaging):
+## Monthly refresh (preferred)
+
+Not a manual wget + Docker rebuild. EventBridge invokes `pgx-cpic-reference-refresh` on `cron(0 12 1 * ? *)` (1st of the month, 12:00 UTC). The job HEADs official files, compares the manifest, skips (optional SES) when unchanged, otherwise downloads, writes Parquet, uploads current + versioned objects, and emails via `py_helpers.aws_utils.send_status_email_ses`.
+
+```bash
+# Laptop / any machine with AWS creds (first run or catch-up)
+python utility_scripts/refresh_cpic_reference.py
+python utility_scripts/refresh_cpic_reference.py --pairs-only
+python utility_scripts/refresh_cpic_reference.py --check-only
+
+# After the dedicated Lambda is deployed
+aws lambda invoke --function-name pgx-cpic-reference-refresh --cli-binary-format raw-in-base64-out --payload "{\"pairs_only\":false}" cpic-refresh-out.json
+```
+
+IaC and deploy: `aws-pgx-setup/lambda/cpic_refresh/README.md`.
+
+Do **not** use GitHub Actions as the datalake writer, and do **not** schedule this on EC2 Spot.
+
+## Container packaging (still used as PREFER_S3 fallback)
+
+From the **repository root**:
 
 ```bash
 python 10_risk_dashboard/data_preparation/prepare_cpic_data.py
 ```
 
-This will:
-- Prefer `5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx` (or download the official file into that path if missing)
-- Write staged copies to `10_risk_dashboard/outputs/cpic/` (`cpic_gene-drug_pairs.xlsx` and, when possible, `.parquet`)
+This stages `10_risk_dashboard/outputs/cpic/cpic_gene-drug_pairs.xlsx` (and `.parquet` when possible) for the Docker image at `/var/task/data/`.
 
-### 2. Verify Files
-
-Check that the file is in place:
+The one-shot official-table ingest (same prefixes as the monthly job) is:
 
 ```bash
-ls -lh 10_risk_dashboard/outputs/cpic/
-# Should show:
-# - cpic_gene-drug_pairs.xlsx
-# - cpic_gene-drug_pairs.parquet (when Excel was read successfully)
+python 10_risk_dashboard/data_preparation/ingest_cpic_pharmgkb_reference.py
 ```
 
-### 3. Docker Build
+## Loading priority
 
-The Dockerfile automatically includes the data directory:
+`load_cpic_data()` honors `PREFER_S3` (same as metadata/models):
 
-```dockerfile
-COPY data/ ${LAMBDA_TASK_ROOT}/data/
-```
+1. When `PREFER_S3=true` (required for monthly S3 refreshes to reach the live card): S3 mirror / canonical Parquet, then container
+2. When `PREFER_S3=false`: container first, then S3
+3. `cpicKnowledgeVersion` is read from `gold/reference/cpic/manifest.json` when present
 
-The file will be available in the container at:
-- `/var/task/data/cpic_gene-drug_pairs.xlsx`
-
-### 4. S3 Backup (Optional)
-
-For redundancy, upload to S3:
+Set `PREFER_S3=true` on `pgx-risk-calculator`. After Python-only Lambda edits, use the existing code-only deploy (no dashboard image rebuild):
 
 ```bash
-aws s3 cp 10_risk_dashboard/outputs/cpic/cpic_gene-drug_pairs.xlsx \
-  s3://pgxdatalake/gold/dashboard/data/cpic_gene-drug_pairs.xlsx
+aws s3 cp 10_risk_dashboard/backend/lambda_function.py s3://pgxdatalake/gold/dashboard/code/lambda_function.py
+aws s3 cp 10_risk_dashboard/backend/cpic_allele_resolver.py s3://pgxdatalake/gold/dashboard/code/cpic_allele_resolver.py
 ```
 
-## Loading Priority
+Then bump `DEPLOY_TS` on the function **without** dropping other environment variables:
 
-The Lambda function loads CPIC data in this order:
-
-1. **Container Parquet** (`/var/task/data/cpic_gene-drug_pairs.parquet`) when present — **preferred** (see `lambda_function.py`)
-2. **Container Excel** (`/var/task/data/cpic_gene-drug_pairs.xlsx`)
-3. **S3** (`gold/dashboard/data/cpic_gene-drug_pairs.parquet` / `.xlsx`) — Fallback
-
-## Dependencies
-
-The Lambda function requires `openpyxl` for Excel reading:
-
-```txt
-openpyxl>=3.1.0
+```bash
+aws lambda update-function-configuration --function-name pgx-risk-calculator --environment "Variables={S3_BUCKET=pgxdatalake,CODE_S3_KEY=gold/dashboard/code/lambda_function.py,DEPLOY_TS=YYYYMMDDHHMMSS,CODE_OVERRIDE_VERSION=YYYYMMDDHHMMSS,PREFER_S3=true,S3_DASHBOARD_BUCKET=jerome-dixon.io,PGX_RESULTS_BUCKET=pgxdatalake,S3_DASHBOARD_PREFIX=pgx,CPIC_RESOLVER_S3_KEY=gold/dashboard/code/cpic_allele_resolver.py}"
 ```
 
-This is already included in `requirements.txt` and will be installed during Docker build.
+`POST /pgx/card` accepts `genotypes: [{rsid, genotype}]` and resolves star alleles from official `cpic_allele_rsid.csv` (preferred on the live image, which has no pyarrow) or `.parquet`. Manual `variants: [{gene, variants}]` still skips rsid calling.
 
-## Data Updates
-
-To update the CPIC data:
-
-1. Download the latest Excel file from CPIC:
-   ```bash
-   wget https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xlsx \
-     -O 5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx
-   ```
-
-2. Run the preparation script:
-   ```bash
-   python 10_risk_dashboard/data_preparation/prepare_cpic_data.py
-   ```
-
-3. Rebuild and redeploy the Docker container
+The live image cannot write `/var/task`. `entrypoint.sh` now downloads overrides to `/tmp/pgx_code` and prepends `PYTHONPATH`. That entrypoint change needs an ECR rebuild to take effect; until then, `lambda_function.py` also loads `cpic_allele_resolver.py` from S3 into `/tmp`.
 
 ## Verification
 
-Test the PGx Card endpoint:
-
 ```bash
-curl -X POST https://YOUR_API.execute-api.REGION.amazonaws.com/prod/pgx/card \
+curl -X POST https://cmv0qislq3.execute-api.us-east-1.amazonaws.com/prod/pgx/card \
   -H "Content-Type: application/json" \
   -d '{
     "patient_id": "TEST001",
@@ -115,30 +91,18 @@ curl -X POST https://YOUR_API.execute-api.REGION.amazonaws.com/prod/pgx/card \
   }'
 ```
 
-Expected response includes:
-- Patient ID
-- List of genes with variants
-- List of drugs requiring modifications
-- CPIC guideline URLs
+Expected response includes genes, matched drugs, CPIC guideline URLs, and `versions.cpicKnowledgeVersion`.
 
 ## Troubleshooting
 
-### Excel file not found
-- Check that `10_risk_dashboard/data_preparation/prepare_cpic_data.py` ran successfully
-- Verify file exists in `10_risk_dashboard/outputs/cpic/` (or that `5_pgx_analysis/cpic/cpic_gene-drug_pairs.xlsx` exists for the next run)
-- Check Docker build logs for COPY errors
+### Excel / Parquet not found
+- Confirm `python utility_scripts/refresh_cpic_reference.py` uploaded the dashboard mirror
+- Confirm `pgx-lambda-role` has `PgxCpicReferenceRead` (`gold/reference/*` and `gold/dashboard/data/*`)
+- Confirm `PREFER_S3=true` if you expect S3 to win over the baked-in container file
 
 ### pandas/openpyxl import errors
-- Ensure `openpyxl>=3.1.0` is in `requirements.txt`
-- Check Docker build logs for pip install errors
+- Container fallback still needs `openpyxl>=3.1.0` in `10_risk_dashboard/backend/requirements.txt`
 
 ### Column detection issues
-- The function auto-detects column names (case-insensitive)
-- Check Excel file structure matches expected format
-- Review Lambda logs for column detection messages
-
-### Excel file loading errors
-- Check Lambda logs for specific error messages
-- Verify pandas and openpyxl are installed correctly
-- Ensure Excel file is not corrupted
-
+- Gene/drug columns are matched case-insensitively
+- Official phenotype parquet is used only when gene + diplotype + phenotype/generesult columns are present

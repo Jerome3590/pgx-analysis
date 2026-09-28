@@ -1,0 +1,51 @@
+{
+  "folder": "https://drive.google.com/drive/folders/1cGbdoH-HDEooRyqWnhS6btWyhD4XOKQt?usp=drive_link",
+  "naming": "{nn}_{use_case}.{mp4|pdf|m4a}",
+  "files": {
+    "01_cohort_risk": {
+      "video": "https://drive.google.com/file/d/1D4UXbAVs_LKiCyM_Spm8yS-zKZqOJmG7/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1ErDgFfrIn8jPeEK8ecMYJZYS80qfBgSV/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1ablx6SrC-UVmOWLoMYf0mcGC7mHdpFbS/view?usp=drive_link"
+    },
+    "02_scenario_analysis": {
+      "video": "https://drive.google.com/file/d/1gDJO79vIS3S2yGSLem7wdzCOrYz3zoXx/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1amlvu-64_8gD5DNi519BW73NWIKDqEzu/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1JIvaacSrbsRh0r9UGgU5gonjUdcJ7bD-/view?usp=drive_link"
+    },
+    "03_density_bin_exploration": {
+      "video": "https://drive.google.com/file/d/1CepVXRhgzobcWm9zI3VANaKFBo3MnWbe/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1pWhz6gR4qNx3v29xRZXxgsNlkFd1nPpL/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1Qwn-X1ACtyWxU7ZiI0U2ZXIugZ6vcN5t/view?usp=drive_link"
+    },
+    "04_feature_importance": {
+      "video": "https://drive.google.com/file/d/1NDsvDNCv2kN3YOKw8EAaj10c766COX5W/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1lAYcI6czGQs_s_faC4xJk7YkL0YjEdP3/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1LfOTbYnFKlT_b-Uxq2Y4ratdEf11Re6F/view?usp=drive_link"
+    },
+    "05_pattern_process": {
+      "video": "https://drive.google.com/file/d/1a8Nqjmx2SwJhEVWGyP69O_6xlpcu3dGO/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/10BNUM8FqDcSCo4TVDjKYNhODgrycWCaO/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1jAVR-bzJZu28pk3Jx8wLcmOBOQEsoyv1/view?usp=drive_link"
+    },
+    "06_claims_pgx_card": {
+      "video": "https://drive.google.com/file/d/1hR0qcqhbbPuGxIrvIsmX7w5B4mffwoXQ/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1BZ1THfz-b_Toe8ETHkA6vwLBi0-Q6SN2/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1cOpYb2u7HGiVjJphhYRRLSt_U8ZrF6sZ/view?usp=drive_link"
+    },
+    "07_personalized_pgx_card": {
+      "video": "https://drive.google.com/file/d/1EzzkSE2qoEmlk4WYuze09XbAihUp6SGy/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1vBNdyqXgNfct-LiFvOd_ISMveZdA3j5g/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1BIDHMTYgDX2PZjYrWjf3v2_NXbjHhvD1/view?usp=drive_link"
+    },
+    "08_cohort_vs_card": {
+      "video": "https://drive.google.com/file/d/1Gqhfdx_yaEjt22MPxImvRznhW10d86jk/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1IupXd8u12LEUrMfsr8vfdrJqKqZnpwIm/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1q8I9CdS492lf629q-PyzRH8LnWWFjV8-/view?usp=drive_link"
+    },
+    "09_documentation": {
+      "video": "https://drive.google.com/file/d/1SkNwVdi31HJsHTWWdxPK0K49n--J0wSN/view?usp=drive_link",
+      "slides": "https://drive.google.com/file/d/1njPWMx85FDMTt06usvQ1e1uqXfcICC57/view?usp=drive_link",
+      "audio": "https://drive.google.com/file/d/1StG3kJKeOC59gKuEpoUoU9PoYjOIjAfM/view?usp=drive_link"
+    }
+  }
+}

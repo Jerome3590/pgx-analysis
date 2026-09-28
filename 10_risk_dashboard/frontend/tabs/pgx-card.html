@@ -63,7 +63,17 @@
       <div id="pgx-snp-refine-section">
         <div style="margin-top:1.5rem;padding:1.5rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.75rem;">
           <h2 style="margin:0 0 0.5rem;">1. Gene data</h2>
-          <p style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">VCF is not parsed in-browser yet. Use AncestryDNA zip/csv/txt or Gene,Allele1,Allele2 lines. Missing or unlisted allele pairs stay indeterminate — they are never treated as normal.</p>
+          <p style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">AncestryDNA, 23andMe, and MyHeritage files are genealogy arrays. They show which variants were typed. They do not show which chromosome copy each variant is on, and they do not count extra or missing gene copies. A prescribing claim needs both, so this card does not assign a diplotype, a metabolizer status, or a dose from those files. A missing site is Data Not Present in File, not a normal allele. A lab line such as <code>CYP2C19,*1,*2</code> still uses the official diplotype table.</p>
+          <aside class="pgx-medical-notice" aria-label="Medical and technical notice">
+            <h3>Important medical and technical notice</h3>
+            <p><strong>For informational and exploratory purposes only.</strong> This tool does not provide medical advice, diagnosis, or clinical pharmacogenomic recommendations.</p>
+            <ol>
+              <li><strong>Unphased haplotypes.</strong> Consumer array files do not determine whether variants sit on the same chromosome or opposite chromosomes, so a CPIC star-allele diplotype is not assigned.</li>
+              <li><strong>Missing copy number.</strong> Microarray files cannot count gene copies. CYP2D6 duplications and deletions are not measured.</li>
+              <li><strong>Incomplete coverage.</strong> A site that is not in the file is marked Data Not Present in File. It is not treated as a normal allele.</li>
+            </ol>
+            <p><strong>Do not change medications</strong> from this report. Confirm any finding with a CLIA-certified, CAP-accredited pharmacogenomic test ordered by a licensed clinician.</p>
+          </aside>
           <div class="pgx-input-section">
             <div class="control-group">
               <label for="patient-id">Session / patient pseudonym <span style="color:#94a3b8;font-weight:400;">(optional)</span></label>
@@ -77,7 +87,10 @@
             <div class="control-group">
               <label for="snp-file">Or upload file</label>
               <input type="file" id="snp-file" accept=".zip,.csv,.txt,.tsv,.xlsx,.vcf" />
-              <small style="color:#64748b;font-size:0.75rem;display:block;margin-top:0.35rem;">AncestryDNA zip/csv/txt. Raw genome is not uploaded to S3 from this page.</small>
+              <small style="color:#64748b;font-size:0.75rem;display:block;margin-top:0.35rem;">AncestryDNA, 23andMe, MyHeritage, Excel, or VCF. Parsed locally. Raw text is not stored. Coverage is the share of official CPIC sites present in the file.</small>
+            </div>
+            <div class="control-group full-width">
+              <p id="pgx-upload-notice" class="status-message" style="display:none;"></p>
             </div>
           </div>
 
@@ -91,6 +104,11 @@
                 <option value="SELECTED">Selected drugs</option>
                 <option value="ALL_MATCHED">All matched drugs</option>
               </select>
+            </div>
+            <div class="control-group">
+              <label for="pgx-actionable-only">Action filter</label>
+              <label class="pgx-inline-check"><input type="checkbox" id="pgx-actionable-only" /> Actionable only</label>
+              <small style="color:#64748b;font-size:0.75rem;display:block;">Hides standard / no-CPIC rows in the queue, matrix, and exports.</small>
             </div>
             <div class="control-group full-width pgx-autocomplete-wrap">
               <label for="pgx-drug-search">Select medications</label>
@@ -106,12 +124,18 @@
               <label><input type="radio" name="pgx-view-mode" value="patient" /> Patient</label>
               <label><input type="radio" name="pgx-view-mode" value="clinician" checked /> Clinician / pharmacist</label>
             </div>
-            <div class="control-group full-width">
+            <div class="control-group full-width pgx-export-row">
               <button id="btnGenerateCard">Generate PGx results</button>
               <button id="btnResetCard" class="button-secondary">Reset</button>
-              <button type="button" id="pgx-export-current" class="button-secondary">Export current view</button>
+              <button type="button" id="pgx-export-current" class="button-secondary">Print</button>
               <button type="button" id="pgx-export-json" class="button-secondary">Download JSON</button>
+              <button type="button" id="pgx-export-csv" class="button-secondary">Download CSV</button>
+              <button type="button" id="pgx-export-png" class="button-secondary">Download PNG</button>
+              <button type="button" id="pgx-export-pdf" class="button-secondary">Download PDF</button>
+              <button type="button" id="pgx-export-physician" class="button-secondary">Download summary for your doctor</button>
+              <button type="button" id="pgx-export-clipboard" class="button-secondary">Copy to clipboard</button>
               <button type="button" id="pgx-export-tech" class="button-secondary">Technical appendix</button>
+              <button type="button" id="pgx-export-pharmacy" class="button-secondary">Pharmacy handoff</button>
             </div>
           </div>
         </div>
@@ -122,11 +146,32 @@
       <div id="pgx-card-display" style="display: none;">
         <div class="pgx-card">
           <div class="pgx-card-header">
-            <h2>PGx results</h2>
-            <div id="pgx-patient-id" style="margin-top: 0.5rem;"></div>
+            <div class="pgx-card-header-row">
+              <div>
+                <h2>PGx results</h2>
+                <div id="pgx-patient-id" style="margin-top: 0.5rem;"></div>
+              </div>
+              <div class="pgx-qr-wrap">
+                <canvas id="pgx-card-qr" width="128" height="128" aria-label="PGx card verification QR"></canvas>
+                <small>Verification QR — card summary only, no raw genome</small>
+              </div>
+            </div>
             <div id="pgx-session-header"></div>
           </div>
           <div id="pgx-summary-cards" class="pgx-count-row"></div>
+          <aside id="pgx-report-notice" class="pgx-medical-notice">
+            <h3>Important medical and technical notice</h3>
+            <p>This report is exploratory. A genealogy file cannot support a prescribing claim: it is unphased and does not measure copy number. It does not assign a metabolizer status or a dose. Do not start, stop, or change a medicine from these results.</p>
+          </aside>
+          <section id="pgx-testing-card" class="pgx-recommendation-card" hidden>
+            <h3 id="pgx-testing-title">Further testing recommendation</h3>
+            <p id="pgx-testing-status"></p>
+            <p id="pgx-testing-why"></p>
+            <p id="pgx-testing-detail"></p>
+            <div id="pgx-testing-actions" class="pgx-testing-actions"></div>
+            <div id="pgx-clinical-nudges"></div>
+          </section>
+          <div id="pgx-pipeline-live"></div>
           <div class="pgx-card-section">
             <h3>Medication-first action queue</h3>
             <div id="pgx-action-queue"></div>
@@ -147,6 +192,11 @@
           <div class="pgx-card-section">
             <h3>Gene details</h3>
             <div id="pgx-gene-details"></div>
+          </div>
+          <div class="pgx-card-section" id="pgx-pharmacy-panel">
+            <h3>Pharmacy integration</h3>
+            <p class="subtitle"><small>No e-prescribe partner is connected. Use Pharmacy handoff for a structured JSON/CSV a pharmacy workflow can import. Live transmission is disabled.</small></p>
+            <button type="button" id="pgx-send-pharmacy" class="button-secondary" disabled title="Coming soon — no e-prescribe partner">Send to pharmacy (coming soon)</button>
           </div>
         </div>
       </div>

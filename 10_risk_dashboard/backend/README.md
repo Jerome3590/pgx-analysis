@@ -60,13 +60,20 @@ Recommended dashboard text examples:
 
 Temporal dynamics are engineered during Step 6 from pre-target `event_date` values. For manual `/risk` requests without dated events, these temporal features are taken from `feature_schema.json` defaults; patient-specific temporal labels require a dated event history or precomputed patient-history context.
 
-- **`POST /risk/comparison`** - Compare risk for user-provided scenarios (filter by selection)
-  - Body: `{base: {...}, scenarios: [...]}`
-  - Returns: Risk scores for base and scenarios
+- **`POST /risk/comparison`** - Compare ensemble risk for one or more user-provided code sets
+  - Body: `{base: {age, cohort, age_band, drugs, icds, cpts}, scenarios: [{name, drugs, icds, cpts}, ...]}`
+  - `scenarios` may contain two or more user-defined sets. An empty `base` uses the 2019 population baseline.
+  - Returns: `{base_risk, scenarios: [{name, risk_score, delta, model_breakdown}]}`
 
-- **`POST /pgx/card`** - Generate PGx patient card
-  - Body: `{patient_id?, variants: [{gene, variants[]}]}`
-  - Returns: PGx card data with drug-gene interactions
+- **`POST /risk/drug_contributions`** - Leave-one-out Δp̂ for each submitted drug
+  - Body: same shape as `POST /risk` (`cohort`, `age_band`, `age`, `drugs`, optional `icds`/`cpts`)
+  - Returns: `{base_risk, n_event_bin, drug_contributions: [{drug, risk_without, delta_risk, pct_contribution, rank}]}`
+
+- **`POST /pgx/card`** - PGx card
+  - Body: `{patient_id?, variants?: [{gene, variants[]}], genotypes?: [{rsid, genotype, chromosome?, position?}], selected_apcd_drugs?, drug_scope?}`
+  - `variants` are lab-reported alleles (`CYP2C19,*1,*2`) and use the official diplotype-to-phenotype table.
+  - `genotypes` are parsed consumer-array rows. DuckDB writes them to ephemeral Snappy Parquet (`Chromosome`, `Start`, `End`, `genotype`) and joins that file to CPIC gene-interval Parquet. The response is exploratory: detected variants, gene-coverage percent, **Data Not Present in File** for missing sites, and a clinical-test referral. No diplotype, metabolizer status, or dose is assigned from array rows.
+  - Raw genome text is not stored. DuckDB is already in the Lambda image (`requirements.txt`). Code overrides: `gold/dashboard/code/lambda_function.py`, `cpic_allele_resolver.py`, and `pgx_exploratory_pipeline.py`.
 
 - **`GET /metrics`** - Return prebuilt model performance metrics (Documentation tab). **Fallback only:** the frontend loads metrics from the same-origin static asset `metadata/model_performance_metrics.json` (deployed with the dashboard to the dashboard bucket). If that file is missing (e.g. local dev), the frontend calls this endpoint. Lambda reads from S3 (`gold/dashboard/metadata/model_performance_metrics.json`) or container bundle; no recomputation.
 

@@ -4,6 +4,91 @@
         <a href="https://github.com/Jerome3590/pgx-analysis/tree/main/10_risk_dashboard" target="_blank" rel="noopener">GitHub</a>.
       </p>
       <div class="doc-content tab-content-inner">
+        <h2>Navigation flow</h2>
+        <p>
+          Choose a cohort first. Workflow tabs (<strong>User Guide</strong>, <strong>Risk Assessment</strong>, <strong>PGx Card</strong>) are the main path.
+          User-selected information tabs (italic: <strong>Drugs</strong>, <strong>ICD Codes</strong>, <strong>CPT Codes</strong>) feed the risk score. ICD and CPT apply to Opioid ED only.
+        </p>
+        <pre class="nav-flow" aria-label="Dashboard navigation flow">PGx Risk Assessment Dashboard
+├── Opioid ED
+│   └── User Guide
+│       ├── Risk Assessment | Drugs | ICD Codes | CPT Codes
+│       └── PGx Card
+└── Polypharmacy
+    └── User Guide
+        ├── Risk Assessment | Drugs
+        └── PGx Card</pre>
+
+        <h2>Training</h2>
+        <p>
+          Short video, slide deck, and audio overview for each use case.
+          All files are in this
+          <a href="https://drive.google.com/drive/folders/1cGbdoH-HDEooRyqWnhS6btWyhD4XOKQt?usp=drive_link" target="_blank" rel="noopener">public Drive folder</a>
+          as <code>{use_case#}_{use_case}.mp4</code> / <code>.pdf</code> / <code>.m4a</code>.
+        </p>
+        <table class="doc-metrics" id="training-use-case-table">
+          <thead>
+            <tr><th>Use case</th><th>Video</th><th>Slides</th><th>Audio</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1. Cohort risk assessment with replace-and-compare</td>
+              <td><a href="https://drive.google.com/file/d/1D4UXbAVs_LKiCyM_Spm8yS-zKZqOJmG7/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1ErDgFfrIn8jPeEK8ecMYJZYS80qfBgSV/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1ablx6SrC-UVmOWLoMYf0mcGC7mHdpFbS/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>2. Scenario Analysis (FFA/SHAP) — explain drivers</td>
+              <td><a href="https://drive.google.com/file/d/1gDJO79vIS3S2yGSLem7wdzCOrYz3zoXx/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1amlvu-64_8gD5DNi519BW73NWIKDqEzu/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1JIvaacSrbsRh0r9UGgU5gonjUdcJ7bD-/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>3. Post-score density-bin exploration</td>
+              <td><a href="https://drive.google.com/file/d/1CepVXRhgzobcWm9zI3VANaKFBo3MnWbe/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1pWhz6gR4qNx3v29xRZXxgsNlkFd1nPpL/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1Qwn-X1ACtyWxU7ZiI0U2ZXIugZ6vcN5t/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>4. Feature Importance (population drivers)</td>
+              <td><a href="https://drive.google.com/file/d/1NDsvDNCv2kN3YOKw8EAaj10c766COX5W/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1lAYcI6czGQs_s_faC4xJk7YkL0YjEdP3/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1LfOTbYnFKlT_b-Uxq2Y4ratdEf11Re6F/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>5. Pattern and process tabs including Drug Networks</td>
+              <td><a href="https://drive.google.com/file/d/1a8Nqjmx2SwJhEVWGyP69O_6xlpcu3dGO/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/10BNUM8FqDcSCo4TVDjKYNhODgrycWCaO/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1jAVR-bzJZu28pk3Jx8wLcmOBOQEsoyv1/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>6. Claims-only PGx Card</td>
+              <td><a href="https://drive.google.com/file/d/1hR0qcqhbbPuGxIrvIsmX7w5B4mffwoXQ/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1BZ1THfz-b_Toe8ETHkA6vwLBi0-Q6SN2/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1cOpYb2u7HGiVjJphhYRRLSt_U8ZrF6sZ/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>7. Personalized PGx Card from DNA</td>
+              <td><a href="https://drive.google.com/file/d/1EzzkSE2qoEmlk4WYuze09XbAihUp6SGy/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1vBNdyqXgNfct-LiFvOd_ISMveZdA3j5g/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1BIDHMTYgDX2PZjYrWjf3v2_NXbjHhvD1/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>8. PGx Cohort tab vs PGx Card</td>
+              <td><a href="https://drive.google.com/file/d/1Gqhfdx_yaEjt22MPxImvRznhW10d86jk/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1IupXd8u12LEUrMfsr8vfdrJqKqZnpwIm/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1q8I9CdS492lf629q-PyzRH8LnWWFjV8-/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+            <tr>
+              <td>9. Documentation / model trust</td>
+              <td><a href="https://drive.google.com/file/d/1SkNwVdi31HJsHTWWdxPK0K49n--J0wSN/view?usp=drive_link" target="_blank" rel="noopener">Video</a></td>
+              <td><a href="https://drive.google.com/file/d/1njPWMx85FDMTt06usvQ1e1uqXfcICC57/view?usp=drive_link" target="_blank" rel="noopener">Slides</a></td>
+              <td><a href="https://drive.google.com/file/d/1StG3kJKeOC59gKuEpoUoU9PoYjOIjAfM/view?usp=drive_link" target="_blank" rel="noopener">Audio</a></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Documentation</h2>
         <h2>Overview</h2>
         <p>
           This dashboard supports <strong>F1120 Opioid ED Visit</strong> risk and <strong>Polypharmacy</strong> risk.
@@ -12,19 +97,20 @@
 
         <h2>Tabs</h2>
         <p><strong>Cohort selector (top row):</strong> <em>Opioid ED</em> | <em>Polypharmacy</em> — switches cohort and loads cohort-specific metadata. Both cohorts support age bands 13–114.</p>
-        <p><strong>Primary tabs (second row):</strong> Documentation | Risk Assessment | Drugs | ICD Codes | CPT Codes | PGx Card</p>
-        <p><strong>Visualization tabs (third row):</strong> Feature Importance | Causal Analysis | BupaR Process Mining | DTW Trajectories | FP-Growth Patterns | PGx Cohort</p>
+        <p><strong>Primary tabs (second row):</strong> User Guide | Risk Assessment | Drugs | ICD Codes | CPT Codes | PGx Card. Drugs / ICD / CPT use an italic label to mark user-selected codes.</p>
+        <p><strong>Visualization tabs (third row):</strong> Feature Importance | Scenario Analysis (FFA/SHAP) | BupaR Process Mining | DTW Trajectories | FP-Growth Patterns | Drug Networks | PGx Cohort</p>
         <ul>
-          <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Edit codes</em> to change selections. After calculation, an <strong>Event Density badge</strong> (low / medium / high / extreme) appears — this bin is auto-synced to all visualization tabs to load patient-matched per-bin data.</li>
+          <li><strong>Risk Assessment</strong> — Enter age, select codes (via Drugs / ICD / CPT tabs), then click <em>Calculate Risk Score</em>. Use <em>Replace / swap</em> to exchange a selected drug, ICD, or CPT, then recalculate. Save two or more code sets and use <em>Compare Scenarios</em> for side-by-side ensemble risk (empty baseline vs current remains the default when nothing is saved). <em>Drug contributions</em> shows leave-one-out Δp̂ for each selected drug. After calculation, an <strong>Event Density badge</strong> (low / medium / high / extreme) appears — this bin is auto-synced to all visualization tabs to load patient-matched per-bin data.</li>
           <li><strong>Drugs</strong> — Search and add drugs for your patient. Selections are used for the risk calculation. A visual display shows all selected drugs with option to remove them.</li>
           <li><strong>ICD Codes</strong> — Search and add ICD codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only.</li>
           <li><strong>CPT Codes</strong> — Search and add CPT codes for your patient. Used for risk in the <strong>Opioid ED</strong> cohort only.</li>
-          <li><strong>PGx Card</strong> — Generate a PGx patient card from SNP/phenotype input. Auto-populated with cohort and age band after risk calculation.</li>
+          <li><strong>PGx Card</strong> — Claims radar (<em>Load Cohort PGx Profile</em>) plus an exploratory card from consumer raw DNA (<em>Generate PGx results</em>). Array files report detected variants and gene coverage. They do not assign a diplotype, metabolizer status, or dose. Lab <code>Gene,Allele</code> lines still use the official phenotype table.</li>
           <li><strong>Feature Importance</strong> — Aggregated feature importance heatmaps by cohort (from Step 3a / 2_feature_importance).</li>
-          <li><strong>Causal Analysis</strong> — View causal importance and interaction plots by cohort, age band, and event density bin. Filterable by patient codes.</li>
+          <li><strong>Scenario Analysis (FFA/SHAP)</strong> — View FFA interaction factors and SHAP importance by cohort, age band, and event density bin. Filterable by patient codes. These charts do not recalculate ensemble risk — use Risk Assessment compare / replace for modeled probabilities.</li>
           <li><strong>BupaR Process Mining</strong> — Process mining, activity frequency charts, and Gantt visualizations. Includes <em>Activity Rate by Event Density Bin</em> panel (grouped bar / heatmap toggle).</li>
           <li><strong>DTW Trajectories</strong> — Dynamic time warping trajectory visualizations by cohort, age band, and event density bin.</li>
           <li><strong>FP-Growth Patterns</strong> — Frequent itemset and drug association network visualizations. Includes <em>Itemset Support by Event Density Bin</em> panel (grouped bar / heatmap toggle).</li>
+          <li><strong>Drug Networks</strong> — Interactive Drug Networks (Cytoscape) graph of feature-importance–filtered FP-Growth rules (same FI-gated set as FP-Growth, not Plotly). Cohort × age band; combined train window. Click <em>Load Drug Network</em>.</li>
           <li><strong>PGx Cohort</strong> — PGx gene network topology and citation radar for the selected cohort and age band.</li>
         </ul>
 
@@ -32,8 +118,8 @@
         <p>Each research question is answered by one or more dashboard tabs and their visuals.</p>
         <p><strong>Original research questions</strong></p>
         <ul>
-          <li><strong>RQ1 (Polypharmacy)</strong> — Does drug window influence target outcome? Which drugs are involved? Is there a temporal/ordering aspect? → <strong>Risk Assessment</strong>, <strong>Causal Analysis</strong> (risk score, FFA + SHAP), <strong>FP-Growth</strong> (drug itemsets, network), <strong>BupaR</strong> (sequences to target, Gantt).</li>
-          <li><strong>RQ2 (Opioid ED)</strong> — What CPT/ICD codes and drugs predict OPIOID_ED? Predictive sequences? Feature importance? High-risk trajectories? Formal causality? → <strong>FP-Growth</strong> + <strong>Causal Analysis</strong> (itemsets, network, FFA, SHAP), <strong>BupaR</strong> (top sequences, pre-target frequency), <strong>DTW Trajectories</strong> (trajectory overview, high-risk vs low-risk), <strong>Causal Analysis</strong> (FFA, interactions).</li>
+          <li><strong>RQ1 (Polypharmacy)</strong> — Does drug window influence target outcome? Which drugs are involved? Is there a temporal/ordering aspect? → <strong>Risk Assessment</strong>, <strong>Scenario Analysis (FFA/SHAP)</strong> (risk score, FFA + SHAP), <strong>FP-Growth</strong> (drug itemsets, network), <strong>BupaR</strong> (sequences to target, Gantt).</li>
+          <li><strong>RQ2 (Opioid ED)</strong> — What CPT/ICD codes and drugs predict OPIOID_ED? Predictive sequences? Feature importance? High-risk trajectories? Formal causality? → <strong>FP-Growth</strong> + <strong>Scenario Analysis (FFA/SHAP)</strong> (itemsets, network, FFA, SHAP), <strong>BupaR</strong> (top sequences, pre-target frequency), <strong>DTW Trajectories</strong> (trajectory overview, high-risk vs low-risk).</li>
         </ul>
         <p><strong>Additional research questions (N1–N6)</strong></p>
         <table class="doc-metrics">
@@ -44,11 +130,28 @@
             <tr><td>N1: Routine vs utilization appointments → outcomes?</td><td>DTW Trajectories</td><td>Routine vs Utilization (Outcomes), trajectory overview, metrics</td></tr>
             <tr><td>N2: What sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Activity Sequence (Top), pre-target frequency, Gantt</td></tr>
             <tr><td>N3: What times between sequences lead to target outcomes?</td><td>BupaR Process Mining</td><td>Gantt (pre-/post-target), Activity Milestones Gantt</td></tr>
-            <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns</td><td>Drug association network, top itemsets (drug names only)</td></tr>
-            <tr><td>N5: What features drive outcome and how do they relate?</td><td>Causal Analysis</td><td>Top Causal Factors (FFA), SHAP Feature Importance, Feature Interactions</td></tr>
-            <tr><td>N6: What drug combinations drive polypharmacy ED visit?</td><td>Causal Analysis, BupaR</td><td>Causal factors (drugs), BupaR sequences / pre-target activity</td></tr>
+            <tr><td>N4: What connections between ICD, CPT, Drugs → target?</td><td>FP-Growth Patterns, Drug Networks</td><td>Drug association network, top itemsets (drug names only); FI-filtered Drug Networks (Cytoscape) rules</td></tr>
+            <tr><td>N5: What features drive outcome and how do they relate?</td><td>Scenario Analysis (FFA/SHAP)</td><td>Top Interaction Factors (FFA), SHAP Feature Importance, Feature Interactions</td></tr>
+            <tr><td>N6: What drug combinations drive polypharmacy ED visit?</td><td>Scenario Analysis (FFA/SHAP), BupaR</td><td>FFA factors (drugs), BupaR sequences / pre-target activity</td></tr>
           </tbody>
         </table>
+
+        <h2>How to use (use cases)</h2>
+        <p>
+          Compact map of what each persona can do. The full numbered workflows (live button names) live in the repo:
+          <code>10_risk_dashboard/docs/DASHBOARD_USE_CASES.md</code>
+          (<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/10_risk_dashboard/docs/DASHBOARD_USE_CASES.md" target="_blank" rel="noopener">GitHub</a>).
+          A relative markdown path will not load on this static site.
+        </p>
+        <ol>
+          <li><strong>Clinician / pharmacist — score and compare.</strong> Set <em>Opioid ED</em> or <em>Polypharmacy</em>, enter <em>Age</em>, add <em>Drugs</em> (and <em>ICD Codes</em> / <em>CPT Codes</em> for Opioid ED), then <em>Calculate Risk Score</em>. Use <em>Replace / swap</em>, save two or more sets and <em>Compare Scenarios</em> (or empty baseline vs current), and <em>Drug contributions</em> (LOO Δp̂). Then <em>View PGx Card →</em>.</li>
+          <li><strong>Scenario Analysis (FFA/SHAP)</strong> explains drivers; it does <strong>not</strong> recalculate ensemble risk. Use Risk Assessment for modeled p̂.</li>
+          <li><strong>After a score</strong>, the <em>Event Density</em> badge (low / medium / high / extreme) auto-syncs <em>BupaR Process Mining</em>, <em>DTW Trajectories</em>, <em>FP-Growth Patterns</em>, <em>PGx Cohort</em>, and <em>PGx Card</em> Event Density. Those research tabs are <strong>not</strong> filtered by your selected codes (Scenario Analysis charts are the exception).</li>
+          <li><strong>Researcher path:</strong> <em>Feature Importance</em> + <em>Scenario Analysis (FFA/SHAP)</em> + BupaR / DTW / FP-Growth / <em>Drug Networks</em> / <em>PGx Cohort</em>. RQ → artifact table is in repo <code>10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md</code> (<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/10_risk_dashboard/docs/RESEARCH_QUESTIONS_ARTIFACTS.md" target="_blank" rel="noopener">GitHub</a>).</li>
+          <li><strong>PGx Card (claims):</strong> <em>Load Cohort PGx Profile</em> — radar is cohort/claims, not genotype. Scopes: Active medications / Selected drugs / All matched drugs. Triplets are regimen-only (≥ 3 meds). <em>Actionable only</em> hides standard / no-CPIC rows.</li>
+          <li><strong>PGx Card (DNA):</strong> AncestryDNA, 23andMe, and MyHeritage are genealogy arrays. They show which variants were typed, not which chromosome copy each variant is on, and they do not measure copy number. A prescribing claim needs both, so the card reports detected variants, gene coverage, and whether a clinical test is warranted. It does not assign a diplotype, metabolizer status, or dose. Missing sites are Data Not Present in File and are not called *1. A lab line such as <code>CYP2C19,*1,*2</code> still uses the official phenotype table. Exports include a physician summary PDF. <em>Send to pharmacy</em> is disabled.</li>
+          <li><strong>PGx Cohort</strong> is population topology; <strong>PGx Card</strong> is the patient/session card.</li>
+        </ol>
 
         <h2>Workflow</h2>
         <ol>
@@ -56,15 +159,25 @@
           <li>Open <strong>Drugs</strong> tab, search and add the drugs you need. View selected drugs in the display area.</li>
           <li>For the <strong>Opioid ED</strong> cohort, also open <strong>ICD Codes</strong> and <strong>CPT Codes</strong> tabs to add additional codes.</li>
           <li>Return to <strong>Risk Assessment</strong> and click <em>Calculate Risk Score</em>.</li>
-          <li>Use <em>Compare Scenarios</em> to compare different code sets side-by-side.</li>
+          <li>Use <em>Replace / swap</em> to exchange a selected code, then <em>Calculate Risk Score</em>.</li>
+          <li>Save two (or more) code sets and use <em>Compare Scenarios</em> to score them side-by-side. Leave <em>Include empty baseline</em> checked to also show the 2019 population baseline. With no saved sets, Compare is baseline vs current selection.</li>
+          <li>Use <em>Drug contributions</em> to see leave-one-out Δp̂ when each selected drug is removed.</li>
           <li>After risk calculation, note the <strong>Event Density badge</strong> (low / medium / high / extreme). Visualization tabs auto-sync to this bin, loading patient-matched density data automatically.</li>
-          <li>Explore visualizations on other tabs (Causal Analysis, DTW, etc.) to understand feature importance and patterns.</li>
+          <li>Explore visualizations on other tabs (Scenario Analysis, DTW, etc.) to understand feature importance and patterns. Scenario Analysis charts are FFA/SHAP signals, not new ensemble risk scores.</li>
         </ol>
 
         <h2>Model performance and at-risk identification</h2>
         <p>
-          Below are model performance metrics by <strong>cohort</strong> and <strong>age band</strong>. Metrics are from Monte Carlo cross-validation (2016–2018 train / 2019 holdout). 
-          <strong>Recall (sensitivity)</strong> indicates how well the model identifies at-risk patients who had the outcome; <strong>PR-AUC</strong> (average precision) is suited to imbalanced outcomes.
+          Below are the <strong>selected-model</strong> metrics on the <strong>2019 temporal holdout</strong> after leakage correction (trained and tuned on 2016–2018 only).
+          These are not 25-run MCCV training scores. <strong>PR-AUC</strong> is the primary metric for imbalanced outcomes; <strong>PR lift</strong> is PR-AUC divided by holdout prevalence.
+          Both published tables report the <strong>selected model only</strong> (best 2019 holdout PR-AUC per age band).
+          Opioid ED values are from Dixon &amp; Price,
+          <a href="https://doi.org/10.1111/cts.70690" target="_blank" rel="noopener"><em>Clin Transl Sci</em> doi:10.1111/cts.70690</a>
+          (Table 2; low-density holdout except 75–84 and 85–114 age-band aggregate).
+          Polypharmacy values are from Dixon &amp; Price,
+          <a href="https://doi.org/10.1111/cts.70718" target="_blank" rel="noopener"><em>Clin Transl Sci</em> doi:10.1111/cts.70718</a>
+          (Table 2).
+          Opioid ED 0–12 is excluded (too few cases for stable training).
         </p>
         <div id="doc-metrics-container" class="doc-metrics">
           <p class="doc-metrics-loading">Loading metrics…</p>
@@ -124,6 +237,22 @@
           the <em>per-bin</em> data matching the patient's density level.
           After clicking <em>Calculate Risk Score</em>, the <strong>Event Density badge</strong> shows the patient's bin
           and all visualization tabs auto-sync to it.
+        </p>
+
+        <h2>Unphased DNA files and star alleles</h2>
+        <p>
+          Genealogy files (AncestryDNA, 23andMe, MyHeritage) and a typical unphased VCF cannot support a clinical pharmacogenomic claim. They were built to report which variants are present. They do not say which copy of the gene each variant sits on, and they do not measure copy number. CPIC dosing uses a phased diplotype plus copy-number validation. A site that is absent from the file is not a normal allele.
+        </p>
+        <p>
+          The card can report a detected variant, gene coverage, and whether a clinical test is warranted. It does not assign a diplotype, a metabolizer status, or a dose from that file.
+        </p>
+        <ul>
+          <li>Permitted: “Variant rs12248560 (C/T) detected in raw upload file.” “Gene Coverage: 42% of known CYP2D6 variant locations present.” “CPIC guideline reference available for clopidogrel.”</li>
+          <li>Not produced from array files: a star-allele diplotype, a metabolizer status, or a dose change.</li>
+          <li>A site missing from the file is marked <strong>Data Not Present in File</strong>. It is not filled in as *1.</li>
+        </ul>
+        <p>
+          Entering a lab-reported line such as <code>CYP2C19,*1,*2</code> skips this raw-file path and uses the official diplotype-to-phenotype table.
         </p>
 
         <h2>Technical notes</h2>

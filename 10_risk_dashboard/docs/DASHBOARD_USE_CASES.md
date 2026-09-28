@@ -9,7 +9,7 @@ Labels below match the live tab bar and buttons in `frontend/index.html` and `fr
 - Research-question → artifact table: [RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md)
 - How visuals are produced: [README_visualization_plan.md](README_visualization_plan.md)
 - Static-first JSON (S3/CloudFront, Lambda fallback): [STATIC_FIRST_JSON.md](STATIC_FIRST_JSON.md)
-- Training screenshots + README pack: [TRAINING.md](TRAINING.md) (Google Drive folder layout; NotebookLM only if generated)
+- Training screenshots + README pack: [TRAINING.md](TRAINING.md). Public video / slides / audio: [Drive folder](https://drive.google.com/drive/folders/1cGbdoH-HDEooRyqWnhS6btWyhD4XOKQt?usp=drive_link)
 
 ---
 
@@ -18,7 +18,7 @@ Labels below match the live tab bar and buttons in `frontend/index.html` and `fr
 | Row | Live names |
 |-----|------------|
 | Cohort | **Opioid ED** · **Polypharmacy** |
-| Primary | **Documentation** · **Risk Assessment** · **Drugs** · **ICD Codes** · **CPT Codes** · **PGx Card** |
+| Primary | **User Guide** · **Risk Assessment** · **Drugs** · **ICD Codes** · **CPT Codes** · **PGx Card** |
 | Visualizations | **Feature Importance** · **Scenario Analysis (FFA/SHAP)** · **BupaR Process Mining** · **DTW Trajectories** · **FP-Growth Patterns** · **Drug Networks** · **PGx Cohort** |
 
 ICD Codes and CPT Codes are used for **Opioid ED** risk only. On **Polypharmacy** those tabs are hidden; risk uses drugs only.
@@ -29,11 +29,11 @@ Age on Risk Assessment selects the age band. Scoring requires **age 13–114** (
 
 ## Personas
 
-**Clinician / pharmacist.** Score a claims-style profile (age + selected codes), replace one code at a time, compare two or more saved sets (or empty baseline vs current), and read leave-one-out drug contributions (Δp̂). After a score, open **View PGx Card →** for the cohort/claims radar, then optionally attach gene/allele data and use **Clinician / pharmacist** view. Exports include **Pharmacy handoff**. **Send to pharmacy (coming soon)** is disabled — there is no live e-prescribe.
+**Clinician / pharmacist.** Score a claims-style profile (age + selected codes), replace one code at a time, compare two or more saved sets (or empty baseline vs current), and read leave-one-out drug contributions (Δp̂). After a score, open **View PGx Card →** for the cohort/claims radar, then optionally upload a consumer array file or type a lab `Gene,Allele` line and use **Clinician / pharmacist** view. Array files produce coverage and a clinical-test referral. Lab alleles produce action categories. Exports include **Pharmacy handoff** and **Download summary for your doctor**. **Send to pharmacy (coming soon)** is disabled — there is no live e-prescribe.
 
 **Researcher.** Use **Feature Importance**, **Scenario Analysis (FFA/SHAP)**, **BupaR Process Mining**, **DTW Trajectories**, **FP-Growth Patterns**, **Drug Networks**, and **PGx Cohort** to inspect population drivers, sequences, and gene–drug topology. These tabs answer RQ1/RQ2 and N1–N6. The artifact table lives in [RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md) — this document only names the path.
 
-**Patient / self-assessment.** Enter **Age**, add codes on **Drugs** (and ICD/CPT if Opioid ED), click **Calculate Risk Score**, then optionally upload AncestryDNA / 23andMe / Excel / VCF or type `Gene,Allele` lines on **PGx Card**. Parsing stays in the browser. Switch **View** to **Patient** for plainer language. There is no account, no haplotype caller, and no pharmacy transmission.
+**Patient / self-assessment.** Enter **Age**, add codes on **Drugs** (and ICD/CPT if Opioid ED), click **Calculate Risk Score**, then optionally upload AncestryDNA, 23andMe, MyHeritage, or VCF, or type a lab `Gene,Allele` line on **PGx Card**. Array files are parsed in the browser. The report lists detected variants and gene coverage and points to a clinical test. It does not assign a diplotype or a dose from those files. Switch **View** to **Patient** for plainer language. There is no account and no pharmacy transmission.
 
 ---
 
@@ -52,7 +52,7 @@ flowchart LR
 1. **Observe** — **Risk Assessment**: Age + codes → **Calculate Risk Score** → ensemble p̂, band, **Event Density** badge.
 2. **Orient** — Open the density-synced research tabs (BupaR, DTW, FP-Growth, PGx Cohort) and/or the **PGx Card** radar for that cohort / age band / bin.
 3. **Decide** — **Replace / swap a code**, **Save current selection** + **Compare Scenarios**, and **Drug contributions** (LOO Δp̂). **Scenario Analysis (FFA/SHAP)** explains drivers; it does **not** recompute ensemble risk.
-4. **Act** — **PGx Card**: claims profile via **Load Cohort PGx Profile**, or a personalized card from gene data. Actions are **categories** plus guideline URLs — not invented CPIC prose.
+4. **Act** — **PGx Card**: claims profile via **Load Cohort PGx Profile**, an exploratory array-file report (coverage and clinical-test referral), or a lab allele card. Lab-allele actions are categories plus guideline URLs. Array files do not assign a dose.
 
 Researcher work sits beside this loop (same cohort / age / bin) and is mapped in [RESEARCH_QUESTIONS_ARTIFACTS.md](RESEARCH_QUESTIONS_ARTIFACTS.md).
 
@@ -170,16 +170,18 @@ When you later generate a personalized card (use case 7):
 Optional refinement after (or instead of) the claims radar.
 
 1. Under **1. Gene data**, leave **Session / patient pseudonym** blank for an anonymous session, or enter a label.
-2. Enter **Gene / allele** lines (`CYP2D6,*1,*4`) **or** **Or upload file**: AncestryDNA or 23andMe (txt/csv/zip), Excel `.xlsx` (`Gene,Allele1,Allele2`), or VCF.
-3. Files are parsed **in this browser**. They are not uploaded to S3. The browser keeps official CPIC defining rsids only, then `POST /pgx/card` runs the conservative unphased matcher against official allele-definition tables. This is **not** full haplotype calling.
+2. Enter **Gene / allele** lines (`CYP2D6,*1,*4`) **or** **Or upload file**: AncestryDNA, 23andMe, or MyHeritage (txt/csv/zip), Excel `.xlsx` (`Gene,Allele1,Allele2`), or unphased VCF.
+3. Files are parsed **in this browser**. They are not uploaded to S3. The browser keeps official CPIC defining rsids, chromosome, and position, then `POST /pgx/card` runs the DuckDB Parquet pipeline.
 
-   **What “unphased” means.** A VCF or 23andMe/Ancestry extract tells you which variants are present, not which copy of the gene each variant sits on. A star allele is an official haplotype (a defined SNP combination on *one* chromosome). Unphased data only give a genotype at each rsid (for example `A/G`). When an official allele is a single SNP, a conservative call is often possible (SLCO1B1 `rs4149056` `TC` → `*1/*5`). When a star uses several SNPs, or two official alleles share a site (CYP2C19 `*2` vs `*38` on `rs4244285`), the same row fits more than one haplotype pair. Guessing `*1/*2` would invent a phase the file does not contain, so the card lists **candidate alleles** and marks the gene **indeterminate**. A lab-style line such as `CYP2C19,*1,*2` skips rsid calling and uses the official diplotype→phenotype table.
+   **Array files stay exploratory.** DuckDB writes the parsed rows to ephemeral Snappy Parquet (`Chromosome`, `Start`, `End = Start + 1`, `genotype`) and joins them to a CPIC target Parquet on chromosome and `Start BETWEEN gene_start AND gene_end`. The card then shows detected variants and **Gene Coverage** (percent of known sites present). A site missing from the file is **Data Not Present in File**. It is not filled in as `*1`. Copy number is not measured. The card does not assign a diplotype, a metabolizer status, or a dose from this path. High-value genes (`CYP2C19`, `CYP2D6`, `VKORC1`, `SLCO1B1`, `HLA-B`) with a detected variant open a clinical-test referral. **Download summary for your doctor** lists rsids and CPIC drug references for a clinician.
 
-4. Under **2. Virginia APCD medications**, search generics (two characters), set **Drug scope** and **Actionable only**, and choose **Patient** or **Clinician / pharmacist**.
-5. Click **Generate PGx results**. The request is **POST `/pgx/card`** with **parsed variants** (plus selected APCD drugs and scope) — not the raw genome file.
-6. Review **Medication-first action queue**, **Gene–drug actionability matrix**, **Polypharmacy triplet engine**, and **Genes tested**. Rows are **action categories** (Avoid / alternative needed, Dose adjustment needed, Reduced response possible, Monitoring recommended, No PGx action identified, No applicable CPIC action, Insufficient genetic resolution) plus guideline URLs. Unlisted allele pairs stay **indeterminate**, never “normal.” This is not a full CPIC translation service and does not invent guideline prose.
-7. Export: **Print**, **Download JSON**, **Download CSV**, **Download PNG**, **Download PDF**, **Copy to clipboard**, **Technical appendix**, **Pharmacy handoff**.
-8. **Send to pharmacy (coming soon)** stays disabled. There is no live e-prescribe.
+   **Lab lines are different.** `CYP2C19,*1,*2` skips the array pipeline and uses the official diplotype-to-phenotype table.
+
+4. Under **2. Virginia APCD medications**, search generics (two characters), set **Drug scope** and **Actionable only**, and choose **Patient** or **Clinician / pharmacist**. Medication actions apply to lab allele lines. Array-file results do not become dose adjustments.
+5. Click **Generate PGx results**. The request is **POST `/pgx/card`** with parsed rsid rows or lab alleles (plus selected APCD drugs and scope) — not the raw genome file.
+6. For a lab allele line, review **Medication-first action queue**, **Gene–drug actionability matrix**, **Polypharmacy triplet engine**, and **Genes tested**. Unlisted allele pairs stay **indeterminate**, never “normal.” For an array file, review the exploratory finding, gene-coverage line, and clinical-test referral instead of a dose queue.
+7. Export: **Print**, **Download JSON**, **Download CSV**, **Download PNG**, **Download PDF**, **Download summary for your doctor**, **Copy to clipboard**, **Technical appendix**, **Pharmacy handoff**.
+8. **Send to pharmacy (coming soon)** stays disabled. There is no live e-prescribe. Ordering a clinical PGx panel is a referral, not an in-dashboard lab order.
 
 ---
 
@@ -189,30 +191,31 @@ Optional refinement after (or instead of) the claims radar.
 |--|----------------|--------------|
 | Role | Population topology | Patient / session card |
 | Load | **Load PGx Cohort Network** | **Load Cohort PGx Profile** and/or **Generate PGx results** |
-| Content | Gene–drug–phenotype network, figure pack, cohort radar | Claims radar (optional) + gene-data card, action queue, triplets, exports |
-| Question | How do PGx genes, drugs, and phenotypes connect in this cohort × age band? | What should this session do given claims context and optional alleles? |
+| Content | Gene–drug–phenotype network, figure pack, cohort radar | Claims radar (optional). Array upload: coverage and clinical-test referral. Lab alleles: action queue, triplets, exports |
+| Question | How do PGx genes, drugs, and phenotypes connect in this cohort × age band? | What did this array file contain, or what does a lab diplotype imply for this session? |
 
-Use **PGx Cohort** for research topology. Use **PGx Card** when a person (or a claims proxy) needs an action list.
+Use **PGx Cohort** for research topology. Use **PGx Card** for a claims radar, an exploratory array-file report, or a lab allele review. Array files do not produce a dose list.
 
 ---
 
 ### 9. Documentation / model trust
 
-1. Open **Documentation**.
+1. Open **User Guide**. Use the **Training** table for video / slides / audio. Files are in the [public Drive folder](https://drive.google.com/drive/folders/1cGbdoH-HDEooRyqWnhS6btWyhD4XOKQt?usp=drive_link) as `{nn}_{use_case}.mp4` / `.pdf` / `.m4a`.
 2. Read **How to use**, research-question coverage, and the compact use-case summary (this file is the long form).
-3. Review **Model performance and at-risk identification** (Monte Carlo 2016–2018 / 2019 holdout metrics by cohort and age band).
+3. Review **Model performance and at-risk identification** (2019 temporal holdout after leakage correction; selected model by cohort and age band from [Dixon & Price, *Clin Transl Sci*, doi:10.1111/cts.70690](https://doi.org/10.1111/cts.70690) Table 2 and [Dixon & Price, *Clin Transl Sci*, doi:10.1111/cts.70718](https://doi.org/10.1111/cts.70718) Table 2).
 4. Review **Dashboard visual artifacts (from manifest)** (`visualizations/dashboard_visual_objects.json`).
 5. Use **Feature importance sources for visuals** and **Event density bins** to interpret why BupaR/DTW vs FP-Growth can disagree, and why the badge matters for model routing.
-6. Read **Unphased DNA files and star alleles** so VCF / 23andMe / AncestryDNA uploads are not mistaken for full haplotype calling.
+6. Read **Unphased DNA files and star alleles** so AncestryDNA, 23andMe, MyHeritage, and VCF uploads are read as coverage and referral, not as a diplotype or a dose.
 
-In-app Documentation is the trust surface for users who never open the repo. This markdown is the workflow source of truth for implementers.
+In-app User Guide is the trust surface for users who never open the repo. This markdown is the workflow source of truth for implementers.
 
 ---
 
 ## What this dashboard does not do
 
-- Full haplotype / phased star-allele calling from VCF or DTC files. Those files are unphased: they do not say which chromosome copy each variant sits on. Live calling is the conservative unphased official-table matcher only; multi-variant or overlapping stars stay indeterminate.
-- Invented CPIC guideline prose (categories + URLs only; unlisted pairs stay indeterminate).
+- A diplotype, metabolizer status, or dose from AncestryDNA, 23andMe, MyHeritage, or unphased VCF. Those files are unphased and do not measure copy number. The live path is DuckDB Parquet coverage plus a clinical-test referral. Missing sites stay **Data Not Present in File**.
+- An in-dashboard order for a CLIA/CAP PGx panel. The card links to CPIC guidelines and NSGC counselor search and can download a physician summary.
+- Invented CPIC guideline prose. Lab allele lines use action categories and guideline URLs. Array files say “CPIC guideline reference available” for an associated drug and do not recommend a dose. Unlisted lab allele pairs stay indeterminate.
 - Live e-prescribe or **Send to pharmacy**.
 - Filtering BupaR, DTW, FP-Growth, Drug Networks, or PGx Cohort by the codes selected on Drugs / ICD / CPT. **Scenario Analysis (FFA/SHAP)** is the exception.
 - Treating **Compare Scenarios** as a single-scenario button. Live behavior is **two or more saved sets**, or empty baseline vs current when nothing is saved.

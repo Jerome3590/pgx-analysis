@@ -20,7 +20,11 @@
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  <script src="js/pgx-workflow.js?v=20260926e"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="js/pgx-workflow.js?v=20260928-genealogy-note"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -303,6 +307,80 @@
     .scenario-delta.negative {
       color: #16a34a;
     }
+    .scenario-card-codes {
+      font-size: 0.75rem;
+      color: #64748b;
+      margin-top: 0.35rem;
+    }
+    .scenario-modeling {
+      margin-top: 1.25rem;
+      display: grid;
+      gap: 1rem;
+    }
+    .replace-panel, .saved-scenarios-panel {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 1rem;
+    }
+    .replace-panel h3, .saved-scenarios-panel h3 {
+      margin: 0 0 0.35rem 0;
+      font-size: 1rem;
+      color: #0f172a;
+    }
+    .scenario-help {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin: 0 0 0.75rem 0;
+    }
+    .replace-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      align-items: center;
+    }
+    .replace-row select, .replace-row input[type="text"] {
+      min-width: 10rem;
+      max-width: 18rem;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.35rem;
+      font-size: 0.85rem;
+    }
+    .replace-row label {
+      font-size: 0.8rem;
+      color: #475569;
+    }
+    .saved-scenario-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .saved-scenario-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.8rem;
+    }
+    .contrib-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .contrib-table th, .contrib-table td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 0.4rem 0.55rem;
+      text-align: left;
+    }
+    .contrib-table th { color: #475569; font-weight: 600; }
+    .contrib-pos { color: #dc2626; }
+    .contrib-neg { color: #16a34a; }
+    .code-chip button.replace-chip-btn { background: rgba(255,255,255,0.22); }
     .code-search {
       margin-bottom: 0.5rem;
     }
@@ -377,6 +455,16 @@
       font-weight: 600;
       color: #64748b;
       transition: all 0.2s;
+    }
+    .tab-button.tab-workflow {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .tab-button.tab-selection {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-weight: 600;
+      font-style: italic;
     }
     .tab-button:hover {
       color: #0f172a;
@@ -483,6 +571,22 @@
     }
     .pgx-session-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.75rem; font-size:0.82rem; color:#334155; margin-top:0.75rem; }
     .pgx-privacy-note { font-size:0.8rem; color:#64748b; margin:0.75rem 0 0; }
+    .pgx-medical-notice { background:#fff7ed; border:1px solid #fdba74; border-radius:0.5rem; padding:0.9rem 1rem; margin:0.75rem 0 1rem; color:#7c2d12; }
+    .pgx-medical-notice h3 { margin:0 0 0.35rem; font-size:1rem; color:#9a3412; }
+    .pgx-medical-notice p, .pgx-medical-notice li { font-size:0.85rem; margin:0.35rem 0; }
+    .pgx-pipeline { display:grid; gap:0.45rem; margin:0.75rem 0 1rem; }
+    .pgx-pipeline-step { background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.4rem; padding:0.45rem 0.7rem; font-size:0.8rem; }
+    .pgx-nudge { background:#fff; border:1px solid #e2e8f0; border-left:4px solid #c2410c; border-radius:0.5rem; padding:1rem; margin-bottom:0.75rem; }
+    .pgx-nudge h3 { margin:0 0 0.35rem; font-size:1rem; }
+    .pgx-nudge-links { display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.75rem; }
+    .pgx-nudge-links a, .pgx-nudge-links button { font-size:0.85rem; }
+    .pgx-recommendation-card { border:1px solid #e2e8f0; border-radius:0.6rem; padding:1rem 1.1rem; margin:0 0 1rem; background:#fff; }
+    .pgx-recommendation-card h3 { margin:0 0 0.4rem; font-size:1.05rem; }
+    .pgx-recommendation-card p { margin:0.35rem 0; font-size:0.9rem; }
+    .pgx-recommendation-card.pgx-test-needed { border-left:4px solid #c2410c; background:#fff7ed; }
+    .pgx-recommendation-card.pgx-test-clear { border-left:4px solid #059669; background:#ecfdf5; }
+    .pgx-recommendation-card.pgx-test-lab { border-left:4px solid #64748b; background:#f8fafc; }
+    .pgx-testing-actions { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:0.75rem; }
     .pgx-count-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:0.75rem; margin:1rem 0 1.5rem; }
     .pgx-count-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.85rem; font-size:0.8rem; }
     .pgx-count-n { font-size:1.4rem; font-weight:700; }
@@ -514,8 +618,16 @@
     .pgx-matrix th, .pgx-matrix td { border:1px solid #e2e8f0; padding:0.4rem; }
     .pgx-cell-none { color:#94a3b8; background:#f8fafc; }
     .pgx-empty { color:#64748b; font-style:italic; }
+    .pgx-export-row { display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center; }
+    .pgx-export-row button { margin:0; }
+    .pgx-inline-check { display:flex; align-items:center; gap:0.4rem; font-weight:500; }
+    .pgx-card-header-row { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap; }
+    .pgx-qr-wrap { text-align:center; max-width:140px; }
+    .pgx-qr-wrap canvas { display:block; width:128px; height:128px; background:#fff; border:1px solid #e2e8f0; border-radius:0.35rem; }
+    .pgx-qr-wrap small { display:block; color:#64748b; font-size:0.68rem; line-height:1.3; margin-top:0.35rem; }
+    #pgx-send-pharmacy:disabled { opacity:0.55; cursor:not-allowed; }
     @media print {
-      .cohort-tabs, .tabs, .pgx-input-section, #pgx-snp-refine-section, #pgx-card-status, button { display:none !important; }
+      .cohort-tabs, .tabs, .pgx-input-section, #pgx-snp-refine-section, #pgx-card-status, button, .pgx-export-row { display:none !important; }
       #pgx-card-display { display:block !important; }
     }
     .status-message {
@@ -728,11 +840,26 @@
     #documentation-tab .doc-content h2 { margin-top: 1.25rem; margin-bottom: 0.5rem; font-size: 1.1rem; color: #0f172a; }
     #documentation-tab .doc-content h2:first-child { margin-top: 0; }
     #documentation-tab .doc-content p { margin: 0.5rem 0 1rem 0; }
+    #documentation-tab .nav-flow {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      white-space: pre;
+      color: #0f172a;
+      margin: 0.5rem 0 1rem 0;
+    }
     #documentation-tab .doc-content ul, #documentation-tab .doc-content ol { margin: 0.5rem 0 1rem 1.25rem; }
     #documentation-tab .doc-content li { margin-bottom: 0.35rem; }
     #documentation-tab .doc-metrics { margin: 1rem 0; }
     #documentation-tab .doc-metrics-loading { color: #64748b; font-style: italic; }
     #documentation-tab .doc-metrics table { border-collapse: collapse; width: 100%; max-width: 720px; margin: 0.75rem 0; font-size: 0.9rem; }
+    #documentation-tab #training-use-case-table { max-width: 960px; }
+    #documentation-tab .training-pending { color: #94a3b8; }
     #documentation-tab .doc-metrics th, #documentation-tab .doc-metrics td { border: 1px solid #e2e8f0; padding: 0.4rem 0.6rem; text-align: left; }
     #documentation-tab .doc-metrics th { background: #f1f5f9; font-weight: 600; }
     #documentation-tab .doc-metrics .metrics-cohort { font-weight: 600; margin-top: 1rem; color: #0f172a; }
@@ -811,12 +938,12 @@
     
     <!-- Primary pipeline tabs -->
     <div class="tabs tabs-primary">
-      <button class="tab-button" data-tab="documentation" onclick="switchTab('documentation')">Documentation</button>
-      <button class="tab-button active" data-tab="risk-assessment" onclick="switchTab('risk-assessment')">Risk Assessment</button>
-      <button class="tab-button" data-tab="drugs" onclick="switchTab('drugs')">Drugs</button>
-      <button class="tab-button" data-tab="icd-codes" onclick="switchTab('icd-codes')">ICD Codes</button>
-      <button class="tab-button" data-tab="cpt-codes" onclick="switchTab('cpt-codes')">CPT Codes</button>
-      <button class="tab-button" data-tab="pgx-card" onclick="switchTab('pgx-card')">PGx Card</button>
+      <button class="tab-button tab-workflow" data-tab="documentation" onclick="switchTab('documentation')">User Guide</button>
+      <button class="tab-button tab-workflow active" data-tab="risk-assessment" onclick="switchTab('risk-assessment')">Risk Assessment</button>
+      <button class="tab-button tab-selection" data-tab="drugs" onclick="switchTab('drugs')">Drugs</button>
+      <button class="tab-button tab-selection" data-tab="icd-codes" onclick="switchTab('icd-codes')">ICD Codes</button>
+      <button class="tab-button tab-selection" data-tab="cpt-codes" onclick="switchTab('cpt-codes')">CPT Codes</button>
+      <button class="tab-button tab-workflow" data-tab="pgx-card" onclick="switchTab('pgx-card')">PGx Card</button>
     </div>
 
     <!-- Data visualization tabs: Feature Importance first (input for BupaR, FP-Growth, DTW); final model refines further -->
@@ -826,7 +953,7 @@
       <button class="tab-button" data-tab="bupar-visualizations" onclick="switchTab('bupar-visualizations')">BupaR Process Mining</button>
       <button class="tab-button" data-tab="dtw-visualizations" onclick="switchTab('dtw-visualizations')">DTW Trajectories</button>
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
-      <button class="tab-button" data-tab="cytoscape-visualizations" onclick="switchTab('cytoscape-visualizations')">Cytoscape Networks</button>
+      <button class="tab-button" data-tab="cytoscape-visualizations" onclick="switchTab('cytoscape-visualizations')">Drug Networks</button>
       <button class="tab-button" data-tab="cohort-pgx-visualizations" onclick="switchTab('cohort-pgx-visualizations')">PGx Cohort</button>
     </div>
 
@@ -867,7 +994,7 @@
     <!-- PGx Cohort Tab (Cohort PGx: VIP reports + network topology per cohort/age_band) -->
     <div id="cohort-pgx-visualizations-tab" class="tab-content"></div>
 
-    <!-- Documentation Tab (same-page content, no navigation away) -->
+    <!-- User Guide tab (data-tab=documentation; same-page content, no navigation away) -->
     <div id="documentation-tab" class="tab-content"></div>
   </div>
 
@@ -893,9 +1020,10 @@
     ['cohort-pgx-visualizations-tab', 'tabs/cohort-pgx.html'],
     ['documentation-tab', 'tabs/documentation.html'],
   ];
+  const _TAB_V = "20260927-train-ids";
   await Promise.all(_TABS.map(async ([id, file]) => {
     try {
-      const r = await fetch(file);
+      const r = await fetch(file + (file.indexOf("?") >= 0 ? "&" : "?") + "v=" + _TAB_V);
       if (r.ok) {
         const el = document.getElementById(id);
         if (el) el.innerHTML = await r.text();
@@ -1096,6 +1224,7 @@
     if (typeof updateIcdDisplay === "function") updateIcdDisplay();
     if (typeof updateCptDisplay === "function") updateCptDisplay();
     updateCodesSummary();
+    if (typeof refreshReplaceControls === "function") refreshReplaceControls();
   }
 
   window._available = null;
@@ -1745,8 +1874,200 @@
   }
 
   // ==============================
-  // COMPARISON MODE
+  // SCENARIO MODELING (replace, save, compare, leave-one-out)
   // ==============================
+  const savedRiskScenarios = [];
+  window._savedRiskScenarios = savedRiskScenarios;
+
+  function currentCodeSnapshot(name) {
+    return {
+      name: name || "Current Selection",
+      drugs: getMultiSelectValues(drugsEl),
+      icds: getMultiSelectValues(icdsEl),
+      cpts: getMultiSelectValues(cptsEl)
+    };
+  }
+
+  function snapshotCountLabel(snap) {
+    const d = (snap.drugs || []).length;
+    const i = (snap.icds || []).length;
+    const c = (snap.cpts || []).length;
+    return `${d} drug${d === 1 ? "" : "s"}, ${i} ICD, ${c} CPT`;
+  }
+
+  function setMultiSelectValues(selectEl, values) {
+    if (!selectEl) return;
+    const set = new Set(values || []);
+    Array.from(selectEl.options).forEach((opt) => { opt.selected = set.has(opt.value); });
+  }
+
+  function applyCodeSnapshot(snap) {
+    if (!snap) return;
+    setMultiSelectValues(drugsEl, snap.drugs);
+    setMultiSelectValues(icdsEl, snap.icds);
+    setMultiSelectValues(cptsEl, snap.cpts);
+    updateSelectionDisplays();
+    refreshReplaceControls();
+  }
+
+  function selectElForType(type) {
+    if (type === "icd") return icdsEl;
+    if (type === "cpt") return cptsEl;
+    return drugsEl;
+  }
+
+  function fillSelectFromOptions(destEl, srcEl, opts) {
+    if (!destEl || !srcEl) return;
+    const exclude = new Set(opts.exclude || []);
+    const selectedOnly = !!opts.selectedOnly;
+    const q = String(opts.query || "").toLowerCase();
+    destEl.innerHTML = "";
+    Array.from(srcEl.options).forEach((opt) => {
+      if (selectedOnly && !opt.selected) return;
+      if (!selectedOnly && exclude.has(opt.value)) return;
+      const text = (opt.textContent || opt.value || "");
+      if (q && !text.toLowerCase().includes(q) && !String(opt.value).toLowerCase().includes(q)) return;
+      const clone = document.createElement("option");
+      clone.value = opt.value;
+      clone.textContent = text;
+      destEl.appendChild(clone);
+    });
+  }
+
+  function refreshReplaceControls() {
+    const typeEl = document.getElementById("replace-type");
+    const fromEl = document.getElementById("replace-from");
+    const toEl = document.getElementById("replace-to");
+    const searchEl = document.getElementById("replace-to-search");
+    if (!typeEl || !fromEl || !toEl) return;
+    if (currentCohort === "non_opioid_ed") {
+      Array.from(typeEl.options).forEach((opt) => {
+        opt.hidden = opt.value === "icd" || opt.value === "cpt";
+      });
+      if (typeEl.value === "icd" || typeEl.value === "cpt") typeEl.value = "drug";
+    } else {
+      Array.from(typeEl.options).forEach((opt) => { opt.hidden = false; });
+    }
+    const type = typeEl.value || "drug";
+    const src = selectElForType(type);
+    const prevFrom = fromEl.value;
+    fillSelectFromOptions(fromEl, src, { selectedOnly: true });
+    if (prevFrom && Array.from(fromEl.options).some((o) => o.value === prevFrom)) fromEl.value = prevFrom;
+    const exclude = new Set(getMultiSelectValues(src));
+    fillSelectFromOptions(toEl, src, { exclude: exclude, query: searchEl ? searchEl.value : "" });
+  }
+
+  function replaceSelectedCode(type, fromCode, toCode) {
+    const src = selectElForType(type);
+    if (!src || !fromCode || !toCode) return { ok: false, error: "Choose a code to remove and a replacement." };
+    if (fromCode === toCode) return { ok: false, error: "Replacement must be a different code." };
+    const fromOpt = Array.from(src.options).find((o) => o.value === fromCode);
+    const toOpt = Array.from(src.options).find((o) => o.value === toCode);
+    if (!fromOpt) return { ok: false, error: "Selected code is not in the current list." };
+    if (!toOpt) return { ok: false, error: "Replacement code is not available for this age band." };
+    fromOpt.selected = false;
+    toOpt.selected = true;
+    updateSelectionDisplays();
+    refreshReplaceControls();
+    return { ok: true, from: fromOpt.textContent || fromCode, to: toOpt.textContent || toCode, type };
+  }
+
+  window.replacePatientCode = function (type, fromCode, toCode) {
+    const result = replaceSelectedCode(type, fromCode, toCode);
+    if (!result.ok) {
+      setStatus(result.error, "error");
+      return false;
+    }
+    setStatus(`Replaced ${result.from} with ${result.to}. Click Calculate Risk Score to see the new probability.`, "success");
+    return true;
+  };
+
+  window.beginReplace = function (type, fromCode) {
+    const typeEl = document.getElementById("replace-type");
+    if (typeEl) typeEl.value = type;
+    refreshReplaceControls();
+    const fromEl = document.getElementById("replace-from");
+    if (fromEl && fromCode) fromEl.value = fromCode;
+    if (typeof window.switchTab === "function") window.switchTab("risk-assessment");
+    const searchEl = document.getElementById("replace-to-search");
+    if (searchEl) searchEl.focus();
+    const panel = document.getElementById("replace-panel");
+    if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+
+  function renderSavedScenarios() {
+    const list = document.getElementById("saved-scenarios-list");
+    if (!list) return;
+    if (!savedRiskScenarios.length) {
+      list.innerHTML = '<span class="pgx-chip-empty">No saved scenarios yet.</span>';
+      return;
+    }
+    list.innerHTML = savedRiskScenarios.map((snap, idx) => {
+      return `<span class="saved-scenario-chip" data-scenario-index="${idx}">` +
+        `<strong>${escapeHtml(snap.name)}</strong>` +
+        `<span>${escapeHtml(snapshotCountLabel(snap))}</span>` +
+        `<button type="button" data-load-scenario="${idx}">Load</button>` +
+        `<button type="button" data-remove-scenario="${idx}">×</button>` +
+        `</span>`;
+    }).join("");
+  }
+
+  function saveCurrentScenario(explicitName) {
+    const nameInput = document.getElementById("scenario-name-input");
+    const name = (explicitName || (nameInput && nameInput.value) || "").trim() || (`Scenario ${savedRiskScenarios.length + 1}`);
+    const snap = currentCodeSnapshot(name);
+    if (!snap.drugs.length && !snap.icds.length && !snap.cpts.length) {
+      setStatus("Select at least one code before saving a scenario.", "error");
+      return null;
+    }
+    savedRiskScenarios.push(snap);
+    if (nameInput) nameInput.value = "";
+    renderSavedScenarios();
+    setStatus(`Saved “${snap.name}” (${snapshotCountLabel(snap)}). Save another set, then Compare Scenarios.`, "success");
+    return snap;
+  }
+
+  window.saveRiskScenario = saveCurrentScenario;
+
+  function buildComparisonPayload(age, cohort, ageBand) {
+    const current = currentCodeSnapshot("Current Selection");
+    const includeBaseline = document.getElementById("include-baseline")?.checked !== false;
+    const emptyBase = { age, cohort, age_band: ageBand, drugs: [], icds: [], cpts: [], name: "Baseline (no codes)" };
+    let scenarios;
+    let base;
+    let baseIsEmpty;
+    if (savedRiskScenarios.length >= 2) {
+      scenarios = savedRiskScenarios.map((s) => ({ name: s.name, drugs: s.drugs, icds: s.icds, cpts: s.cpts }));
+      baseIsEmpty = includeBaseline;
+      base = includeBaseline ? emptyBase : {
+        age, cohort, age_band: ageBand,
+        name: savedRiskScenarios[0].name,
+        drugs: savedRiskScenarios[0].drugs,
+        icds: savedRiskScenarios[0].icds,
+        cpts: savedRiskScenarios[0].cpts
+      };
+    } else if (savedRiskScenarios.length === 1) {
+      const saved = savedRiskScenarios[0];
+      scenarios = [
+        { name: saved.name, drugs: saved.drugs, icds: saved.icds, cpts: saved.cpts },
+        current
+      ];
+      baseIsEmpty = includeBaseline;
+      base = includeBaseline ? emptyBase : {
+        age, cohort, age_band: ageBand,
+        name: saved.name, drugs: saved.drugs, icds: saved.icds, cpts: saved.cpts
+      };
+    } else {
+      if (!current.drugs.length && !current.icds.length && !current.cpts.length) {
+        return { error: "Select at least one code, or save two scenarios, before comparing." };
+      }
+      scenarios = [current];
+      baseIsEmpty = true;
+      base = emptyBase;
+    }
+    return { base, scenarios, baseIsEmpty };
+  }
+
   async function compareScenarios() {
     const age = parseInt(ageEl.value);
     const cohort = currentCohort;
@@ -1761,25 +2082,11 @@
       return;
     }
 
-    const baseDrugs = getMultiSelectValues(drugsEl);
-    const baseIcds = getMultiSelectValues(icdsEl);
-    const baseCpts = getMultiSelectValues(cptsEl);
-
-    if (!baseDrugs.length && !baseIcds.length && !baseCpts.length) {
-      setStatus("Select at least one code to compare against baseline.", "error");
+    const built = buildComparisonPayload(age, cohort, ageBand);
+    if (built.error) {
+      setStatus(built.error, "error");
       return;
     }
-
-    // Base = no codes (uses 2019 population baseline_risk from Lambda)
-    // Scenario = current selection → shows risk lift from this patient's med list
-    const scenarios = [
-      {
-        name: "Current Selection",
-        drugs: baseDrugs,
-        icds: baseIcds,
-        cpts: baseCpts
-      },
-    ];
 
     setStatus("Comparing scenarios...", "info");
 
@@ -1789,21 +2096,21 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           base: {
-            age: age,
-            cohort: cohort,
-            age_band: ageBand,
-            drugs: [],
-            icds: [],
-            cpts: []
+            age: built.base.age,
+            cohort: built.base.cohort,
+            age_band: built.base.age_band,
+            drugs: built.base.drugs,
+            icds: built.base.icds,
+            cpts: built.base.cpts
           },
-          scenarios: scenarios
+          scenarios: built.scenarios
         })
       });
 
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       const data = await resp.json();
-      displayComparison(data, scenarios);
+      displayComparison(data, built);
       setStatus("Comparison complete", "success");
       
     } catch (err) {
@@ -1812,29 +2119,30 @@
     }
   }
 
-  function displayComparison(data, scenarios) {
+  function displayComparison(data, built) {
     const container = document.getElementById("comparison-scenarios");
+    if (!container) return;
     container.innerHTML = "";
 
-    // Add base scenario
-    const baseCard = createScenarioCard("Base", data.base_risk, 0);
-    container.appendChild(baseCard);
+    const baseName = built.baseIsEmpty ? "Baseline (no codes)" : (built.base.name || "Reference");
+    container.appendChild(createScenarioCard(baseName, data.base_risk, 0, false, snapshotCountLabel(built.base)));
 
-    // Add comparison scenarios
-    data.scenarios.forEach((scenario, idx) => {
+    (data.scenarios || []).forEach((scenario, idx) => {
+      const req = (built.scenarios || [])[idx] || {};
       const card = createScenarioCard(
         scenario.name,
         scenario.risk_score,
         scenario.delta,
-        idx === 0
+        idx === 0,
+        snapshotCountLabel(req)
       );
       container.appendChild(card);
     });
 
-    document.getElementById("comparison-mode").classList.add("active");
+    document.getElementById("comparison-mode")?.classList.add("active");
   }
 
-  function createScenarioCard(name, riskScore, delta, selected = false) {
+  function createScenarioCard(name, riskScore, delta, selected = false, codesLabel) {
     const card = document.createElement("div");
     card.className = `scenario-card ${selected ? "selected" : ""}`;
     
@@ -1842,17 +2150,95 @@
     const deltaSign = delta > 0 ? "+" : "";
     
     card.innerHTML = `
-      <div class="scenario-name">${name}</div>
+      <div class="scenario-name">${escapeHtml(name)}</div>
       <div class="scenario-risk" style="color: ${getRiskColor(riskScore)}">
         ${(riskScore * 100).toFixed(1)}%
       </div>
       <div class="scenario-delta ${deltaClass}">
         ${deltaSign}${(delta * 100).toFixed(1)}% vs base
       </div>
+      ${codesLabel ? `<div class="scenario-card-codes">${escapeHtml(codesLabel)}</div>` : ""}
     `;
     
     return card;
   }
+
+  async function loadDrugContributions() {
+    const age = parseInt(ageEl.value);
+    const cohort = currentCohort;
+    const ageBand = determineAgeBand(age);
+    const drugs = getMultiSelectValues(drugsEl);
+    const icds = getMultiSelectValues(icdsEl);
+    const cpts = getMultiSelectValues(cptsEl);
+
+    if (!cohort) {
+      setStatus("Select a cohort (Opioid ED or Polypharmacy) using the tabs above.", "error");
+      return;
+    }
+    if (!ageBand || age < 13) {
+      setStatus("Please enter a valid age (13-114) first", "error");
+      return;
+    }
+    if (!drugs.length) {
+      setStatus("Select at least one drug to compute leave-one-out contributions.", "error");
+      return;
+    }
+
+    setStatus("Computing leave-one-out drug contributions…", "info");
+    try {
+      const resp = await fetch(`${API_BASE}/risk/drug_contributions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          age, cohort, age_band: ageBand,
+          drugs, icds, cpts
+        })
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      displayDrugContributions(data);
+      setStatus("Drug contributions complete", "success");
+    } catch (err) {
+      console.error("Error loading drug contributions:", err);
+      setStatus(`Error: ${err.message}`, "error");
+    }
+  }
+
+  function displayDrugContributions(data) {
+    const wrap = document.getElementById("contributions-mode");
+    const tableEl = document.getElementById("contributions-table");
+    const summaryEl = document.getElementById("contributions-summary");
+    if (!wrap || !tableEl) return;
+    const rows = data.drug_contributions || [];
+    if (summaryEl) {
+      const basePct = ((data.base_risk || 0) * 100).toFixed(1);
+      summaryEl.textContent = `Base risk ${basePct}% · ${rows.length} drug${rows.length === 1 ? "" : "s"} · bin ${data.n_event_bin || "—"}.`;
+    }
+    if (!rows.length) {
+      tableEl.innerHTML = "<p class='scenario-help'>No contributions returned.</p>";
+    } else {
+      tableEl.innerHTML =
+        '<table class="contrib-table"><thead><tr>' +
+        "<th>Rank</th><th>Drug</th><th>Risk without</th><th>Δp̂</th><th>% of base</th>" +
+        "</tr></thead><tbody>" +
+        rows.map((row) => {
+          const delta = Number(row.delta_risk || 0);
+          const cls = delta > 0 ? "contrib-pos" : delta < 0 ? "contrib-neg" : "";
+          const sign = delta > 0 ? "+" : "";
+          return `<tr>` +
+            `<td>${escapeHtml(row.rank)}</td>` +
+            `<td>${escapeHtml(row.drug)}</td>` +
+            `<td>${(Number(row.risk_without || 0) * 100).toFixed(2)}%</td>` +
+            `<td class="${cls}">${sign}${(delta * 100).toFixed(2)} pp</td>` +
+            `<td>${escapeHtml(row.pct_contribution)}</td>` +
+            `</tr>`;
+        }).join("") +
+        "</tbody></table>";
+    }
+    wrap.classList.add("active");
+  }
+
+  window.loadDrugContributions = loadDrugContributions;
 
   function getRiskColor(score) {
     if (score < 0.2) return "#16a34a";
@@ -1866,7 +2252,10 @@
     icdsEl.selectedIndex = -1;
     cptsEl.selectedIndex = -1;
     riskDisplayEl.style.display = "none";
-    document.getElementById("comparison-mode").classList.remove("active");
+    document.getElementById("comparison-mode")?.classList.remove("active");
+    document.getElementById("contributions-mode")?.classList.remove("active");
+    updateSelectionDisplays();
+    refreshReplaceControls();
     setStatus("Form reset", "info");
     updateModelIndicator();
   }
@@ -1918,14 +2307,17 @@
   if (drugsEl) drugsEl.addEventListener("change", () => {
     updateDrugDisplay();
     updateCodesSummary();
+    refreshReplaceControls();
   });
   if (icdsEl) icdsEl.addEventListener("change", () => {
     updateIcdDisplay();
     updateCodesSummary();
+    refreshReplaceControls();
   });
   if (cptsEl) cptsEl.addEventListener("change", () => {
     updateCptDisplay();
     updateCodesSummary();
+    refreshReplaceControls();
   });
 
   window.switchTab = function(tabName) {
@@ -2466,9 +2858,11 @@
     if (!container) return;
     container.innerHTML = "<p class=\"doc-metrics-loading\">Loading metrics…</p>";
     // Prefer same-origin static asset (no API call); fallback to GET /metrics if missing
-    var staticUrl = "metadata/model_performance_metrics.json";
+    var staticUrl = "metadata/model_performance_metrics.json?v=norecall";
     function renderMetrics(data) {
         const byCohort = data && data.by_cohort ? data.by_cohort : {};
+        const notes = data && data.notes ? data.notes : {};
+        const isHoldout = data && data.evaluation === "2019_temporal_holdout";
         const cohortLabels = { opioid_ed: "Opioid ED visit (F11.20)", non_opioid_ed: "Polypharmacy" };
         let html = "";
         for (const cohort of ["opioid_ed", "non_opioid_ed"]) {
@@ -2477,27 +2871,49 @@
           html += "<div class=\"metrics-cohort\">" + (cohortLabels[cohort] || cohort) + "</div>";
           for (const ageBand of Object.keys(bands).sort()) {
             const rows = bands[ageBand];
+            const bandNote = notes[cohort] && notes[cohort][ageBand];
             if (!Array.isArray(rows) || rows.length === 0) {
-              html += "<div class=\"metrics-age-band\">Age band " + ageBand + ": no metrics</div>";
+              html += "<div class=\"metrics-age-band\">Age band " + ageBand + ": " + (bandNote || "no 2019 holdout metrics") + "</div>";
               continue;
             }
             html += "<div class=\"metrics-age-band\">Age band " + ageBand + "</div>";
-            html += "<table><thead><tr><th>Model</th><th>Recall (sensitivity)</th><th>PR-AUC</th><th>AUC-ROC</th><th>Log loss</th><th>MC runs</th><th>Selected</th></tr></thead><tbody>";
+            if (isHoldout) {
+              html += "<table><thead><tr><th>Model</th><th>PR-AUC</th><th>AUC-ROC</th><th>PR lift</th><th>Holdout N</th></tr></thead><tbody>";
+            } else {
+              html += "<table><thead><tr><th>Model</th><th>PR-AUC</th><th>AUC-ROC</th><th>Log loss</th><th>MC runs</th></tr></thead><tbody>";
+            }
             for (let i = 0; i < rows.length; i++) {
               const r = rows[i];
-              const recall = r.recall_mean != null ? (Number(r.recall_mean) * 100).toFixed(1) + "%" : "—";
               const prAuc = r.pr_auc_mean != null ? Number(r.pr_auc_mean).toFixed(3) : "—";
               const auc = r.auc_mean != null ? Number(r.auc_mean).toFixed(3) : "—";
-              const logloss = r.logloss_mean != null ? Number(r.logloss_mean).toFixed(4) : "—";
-              const nRuns = r.n_runs != null ? r.n_runs : "—";
-              const sel = r.selected ? "Yes" : "";
-              html += "<tr><td>" + (r.model || "—") + "</td><td>" + recall + "</td><td>" + prAuc + "</td><td>" + auc + "</td><td>" + logloss + "</td><td>" + nRuns + "</td><td>" + sel + "</td></tr>";
+              if (isHoldout) {
+                const lift = r.pr_auc_lift != null ? Number(r.pr_auc_lift).toFixed(1) + "×" : "—";
+                const nHold = r.n_holdout != null ? Number(r.n_holdout).toLocaleString() : "—";
+                html += "<tr><td>" + (r.model || "—") + "</td><td>" + prAuc + "</td><td>" + auc + "</td><td>" + lift + "</td><td>" + nHold + "</td></tr>";
+              } else {
+                const logloss = r.logloss_mean != null ? Number(r.logloss_mean).toFixed(4) : "—";
+                const nRuns = r.n_runs != null ? r.n_runs : "—";
+                html += "<tr><td>" + (r.model || "—") + "</td><td>" + prAuc + "</td><td>" + auc + "</td><td>" + logloss + "</td><td>" + nRuns + "</td></tr>";
+              }
             }
             html += "</tbody></table>";
           }
         }
         if (!html) {
           html = "<p class=\"doc-metrics-loading\">No metrics available. Metrics are generated by the pipeline (6_final_model) and stored in S3 (<code>gold/final_model/{cohort}/{age_band}/*_model_metrics_summary.csv</code>).</p>";
+        } else if (Array.isArray(data.citations) && data.citations.length) {
+          html += "<p style=\"margin-top:0.75rem;font-size:0.85rem;color:#64748b;\">Published sources:</p><ul style=\"margin:0.25rem 0 0 1.1rem;padding:0;font-size:0.85rem;color:#64748b;\">";
+          for (var ci = 0; ci < data.citations.length; ci++) {
+            var c = data.citations[ci];
+            var cite = (c.authors ? c.authors + ". " : "") + (c.title || "") + ". <em>" + (c.journal || "Clinical and Translational Science") + "</em>.";
+            if (c.table) cite += " " + c.table + ".";
+            if (c.url) {
+              var doiLabel = c.doi ? ("https://doi.org/" + c.doi) : c.url;
+              cite += " <a href=\"" + c.url + "\" target=\"_blank\" rel=\"noopener\">" + doiLabel + "</a>";
+            }
+            html += "<li>" + cite + "</li>";
+          }
+          html += "</ul>";
         } else if (data.source) {
           html += "<p style=\"margin-top:0.75rem;font-size:0.85rem;color:#64748b;\">Source: " + data.source + "</p>";
         }
@@ -2522,6 +2938,8 @@
     updateDrugDisplay();
     updateIcdDisplay();
     updateCptDisplay();
+    updateCodesSummary();
+    refreshReplaceControls();
   }
 
   function updateDrugDisplay() {
@@ -2535,7 +2953,7 @@
     container.innerHTML = selected.map(code => {
       const option = Array.from(drugsEl.options).find(o => o.value === code);
       const display = option ? option.text : code;
-      return `<span class="code-chip">${display} <button onclick="removeDrugCode('${code}')">×</button></span>`;
+      return `<span class="code-chip">${escapeHtml(display)} <button type="button" class="replace-chip-btn" title="Replace this drug" onclick="beginReplace('drug','${escapeHtml(code)}')">⇄</button> <button type="button" onclick="removeDrugCode('${escapeHtml(code)}')">×</button></span>`;
     }).join(' ');
   }
 
@@ -2550,7 +2968,7 @@
     container.innerHTML = selected.map(code => {
       const option = Array.from(icdsEl.options).find(o => o.value === code);
       const display = option ? option.text : code;
-      return `<span class="code-chip">${display} <button onclick="removeIcdCode('${code}')">×</button></span>`;
+      return `<span class="code-chip">${escapeHtml(display)} <button type="button" class="replace-chip-btn" title="Replace this ICD" onclick="beginReplace('icd','${escapeHtml(code)}')">⇄</button> <button type="button" onclick="removeIcdCode('${escapeHtml(code)}')">×</button></span>`;
     }).join(' ');
   }
 
@@ -2565,7 +2983,7 @@
     container.innerHTML = selected.map(code => {
       const option = Array.from(cptsEl.options).find(o => o.value === code);
       const display = option ? option.text : code;
-      return `<span class="code-chip">${display} <button onclick="removeCptCode('${code}')">×</button></span>`;
+      return `<span class="code-chip">${escapeHtml(display)} <button type="button" class="replace-chip-btn" title="Replace this CPT" onclick="beginReplace('cpt','${escapeHtml(code)}')">⇄</button> <button type="button" onclick="removeCptCode('${escapeHtml(code)}')">×</button></span>`;
     }).join(' ');
   }
 
@@ -2575,6 +2993,7 @@
     if (option) option.selected = false;
     updateDrugDisplay();
     updateCodesSummary();
+    refreshReplaceControls();
   };
 
   window.removeIcdCode = function(code) {
@@ -2582,6 +3001,7 @@
     if (option) option.selected = false;
     updateIcdDisplay();
     updateCodesSummary();
+    refreshReplaceControls();
   };
 
   window.removeCptCode = function(code) {
@@ -2589,6 +3009,7 @@
     if (option) option.selected = false;
     updateCptDisplay();
     updateCodesSummary();
+    refreshReplaceControls();
   };
 
   (function initTabVisibility() {
@@ -2599,7 +3020,41 @@
 
   document.getElementById("btnRisk")?.addEventListener("click", calculateRisk);
   document.getElementById("btnComparison")?.addEventListener("click", compareScenarios);
+  document.getElementById("btnContributions")?.addEventListener("click", loadDrugContributions);
   document.getElementById("btnReset")?.addEventListener("click", resetForm);
+  document.getElementById("btnReplaceCode")?.addEventListener("click", () => {
+    const type = document.getElementById("replace-type")?.value || "drug";
+    const fromCode = document.getElementById("replace-from")?.value;
+    const toCode = document.getElementById("replace-to")?.value;
+    window.replacePatientCode(type, fromCode, toCode);
+  });
+  document.getElementById("replace-type")?.addEventListener("change", refreshReplaceControls);
+  document.getElementById("replace-to-search")?.addEventListener("input", refreshReplaceControls);
+  document.getElementById("btnSaveScenario")?.addEventListener("click", () => saveCurrentScenario());
+  document.getElementById("btnClearScenarios")?.addEventListener("click", () => {
+    savedRiskScenarios.length = 0;
+    renderSavedScenarios();
+    setStatus("Saved scenarios cleared. Compare Scenarios will use empty baseline vs current selection.", "info");
+  });
+  document.getElementById("saved-scenarios-list")?.addEventListener("click", (ev) => {
+    const loadBtn = ev.target.closest("[data-load-scenario]");
+    const removeBtn = ev.target.closest("[data-remove-scenario]");
+    if (loadBtn) {
+      const idx = parseInt(loadBtn.getAttribute("data-load-scenario"), 10);
+      if (Number.isFinite(idx) && savedRiskScenarios[idx]) {
+        applyCodeSnapshot(savedRiskScenarios[idx]);
+        setStatus(`Loaded “${savedRiskScenarios[idx].name}”. Click Calculate Risk Score to score this set.`, "info");
+      }
+    } else if (removeBtn) {
+      const idx = parseInt(removeBtn.getAttribute("data-remove-scenario"), 10);
+      if (Number.isFinite(idx)) {
+        savedRiskScenarios.splice(idx, 1);
+        renderSavedScenarios();
+      }
+    }
+  });
+  renderSavedScenarios();
+  refreshReplaceControls();
 
   // ==============================
   // PGX CARD FUNCTIONALITY
@@ -2616,7 +3071,8 @@
     }
   })();
 
-  // PGx Card File Upload Handler — AncestryDNA zip/csv/txt or Gene,Variant lines
+  // Offline last-resort rsid filter / calling if official CPIC API is unavailable.
+  // Happy path: browser sends {rsid, genotype}; Lambda calls stars from official tables.
   const PGX_RSID_MAP = {
     rs4244285: { gene: "CYP2C19", star: "*2", alt: ["A", "T"] },
     rs4986893: { gene: "CYP2C19", star: "*3", alt: ["A", "T"] },
@@ -2650,33 +3106,222 @@
       .filter((line) => line && !line.startsWith("#") && line.includes(","));
   }
 
-  function parseAncestryDnaText(text) {
+  let officialRsidSet = null;
+  let officialRsidPromise = null;
+
+  function rsidKey(rsid) {
+    return String(rsid || "").trim().toLowerCase();
+  }
+
+  function genotypeLine(item) {
+    const bits = [item.rsid, item.genotype];
+    if (item.chromosome) bits.push(String(item.chromosome));
+    if (item.position != null && item.position !== "") bits.push(String(item.position));
+    return bits.join(",");
+  }
+
+  async function loadOfficialRsids() {
+    if (officialRsidSet) return officialRsidSet;
+    if (officialRsidPromise) return officialRsidPromise;
+    officialRsidPromise = fetch(`${API_BASE}/pgx/allele_rsids`)
+      .then((resp) => resp.ok ? resp.json() : Promise.reject(new Error("rsid list unavailable")))
+      .then((data) => {
+        const list = Array.isArray(data.rsids) ? data.rsids : [];
+        officialRsidSet = new Set(list.map(rsidKey));
+        return officialRsidSet;
+      })
+      .catch(() => {
+        officialRsidSet = new Set(Object.keys(PGX_RSID_MAP).map(rsidKey));
+        return officialRsidSet;
+      });
+    return officialRsidPromise;
+  }
+
+  function filterGenotypes(genotypes, allow, largeThreshold) {
+    const rows = genotypes || [];
+    const limit = largeThreshold == null ? 2000 : largeThreshold;
+    if (!allow || !allow.size) {
+      return { genotypes: rows, filtered: false, dropped: 0 };
+    }
+    const keep = rows.filter((item) => allow.has(rsidKey(item.rsid)));
+    const dropped = rows.length - keep.length;
+    return { genotypes: keep, filtered: dropped > 0 || rows.length > limit, dropped };
+  }
+
+  function starsFromRsidAlleles(rsid, a1, a2) {
+    const mapped = PGX_RSID_MAP[rsid] || PGX_RSID_MAP[rsidKey(rsid)];
+    if (!mapped) return null;
+    const alt = (mapped.alt || []).map((x) => String(x).toUpperCase());
+    const copies = [a1, a2].filter((allele) => alt.includes(allele)).length;
+    if (!copies) return null;
+    return { gene: mapped.gene, alleles: copies === 2 ? [mapped.star, mapped.star] : ["*1", mapped.star] };
+  }
+
+  function mergeGeneStars(byGene, gene, alleles) {
+    const existing = byGene[gene] || [];
+    (alleles || []).forEach((star) => {
+      if (star && !existing.includes(star)) existing.push(star);
+    });
+    byGene[gene] = existing;
+  }
+
+  function genotypesToFallbackVariants(genotypes) {
     const byGene = {};
+    (genotypes || []).forEach((item) => {
+      const gt = String(item.genotype || "").toUpperCase();
+      const hit = starsFromRsidAlleles(item.rsid, gt.charAt(0), gt.charAt(1));
+      if (hit) mergeGeneStars(byGene, hit.gene, hit.alleles);
+    });
+    return Object.keys(byGene).sort().map((gene) => ({ gene, variants: byGene[gene] }));
+  }
+
+  function parseAncestryDnaText(text) {
+    const genotypes = [];
     const lines = String(text || "").split(/\r?\n/);
     for (const line of lines) {
       if (!line || line.startsWith("#")) continue;
       const parts = line.split(/\t|,/);
       if (parts.length < 5) continue;
       const rsid = String(parts[0] || "").trim();
-      if (rsid === "rsid" || !rsid.startsWith("rs")) continue;
-      const mapped = PGX_RSID_MAP[rsid];
-      if (!mapped) continue;
+      if (rsid === "rsid" || !/^rs\d+$/i.test(rsid)) continue;
       const a1 = String(parts[3] || "").trim().toUpperCase();
       const a2 = String(parts[4] || "").trim().toUpperCase();
       if (!a1 || !a2 || a1 === "0" || a2 === "0") continue;
-      const alt = (mapped.alt || []).map((x) => String(x).toUpperCase());
-      const copies = [a1, a2].filter((allele) => alt.includes(allele)).length;
-      if (!copies) continue;
-      const alleles = copies === 2 ? [mapped.star, mapped.star] : ["*1", mapped.star];
-      const existing = byGene[mapped.gene] || [];
-      alleles.forEach((star) => {
-        if (!existing.includes(star)) existing.push(star);
+      genotypes.push({
+        rsid,
+        genotype: a1 + a2,
+        chromosome: String(parts[1] || "").trim(),
+        position: parts[2]
       });
-      byGene[mapped.gene] = existing;
     }
-    return Object.keys(byGene)
-      .sort()
-      .map((gene) => gene + "," + byGene[gene].join(","));
+    return { genotypes, lines: genotypes.map(genotypeLine) };
+  }
+
+  function parse23andMeText(text) {
+    const genotypes = [];
+    const lines = String(text || "").split(/\r?\n/);
+    for (const line of lines) {
+      if (!line || line.startsWith("#")) continue;
+      const parts = line.split(/\t|,/);
+      if (parts.length < 4) continue;
+      const rsid = String(parts[0] || "").trim();
+      if (rsid === "rsid" || !/^rs\d+$/i.test(rsid)) continue;
+      const genotype = String(parts[3] || "").trim().toUpperCase().replace(/[^ACGTDI-]/g, "");
+      if (genotype.length < 2) continue;
+      const a1 = genotype.charAt(0);
+      const a2 = genotype.charAt(1);
+      if (!a1 || !a2 || a1 === "-" || a2 === "-") continue;
+      genotypes.push({
+        rsid,
+        genotype: a1 + a2,
+        chromosome: String(parts[1] || "").replace(/^"|"$/g, "").trim(),
+        position: String(parts[2] || "").replace(/^"|"$/g, "").trim()
+      });
+    }
+    return { genotypes, lines: genotypes.map(genotypeLine) };
+  }
+
+  function looksLikeMyHeritage(text) {
+    const head = String(text || "").slice(0, 8000);
+    return /myheritage/i.test(head);
+  }
+
+  function looksLike23andMe(text) {
+    const head = String(text || "").slice(0, 4000);
+    if (/23andme/i.test(head)) return true;
+    const lines = String(text || "").split(/\r?\n/).filter((l) => l && !l.startsWith("#"));
+    if (!lines.length) return false;
+    const parts = lines[0].split(/\t|,/);
+    return parts.length === 4 && /^rs\d+/i.test(parts[0] || "") && /^[ACGTDI-]{1,2}$/i.test(String(parts[3] || "").trim());
+  }
+
+  function parseVcfText(text) {
+    const genotypes = [];
+    let scanned = 0;
+    let mapped = 0;
+    let skippedUnmapped = 0;
+    const lines = String(text || "").split(/\r?\n/);
+    for (const line of lines) {
+      if (!line || line.startsWith("#")) continue;
+      const parts = line.split(/\t/);
+      if (parts.length < 8) continue;
+      scanned += 1;
+      const idField = String(parts[2] || "");
+      const info = String(parts[7] || "");
+      const rsids = [];
+      idField.split(/[;,]/).forEach((tok) => {
+        const m = String(tok || "").trim().match(/rs\d+/i);
+        if (m) rsids.push(m[0]);
+      });
+      const infoRs = info.match(/rs\d+/ig) || [];
+      infoRs.forEach((r) => { if (!rsids.includes(r)) rsids.push(r); });
+      if (!rsids.length) {
+        skippedUnmapped += 1;
+        continue;
+      }
+      const ref = String(parts[3] || "").toUpperCase();
+      const alts = String(parts[4] || "").split(",").map((tok) => String(tok || "").trim().toUpperCase());
+      const format = String(parts[8] || "");
+      const sample = String(parts[9] || "");
+      const fmtKeys = format.split(":");
+      const gtIdx = fmtKeys.indexOf("GT");
+      const gt = gtIdx >= 0 ? String(sample.split(":")[gtIdx] || "") : String(sample.split(":")[0] || "");
+      const alleleIdx = gt.split(/[\/|]/).map((x) => x.trim()).filter((x) => x !== "" && x !== ".");
+      if (!alleleIdx.length) {
+        skippedUnmapped += 1;
+        continue;
+      }
+      const bases = alleleIdx.map((idx) => {
+        if (idx === "0") return ref;
+        const n = parseInt(idx, 10);
+        return Number.isFinite(n) && alts[n - 1] ? alts[n - 1] : "";
+      }).filter(Boolean);
+      if (bases.length < 1) {
+        skippedUnmapped += 1;
+        continue;
+      }
+      const genotype = (bases[0] || "") + (bases[1] || bases[0] || "");
+      rsids.forEach((rsid) => genotypes.push({
+        rsid,
+        genotype,
+        chromosome: String(parts[0] || "").replace(/^chr/i, ""),
+        position: parts[1]
+      }));
+      mapped += 1;
+    }
+    return {
+      genotypes,
+      lines: genotypes.map(genotypeLine),
+      scanned,
+      mapped,
+      skippedUnmapped,
+      notice: "Unphased VCF cannot uniquely phase multi-variant star alleles. rsids and genotypes stay in this browser; the server matches official CPIC allele definitions. This is not haplotype calling."
+    };
+  }
+
+  function parseExcelWorkbook(workbook) {
+    if (!workbook || !workbook.SheetNames || !workbook.SheetNames.length) return [];
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+    const lines = [];
+    rows.forEach((row) => {
+      const keys = Object.keys(row || {});
+      const normKey = (k) => String(k || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const geneKey = keys.find((k) => /^(gene|genesymbol|hugo)$/.test(normKey(k))) || keys[0];
+      const a1Key = keys.find((k) => /^(allele1|variant1|star1|allele)$/.test(normKey(k)));
+      const a2Key = keys.find((k) => /^(allele2|variant2|star2)$/.test(normKey(k)));
+      const gene = String(row[geneKey] || "").trim();
+      if (!gene || /^gene$/i.test(gene)) return;
+      const alleles = [];
+      if (a1Key) alleles.push(String(row[a1Key] || "").trim());
+      if (a2Key) alleles.push(String(row[a2Key] || "").trim());
+      if (!alleles.length) {
+        keys.slice(1).forEach((k) => alleles.push(String(row[k] || "").trim()));
+      }
+      const cleaned = alleles.filter((v) => v && v !== "0");
+      if (cleaned.length) lines.push(gene + "," + cleaned.join(","));
+    });
+    return lines;
   }
 
   async function readSnpUploadText(file) {
@@ -2687,28 +3332,84 @@
       const entry = Object.values(zip.files).find((item) => {
         if (item.dir) return false;
         const n = item.name.toLowerCase();
-        return n.endsWith(".txt") || n.endsWith(".csv") || n.endsWith(".tsv");
+        return n.endsWith(".txt") || n.endsWith(".csv") || n.endsWith(".tsv") || n.endsWith(".vcf");
       });
-      if (!entry) throw new Error("Zip has no .txt/.csv DNA extract");
-      return entry.async("string");
+      if (!entry) throw new Error("Zip has no .txt/.csv/.vcf DNA extract");
+      return { name: entry.name.toLowerCase(), text: await entry.async("string") };
     }
-    return file.text();
+    return { name, text: await file.text() };
+  }
+
+  function setUploadNotice(message, type) {
+    const el = document.getElementById("pgx-upload-notice");
+    if (!el) return;
+    if (!message) {
+      el.style.display = "none";
+      el.textContent = "";
+      el.className = "status-message";
+      return;
+    }
+    el.style.display = "";
+    el.textContent = message;
+    el.className = "status-message " + (type || "info");
   }
 
   if (snpFileEl) snpFileEl.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      const text = await readSnpUploadText(file);
-      if ((file.name || "").toLowerCase().endsWith(".vcf")) {
-        setPGxStatus("VCF uploaded but haplotype calling is not run in the browser. Enter Gene,Allele lines or use AncestryDNA export. Unparsed VCF is treated as insufficient resolution, not normal.", "error");
+      const lower = (file.name || "").toLowerCase();
+      setUploadNotice("");
+      if (lower.endsWith(".xlsx")) {
+        if (!window.XLSX) throw new Error("Excel parser is not loaded");
+        const buf = await file.arrayBuffer();
+        const wb = window.XLSX.read(buf, { type: "array" });
+        const excelLines = parseExcelWorkbook(wb);
+        if (!excelLines.length) throw new Error("No Gene,Allele1,Allele2 rows found in that workbook");
+        snpInputEl.value = excelLines.join("\n");
+        setPGxStatus("Loaded " + excelLines.length + " gene row(s) from Excel. Review, then generate the card.", "success");
         return;
       }
-      const ancestryLines = parseAncestryDnaText(text);
+      const uploaded = await readSnpUploadText(file);
+      const text = uploaded.text;
+      const sourceName = uploaded.name || lower;
+      if (sourceName.endsWith(".vcf") || /^##fileformat=vcf/i.test(text) || /^#chrom\t/im.test(text)) {
+        const vcf = parseVcfText(text);
+        const allow = await loadOfficialRsids();
+        const kept = filterGenotypes(vcf.genotypes, allow);
+        const notice = vcf.notice + " Parsed " + vcf.mapped + " of " + vcf.scanned + " variant row(s); skipped " + vcf.skippedUnmapped + " without an rsid."
+          + (kept.filtered ? " Large file: kept " + kept.genotypes.length + " official CPIC rsids." : "");
+        setUploadNotice(notice, "info");
+        if (!kept.genotypes.length) {
+          setPGxStatus("VCF parsed, but no rsid genotypes were kept. Unphased VCF cannot produce full star alleles. Enter Gene,Allele lines if you have them.", "error");
+          return;
+        }
+        snpInputEl.value = kept.genotypes.map(genotypeLine).join("\n");
+        setPGxStatus("Kept " + kept.genotypes.length + " rsid genotype(s) from VCF. Star alleles are resolved on the server. This is not haplotype calling.", "success");
+        return;
+      }
+      const myHeritage = looksLikeMyHeritage(text);
+      const twentyThree = (!myHeritage && looksLike23andMe(text)) ? parse23andMeText(text) : { genotypes: [], lines: [] };
+      const ancestryParsed = parseAncestryDnaText(text);
       const geneLines = parseGeneVariantLines(text);
-      if (ancestryLines.length) {
-        snpInputEl.value = ancestryLines.join("\n");
-        setPGxStatus("Loaded " + ancestryLines.length + " PGx gene(s) from AncestryDNA file. Review, then generate the card.", "success");
+      const allow = await loadOfficialRsids();
+      const rawNotice = "Raw file stays in this browser. This report lists detected variants and gene coverage only. It does not assign a diplotype or a dose.";
+      if (myHeritage) {
+        const parsed = parse23andMeText(text);
+        const kept = filterGenotypes(parsed.genotypes, allow);
+        setUploadNotice(rawNotice + (kept.filtered ? " Large file: kept " + kept.genotypes.length + " official CPIC rsids." : ""), "info");
+        snpInputEl.value = kept.genotypes.map(genotypeLine).join("\n");
+        setPGxStatus("Loaded " + kept.genotypes.length + " rsid genotype(s) from MyHeritage. Review, then generate the card.", "success");
+      } else if (twentyThree.genotypes.length) {
+        const kept = filterGenotypes(twentyThree.genotypes, allow);
+        setUploadNotice(rawNotice + (kept.filtered ? " Large file: kept " + kept.genotypes.length + " official CPIC rsids." : ""), "info");
+        snpInputEl.value = kept.genotypes.map(genotypeLine).join("\n");
+        setPGxStatus("Loaded " + kept.genotypes.length + " rsid genotype(s) from 23andMe. Review, then generate the card.", "success");
+      } else if (ancestryParsed.genotypes.length) {
+        const kept = filterGenotypes(ancestryParsed.genotypes, allow);
+        setUploadNotice(rawNotice + (kept.filtered ? " Large file: kept " + kept.genotypes.length + " official CPIC rsids." : ""), "info");
+        snpInputEl.value = kept.genotypes.map(genotypeLine).join("\n");
+        setPGxStatus("Loaded " + kept.genotypes.length + " rsid genotype(s) from AncestryDNA file. Review, then generate the card.", "success");
       } else if (geneLines.length) {
         snpInputEl.value = geneLines.join("\n");
         setPGxStatus("File loaded successfully", "success");
@@ -2720,18 +3421,33 @@
     }
   });
 
+  window.PgxUploads = {
+    parseAncestryDnaText,
+    parse23andMeText,
+    parseVcfText,
+    parseGeneVariantLines,
+    parseExcelWorkbook,
+    rsidMap: PGX_RSID_MAP,
+    loadOfficialRsids
+  };
+
   // Generate PGx Card
   if (btnGenerateCard) btnGenerateCard.addEventListener("click", async () => {
     await generatePGxCard();
   });
 
-  // Reset PGx Card
+  // Reset PGx Card — chips, workflow, card, SNP/ID
   if (btnResetCard) btnResetCard.addEventListener("click", () => {
-    patientIdEl.value = "";
-    snpInputEl.value = "";
-    snpFileEl.value = "";
-    pgxCardDisplayEl.style.display = "none";
-    setPGxStatus("Enter SNP data and click 'Generate PGx Card'", "info");
+    if (patientIdEl) patientIdEl.value = "";
+    if (snpInputEl) snpInputEl.value = "";
+    if (snpFileEl) snpFileEl.value = "";
+    setUploadNotice("");
+    if (window.PgxWorkflow && typeof window.PgxWorkflow.reset === "function") {
+      window.PgxWorkflow.reset();
+    } else if (pgxCardDisplayEl) {
+      pgxCardDisplayEl.style.display = "none";
+    }
+    setPGxStatus("Reset to empty default scope. Enter gene data to generate a card.", "info");
   });
 
   async function generatePGxCard() {
@@ -2749,37 +3465,48 @@
     setPGxStatus("Generating PGx Card...", "info");
     
     try {
-      // Parse SNP data
       const snpLines = snpData.split("\n").filter(line => line.trim());
       const variants = [];
+      const genotypes = [];
       
       for (const line of snpLines) {
-        const parts = line.split(",").map(p => p.trim());
-        if (parts.length >= 2) {
+        const parts = line.split(",").map(p => p.trim()).filter((p) => p && p !== "0");
+        if (parts.length < 2) continue;
+        if (/^rs\d+$/i.test(parts[0])) {
+          const row = {
+            rsid: parts[0],
+            genotype: parts[1].replace(/[\/|]/g, "")
+          };
+          if (parts[2]) row.chromosome = parts[2];
+          if (parts[3] && /^\d+$/.test(parts[3])) row.position = parseInt(parts[3], 10);
+          genotypes.push(row);
+        } else {
           variants.push({
             gene: parts[0],
-            variants: parts.slice(1).filter(v => v && v !== "0")
+            variants: parts.slice(1)
           });
         }
       }
       
-      if (variants.length === 0) {
-        setPGxStatus("No valid variants found. Format: Gene,Variant1,Variant2", "error");
+      if (!variants.length && !genotypes.length) {
+        setPGxStatus("No valid variants found. Format: Gene,Variant1,Variant2 or rs123,AG", "error");
         return;
       }
+
+      const payload = {
+        patient_id: patientId || null,
+        selected_apcd_drugs: window.PgxWorkflow ? window.PgxWorkflow.currentIngredientNames() : [],
+        drug_scope: document.getElementById("pgx-drug-scope") ? document.getElementById("pgx-drug-scope").value : "ACTIVE"
+      };
+      if (variants.length) payload.variants = variants;
+      if (genotypes.length) payload.genotypes = genotypes;
       
-      // Call Lambda API
       const resp = await fetch(`${API_BASE}/pgx/card`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_id: patientId || null,
-          variants: variants,
-          selected_apcd_drugs: window.PgxWorkflow ? window.PgxWorkflow.currentIngredientNames() : [],
-          drug_scope: document.getElementById("pgx-drug-scope") ? document.getElementById("pgx-drug-scope").value : "ACTIVE"
-        })
+        body: JSON.stringify(payload)
       });
-      
+
       if (!resp.ok) {
         const error = await resp.json();
         throw new Error(error.error || `HTTP ${resp.status}`);
@@ -2787,6 +3514,9 @@
       
       const data = await resp.json();
       displayPGxCard(data);
+      if (data.unphasedNotice && genotypes.length) {
+        setUploadNotice(data.unphasedNotice, "info");
+      }
       setPGxStatus("PGx Card generated successfully", "success");
       
     } catch (err) {
@@ -2813,35 +3543,57 @@
     patientIdDisplay.style.fontSize = "0.875rem";
     patientIdDisplay.style.color = "#64748b";
     
-    // Display genes
-    const genesListEl = document.getElementById("pgx-genes-list");
-    genesListEl.innerHTML = "";
-    data.genes.forEach(gene => {
-      const geneEl = document.createElement("div");
-      geneEl.className = "pgx-gene-item";
-      geneEl.innerHTML = `
-        <div class="pgx-gene-name">${gene.gene}</div>
-        <div class="pgx-variants">Variants: ${gene.variants.join(", ")}</div>
-      `;
-      genesListEl.appendChild(geneEl);
-    });
-    
     if (window.PgxWorkflow) {
       window.PgxWorkflow.render(data, {
         variants: (data.genes || []).map((g) => ({ gene: g.gene, variants: g.variants || [] }))
       });
     }
-    
-    // Display gene details
+
+    const callsByGene = {};
+    (data.gene_calls || []).forEach((call) => {
+      if (call && call.gene && !callsByGene[call.gene]) callsByGene[call.gene] = call;
+    });
+    const genesListEl = document.getElementById("pgx-genes-list");
+    genesListEl.innerHTML = "";
+    data.genes.forEach(gene => {
+      const geneEl = document.createElement("div");
+      geneEl.className = "pgx-gene-item";
+      const finding = ((data.pipeline && data.pipeline.findings) || []).find((row) => row.gene === gene.gene);
+      const exploratory = gene.phenotypeConfidence === "EXPLORATORY" || gene.analysisMode === "exploratory";
+      if (exploratory) {
+        const hits = (gene.observedSites || finding && finding.observedSites || []).filter((site) => site.variantAlleleObserved);
+        const hitText = hits.map((site) => site.rsid + " (" + (site.genotype || "") + ")").join(", ");
+        geneEl.innerHTML = `
+          <div class="pgx-gene-name">${gene.gene}</div>
+          <div class="pgx-variants">${gene.exploratorySummary || (finding && finding.summary) || "Exploratory observation only."}</div>
+          ${hitText ? `<div class="pgx-variants">Detected: ${hitText}</div>` : ""}
+          <div class="pgx-variants">${(finding && finding.coverageText) || "Gene coverage is limited to sites present in the file."}</div>
+        `;
+      } else {
+        const ph = gene.phenotype || (gene.phenotypeConfidence === "INDETERMINATE" ? "Indeterminate" : "");
+        const candidates = (gene.candidateAlleles || []).join(", ");
+        geneEl.innerHTML = `
+          <div class="pgx-gene-name">${gene.gene}</div>
+          <div class="pgx-variants">Diplotype: ${gene.diplotype || "—"}</div>
+          ${ph ? `<div class="pgx-variants">Phenotype: ${ph}</div>` : ""}
+          ${!gene.diplotype && candidates ? `<div class="pgx-variants">Candidates: ${candidates}</div>` : ""}
+        `;
+      }
+      genesListEl.appendChild(geneEl);
+    });
+
     const geneDetailsEl = document.getElementById("pgx-gene-details");
     geneDetailsEl.innerHTML = "";
     data.genes.forEach(gene => {
+      const call = callsByGene[gene.gene] || {};
+      const limits = call.limitations || [];
       const detailEl = document.createElement("div");
       detailEl.className = "pgx-gene-item";
       detailEl.innerHTML = `
         <div class="pgx-gene-name">${gene.gene}</div>
-        <div class="pgx-variants">Variants: ${gene.variants.join(", ")}</div>
-        ${gene.allele_count ? `<div style='margin-top: 0.5rem; color: #64748b;'>Allele Count: ${gene.allele_count}</div>` : ""}
+        <div class="pgx-variants">Confidence: ${gene.phenotypeConfidence || call.phenotypeConfidence || "—"}</div>
+        ${call.callingAlgorithm ? `<div class="pgx-variants">Caller: ${call.callingAlgorithm}</div>` : ""}
+        ${limits.length ? `<div class="pgx-variants">Limitations: ${limits.join(" ")}</div>` : ""}
       `;
       geneDetailsEl.appendChild(detailEl);
     });
@@ -3257,7 +4009,7 @@
       return;
     }
     if (statusEl) {
-      statusEl.textContent = `Loading Cytoscape network for ${cohort} / ${ageBand}...`;
+      statusEl.textContent = `Loading drug network for ${cohort} / ${ageBand}...`;
       statusEl.className = "status-message info";
     }
     try {
@@ -3279,7 +4031,7 @@
           ` · <a href="https://jerome-dixon.io/research/" target="_blank" rel="noopener">Personal research page</a>`;
       }
       if (statusEl) {
-        statusEl.textContent = "Cytoscape network loaded (FI-filtered FP-Growth rules).";
+        statusEl.textContent = "Drug network loaded (FI-filtered FP-Growth rules).";
         statusEl.className = "status-message success";
       }
     } catch (err) {
@@ -3287,7 +4039,7 @@
       if (iframe) iframe.removeAttribute("src");
       if (linksEl) linksEl.innerHTML = "";
       if (statusEl) {
-        statusEl.textContent = `Failed to load Cytoscape network: ${err.message}`;
+        statusEl.textContent = `Failed to load drug network: ${err.message}`;
         statusEl.className = "status-message error";
       }
     }

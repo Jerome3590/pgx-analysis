@@ -32,12 +32,15 @@ Comparison of the PHTS (UVA) and PGx (VCU) risk calculator dashboard tab structu
 |-----|---------|-------------------|
 | **Risk Assessment** | Age + risk calculation + results | **Age** and **summary of selected codes** on this tab; **“Edit codes”** opens the codes tab. No drug/ICD/CPT inputs here. |
 | **Drugs, ICD & CPT Codes** | Select drugs, ICD, CPT for the model | **Separate tab** with sub‑tabs: **Drugs \| ICD Codes \| CPT Codes**. Search + click to add; chips for selected. Selections feed Risk Assessment. |
-| **Causal Analysis** | Causal visualizations | Cohort/age band selectors and content on this tab |
-| **DTW Trajectories** | DTW visualizations | Cohort/age band on this tab |
-| **FP-Growth Patterns** | FP-Growth visualizations | Cohort/age band/item type on this tab |
-| **BupaR Process Mining** | BupaR visualizations | Cohort/age band on this tab |
-| **PGx Patient Card** | PGx card from SNP data | Inputs and Generate on this tab |
 | **Documentation** | How to use the dashboard | **Same page:** inline content in tab (no link out) |
+| **Feature Importance** | Population FI heatmap | View + **Load Feature Importance Heatmap** on this tab |
+| **Scenario Analysis (FFA/SHAP)** | FFA/SHAP visualizations | Uses Risk Assessment cohort/age/codes; **Load Scenario Analysis** |
+| **DTW Trajectories** | DTW visualizations | Cohort/age band on this tab |
+| **FP-Growth Patterns** | FP-Growth visualizations | Cohort/age band on this tab |
+| **Drug Networks** | FI-filtered association graph | Cohort/age; **Load Drug Network** |
+| **BupaR Process Mining** | BupaR visualizations | Cohort/age band on this tab |
+| **PGx Cohort** | Population gene–drug topology | **Load PGx Cohort Network** |
+| **PGx Card** | Claims radar, exploratory array report, or lab allele card | **Load Cohort PGx Profile** and/or **Generate PGx results** |
 
 **Mechanism:** `data-tab="risk-assessment"` (etc.). Click handler finds content by `id="${targetTab}-tab"` and toggles `content.style.display` and `.active` on buttons. No inline onclick.
 

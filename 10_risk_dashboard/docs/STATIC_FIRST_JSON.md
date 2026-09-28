@@ -38,15 +38,16 @@ Under the dashboard prefix (`pgx/`), deploy these for static-first behavior:
 | `visualizations/feature_importance/{cohort}/aggregated_fi_heatmap.json` | Same path (per-cohort or `.../combined/aggregated_fi_heatmap.json`) | Raw heatmap JSON (same as Lambda response `heatmap_data`). Frontend wraps in `{ heatmap_data, heatmap_url }` for consistent handling. |
 | `metadata/model_performance_metrics.json` | `metadata/model_performance_metrics.json` | Same as Lambda metrics payload (optional; doc tab can use API) |
 
-**Visualization tabs (Causal, DTW, BupaR, FP-Growth, Cohort PGx)** use static-first as well: the frontend tries same-origin paths first, then falls back to the Lambda API.
+**Visualization tabs (Scenario Analysis, DTW, BupaR, FP-Growth, Drug Networks, PGx Cohort)** use static-first as well: the frontend tries same-origin paths first, then falls back to the Lambda API.
 
 | Same-origin path | Used when | Fallback |
 |------------------|-----------|----------|
-| `visualizations/causal/{cohort}/{age_band}/causal_data.json` | Causal Analysis tab | `GET /visualizations/causal?cohort=&age_band=` |
+| `visualizations/causal/{cohort}/{age_band}/causal_data.json` | Scenario Analysis (FFA/SHAP) tab | `GET /visualizations/causal?cohort=&age_band=` |
 | `visualizations/dtw/{cohort}/{age_band}/chart_data.json`, `.../sequence_heatmap.json` | DTW Trajectories tab | `GET /visualizations/dtw?cohort=&age_band=` |
 | `visualizations/bupar/{cohort}/{age_band}/plots/{base}_activity_frequency.json` (and pre_target, post_target) | BupaR tab (activity frequency charts) | `GET /visualizations/bupar`, `GET /visualizations/bupar/activity_frequency` |
 | `visualizations/fpgrowth/{cohort}/{age_band}/data/drug_name_itemsets.json`, `.../plots/empty_state.json` | FP-Growth tab | `GET /visualizations/fpgrowth?cohort=&age_band=` |
 | `visualizations/cohort_pgx/networks/{cohort}/{age_band}/network_topology.html` | PGx Cohort tab (iframe) | `GET /visualizations/cohort_pgx?cohort=&age_band=` |
+| `visualizations/cytoscape/{cohort}/{age_band}/` | Drug Networks tab | Static Cytoscape HTML (same FI-gated FP-Growth rules) |
 
 When static returns 200, the frontend uses that data and does not call Lambda (no cold start, one request).
 

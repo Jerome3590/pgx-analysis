@@ -1,11 +1,179 @@
 {
-  "mappingVersion": "apcd-combo-v1",
+  "mappingVersion": "apcd-combo-v2",
+  "source": "1a_apcd_input_data/drug_mappings + 5_pgx_analysis/data/cpic_drug_list.json",
   "combinations": {
-    "oxycodone / acetaminophen": ["oxycodone", "acetaminophen"],
-    "hydrocodone / acetaminophen": ["hydrocodone", "acetaminophen"],
-    "codeine / acetaminophen": ["codeine", "acetaminophen"],
-    "tramadol / acetaminophen": ["tramadol", "acetaminophen"],
-    "amoxicillin / clavulanate": ["amoxicillin", "clavulanic acid"],
-    "buprenorphine / naloxone": ["buprenorphine", "naloxone"]
+    "acetaminophen / caffeine": [
+      "acetaminophen",
+      "caffeine"
+    ],
+    "amoxicillin / clavulanate": [
+      "amoxicillin",
+      "clavulanic acid"
+    ],
+    "aspirin / omeprazole": [
+      "aspirin",
+      "omeprazole"
+    ],
+    "bisoprolol / hydrochlorothiazide": [
+      "bisoprolol",
+      "hydrochlorothiazide"
+    ],
+    "buprenorphine / naloxone": [
+      "buprenorphine",
+      "naloxone"
+    ],
+    "butalbital / acetaminophen": [
+      "butalbital",
+      "acetaminophen"
+    ],
+    "butalbital / acetaminophen / caffeine": [
+      "butalbital",
+      "acetaminophen",
+      "caffeine"
+    ],
+    "butalbital / acetaminophen / codeine": [
+      "butalbital",
+      "acetaminophen",
+      "codeine"
+    ],
+    "codeine / acetaminophen": [
+      "codeine",
+      "acetaminophen"
+    ],
+    "dextromethorphan / guaifenesin": [
+      "dextromethorphan",
+      "guaifenesin"
+    ],
+    "guaifenesin / dextromethorphan": [
+      "guaifenesin",
+      "dextromethorphan"
+    ],
+    "hydrocodone / acetaminophen": [
+      "hydrocodone",
+      "acetaminophen"
+    ],
+    "metoprolol / hydrochlorothiazide": [
+      "metoprolol",
+      "hydrochlorothiazide"
+    ],
+    "oxycodone / acetaminophen": [
+      "oxycodone",
+      "acetaminophen"
+    ],
+    "sitagliptin / metformin": [
+      "sitagliptin",
+      "metformin"
+    ],
+    "tramadol / acetaminophen": [
+      "tramadol",
+      "acetaminophen"
+    ]
+  },
+  "salts": {
+    "acebutolol hydrochloride": "acebutolol",
+    "albuterol sulfate": "albuterol",
+    "alogliptin metformin hydrochloride": "alogliptin metformin",
+    "benztropine mesylate": "benztropine",
+    "bethanechol chloride": "bethanechol",
+    "bisoprolol fumarate": "bisoprolol",
+    "brimonidine tartrate": "brimonidine",
+    "bromocriptine mesylate": "bromocriptine",
+    "buprenorphine hydrochloride": "buprenorphine",
+    "bupropion hydrochloride": "bupropion",
+    "buspirone hydrochloride": "buspirone",
+    "butorphanol tartrate": "butorphanol",
+    "cetirizine hydrochloride": "cetirizine",
+    "cinacalcet hydrochloride": "cinacalcet",
+    "clindamycin hydrochloride": "clindamycin",
+    "cyclobenzaprine hydrochloride": "cyclobenzaprine",
+    "diclofenac sodium": "diclofenac",
+    "disopyramide phosphate": "disopyramide",
+    "dobutamine hydrochloride": "dobutamine",
+    "dorzolamide hydrochloride": "dorzolamide",
+    "doxazosin mesylate": "doxazosin",
+    "duloxetine hydrochloride": "duloxetine",
+    "enalapril maleate": "enalapril",
+    "erlotinib hydrochloride": "erlotinib",
+    "ertapenem sodium": "ertapenem",
+    "ethambutol hydrochloride": "ethambutol",
+    "glatiramer acetate": "glatiramer",
+    "guanfacine hydrochloride": "guanfacine",
+    "lidocaine hydrochloride": "lidocaine",
+    "meclizine hydrochloride": "meclizine",
+    "megestrol acetate": "megestrol",
+    "memantine hydrochloride": "memantine",
+    "metformin hydrochloride": "metformin",
+    "methadone hydrochloride": "methadone",
+    "metoclopramide hydrochloride": "metoclopramide",
+    "metoprolol er succinate": "metoprolol er",
+    "metoprolol succinate": "metoprolol",
+    "metoprolol tartrate": "metoprolol",
+    "miconazole nitrate": "miconazole",
+    "midodrine hydrochloride": "midodrine",
+    "minocycline hydrochloride": "minocycline",
+    "mometasone furoate": "mometasone",
+    "montelukast sodium": "montelukast",
+    "moxifloxacin hydrochloride": "moxifloxacin",
+    "nortriptyline hydrochloride": "nortriptyline",
+    "ondansetron hydrochloride": "ondansetron",
+    "oseltamivir phosphate": "oseltamivir",
+    "oxybutynin chloride": "oxybutynin",
+    "oxycodone hydrochloride": "oxycodone",
+    "oxymorphone hydrochloride": "oxymorphone",
+    "pantoprazole sodium": "pantoprazole",
+    "paroxetine hydrochloride": "paroxetine",
+    "phenazopyridine hydrochloride": "phenazopyridine",
+    "phentermine hydrochloride": "phentermine",
+    "phentolamine mesylate": "phentolamine",
+    "pilocarpine hydrochloride": "pilocarpine",
+    "pioglitazone hydrochloride": "pioglitazone",
+    "pravastatin sodium": "pravastatin",
+    "prazosin hydrochloride": "prazosin",
+    "prednisolone acetate": "prednisolone",
+    "promethazine hydrochloride": "promethazine",
+    "propranolol hydrochloride": "propranolol",
+    "quetiapine fumarate": "quetiapine",
+    "quinapril hydrochloride": "quinapril",
+    "quinidine sulfate": "quinidine",
+    "quinine sulfate": "quinine",
+    "raloxifene hydrochloride": "raloxifene",
+    "ranitidine hydrochloride": "ranitidine",
+    "risedronate sodium": "risedronate",
+    "rosuvastatin calcium": "rosuvastatin",
+    "sertraline hydrochloride": "sertraline",
+    "sevelamer carbonate": "sevelamer",
+    "sevelamer hydrochloride": "sevelamer",
+    "sildenafil citrate": "sildenafil",
+    "sitagliptin phosphate": "sitagliptin",
+    "solifenacin succinate": "solifenacin",
+    "sotalol hydrochloride": "sotalol",
+    "sumatriptan succinate": "sumatriptan",
+    "tamsulosin hydrochloride": "tamsulosin",
+    "tiotropium bromide": "tiotropium",
+    "tramadol hydrochloride": "tramadol",
+    "trazodone hydrochloride": "trazodone",
+    "vancomycin hydrochloride": "vancomycin",
+    "venlafaxine hydrochloride": "venlafaxine",
+    "verapamil hydrochloride": "verapamil",
+    "warfarin sodium": "warfarin",
+    "ziprasidone hydrochloride": "ziprasidone",
+    "zolpidem tartrate": "zolpidem"
+  },
+  "aliases": {
+    "bisoprolol fumarate hydro": "bisoprolol / hydrochlorothiazide",
+    "bupap": "butalbital / acetaminophen",
+    "buprenorphine hydrochloride naloxon": "buprenorphine / naloxone",
+    "cvs nighttime tussin dm": "dextromethorphan / guaifenesin",
+    "cvs tension headache": "acetaminophen / caffeine",
+    "dologesic": "acetaminophen / caffeine",
+    "eq mucus relief dm": "guaifenesin / dextromethorphan",
+    "fioricet": "butalbital / acetaminophen / caffeine",
+    "fiorinal codeine": "butalbital / acetaminophen / codeine",
+    "gnp tussin dm cough": "guaifenesin / dextromethorphan",
+    "janumet": "sitagliptin / metformin",
+    "metoprolol tartrate hydro": "metoprolol / hydrochlorothiazide",
+    "norco": "hydrocodone / acetaminophen",
+    "percocet": "oxycodone / acetaminophen",
+    "yosprala": "aspirin / omeprazole"
   }
 }

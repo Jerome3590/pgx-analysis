@@ -187,7 +187,7 @@ These tabs use **Lambda/container or same-origin JSON**, not per-visual S3 objec
 | Drugs | (drug list, chips) | `GET /metadata` | `10_risk_dashboard/outputs/metadata/metadata_{cohort}.json` | `metadata/opioid_ed.json`, `metadata/non_opioid_ed.json` |
 | ICD Codes | (ICD list, chips) | (same) | (same) | (same) |
 | CPT Codes | (CPT list, chips) | (same) | (same) | (same) |
-| PGx Patient Card | PGx Patient Card | CPIC data in container | `10_risk_dashboard/outputs/cpic/` | — |
+| PGx Card | PGx Card | Lambda `POST /pgx/card`. Array rows: DuckDB ephemeral Snappy Parquet and a CPIC interval join (not a saved visual). Lab alleles: phenotype table in the container. | `10_risk_dashboard/outputs/cpic/` | — |
 | Documentation | (tabs overview, RQ table, etc.) | Model performance metrics | `10_risk_dashboard/outputs/metadata/model_performance_metrics.json` | `metadata/model_performance_metrics.json` |
 
 ---
