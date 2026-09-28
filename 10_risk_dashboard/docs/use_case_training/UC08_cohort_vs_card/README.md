@@ -27,10 +27,10 @@ Use **PGx Cohort** for research topology. Use **PGx Card** for a claims radar, a
 
 ## Screenshot index
 
-PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-26 as **clipped sections** (the first pass used full-page shots; `01` and `03` were nearly the same PGx Cohort viewport).
+PNGs in `screenshots/`. These are captures of the live dashboard. Do not replace them with generated mockups. Recaptured 2026-09-28 as **clipped sections**.
 
 - `01-pgx-cohort-network.png` — **PGx Cohort**: **Load PGx Cohort Network**, gene–drug–phenotype iframe
-- `02-pgx-card-patient.png` — **PGx Card** **Patient** view after **Generate PGx results** (2026-09-26 capture of a lab-allele session). Live array-file results show coverage and a clinical-test referral instead of a dose queue.
+- `02-pgx-card-patient.png` — **PGx Card** **Patient** view after **Generate PGx results**, including the further-testing card (**Further clinical test recommended** for SLCO1B1) and the clopidogrel action
 - `03-roles-compared.png` — **PGx Card** **Load Cohort PGx Profile** (claims radar + identified genes). Same genes as the cohort tab, but this is a session/claims profile, not the research network.
 
 Canonical workflow text: repo `10_risk_dashboard/docs/DASHBOARD_USE_CASES.md`.

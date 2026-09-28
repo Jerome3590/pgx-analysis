@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const puppeteer = require("puppeteer");
 
-const DASHBOARD = process.env.DASHBOARD_URL || "https://pgx.jerome-dixon.io/?v=20260927-unphased";
+const DASHBOARD = process.env.DASHBOARD_URL || "https://pgx.jerome-dixon.io/?v=20260928-genealogy-note";
 const DRIVE = process.env.PGX_UC_DRIVE_ROOT || "G:\\My Drive\\PGx_Dashboard_Use_Cases";
 const REPO = path.resolve(__dirname, "..", "..", "10_risk_dashboard", "docs", "use_case_training");
 const UC = "UC07_personalized_pgx_card";
@@ -55,7 +55,7 @@ async function addDrug(page, query) {
   const browser = await puppeteer.launch({
     headless: "new",
     defaultViewport: { width: 1440, height: 1100 },
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   });
   const page = await browser.newPage();
   page.setDefaultTimeout(45000);
@@ -112,19 +112,43 @@ async function addDrug(page, query) {
   await sleep(300);
   await save(page, "02-apcd-meds-and-scope.png", "#uc07-med-clip");
 
+  page.on("console", (msg) => console.log("PAGE", msg.type(), msg.text().slice(0, 300)));
+  page.on("request", (req) => {
+    if (req.method() === "POST") console.log("POST", req.url());
+  });
   await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/pgx/card") && r.request().method() === "POST", { timeout: 40000 }),
+    page.waitForResponse((r) => r.url().includes("/pgx/card") && r.request().method() === "POST", { timeout: 90000 }),
     page.click("#btnGenerateCard"),
-  ]);
+  ]).catch(async (err) => {
+    const status = await page.$eval("#pgx-status", (el) => el.textContent || "").catch(() => "");
+    console.error("GENERATE_STATUS", status);
+    throw err;
+  });
   await page.waitForFunction(() => {
     const box = document.getElementById("pgx-card-display");
     return box && getComputedStyle(box).display !== "none";
   }, { timeout: 20000 });
   await sleep(800);
 
-  await page.$eval("#pgx-card-display", (el) => el.scrollIntoView({ block: "start" }));
+  await page.evaluate(() => {
+    if (document.getElementById("uc07-results-clip")) return;
+    const card = document.querySelector("#pgx-card-display .pgx-card");
+    if (!card) return;
+    const clip = document.createElement("div");
+    clip.id = "uc07-results-clip";
+    const keep = [
+      card.querySelector(".pgx-card-header"),
+      document.getElementById("pgx-summary-cards"),
+      document.getElementById("pgx-report-notice"),
+      document.getElementById("pgx-testing-card"),
+    ].filter(Boolean);
+    if (!keep.length) return;
+    keep[0].parentNode.insertBefore(clip, keep[0]);
+    keep.forEach((el) => clip.appendChild(el));
+  });
+  await page.$eval("#uc07-results-clip", (el) => el.scrollIntoView({ block: "start" }));
   await sleep(200);
-  await save(page, "03-generate-pgx-results.png", "#pgx-card-display .pgx-card-header");
+  await save(page, "03-generate-pgx-results.png", "#uc07-results-clip");
 
   await page.evaluate(() => {
     if (document.getElementById("uc07-queue-clip")) return;
