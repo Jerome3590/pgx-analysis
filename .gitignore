@@ -109,6 +109,26 @@ __pycache__/
 .venv-offline/
 
 11_testing/offline_dashboard/
+11_testing/**/*.png
+11_testing/**/*.jpg
+11_testing/**/*.jpeg
+11_testing/**/*.webp
+11_testing/results/*.png
+11_testing/results/*.json
+!11_testing/results/user_simulation_responses.json
+11_testing/results/*.txt
+11_testing/results/*.log
+11_testing/results/nlm_*
+11_testing/results/nlm_video_end/
+11_testing/puppeteer/screenshots/
+11_testing/puppeteer/test-results/
+
+# Temporary test & diagnostic utility scripts and session logs
+utility_scripts/_nlm_*
+utility_scripts/_chrome_profiles.py
+utility_scripts/_*.json
+utility_scripts/*.out.txt
+utility_scripts/.*
 
 Notes/*
 logs/
