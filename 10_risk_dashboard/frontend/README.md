@@ -22,14 +22,14 @@ Live names match `index.html` and [DASHBOARD_USE_CASES.md](../docs/DASHBOARD_USE
 1. **User Guide** — Training table (video / slides / audio per use case) plus how to use, research-question coverage, model performance
 2. **Risk Assessment** — Calculate risk scores for opioid ED visits or polypharmacy (age 13–114)
 3. **Drugs / ICD Codes / CPT Codes** — Code selection (ICD/CPT hidden on Polypharmacy)
-4. **PGx Card** — Claims radar (**Load Cohort PGx Profile**) and **Generate PGx results**. Consumer array files (AncestryDNA, 23andMe, MyHeritage, unphased VCF) are parsed in the browser. The server uses DuckDB and Snappy Parquet to report detected variants and gene coverage, then a clinical-test referral. It does not assign a diplotype or a dose from those files. Lab `Gene,*allele` lines still use the official phenotype table.
+4. **PGx Card** — Claims radar (**Load Cohort PGx Profile**) and personalized decision support (**Generate PGx results**). Features a 3-panel **Options Matrix** grid, an interactive **Gene–Drug Actionability Matrix** with CPIC action filter pills and cell inspection detail, **Plotly Clustered Dendrogram Heatmaps** across 3 clustering modes (Drug × Gene dual dendrogram, Drug Recommendation Profile, Gene Recommendation Profile), and an **Aggregated Population Visuals Figure Pack** comparing the **ED** and **Polypharmacy** cohorts. Consumer array files (AncestryDNA, 23andMe, MyHeritage, unphased VCF) are parsed in the browser with DuckDB/Snappy Parquet backend validation. Lab `Gene,*allele` lines resolve against official CPIC diplotype-to-phenotype tables. Full details: [docs/README_pgx_card.md](../docs/README_pgx_card.md).
 5. **Feature Importance** — Population feature-importance heatmap by age band
 6. **Scenario Analysis (FFA/SHAP)** — FFA interaction factors and SHAP importance (does not recalculate ensemble risk)
 7. **BupaR Process Mining** — Process flows, activity sequences, and Drug × Drug process matrix
 8. **DTW Trajectories** — Patient trajectory patterns
 9. **FP-Growth Patterns** — Drug-name itemsets and association rules
 10. **Drug Networks** — Interactive FI-filtered drug association graph (Cytoscape HTML)
-11. **PGx Cohort** — Population gene–drug–phenotype topology
+11. **PGx Cohort** — Population gene–drug–phenotype network topology across **ED** (`opioid_ed`) and **Polypharmacy** (`non_opioid_ed`) cohorts, with automated PubMed citation badge links and evidence radar.
 
 ## Dependencies
 

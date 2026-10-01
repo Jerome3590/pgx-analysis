@@ -174,7 +174,11 @@ python build_network_topology.py \
 
 **Script**: `generate_network_figure_pack.py`
 
-Builds dashboard- and GitHub-friendly visual summaries from all cohort/age-band `network_nodes.csv` and `network_edges.csv` outputs. The generator is robust to older topology exports: if explicit model seed edges are unavailable, it falls back to weighted gene-drug topology edges.
+Builds dashboard- and GitHub-friendly visual summaries from cohort/age-band `network_nodes.csv` and `network_edges.csv` outputs, comparing the study's two primary cohorts: **ED** (`opioid_ed`) and **Polypharmacy** (`non_opioid_ed`). The generator is robust to older topology exports: if explicit model seed edges are unavailable, it falls back to weighted gene-drug topology edges.
+
+**Cohort Grounding**:
+- **ED Cohort**: Opioid-induced emergency department visit risk across age bands `65–74` and `75–84`.
+- **Polypharmacy Cohort**: Multi-medication adverse event risk across age bands `65–74` and `75–84`.
 
 **Output directory**:
 
@@ -182,11 +186,11 @@ Builds dashboard- and GitHub-friendly visual summaries from all cohort/age-band 
 
 **Outputs**:
 - `pgx_global_intervention_network.html/png` - Intervention-weighted global drug-gene network.
-- `pgx_cohort_small_multiples.html/png` - Cohort and age-band comparison panels for network dynamics.
-- `pgx_cluster_ego_networks.html/png` - Therapeutic cluster ego networks.
-- `pgx_intervention_priority_heatmap.html/png` - Priority score heatmap from importance, rank, and pathway context.
+- `pgx_cohort_small_multiples.html/png` - Cohort and age-band comparison panels (**ED 65–74**, **ED 75–84**, **Polypharmacy 65–74**, **Polypharmacy 75–84**) for network dynamics.
+- `pgx_cluster_ego_networks.html/png` - Therapeutic cluster ego networks (beta-blockers, statins, diuretics, GI/antiplatelets).
+- `pgx_intervention_priority_heatmap.html/png` - Multi-evidence priority score heatmap across **ED** and **Polypharmacy** cohorts.
 - `pgx_pathway_context_panel.html/png` - Dedicated context panel for dynamics, kinetics, allergic response, underappreciated signaling, and kinetic pathways.
-- `pgx_time_to_event_panel.html/png` - Medication lead-time framing for kinetic pathway review.
+- `pgx_time_to_event_panel.html/png` - Medication lead-time framing for kinetic pathway review in **ED** and **Polypharmacy** cohorts.
 - `pgx_intervention_priority_scores.csv`, `pgx_pathway_context_edges.csv`, `pgx_time_to_event_windows.csv`, and `figure_pack_manifest.json`.
 
 **Usage**:

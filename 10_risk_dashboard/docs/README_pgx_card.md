@@ -90,14 +90,14 @@ Agglomerative hierarchical clustering groups medications and genes based on func
 - **Interactive Inspection**: Clicking heatmap cells updates the dedicated `#pgx-dendrogram-detail` card.
 
 ### 4. Aggregated Population Visuals & Figure Pack (`#pgx-aggregated-visuals-section`)
-Provides clinical and population context directly within the report:
+Provides clinical and population context directly within the individual patient report, grounded in the study's two target adverse event cohorts (**ED** and **Polypharmacy** across older adult strata `65–74` and `75–84`):
 - **Publication Figure Pack Dropdown**:
-  - *Intervention priority heatmap* (`pgx_intervention_priority_heatmap`)
-  - *Global intervention network* (`pgx_global_intervention_network`)
-  - *Cohort small multiples* (`pgx_cohort_small_multiples`)
-  - *Therapeutic cluster ego networks* (`pgx_cluster_ego_networks`)
-  - *Pathway context panel* (`pgx_pathway_context_panel`)
-  - *Medication lead-time panel* (`pgx_time_to_event_panel`)
+  - *Intervention priority heatmap* (`pgx_intervention_priority_heatmap`) — Multi-evidence drug–gene prioritization scores across **ED 65–74**, **ED 75–84**, **Polypharmacy 65–74**, and **Polypharmacy 75–84**.
+  - *Global intervention network* (`pgx_global_intervention_network`) — Top model-seeded drug–gene intervention network.
+  - *Cohort small multiples* (`pgx_cohort_small_multiples`) — Side-by-side network topologies across **ED** and **Polypharmacy** age bands.
+  - *Therapeutic cluster ego networks* (`pgx_cluster_ego_networks`) — Focused modules separating beta-blockers, statins, and diuretics.
+  - *Pathway context panel* (`pgx_pathway_context_panel`) — Edge counts and distributions across dynamics, kinetics, allergic response, and underappreciated signaling.
+  - *Medication lead-time panel* (`pgx_time_to_event_panel`) — Days before event for sentinel drugs (e.g. Furosemide) in **ED** and **Polypharmacy** cohorts.
 - **Interactive Deep-Links**: Direct links to full interactive Plotly HTML and publication-ready PNGs.
 - **Cohort Gene Actionability Radar**: Embedded radar plot displaying multi-dimensional OODA evidence (Literature citations, VIP Evidence tiers, Causal signals, CPIC Guideline presence).
 
