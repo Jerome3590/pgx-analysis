@@ -159,13 +159,16 @@ When adding a new visual or artifact, add it to this table and the per-tab list,
 
 ---
 
-### PGx Card (Tab; request-time, not a saved visual)
+### PGx Card (Precision Prescribing Decision Support)
 
 | Element | RQ | OODA / comment |
 |---------|----|----------------|
-| **Claims radar** | **RQ1** (precision layer) | **Orient:** Cohort gene profile for the scored density bin. |
-| **Array file** | **RQ1** (precision layer) | **Decide → Act:** DuckDB Parquet coverage and a clinical-test referral. Detected variants and gene-coverage percent only. No diplotype, metabolizer status, or dose. |
-| **Lab alleles** | **RQ1** (precision layer) | **Decide → Act:** Official diplotype-to-phenotype table, action categories, and guideline URLs. |
+| **Options Matrix Grid** | **PGx1** (precision layer) | **Observe & Decide:** 3-panel structured operations grid (*⚡ Run & Generate*, *🩺 Clinical Reports*, *📑 Export Matrix*). |
+| **Gene–Drug Actionability Matrix** | **PGx1** (precision layer) | **Orient & Decide:** Color-coded prescribing grid with CPIC action filter pills (`AVOID`, `DOSE`, `MONITOR`, `STD`, `INDET`) and cell inspection cards. |
+| **Clustered Dendrogram Heatmaps** | **PGx1** (precision layer) | **Orient:** Native hierarchical agglomerative clustering across 3 modes: Drug × Gene dual-dendrogram, Drug action profile, and Gene action profile. |
+| **Aggregated Figure Pack & Claims Radar** | **PGx1** (precision layer) | **Orient:** Precomputed publication figure pack preview and multi-axial Gene Actionability Radar. |
+| **Array file** | **PGx1** (precision layer) | **Decide → Act:** DuckDB Parquet coverage and a clinical-test referral. Detected variants and gene-coverage percent only. No diplotype, metabolizer status, or dose. Marked `INSUFFICIENT_GENOTYPE_RESOLUTION`. |
+| **Lab alleles** | **PGx1** (precision layer) | **Decide → Act:** Official diplotype-to-phenotype table, action categories, and guideline URLs. |
 
 ---
 

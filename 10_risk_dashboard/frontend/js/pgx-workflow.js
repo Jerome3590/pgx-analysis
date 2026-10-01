@@ -73,6 +73,11 @@
     drugScope: "ACTIVE",
     viewMode: "clinician",
     actionableOnly: false,
+    viewFormat: "matrix",
+    clusterMode: "drug_gene",
+    clusterMetric: "euclidean",
+    clusterLinkage: "average",
+    matrixFilterCategory: "ALL",
     lastPayload: null,
     lastCalls: [],
     lastRecs: [],
@@ -555,25 +560,704 @@
       el.innerHTML = '<p class="pgx-empty">Matrix appears after gene calls and matched APCD drugs are available.</p>';
       return;
     }
+
+    // Render filter pills
+    const pillsEl = document.getElementById("pgx-matrix-filter-pills");
+    if (pillsEl) {
+      const activeFilter = state.matrixFilterCategory || "ALL";
+      const counts = {
+        ALL: drugs.length,
+        AVOID: recs.filter((r) => r.actionCategory === "AVOID_OR_USE_ALTERNATIVE").length,
+        DOSE: recs.filter((r) => r.actionCategory && r.actionCategory.indexOf("DOSE") === 0).length,
+        MONITOR: recs.filter((r) => r.actionCategory === "ENHANCED_MONITORING").length,
+        STD: recs.filter((r) => r.actionCategory === "STANDARD_PRESCRIBING" || r.actionCategory === "STANDARD_OR_NO_CHANGE").length,
+        INDET: recs.filter((r) => r.actionCategory === "INSUFFICIENT_GENOTYPE_RESOLUTION").length
+      };
+
+      pillsEl.innerHTML = `
+        <div style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap; font-size:0.78rem;">
+          <span style="font-weight:600; color:#64748b; margin-right:0.25rem;">Filter Action:</span>
+          <button type="button" class="pgx-filter-pill ${activeFilter === "ALL" ? "active" : ""}" data-cat="ALL">All (${counts.ALL})</button>
+          <button type="button" class="pgx-filter-pill ${activeFilter === "AVOID" ? "active" : ""}" data-cat="AVOID" style="--pill-color:#b91c1c;">Avoid / Alt (${counts.AVOID})</button>
+          <button type="button" class="pgx-filter-pill ${activeFilter === "DOSE" ? "active" : ""}" data-cat="DOSE" style="--pill-color:#ea580c;">Dose Adjust (${counts.DOSE})</button>
+          <button type="button" class="pgx-filter-pill ${activeFilter === "MONITOR" ? "active" : ""}" data-cat="MONITOR" style="--pill-color:#d97706;">Monitoring (${counts.MONITOR})</button>
+          <button type="button" class="pgx-filter-pill ${activeFilter === "STD" ? "active" : ""}" data-cat="STD" style="--pill-color:#10b981;">Standard (${counts.STD})</button>
+          <button type="button" class="pgx-filter-pill ${activeFilter === "INDET" ? "active" : ""}" data-cat="INDET" style="--pill-color:#7c3aed;">Insufficient (${counts.INDET})</button>
+        </div>
+      `;
+
+      pillsEl.querySelectorAll(".pgx-filter-pill").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.matrixFilterCategory = btn.getAttribute("data-cat");
+          renderMatrix(recs, calls);
+        });
+      });
+    }
+
+    // Filter drugs if a specific pill is selected
+    const filterCat = state.matrixFilterCategory || "ALL";
+    const filteredDrugs = drugs.filter((drug) => {
+      if (filterCat === "ALL") return true;
+      const drugRecs = recs.filter((r) => r.formattedGenericName === drug);
+      if (filterCat === "AVOID") return drugRecs.some((r) => r.actionCategory === "AVOID_OR_USE_ALTERNATIVE");
+      if (filterCat === "DOSE") return drugRecs.some((r) => r.actionCategory && r.actionCategory.indexOf("DOSE") === 0);
+      if (filterCat === "MONITOR") return drugRecs.some((r) => r.actionCategory === "ENHANCED_MONITORING");
+      if (filterCat === "STD") return drugRecs.some((r) => r.actionCategory === "STANDARD_PRESCRIBING" || r.actionCategory === "STANDARD_OR_NO_CHANGE");
+      if (filterCat === "INDET") return drugRecs.some((r) => r.actionCategory === "INSUFFICIENT_GENOTYPE_RESOLUTION");
+      return true;
+    });
+
+    const displayDrugs = filteredDrugs.length ? filteredDrugs : drugs;
     let html = '<table class="pgx-matrix" role="grid"><caption>Gene–drug actionability (scoped medications)</caption><thead><tr><th>Drug</th>';
     genes.forEach((g) => { html += "<th>" + g + "</th>"; });
     html += "</tr></thead><tbody>";
-    drugs.forEach((drug) => {
-      html += "<tr><th scope=\"row\">" + drug + "</th>";
+    displayDrugs.forEach((drug) => {
+      html += '<tr><th scope="row">' + drug + "</th>";
       genes.forEach((g) => {
         const rec = recs.find((r) => r.formattedGenericName === drug && r.gene === g);
         if (!rec) {
           html += '<td class="pgx-cell-none">No guideline</td>';
         } else if (rec.actionCategory === "INSUFFICIENT_GENOTYPE_RESOLUTION") {
-          html += '<td class="pgx-cell-indet">Insufficient resolution</td>';
+          html += '<td class="pgx-cell-indet pgx-interactive-cell" data-drug="' + esc(drug) + '" data-gene="' + esc(g) + '" title="Click to inspect clinical guidance">Insufficient resolution ℹ</td>';
         } else {
-          html += '<td class="' + ACTION_META[rec.actionCategory].cls + '">' + ACTION_META[rec.actionCategory].label + "</td>";
+          html += '<td class="' + ACTION_META[rec.actionCategory].cls + ' pgx-interactive-cell" data-drug="' + esc(drug) + '" data-gene="' + esc(g) + '" title="Click to inspect clinical guidance">' + ACTION_META[rec.actionCategory].label + " ℹ</td>";
         }
       });
       html += "</tr>";
     });
     html += "</tbody></table>";
     el.innerHTML = html;
+
+    // Attach click listener on interactive table cells
+    el.querySelectorAll(".pgx-interactive-cell").forEach((cell) => {
+      cell.addEventListener("click", () => {
+        const d = cell.getAttribute("data-drug");
+        const g = cell.getAttribute("data-gene");
+        const rec = recs.find((r) => r.formattedGenericName === d && r.gene === g);
+        const card = document.getElementById("pgx-matrix-detail-card");
+        if (!card || !rec) return;
+        const meta = ACTION_META[rec.actionCategory] || { label: rec.actionCategory, cls: "pgx-act-none" };
+        card.style.display = "block";
+        card.innerHTML = `
+          <div class="pgx-action-card ${meta.cls}" style="margin:0; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div>
+                <span class="pgx-evidence-badge">Matrix Selection</span>
+                <h3 style="margin:0.25rem 0 0.2rem;">${esc(rec.formattedGenericName)} × ${esc(rec.gene)}</h3>
+              </div>
+              <button type="button" onclick="document.getElementById('pgx-matrix-detail-card').style.display='none'" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#94a3b8;" aria-label="Close detail">×</button>
+            </div>
+            <p class="pgx-action-label" style="margin:0.35rem 0;">${meta.label}</p>
+            <p style="margin:0.25rem 0; font-size:0.875rem;"><strong>Diplotype:</strong> ${esc(rec.diplotype || "—")} · <strong>Phenotype:</strong> ${esc(rec.phenotype || "Indeterminate")}</p>
+            ${rec.actionCategory === "INSUFFICIENT_GENOTYPE_RESOLUTION" ? `
+              <div style="margin:0.4rem 0; padding:0.4rem 0.6rem; background:#f5f3ff; border-left:3px solid #7c3aed; border-radius:3px; font-size:0.8rem; color:#4c1d95;">
+                <strong>Genealogy Array Limitation:</strong> Raw consumer array data is unphased and cannot determine chromosomal phase (<em>cis</em> vs. <em>trans</em>) or measure copy number. Prescribing adjustments require CLIA/CAP-certified confirmatory testing.
+              </div>
+            ` : ""}
+            ${rec.recommendationText ? `<p style="margin:0.25rem 0; font-size:0.875rem;"><strong>Guidance:</strong> ${esc(rec.recommendationText)}</p>` : ""}
+            ${rec.sourceUrl ? `<p style="margin:0.25rem 0; font-size:0.85rem;"><a href="${esc(rec.sourceUrl)}" target="_blank" rel="noopener">CPIC Guideline Reference ↗</a> · Level ${esc(rec.cpicLevel || "A")}</p>` : ""}
+          </div>
+        `;
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
+  }
+
+  /* Hierarchical agglomerative clustering with dendrogram coordinate extraction */
+  function hierarchicalCluster(matrix, labels, metric, linkage) {
+    metric = metric || "euclidean";
+    linkage = linkage || "average";
+    const n = labels.length;
+    if (n <= 1) return { order: [0], lines: [] };
+
+    // 1. Calculate pairwise distance matrix
+    const dist = [];
+    for (let i = 0; i < n; i++) {
+      dist[i] = [];
+      for (let j = 0; j < n; j++) {
+        if (i === j) {
+          dist[i][j] = 0;
+        } else if (j < i) {
+          dist[i][j] = dist[j][i];
+        } else {
+          const v1 = matrix[i] || [];
+          const v2 = matrix[j] || [];
+          const len = Math.max(v1.length, v2.length);
+          let d = 0;
+          if (metric === "manhattan") {
+            for (let k = 0; k < len; k++) {
+              d += Math.abs((v1[k] || 0) - (v2[k] || 0));
+            }
+          } else {
+            for (let k = 0; k < len; k++) {
+              const diff = (v1[k] || 0) - (v2[k] || 0);
+              d += diff * diff;
+            }
+            d = Math.sqrt(d);
+          }
+          dist[i][j] = d;
+        }
+      }
+    }
+
+    // 2. Agglomerative clustering
+    let active = labels.map((l, i) => ({
+      id: i,
+      indices: [i],
+      count: 1,
+      leafIndex: i,
+      height: 0,
+      left: null,
+      right: null
+    }));
+
+    const cDist = new Map();
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        cDist.set(i + "," + j, dist[i][j]);
+      }
+    }
+
+    let nextId = n;
+    while (active.length > 1) {
+      let minDist = Infinity, minI = -1, minJ = -1;
+      for (let i = 0; i < active.length; i++) {
+        for (let j = i + 1; j < active.length; j++) {
+          const k = active[i].id < active[j].id ? active[i].id + "," + active[j].id : active[j].id + "," + active[i].id;
+          const d = cDist.has(k) ? cDist.get(k) : 0;
+          if (d < minDist) {
+            minDist = d;
+            minI = i;
+            minJ = j;
+          }
+        }
+      }
+      if (minI === -1 || minJ === -1) {
+        minI = 0;
+        minJ = 1;
+        minDist = 0.1;
+      }
+      const cA = active[minI];
+      const cB = active[minJ];
+      const newCluster = {
+        id: nextId++,
+        indices: cA.indices.concat(cB.indices),
+        count: cA.count + cB.count,
+        left: cA,
+        right: cB,
+        height: minDist === Infinity ? 0 : minDist
+      };
+      active = active.filter((_, idx) => idx !== minI && idx !== minJ);
+      for (const cOther of active) {
+        const kA = cA.id < cOther.id ? cA.id + "," + cOther.id : cOther.id + "," + cA.id;
+        const kB = cB.id < cOther.id ? cB.id + "," + cOther.id : cOther.id + "," + cB.id;
+        const d1 = cDist.has(kA) ? cDist.get(kA) : 0;
+        const d2 = cDist.has(kB) ? cDist.get(kB) : 0;
+        let newD;
+        if (linkage === "complete") {
+          newD = Math.max(d1, d2);
+        } else if (linkage === "single") {
+          newD = Math.min(d1, d2);
+        } else {
+          newD = (cA.count * d1 + cB.count * d2) / (cA.count + cB.count);
+        }
+        const kN = newCluster.id < cOther.id ? newCluster.id + "," + cOther.id : cOther.id + "," + newCluster.id;
+        cDist.set(kN, newD);
+      }
+      active.push(newCluster);
+    }
+
+    const root = active[0];
+    const order = [];
+    function traverse(node) {
+      if (!node.left && !node.right) {
+        order.push(node.leafIndex);
+        return;
+      }
+      if (node.left) traverse(node.left);
+      if (node.right) traverse(node.right);
+    }
+    traverse(root);
+
+    const leafPos = new Map();
+    order.forEach((idx, p) => leafPos.set(idx, p));
+    const lines = []; // array of { x: [], y: [] }
+    function layout(node) {
+      if (!node.left && !node.right) {
+        node.pos = leafPos.get(node.leafIndex);
+        return node.pos;
+      }
+      const lp = layout(node.left);
+      const rp = layout(node.right);
+      node.pos = (lp + rp) / 2;
+      const lh = node.left.height || 0;
+      const rh = node.right.height || 0;
+      const ch = Math.max(node.height, Math.max(lh, rh) + 0.05);
+      lines.push({ x: [lp, lp, rp, rp], y: [lh, ch, ch, rh] });
+      return node.pos;
+    }
+    layout(root);
+    return { order, lines, root };
+  }
+
+  /* Render dendrogram clustered heatmaps using Plotly */
+  function renderDendrogram(recs, calls) {
+    const plotEl = document.getElementById("pgx-dendrogram-plot");
+    if (!plotEl || !window.Plotly) return;
+    if (!recs.length || !calls.length) {
+      plotEl.innerHTML = '<p class="pgx-empty" style="padding:2.5rem;text-align:center;">Dendrogram clustered heatmaps appear after gene calls and APCD medications are available.</p>';
+      return;
+    }
+
+    const mode = state.clusterMode || "drug_gene";
+    const metric = state.clusterMetric || "euclidean";
+    const linkage = state.clusterLinkage || "average";
+
+    const drugs = [];
+    const seenDrugs = new Set();
+    recs.forEach((r) => {
+      if (!seenDrugs.has(r.formattedGenericName)) {
+        seenDrugs.add(r.formattedGenericName);
+        drugs.push(r.formattedGenericName);
+      }
+    });
+    const genes = calls.map((c) => c.gene);
+
+    const colorscale = [
+      [0.0, "#f8fafc"], [0.10, "#f8fafc"], // No guideline (0)
+      [0.10, "#7c3aed"], [0.24, "#7c3aed"], // Insufficient (0.5)
+      [0.24, "#10b981"], [0.44, "#10b981"], // Standard (1)
+      [0.44, "#d97706"], [0.64, "#d97706"], // Monitoring (2)
+      [0.64, "#ea580c"], [0.84, "#ea580c"], // Dose adjust (3)
+      [0.84, "#b91c1c"], [1.00, "#b91c1c"]  // Avoid / Alt (4)
+    ];
+
+    if (mode === "drug_gene") {
+      // Matrix: Drugs (rows) x Genes (columns)
+      const Z = [];
+      const hoverText = [];
+      const customData = [];
+
+      for (let i = 0; i < drugs.length; i++) {
+        Z[i] = [];
+        hoverText[i] = [];
+        customData[i] = [];
+        const drug = drugs[i];
+        for (let j = 0; j < genes.length; j++) {
+          const gene = genes[j];
+          const rec = recs.find((r) => r.formattedGenericName === drug && r.gene === gene);
+          let score = 0;
+          let label = "No guideline";
+          let pheno = "—";
+          let diplo = "—";
+          let cpicLvl = "—";
+          let text = "";
+
+          if (rec) {
+            pheno = rec.phenotype || "—";
+            diplo = rec.diplotype || "—";
+            cpicLvl = rec.cpicLevel || "—";
+            text = rec.recommendationText || "";
+            if (rec.actionCategory === "AVOID_OR_USE_ALTERNATIVE") {
+              score = 4;
+              label = "Avoid / use alternative";
+            } else if (rec.actionCategory && rec.actionCategory.indexOf("DOSE") === 0) {
+              score = 3;
+              label = "Dose adjustment";
+            } else if (rec.actionCategory === "ENHANCED_MONITORING") {
+              score = 2;
+              label = "Enhanced monitoring";
+            } else if (rec.actionCategory === "STANDARD_PRESCRIBING" || rec.actionCategory === "STANDARD_OR_NO_CHANGE") {
+              score = 1;
+              label = "Standard prescribing";
+            } else if (rec.actionCategory === "INSUFFICIENT_GENOTYPE_RESOLUTION") {
+              score = 0.5;
+              label = "Insufficient resolution";
+            }
+          }
+          Z[i][j] = score;
+          hoverText[i][j] = `<b>${drug}</b> × <b>${gene}</b><br>Action: ${label}<br>Phenotype: ${pheno}<br>Diplotype: ${diplo}<br>CPIC Level: ${cpicLvl}`;
+          customData[i][j] = { drug, gene, label, score, pheno, diplo, cpicLvl, text, rec };
+        }
+      }
+
+      // Cluster Drugs (rows)
+      const rowClust = hierarchicalCluster(Z, drugs, metric, linkage);
+      const orderedDrugs = rowClust.order.map((i) => drugs[i]);
+
+      // Cluster Genes (columns) -> transpose Z
+      const Z_T = genes.map((_, j) => drugs.map((_, i) => Z[i][j]));
+      const colClust = hierarchicalCluster(Z_T, genes, metric, linkage);
+      const orderedGenes = colClust.order.map((j) => genes[j]);
+
+      // Reorder Z, hoverText, customData
+      const reorderedZ = [];
+      const reorderedHover = [];
+      const reorderedCustom = [];
+      for (let i = 0; i < orderedDrugs.length; i++) {
+        const origI = rowClust.order[i];
+        reorderedZ[i] = [];
+        reorderedHover[i] = [];
+        reorderedCustom[i] = [];
+        for (let j = 0; j < orderedGenes.length; j++) {
+          const origJ = colClust.order[j];
+          reorderedZ[i][j] = Z[origI][origJ];
+          reorderedHover[i][j] = hoverText[origI][origJ];
+          reorderedCustom[i][j] = customData[origI][origJ];
+        }
+      }
+
+      // Dendrogram line traces
+      const traces = [];
+
+      // Row dendrogram lines (along Y axis for drugs)
+      if (drugs.length > 1 && rowClust.lines.length) {
+        let rowX = [], rowY = [];
+        rowClust.lines.forEach((l) => {
+          rowX = rowX.concat([l.y[0], l.y[1], l.y[2], l.y[3], null]);
+          rowY = rowY.concat([l.x[0], l.x[1], l.x[2], l.x[3], null]);
+        });
+        traces.push({
+          type: "scatter",
+          mode: "lines",
+          x: rowX,
+          y: rowY,
+          xaxis: "x2",
+          yaxis: "y",
+          line: { color: "#64748b", width: 1.5 },
+          hoverinfo: "none",
+          showlegend: false
+        });
+      }
+
+      // Column dendrogram lines (along X axis for genes)
+      if (genes.length > 1 && colClust.lines.length) {
+        let colX = [], colY = [];
+        colClust.lines.forEach((l) => {
+          colX = colX.concat([l.x[0], l.x[1], l.x[2], l.x[3], null]);
+          colY = colY.concat([l.y[0], l.y[1], l.y[2], l.y[3], null]);
+        });
+        traces.push({
+          type: "scatter",
+          mode: "lines",
+          x: colX,
+          y: colY,
+          xaxis: "x",
+          yaxis: "y2",
+          line: { color: "#64748b", width: 1.5 },
+          hoverinfo: "none",
+          showlegend: false
+        });
+      }
+
+      // Heatmap trace
+      traces.push({
+        type: "heatmap",
+        z: reorderedZ,
+        x: orderedGenes.map((_, i) => i),
+        y: orderedDrugs.map((_, i) => i),
+        text: reorderedHover,
+        hoverinfo: "text",
+        customdata: reorderedCustom,
+        xaxis: "x",
+        yaxis: "y",
+        colorscale: colorscale,
+        zmin: 0,
+        zmax: 4,
+        showscale: true,
+        colorbar: {
+          title: "Action",
+          tickvals: [0, 0.5, 1, 2, 3, 4],
+          ticktext: ["None", "Insufficient", "Standard", "Monitoring", "Dose Adjust", "Avoid/Alt"],
+          len: 0.85,
+          thickness: 14,
+          x: 1.02
+        }
+      });
+
+      const hasRowDendro = drugs.length > 1 && rowClust.lines.length > 0;
+      const hasColDendro = genes.length > 1 && colClust.lines.length > 0;
+
+      const layout = {
+        title: { text: "<b>Drug × Gene Action Clustered Heatmap</b>", font: { size: 15, color: "#0f172a" }, x: 0.05 },
+        autosize: true,
+        margin: { l: hasRowDendro ? 130 : 120, r: 80, t: hasColDendro ? 70 : 40, b: 60 },
+        height: Math.max(480, orderedDrugs.length * 28 + 140),
+        xaxis: {
+          domain: [hasRowDendro ? 0.16 : 0.0, 1.0],
+          anchor: "y",
+          tickmode: "array",
+          tickvals: orderedGenes.map((_, i) => i),
+          ticktext: orderedGenes,
+          tickangle: -30,
+          tickfont: { size: 11, color: "#0f172a", family: "system-ui" },
+          showgrid: false
+        },
+        yaxis: {
+          domain: [0.0, hasColDendro ? 0.82 : 1.0],
+          anchor: hasRowDendro ? "x2" : "x",
+          tickmode: "array",
+          tickvals: orderedDrugs.map((_, i) => i),
+          ticktext: orderedDrugs,
+          tickfont: { size: 11, color: "#0f172a", family: "system-ui" },
+          showgrid: false,
+          automargin: true
+        },
+        xaxis2: {
+          domain: [0.0, 0.14],
+          anchor: "y",
+          showticklabels: false,
+          showgrid: false,
+          zeroline: false,
+          autorange: "reversed"
+        },
+        yaxis2: {
+          domain: [0.84, 1.0],
+          anchor: "x",
+          showticklabels: false,
+          showgrid: false,
+          zeroline: false
+        },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff"
+      };
+
+      Plotly.react(plotEl, traces, layout, { responsive: true, displayModeBar: true });
+    } else if (mode === "drug_rec") {
+      // Drug x Recommendation count profile
+      const categories = [
+        { key: "AVOID", label: "Avoid / Alt", match: (c) => c === "AVOID_OR_USE_ALTERNATIVE" },
+        { key: "DOSE", label: "Dose Adjust", match: (c) => c && c.indexOf("DOSE") === 0 },
+        { key: "MONITOR", label: "Monitoring", match: (c) => c === "ENHANCED_MONITORING" },
+        { key: "STANDARD", label: "Standard", match: (c) => c === "STANDARD_PRESCRIBING" || c === "STANDARD_OR_NO_CHANGE" },
+        { key: "INDET", label: "Insufficient", match: (c) => c === "INSUFFICIENT_GENOTYPE_RESOLUTION" }
+      ];
+
+      const Z = drugs.map((drug) => {
+        const drugRecs = recs.filter((r) => r.formattedGenericName === drug);
+        return categories.map((cat) => drugRecs.filter((r) => cat.match(r.actionCategory)).length);
+      });
+
+      const rowClust = hierarchicalCluster(Z, drugs, metric, linkage);
+      const orderedDrugs = rowClust.order.map((i) => drugs[i]);
+      const reorderedZ = rowClust.order.map((i) => Z[i]);
+
+      const traces = [];
+      if (drugs.length > 1 && rowClust.lines.length) {
+        let rowX = [], rowY = [];
+        rowClust.lines.forEach((l) => {
+          rowX = rowX.concat([l.y[0], l.y[1], l.y[2], l.y[3], null]);
+          rowY = rowY.concat([l.x[0], l.x[1], l.x[2], l.x[3], null]);
+        });
+        traces.push({
+          type: "scatter",
+          mode: "lines",
+          x: rowX,
+          y: rowY,
+          xaxis: "x2",
+          yaxis: "y",
+          line: { color: "#64748b", width: 1.5 },
+          hoverinfo: "none",
+          showlegend: false
+        });
+      }
+
+      traces.push({
+        type: "heatmap",
+        z: reorderedZ,
+        x: categories.map((_, i) => i),
+        y: orderedDrugs.map((_, i) => i),
+        colorscale: "Viridis",
+        showscale: true,
+        xaxis: "x",
+        yaxis: "y",
+        colorbar: { title: "Action Count", thickness: 14 }
+      });
+
+      const layout = {
+        title: { text: "<b>Drug Clustering by Recommendation Profile</b>", font: { size: 15, color: "#0f172a" }, x: 0.05 },
+        autosize: true,
+        margin: { l: 140, r: 80, t: 50, b: 60 },
+        height: Math.max(460, orderedDrugs.length * 28 + 120),
+        xaxis: {
+          domain: [0.16, 1.0],
+          anchor: "y",
+          tickmode: "array",
+          tickvals: categories.map((_, i) => i),
+          ticktext: categories.map((c) => c.label),
+          tickfont: { size: 11 }
+        },
+        yaxis: {
+          domain: [0.0, 1.0],
+          anchor: "x2",
+          tickmode: "array",
+          tickvals: orderedDrugs.map((_, i) => i),
+          ticktext: orderedDrugs,
+          automargin: true,
+          tickfont: { size: 11 }
+        },
+        xaxis2: { domain: [0.0, 0.14], anchor: "y", showticklabels: false, showgrid: false, zeroline: false, autorange: "reversed" },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff"
+      };
+
+      Plotly.react(plotEl, traces, layout, { responsive: true, displayModeBar: true });
+    } else if (mode === "gene_rec") {
+      // Gene x Recommendation count profile
+      const categories = [
+        { key: "AVOID", label: "Avoid / Alt", match: (c) => c === "AVOID_OR_USE_ALTERNATIVE" },
+        { key: "DOSE", label: "Dose Adjust", match: (c) => c && c.indexOf("DOSE") === 0 },
+        { key: "MONITOR", label: "Monitoring", match: (c) => c === "ENHANCED_MONITORING" },
+        { key: "STANDARD", label: "Standard", match: (c) => c === "STANDARD_PRESCRIBING" || c === "STANDARD_OR_NO_CHANGE" },
+        { key: "INDET", label: "Insufficient", match: (c) => c === "INSUFFICIENT_GENOTYPE_RESOLUTION" }
+      ];
+
+      const Z = genes.map((gene) => {
+        const geneRecs = recs.filter((r) => r.gene === gene);
+        return categories.map((cat) => geneRecs.filter((r) => cat.match(r.actionCategory)).length);
+      });
+
+      const rowClust = hierarchicalCluster(Z, genes, metric, linkage);
+      const orderedGenes = rowClust.order.map((i) => genes[i]);
+      const reorderedZ = rowClust.order.map((i) => Z[i]);
+
+      const traces = [];
+      if (genes.length > 1 && rowClust.lines.length) {
+        let rowX = [], rowY = [];
+        rowClust.lines.forEach((l) => {
+          rowX = rowX.concat([l.y[0], l.y[1], l.y[2], l.y[3], null]);
+          rowY = rowY.concat([l.x[0], l.x[1], l.x[2], l.x[3], null]);
+        });
+        traces.push({
+          type: "scatter",
+          mode: "lines",
+          x: rowX,
+          y: rowY,
+          xaxis: "x2",
+          yaxis: "y",
+          line: { color: "#64748b", width: 1.5 },
+          hoverinfo: "none",
+          showlegend: false
+        });
+      }
+
+      traces.push({
+        type: "heatmap",
+        z: reorderedZ,
+        x: categories.map((_, i) => i),
+        y: orderedGenes.map((_, i) => i),
+        colorscale: "Magma",
+        showscale: true,
+        xaxis: "x",
+        yaxis: "y",
+        colorbar: { title: "Affected Meds", thickness: 14 }
+      });
+
+      const layout = {
+        title: { text: "<b>Gene Clustering by Recommendation Profile</b>", font: { size: 15, color: "#0f172a" }, x: 0.05 },
+        autosize: true,
+        margin: { l: 110, r: 80, t: 50, b: 60 },
+        height: Math.max(440, orderedGenes.length * 36 + 120),
+        xaxis: {
+          domain: [0.16, 1.0],
+          anchor: "y",
+          tickmode: "array",
+          tickvals: categories.map((_, i) => i),
+          ticktext: categories.map((c) => c.label),
+          tickfont: { size: 11 }
+        },
+        yaxis: {
+          domain: [0.0, 1.0],
+          anchor: "x2",
+          tickmode: "array",
+          tickvals: orderedGenes.map((_, i) => i),
+          ticktext: orderedGenes,
+          automargin: true,
+          tickfont: { size: 11 }
+        },
+        xaxis2: { domain: [0.0, 0.14], anchor: "y", showticklabels: false, showgrid: false, zeroline: false, autorange: "reversed" },
+        paper_bgcolor: "#ffffff",
+        plot_bgcolor: "#ffffff"
+      };
+
+      Plotly.react(plotEl, traces, layout, { responsive: true, displayModeBar: true });
+    }
+
+    // Attach click handler on heatmap cells to show detail
+    if (!plotEl._hasClickListener) {
+      plotEl._hasClickListener = true;
+      plotEl.on("plotly_click", function (data) {
+        if (!data || !data.points || !data.points.length) return;
+        const pt = data.points[0];
+        const detailEl = document.getElementById("pgx-dendrogram-detail");
+        if (!detailEl) return;
+        const cdata = pt.customdata;
+        if (cdata && cdata.rec) {
+          const r = cdata.rec;
+          const meta = ACTION_META[r.actionCategory] || { label: r.actionCategory, cls: "pgx-act-none" };
+          detailEl.style.display = "block";
+          detailEl.innerHTML = `
+            <div class="pgx-action-card ${meta.cls}" style="margin:0; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                  <span class="pgx-evidence-badge">Dendrogram Inspection</span>
+                  <h3 style="margin:0.25rem 0 0.2rem;">${esc(r.formattedGenericName)} × ${esc(r.gene)}</h3>
+                </div>
+                <button type="button" onclick="document.getElementById('pgx-dendrogram-detail').style.display='none'" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#94a3b8;" aria-label="Close detail">×</button>
+              </div>
+              <p class="pgx-action-label" style="margin:0.35rem 0;">${meta.label}</p>
+              <p style="margin:0.25rem 0; font-size:0.875rem;"><strong>Diplotype:</strong> ${esc(r.diplotype || "—")} · <strong>Phenotype:</strong> ${esc(r.phenotype || "Indeterminate")}</p>
+              ${r.actionCategory === "INSUFFICIENT_GENOTYPE_RESOLUTION" ? `
+                <div style="margin:0.4rem 0; padding:0.4rem 0.6rem; background:#f5f3ff; border-left:3px solid #7c3aed; border-radius:3px; font-size:0.8rem; color:#4c1d95;">
+                  <strong>Genealogy Array Limitation:</strong> Raw consumer array data is unphased and cannot determine chromosomal phase (<em>cis</em> vs. <em>trans</em>) or measure copy number. Prescribing adjustments require CLIA/CAP-certified confirmatory testing.
+                </div>
+              ` : ""}
+              ${r.recommendationText ? `<p style="margin:0.25rem 0; font-size:0.875rem;"><strong>Guidance:</strong> ${esc(r.recommendationText)}</p>` : ""}
+              ${r.sourceUrl ? `<p style="margin:0.25rem 0; font-size:0.85rem;"><a href="${esc(r.sourceUrl)}" target="_blank" rel="noopener">CPIC Guideline Reference ↗</a> · Level ${esc(r.cpicLevel || "A")}</p>` : ""}
+            </div>
+          `;
+          detailEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      });
+    }
+  }
+
+  function syncViewFormat() {
+    const isMatrix = (state.viewFormat || "matrix") === "matrix";
+    const btnMatrix = document.getElementById("btnFormatMatrix");
+    const btnQueue = document.getElementById("btnFormatQueue");
+    const queueSec = document.getElementById("pgx-queue-view-section");
+
+    if (btnMatrix) btnMatrix.classList.toggle("active", isMatrix);
+    if (btnQueue) btnQueue.classList.toggle("active", !isMatrix);
+
+    if (queueSec) {
+      if (isMatrix) {
+        queueSec.style.opacity = "0.95";
+        queueSec.style.borderTop = "1px dashed #cbd5e1";
+        queueSec.style.paddingTop = "1rem";
+      } else {
+        queueSec.style.opacity = "1";
+        queueSec.style.borderTop = "";
+        queueSec.style.paddingTop = "";
+      }
+    }
+  }
+
+  function syncAggregatedVisuals() {
+    const radarSec = document.getElementById("pgx-card-report-radar-wrap");
+    const radarChart = document.getElementById("pgx-card-report-radar-chart");
+    const origRadar = document.getElementById("pgx-card-radar-chart");
+    if (radarSec && radarChart && origRadar && origRadar.data && origRadar.data.length && window.Plotly) {
+      radarSec.style.display = "";
+      Plotly.react(radarChart, origRadar.data, origRadar.layout || {}, { responsive: true, displayModeBar: false });
+    }
+    const img = document.getElementById("pgx-card-figure-pack-image");
+    if (img && !img.src) {
+      if (typeof window.loadPgxCardFigurePack === "function") {
+        window.loadPgxCardFigurePack();
+      }
+    }
   }
 
   function renderTriplets(alerts) {
@@ -668,7 +1352,10 @@
     renderSummary(recs, alerts);
     renderQueue(recs);
     renderMatrix(recs, state.lastCalls);
+    renderDendrogram(recs, state.lastCalls);
     renderTriplets(alerts);
+    syncViewFormat();
+    syncAggregatedVisuals();
   }
 
   function isExploratoryCall(call) {
@@ -1194,6 +1881,31 @@
     bindExport("pgx-export-physician", "physician");
     bindExport("pgx-export-clipboard", "clipboard");
     bindExport("pgx-export-pharmacy", "pharmacy");
+
+    // Format toggle buttons
+    document.getElementById("btnFormatMatrix")?.addEventListener("click", () => {
+      state.viewFormat = "matrix";
+      syncViewFormat();
+    });
+    document.getElementById("btnFormatQueue")?.addEventListener("click", () => {
+      state.viewFormat = "queue";
+      syncViewFormat();
+    });
+
+    // Dendrogram cluster controls
+    document.getElementById("pgx-cluster-mode")?.addEventListener("change", (e) => {
+      state.clusterMode = e.target.value;
+      if (state.lastPayload) renderDendrogram(visibleRecs(state.lastRecs), state.lastCalls);
+    });
+    document.getElementById("pgx-cluster-metric")?.addEventListener("change", (e) => {
+      state.clusterMetric = e.target.value;
+      if (state.lastPayload) renderDendrogram(visibleRecs(state.lastRecs), state.lastCalls);
+    });
+    document.getElementById("pgx-cluster-linkage")?.addEventListener("change", (e) => {
+      state.clusterLinkage = e.target.value;
+      if (state.lastPayload) renderDendrogram(visibleRecs(state.lastRecs), state.lastCalls);
+    });
+
     seedVocabExtras();
     bindAutocomplete();
     renderChips();
@@ -1203,7 +1915,10 @@
     state.selections = [];
     state.drugScope = "ACTIVE";
     state.viewMode = "clinician";
+    state.viewFormat = "matrix";
+    state.clusterMode = "drug_gene";
     state.actionableOnly = false;
+    state.matrixFilterCategory = "ALL";
     state.lastPayload = null;
     state.lastCalls = [];
     state.lastRecs = [];
@@ -1226,6 +1941,21 @@
     if (queue) queue.innerHTML = "";
     const matrix = document.getElementById("pgx-action-matrix");
     if (matrix) matrix.innerHTML = "";
+    const matrixDetail = document.getElementById("pgx-matrix-detail-card");
+    if (matrixDetail) {
+      matrixDetail.style.display = "none";
+      matrixDetail.innerHTML = "";
+    }
+    const dendroPlot = document.getElementById("pgx-dendrogram-plot");
+    if (dendroPlot && window.Plotly) {
+      try { Plotly.purge(dendroPlot); } catch (_) {}
+      dendroPlot.innerHTML = "";
+    }
+    const dendroDetail = document.getElementById("pgx-dendrogram-detail");
+    if (dendroDetail) {
+      dendroDetail.style.display = "none";
+      dendroDetail.innerHTML = "";
+    }
     const trips = document.getElementById("pgx-triplet-panel");
     if (trips) trips.innerHTML = "";
     const summary = document.getElementById("pgx-summary-cards");
@@ -1249,6 +1979,7 @@
     if (pipelineLive) pipelineLive.innerHTML = "";
     renderRecommendationCard(null);
     renderChips();
+    syncViewFormat();
   }
 
   global.PgxWorkflow = {

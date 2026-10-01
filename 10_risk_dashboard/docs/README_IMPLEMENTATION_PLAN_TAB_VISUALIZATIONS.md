@@ -279,20 +279,84 @@ Not all tabs use the user’s selected drugs, ICDs, or CPTs from the Drugs / ICD
 
 ---
 
-## Tab 10: Documentation
+## Tab 10: Drug Networks (Cytoscape)
 
-**Purpose:** In-app help and usage instructions.
+**Purpose:** Provide interactive network topology exploration for feature-importance gated FP-Growth association rules (N4).
+
+| Item | Detail |
+|------|--------|
+| **API** | `GET /visualizations/cytoscape?cohort=...&age_band=...` |
+| **Data sources** | S3 `visualizations/cytoscape/{cohort}/{age_band}/network.html` |
+| **Frontend elements** | Sandboxed iframe rendering Cytoscape.js network graph |
+
+### Visuals / outputs
+
+| Visual | Type | Data from | Status |
+|--------|------|-----------|--------|
+| FI-gated Association Network | HTML (iframe) | `network_html` | ✅ Implemented |
+
+---
+
+## Tab 11: PGx Cohort (Macro Pharmacogenomics)
+
+**Purpose:** Population-scale gene–drug–phenotype network topology, PubMed literature citations, and cohort gene actionability radar (PGx2).
+
+| Item | Detail |
+|------|--------|
+| **API** | `GET /visualizations/cohort_pgx?cohort=...&age_band=...` |
+| **Data sources** | S3 `cohort_pgx/networks/{cohort}/{age_band}/network_topology.html`, `pgx_radar_data.json` |
+| **Frontend elements** | Pyvis network iframe, publication figure pack selector, PubMed citations accordion, Gene Actionability Radar |
+
+### Visuals / outputs
+
+| Visual | Type | Data from | Status |
+|--------|------|-----------|--------|
+| Gene–Drug–Phenotype Network | HTML (iframe) | `network_topology.html` | ✅ Implemented |
+| PGx Drug Network Figure Pack | Image + HTML | Precomputed Plotly PNG/HTML | ✅ Implemented |
+| Cohort Gene Actionability Radar | Radar (Plotly) | `pgx_radar_data.json` | ✅ Implemented |
+| Supporting Literature (PubMed) | Collapsible list | NCBI PubMed E-utilities | ✅ Implemented |
+
+---
+
+## Tab 12: PGx Card (Precision Prescribing Decision Support)
+
+**Purpose:** Individual patient prescribing decision support featuring an Options Matrix, Gene–Drug Actionability Matrix, Clustered Dendrogram Heatmaps, and Aggregated Population Figure Pack (PGx1).
+
+| Item | Detail |
+|------|--------|
+| **API** | Stateless CPIC lookups: `POST /pgx/calls`, DuckDB Parquet coverage, local client rendering |
+| **Data sources** | CPIC diplotype/phenotype tables, unphased matcher (`cpic_allele_resolver.py`), APCD generics |
+| **Frontend elements** | 3-Panel Options Matrix, CPIC Actionability Matrix with filter pills, Plotly Clustered Dendrograms, Population Figure Pack preview |
+
+### Visuals / outputs
+
+| Visual | Type | Data from | Status |
+|--------|------|-----------|--------|
+| Options Matrix Grid | 3-Panel CSS Grid | Workflow actions & export triggers | ✅ Implemented & Verified |
+| Gene–Drug Actionability Matrix | Interactive Grid | CPIC action calls + APCD generics | ✅ Implemented & Verified |
+| Dendrogram: Drug × Gene Heatmap | Dual-Dendrogram (Plotly) | Client hierarchical clustering | ✅ Implemented & Verified |
+| Dendrogram: Drug Recommendation Profile | Clustered Heatmap (Plotly) | Action category distribution | ✅ Implemented & Verified |
+| Dendrogram: Gene Actionability Spread | Clustered Heatmap (Plotly) | Gene medication involvement | ✅ Implemented & Verified |
+| Cohort Gene Actionability Radar | Radar (Plotly) | `pgx_radar_data.json` | ✅ Implemented & Verified |
+| Publication Figure Pack Preview | PNG + HTML links | Publication figure assets | ✅ Implemented & Verified |
+
+---
+
+## Tab 13: Documentation (User Guide)
+
+**Purpose:** In-app help, training workflows, clinical governance, and unphased DNA warnings.
 
 | Item | Detail |
 |------|--------|
 | **API** | None |
-| **Data sources** | Static content in `index.html` (or loaded from a doc file). |
-| **Frontend elements** | Text/sections, no dynamic visuals. |
+| **Data sources** | Static content in `tabs/documentation.html` |
+| **Frontend elements** | Text/sections, training workflows (UC01–UC09), technical appendix |
 
 ### Implementation checklist
 
-- [ ] Documentation tab content is up to date (overview, how to use risk, codes, visualization tabs).
-- [ ] Links to external docs (e.g. VISUALIZATION_PLAN, backend README) work if present.
+- [x] Documentation tab content is up to date (overview, how to use risk, codes, visualization tabs).
+- [x] Dedicated unphased DNA files and star alleles warning section.
+- [x] Standalone PGx Card documentation cross-linked ([README_pgx_card.md](README_pgx_card.md)).
 
 ---
 

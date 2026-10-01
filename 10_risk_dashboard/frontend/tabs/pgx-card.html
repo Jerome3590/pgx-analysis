@@ -124,18 +124,49 @@
               <label><input type="radio" name="pgx-view-mode" value="patient" /> Patient</label>
               <label><input type="radio" name="pgx-view-mode" value="clinician" checked /> Clinician / pharmacist</label>
             </div>
-            <div class="control-group full-width pgx-export-row">
-              <button id="btnGenerateCard">Generate PGx results</button>
-              <button id="btnResetCard" class="button-secondary">Reset</button>
-              <button type="button" id="pgx-export-current" class="button-secondary">Print</button>
-              <button type="button" id="pgx-export-json" class="button-secondary">Download JSON</button>
-              <button type="button" id="pgx-export-csv" class="button-secondary">Download CSV</button>
-              <button type="button" id="pgx-export-png" class="button-secondary">Download PNG</button>
-              <button type="button" id="pgx-export-pdf" class="button-secondary">Download PDF</button>
-              <button type="button" id="pgx-export-physician" class="button-secondary">Download summary for your doctor</button>
-              <button type="button" id="pgx-export-clipboard" class="button-secondary">Copy to clipboard</button>
-              <button type="button" id="pgx-export-tech" class="button-secondary">Technical appendix</button>
-              <button type="button" id="pgx-export-pharmacy" class="button-secondary">Pharmacy handoff</button>
+            <div class="control-group full-width pgx-export-row pgx-options-matrix-wrapper">
+              <div class="pgx-options-matrix">
+                <!-- Column 1: Primary Actions -->
+                <div class="pgx-opt-panel pgx-opt-panel-primary">
+                  <div class="pgx-opt-header">
+                    <span class="pgx-opt-icon">⚡</span>
+                    <strong>Run & Generate</strong>
+                  </div>
+                  <div class="pgx-opt-buttons">
+                    <button id="btnGenerateCard" class="pgx-btn-hero">Generate PGx results</button>
+                    <button id="btnResetCard" class="button-secondary">Reset</button>
+                  </div>
+                </div>
+
+                <!-- Column 2: Clinical Reports & Handoffs -->
+                <div class="pgx-opt-panel">
+                  <div class="pgx-opt-header">
+                    <span class="pgx-opt-icon">🩺</span>
+                    <strong>Clinical Reports</strong>
+                  </div>
+                  <div class="pgx-opt-buttons">
+                    <button type="button" id="pgx-export-physician" class="button-secondary">Doctor Summary</button>
+                    <button type="button" id="pgx-export-pharmacy" class="button-secondary">Pharmacy Handoff</button>
+                    <button type="button" id="pgx-export-tech" class="button-secondary">Technical Appendix</button>
+                  </div>
+                </div>
+
+                <!-- Column 3: Exports Matrix -->
+                <div class="pgx-opt-panel">
+                  <div class="pgx-opt-header">
+                    <span class="pgx-opt-icon">📑</span>
+                    <strong>Export Matrix</strong>
+                  </div>
+                  <div class="pgx-opt-buttons pgx-grid-2col">
+                    <button type="button" id="pgx-export-current" class="button-secondary">Print</button>
+                    <button type="button" id="pgx-export-pdf" class="button-secondary">PDF</button>
+                    <button type="button" id="pgx-export-png" class="button-secondary">PNG</button>
+                    <button type="button" id="pgx-export-csv" class="button-secondary">CSV</button>
+                    <button type="button" id="pgx-export-json" class="button-secondary">JSON</button>
+                    <button type="button" id="pgx-export-clipboard" class="button-secondary">Copy</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -172,19 +203,100 @@
             <div id="pgx-clinical-nudges"></div>
           </section>
           <div id="pgx-pipeline-live"></div>
-          <div class="pgx-card-section">
+
+          <!-- Format Toggle & Gene–Drug Actionability Matrix (Matrix Format default) -->
+          <div class="pgx-card-section" id="pgx-matrix-view-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:0.75rem; gap:0.5rem;">
+              <h3 style="margin:0;">Gene–drug actionability matrix</h3>
+              <div class="pgx-view-format-toggle" role="group" aria-label="Report Format Selector">
+                <span style="font-size:0.8rem; font-weight:600; color:#64748b; margin-right:0.35rem;">Format:</span>
+                <button type="button" id="btnFormatMatrix" class="pgx-format-btn active" title="Matrix Format">⊞ Matrix Format</button>
+                <button type="button" id="btnFormatQueue" class="pgx-format-btn" title="Row Queue Format">☰ Row Format</button>
+              </div>
+            </div>
+            <p class="subtitle"><small style="color:#64748b;">Cross-reference of approved APCD medications against patient genotypes and official CPIC recommendations. Click any cell to inspect clinical prescribing guidance.</small></p>
+            <div id="pgx-matrix-filter-pills" class="pgx-filter-pills" style="margin-bottom:0.75rem;"></div>
+            <div id="pgx-action-matrix"></div>
+            <div id="pgx-matrix-detail-card" style="display:none; margin-top:0.75rem;"></div>
+          </div>
+
+          <!-- Dendrogram Clustered Heatmaps Section -->
+          <div class="pgx-card-section" id="pgx-dendrogram-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom:0.5rem; gap:0.5rem;">
+              <h3 style="margin:0;">Report Clustered Dendrogram Heatmaps</h3>
+              <div class="pgx-cluster-controls" style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                <label for="pgx-cluster-mode" style="margin:0; font-size:0.78rem;">Cluster by:</label>
+                <select id="pgx-cluster-mode" style="padding:0.25rem 0.5rem; font-size:0.8rem; border-radius:0.35rem; border:1px solid #cbd5e1; background:#fff;">
+                  <option value="drug_gene">Drug, Gene & Recommendation (Dual Dendrogram)</option>
+                  <option value="drug_rec">Drug × Recommendation Profile</option>
+                  <option value="gene_rec">Gene × Recommendation Profile</option>
+                </select>
+                <label for="pgx-cluster-metric" style="margin:0; font-size:0.78rem;">Metric:</label>
+                <select id="pgx-cluster-metric" style="padding:0.25rem 0.5rem; font-size:0.8rem; border-radius:0.35rem; border:1px solid #cbd5e1; background:#fff;">
+                  <option value="euclidean">Euclidean</option>
+                  <option value="manhattan">Manhattan</option>
+                </select>
+                <label for="pgx-cluster-linkage" style="margin:0; font-size:0.78rem;">Linkage:</label>
+                <select id="pgx-cluster-linkage" style="padding:0.25rem 0.5rem; font-size:0.8rem; border-radius:0.35rem; border:1px solid #cbd5e1; background:#fff;">
+                  <option value="average">Average (UPGMA)</option>
+                  <option value="complete">Complete</option>
+                  <option value="single">Single</option>
+                </select>
+              </div>
+            </div>
+            <p class="subtitle"><small style="color:#64748b;">Hierarchical clustering groups medications and genes with similar pharmacogenomic recommendation profiles. Dendrogram branches reflect functional prescribing similarity.</small></p>
+            <div id="pgx-dendrogram-plot" style="min-height:500px; max-height:780px; overflow-y:auto; overflow-x:auto; width:100%; border:1px solid #e2e8f0; border-radius:0.5rem; background:#fff;"></div>
+            <div id="pgx-dendrogram-detail" style="margin-top:0.75rem; display:none;"></div>
+          </div>
+
+          <!-- Medication-First Action Queue (Preserved for row format / tests) -->
+          <div class="pgx-card-section" id="pgx-queue-view-section">
             <h3>Medication-first action queue</h3>
             <div id="pgx-action-queue"></div>
           </div>
-          <div class="pgx-card-section">
-            <h3>Gene–drug actionability matrix</h3>
-            <div id="pgx-action-matrix"></div>
-          </div>
+
+          <!-- Polypharmacy Triplet Engine -->
           <div class="pgx-card-section">
             <h3>Polypharmacy triplet engine</h3>
             <p class="subtitle"><small>Every three-way match in the current drug scope. Never shown as a CPIC recommendation.</small></p>
             <div id="pgx-triplet-panel"></div>
           </div>
+
+          <!-- Aggregated Population Visuals & Figure Pack -->
+          <div class="pgx-card-section" id="pgx-aggregated-visuals-section">
+            <h3>Aggregated Population Visuals & Figure Pack</h3>
+            <p class="subtitle">
+              <small style="color:#64748b;">
+                Publication-oriented PGx network figure pack: intervention-weighted topology, cohort dynamics, therapeutic ego networks,
+                intervention-priority heatmap, pathway context, and kinetic lead-time framing.
+              </small>
+            </p>
+            <div class="controls" style="margin-bottom:1rem;">
+              <div class="control-group">
+                <label for="pgx-card-figure-pack-select">Figure:</label>
+                <select id="pgx-card-figure-pack-select">
+                  <option value="pgx_intervention_priority_heatmap">Intervention priority heatmap</option>
+                  <option value="pgx_global_intervention_network">Global intervention network</option>
+                  <option value="pgx_cohort_small_multiples">Cohort small multiples</option>
+                  <option value="pgx_cluster_ego_networks">Therapeutic cluster ego networks</option>
+                  <option value="pgx_pathway_context_panel">Pathway context panel</option>
+                  <option value="pgx_time_to_event_panel">Medication lead-time panel</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <button id="btnLoadPgxCardFigurePack" type="button">Load Aggregated Visual</button>
+              </div>
+            </div>
+            <div id="pgx-card-figure-pack-status" class="status-message">Select a figure, then load the preview.</div>
+            <div id="pgx-card-figure-pack-links" style="margin:0.75rem 0;"></div>
+            <img id="pgx-card-figure-pack-image" alt="PGx aggregated figure pack preview" style="display:none; max-width:100%; border:1px solid #e2e8f0; border-radius:0.5rem; background:white;" />
+            <div id="pgx-card-report-radar-wrap" style="display:none; margin-top:1.5rem;">
+              <h4 style="color:#0f172a; margin-bottom:0.25rem;">Cohort Gene Actionability Radar</h4>
+              <p class="subtitle"><small style="color:#64748b;">Multi-dimensional actionability score per identified PGx gene.</small></p>
+              <div id="pgx-card-report-radar-chart" style="min-height:440px;"></div>
+            </div>
+          </div>
+
           <div class="pgx-card-section">
             <h3>Genes tested</h3>
             <div id="pgx-genes-list"></div>
