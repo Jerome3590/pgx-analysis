@@ -620,6 +620,25 @@
     .pgx-empty { color:#64748b; font-style:italic; }
     .pgx-export-row { display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center; }
     .pgx-export-row button { margin:0; }
+    .pgx-options-matrix-wrapper { padding:0 !important; background:transparent !important; border:none !important; box-shadow:none !important; }
+    .pgx-options-matrix { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem; width:100%; }
+    .pgx-opt-panel { background:#fff; border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.9rem; box-shadow:0 1px 3px rgba(15,23,42,0.05); }
+    .pgx-opt-panel-primary { border-color:#c7d2fe; background:#f8faff; }
+    .pgx-opt-header { display:flex; align-items:center; gap:0.45rem; margin-bottom:0.75rem; color:#0f172a; font-size:0.875rem; }
+    .pgx-opt-icon { font-size:1.1rem; }
+    .pgx-opt-buttons { display:flex; flex-direction:column; gap:0.45rem; }
+    .pgx-grid-2col { display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; }
+    .pgx-grid-2col button { width:100%; text-align:center; padding:0.45rem 0.5rem; font-size:0.8rem; }
+    .pgx-btn-hero { background:linear-gradient(135deg, #4f46e5, #6366f1) !important; color:#ffffff !important; font-weight:600 !important; border:none !important; padding:0.6rem 1rem !important; border-radius:0.4rem !important; cursor:pointer; }
+    .pgx-btn-hero:hover { background:linear-gradient(135deg, #4338ca, #4f46e5) !important; }
+    .pgx-view-format-toggle { display:inline-flex; align-items:center; background:#f1f5f9; padding:2px; border-radius:0.45rem; border:1px solid #e2e8f0; }
+    .pgx-format-btn { background:transparent; border:none; padding:0.25rem 0.65rem; font-size:0.78rem; font-weight:600; color:#64748b; border-radius:0.35rem; cursor:pointer; transition:all 0.15s ease; }
+    .pgx-filter-pills { display:flex !important; flex-wrap:wrap !important; gap:0.4rem !important; align-items:center !important; margin:0.5rem 0 0.85rem !important; }
+    .pgx-filter-pill { width:auto !important; display:inline-flex !important; align-items:center !important; background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:0.3rem 0.75rem; font-size:0.78rem; font-weight:600; border-radius:999px; cursor:pointer; transition:all 0.15s ease; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+    .pgx-filter-pill:hover { background:#f1f5f9; border-color:#94a3b8; }
+    .pgx-filter-pill.active { background:var(--pill-color, #2563eb) !important; color:#ffffff !important; border-color:transparent !important; box-shadow:0 1px 4px rgba(37,99,235,0.3) !important; }
+    .pgx-interactive-cell { cursor:pointer; transition:background-color 0.15s ease, transform 0.1s ease; }
+    .pgx-interactive-cell:hover { opacity:0.88; text-decoration:underline; }
     .pgx-inline-check { display:flex; align-items:center; gap:0.4rem; font-weight:500; }
     .pgx-card-header-row { display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap; }
     .pgx-qr-wrap { text-align:center; max-width:140px; }
@@ -4278,6 +4297,10 @@
       if (citData.gene_scores) window._pgxCohortGeneScores = citData.gene_scores;
       _renderPgxCardGeneList(citData);
       await _loadPgxRadar(radarUrl, "pgx-card-radar-chart");
+      await _loadPgxRadar(radarUrl, "pgx-card-report-radar-chart");
+      const reportRadarWrap = document.getElementById("pgx-card-report-radar-wrap");
+      if (reportRadarWrap) reportRadarWrap.style.display = "";
+      if (typeof loadPgxCardFigurePack === "function") loadPgxCardFigurePack();
       if (profileSec) profileSec.style.display = "";
       if (snpSec) snpSec.style.display = "";
       var binLabel = _bp ? " [" + bin + " density]" : "";
@@ -4418,6 +4441,54 @@
 
   document.getElementById("btnLoadCohortPgxFigurePack")?.addEventListener("click", loadCohortPgxFigurePack);
   document.getElementById("cohort-pgx-figure-pack-select")?.addEventListener("change", loadCohortPgxFigurePack);
+
+  async function loadPgxCardFigurePack() {
+    const select = document.getElementById("pgx-card-figure-pack-select");
+    const status = document.getElementById("pgx-card-figure-pack-status");
+    const image = document.getElementById("pgx-card-figure-pack-image");
+    const links = document.getElementById("pgx-card-figure-pack-links");
+    if (!select || !status || !image || !links) return;
+
+    const stem = select.value || "pgx_intervention_priority_heatmap";
+    const urls = _cohortPgxFigurePackUrls(stem);
+    status.textContent = "Loading aggregated PGx figure preview...";
+    status.className = "status-message info";
+    links.innerHTML = "";
+    image.style.display = "none";
+
+    try {
+      const pngHead = await fetch(urls.png, { method: "HEAD" }).catch(function() { return null; });
+      const htmlHead = await fetch(urls.html, { method: "HEAD" }).catch(function() { return null; });
+      if (!pngHead || !pngHead.ok) {
+        const apiResp = await fetch(API_BASE + "/visualizations/cohort_pgx");
+        if (apiResp.ok) {
+          const apiData = await apiResp.json();
+          const figurePack = apiData.figure_pack || {};
+          const item = figurePack[stem] || {};
+          if (item.png_url) urls.png = item.png_url;
+          if (item.html_url) urls.html = item.html_url;
+        }
+      }
+      image.src = urls.png;
+      image.style.display = "";
+      links.innerHTML = `
+        <a href="${urls.html}" target="_blank" rel="noopener">Open interactive HTML</a>
+        <span style="color:#94a3b8;"> | </span>
+        <a href="${urls.png}" target="_blank" rel="noopener">Open PNG</a>
+      `;
+      status.textContent = htmlHead && htmlHead.ok
+        ? "Aggregated visual preview loaded."
+        : "Aggregated visual preview loaded; verify HTML exists if the interactive link fails.";
+      status.className = "status-message success";
+    } catch (err) {
+      status.textContent = `Error loading aggregated PGx visual: ${err.message}`;
+      status.className = "status-message error";
+    }
+  }
+
+  window.loadPgxCardFigurePack = loadPgxCardFigurePack;
+  document.getElementById("btnLoadPgxCardFigurePack")?.addEventListener("click", loadPgxCardFigurePack);
+  document.getElementById("pgx-card-figure-pack-select")?.addEventListener("change", loadPgxCardFigurePack);
 
   // BupaR Visualizations Tab: load image URLs + activity frequency JSON (bar charts)
   document.getElementById("btnLoadBupaR")?.addEventListener("click", async () => {
