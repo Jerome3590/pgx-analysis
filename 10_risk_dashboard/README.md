@@ -24,8 +24,8 @@ The dashboard provides multiple capabilities (live tab names):
 6. **FP-Growth Patterns** — Frequent itemsets and association rules
 7. **BupaR Process Mining** — Process flows and activity sequences
 8. **Drug Networks** — Interactive FI-filtered drug association graph (Cytoscape HTML; tab name is Drug Networks)
-9. **PGx Cohort** — Population gene–drug–phenotype topology
-10. **PGx Card** — Claims radar (**Load Cohort PGx Profile**) plus a personalized clinical decision card from genetic variants (**Generate PGx results**). Features a 3-panel **Options Matrix**, interactive **Gene–Drug Actionability Matrix** with CPIC action filter pills, **Plotly Clustered Dendrogram Heatmaps** (Drug × Gene, Drug Profile, Gene Profile), and an **Aggregated Population Visuals Figure Pack**. AncestryDNA, 23andMe, MyHeritage, and unphased VCF stay in the browser. Lambda writes rows with DuckDB to ephemeral Snappy Parquet and joins CPIC gene intervals. Official lab alleles (e.g. `CYP2C19,*1,*2`) resolve via CPIC diplotype-to-phenotype tables. Full details: [docs/README_pgx_card.md](docs/README_pgx_card.md). See User Guide → **Unphased DNA files and star alleles**.
+9. **PGx Cohort** — Population gene–drug–phenotype topology across the **ED** (`opioid_ed`) and **Polypharmacy** (`non_opioid_ed`) cohorts
+10. **PGx Card** — Claims radar (**Load Cohort PGx Profile**) plus a personalized clinical decision card from genetic variants (**Generate PGx results**). Features a 3-panel **Options Matrix**, interactive **Gene–Drug Actionability Matrix** with CPIC action filter pills, **Plotly Clustered Dendrogram Heatmaps** (Drug × Gene, Drug Profile, Gene Profile), and an **Aggregated Population Visuals Figure Pack** comparing the **ED** and **Polypharmacy** cohorts. AncestryDNA, 23andMe, MyHeritage, and unphased VCF stay in the browser. Lambda writes rows with DuckDB to ephemeral Snappy Parquet and joins CPIC gene intervals. Official lab alleles (e.g. `CYP2C19,*1,*2`) resolve via CPIC diplotype-to-phenotype tables. Full details: [docs/README_pgx_card.md](docs/README_pgx_card.md). See User Guide → **Unphased DNA files and star alleles**.
 
 ## Actionable Intelligence Loop
 

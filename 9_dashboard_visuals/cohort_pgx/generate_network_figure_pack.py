@@ -33,10 +33,11 @@ from plotly.subplots import make_subplots
 
 
 COHORT_LABELS = {
-    "opioid_ed": "Opioid ED",
+    "opioid_ed": "ED",
     "non_opioid_ed": "Polypharmacy",
-    "falls": "Falls",
     "ed": "ED",
+    "polypharmacy": "Polypharmacy",
+    "falls": "Polypharmacy",
 }
 
 TIER_COLORS = {
@@ -516,7 +517,7 @@ def make_time_to_event_panel(out_dir: Path) -> pd.DataFrame:
         fig.add_trace(go.Scatter(x=[row["window_low"], row["window_high"]], y=[row["panel"], row["panel"]], mode="lines", line=dict(color="#AED6F1", width=18), showlegend=False, hoverinfo="skip"))
         fig.add_trace(go.Scatter(x=[row["median_days_before_event"]], y=[row["panel"]], mode="markers+text", marker=dict(size=14, color="#1F618D"), text=[f"{row['drug']} ({row['median_days_before_event']} d)"], textposition="top center", showlegend=False))
     fig.update_layout(
-        title="Medication Lead-Time Before Event<br><sup>Connects kinetics and kinetic pathways to dynamics: when a medication-review signal appears before outcome.</sup>",
+        title="Medication Lead-Time Before Event<br><sup>Connects kinetics and kinetic pathways to dynamics: when a medication-review signal appears before ED/polypharmacy outcome.</sup>",
         width=1100,
         height=500,
         xaxis=dict(title="Days before event", autorange="reversed"),

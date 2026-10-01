@@ -1,6 +1,6 @@
 # PGx Patient Card Integration
 
-> **Superseded for live tab names and workflows.** The live tab is **PGx Card**. Buttons are **Load Cohort PGx Profile** and **Generate PGx results** (not “Generate Personalized Card”). VCF remains an unphased rsid → star map with no full haplotype calling. Current product: [DASHBOARD_USE_CASES.md](../../10_risk_dashboard/docs/DASHBOARD_USE_CASES.md). Keep this file as historical Step 9 notes.
+> **Superseded by Production PGx Card Architecture.** The live dashboard tab is **PGx Card** featuring a 3-panel **Options Matrix**, an interactive **Gene–Drug Actionability Matrix** with CPIC action filter pills, native **Plotly Clustered Dendrogram Heatmaps** across 3 clustering modes, and an **Aggregated Population Visuals Figure Pack** comparing the **ED** and **Polypharmacy** cohorts. Actions are triggered via **Load Cohort PGx Profile** and **Generate PGx results**. Direct-to-consumer arrays (23andMe, AncestryDNA, unphased VCF) are evaluated in the browser with DuckDB/Snappy Parquet backend validation. Lab `Gene,*allele` calls resolve against official CPIC diplotype-to-phenotype tables. Current documentation: [10_risk_dashboard/docs/README_pgx_card.md](../../10_risk_dashboard/docs/README_pgx_card.md) and [10_risk_dashboard/docs/DASHBOARD_USE_CASES.md](../../10_risk_dashboard/docs/DASHBOARD_USE_CASES.md). Keep this file as historical Step 9 prototype notes.
 
 ## Overview
 
