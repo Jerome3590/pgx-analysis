@@ -284,6 +284,21 @@ wget https://files.cpicpgx.org/data/report/current/pair/cpic_gene-drug_pairs.xls
 python build_pgx_database.py  # Rebuild database
 ```
 
+## Consumer Genealogy DNA Files vs. Deterministic Phase-Free Resolution
+
+When using consumer microarray files (`AncestryDNA.txt`, `23andMe.txt`) rather than phased clinical lab reports:
+
+1. **Why Multi-SNP Star Alleles Flag "Missing Parental Phase Data"**:
+   - Multi-SNP pharmacogenes (`CYP2D6`, `CYP2C19`, `CYP2C9`, `TPMT`, `DPYD`) with $\ge 2$ heterozygous sites cannot distinguish *cis* (both variants inherited from the same parent = 1 normal copy remaining) vs. *trans* (variants inherited from opposite parents = 0 normal copies remaining) without parental phasing or a CLIA/CAP clinical assay, and cannot measure copy-number variations (CNVs).
+   - Detailed architecture: [`../10_risk_dashboard/docs/README_pgx_card.md`](../10_risk_dashboard/docs/README_pgx_card.md).
+
+2. **When Unphased Consumer DNA CAN Be Resolved 100% Deterministically (Zero Parental Phase Ambiguity)**:
+   - **Rule 1 — Homozygote + Heterozygote Deterministic Phasing**: When all defining sites except one are homozygous, only $2^{1-1} = 1$ chromosomal phase configuration is mathematically possible. For example, `SLCO1B1 rs2306283 = G/G` (homozygous) + `rs4149056 = T/C` (heterozygous) deterministically locks the two parental chromosomes as **`[G + T]` (`SLCO1B1*1B` / `*37` Normal Function)** and **`[G + C]` (`SLCO1B1*15` Decreased Function)**. Similarly, `APOE` (`rs429358` + `rs7412`) phases deterministically whenever at least one SNP is homozygous.
+   - **Rule 2 — Single-Causal-SNP Pharmacogenes**: Where a single amino-acid or promoter variant defines the clinical phenotype regardless of backbone haplotype (`SLCO1B1 rs4149056 c.521T>C` statin transporter decreased function; `VKORC1 rs9923231 c.-1639G>A` warfarin sensitivity).
+   - **Rule 3 — Homozygous Loci**: Where both parental chromosomes are identical (`LPA rs10455872 = A/A` & `rs3798220 = T/T` wild-type negative; `IL6 rs1800795 = G/G` high-expression promoter; `APOE ε3/ε3`).
+   - **Rule 4 — Single-Locus Clinical & Disease-Modifier SNPs**: Evaluated per-SNP and correlated with longitudinal clinical labs (`IL6`/`LPA` for OSA-driven `Lp(a)` elevation, `TNF`/`VDR` for periodontal & alveolar bone loss, `CYP2R1`/`GC` for Vitamin D, `TMPRSS6`/`HFE` for post-donation iron recovery, `ACKR1` for Duffy-null neutrophil count, `APOL1` for kidney health).
+   - Reusable CLI scanner for family members: [`C:\Projects\action\family_reunion\ancestry_com_migration\scripts\analyze_family_member_dna.py`](file:///C:/Projects/action/family_reunion/ancestry_com_migration/scripts/analyze_family_member_dna.py).
+
 ## Questions?
 
 - PharmGKB API: https://www.postman.com/pharmgkb/pharmgkb-api/

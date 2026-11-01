@@ -201,6 +201,63 @@ The biological guardrails are hardcoded in the serverless backend resolution eng
   - `test_single_snp_hom_does_not_assign_diplotype()`: Verifies that homozygous variant calls (`CYP2D6` `rs3892097` AA) still leave `diplotype: None` and flag `"CNV/Duplication not measured"`.
   - `test_incomplete_multivariant_is_indeterminate()`: Verifies that partial defining variant haplotypes remain `EXPLORATORY` and indeterminate.
 
+### 6. When Consumer Microarray Data CAN Be Used Deterministically Without Parental Phase Data (The 4 Phase-Free Resolution Rules & Clinical Lab Correlation Workflow)
+
+While multi-SNP pharmacogenes with **two or more heterozygous sites** (`Compound Heterozygotes`) require parental phasing or clinical long-read/haplotype testing to distinguish *cis* vs. *trans*, **four mathematical classes of genetic markers in a consumer `AncestryDNA.txt` or `23andMe` file have zero *cis/trans* phase ambiguity** and can be resolved **100% deterministically without parental DNA**:
+
+```
+   CASE A: TWO HETEROZYGOUS SITES                CASE B: HOMOZYGOTE + HETEROZYGOTE
+   (Requires Parental Phase Data)                (100% Deterministically Phased!)
+   Site 1 = A/G (Het), Site 2 = C/T (Het)        SLCO1B1: rs2306283 = G/G (Hom)
+                                                          rs4149056 = T/C (Het)
+
+   Possibility 1 (CIS — Same Parent):            ONLY 1 Mathematical Possibility:
+     Parent 1: ──[ G ]──[ T ]── (Mut+Mut)          Parent 1: ──[ G ]──[ T ]── = *1B (*37) Normal
+     Parent 2: ──[ A ]──[ C ]── (Normal *1)        Parent 2: ──[ G ]──[ C ]── = *15 Decreased
+     Result: 1 working copy (Intermediate)
+                                                 Why? Because BOTH parents contributed [G]
+   Possibility 2 (TRANS — Opposite Parents):     at rs2306283! Whichever parent gave the [C]
+     Parent 1: ──[ G ]──[ C ]── (Defective)      at rs4149056 MUST have [G + C] on that same
+     Parent 2: ──[ A ]──[ T ]── (Defective)      chromosome! Zero parental phase ambiguity!
+     Result: 0 working copies (Poor)
+```
+
+#### Rule 1 — Homozygote + Heterozygote Deterministic Phasing (`0` *Cis/Trans* Ambiguity)
+- **Mathematical Proof**: Phase ambiguity only exists when **$\ge 2$ sites in the same gene are simultaneously heterozygous ($2^{k-1}$ phase configurations for $k$ heterozygous sites)**. When $k = 0$ (all homozygous) or $k = 1$ (at most **one** site is heterozygous and all other defining sites are homozygous), the number of possible chromosomal configurations is $2^{1-1} = 1$.
+- **Real Clinical Example (`SLCO1B1` Statin Transporter)**:
+  - A naive single-SNP lookup table (such as legacy `pgx-genes.csv` extractors) sees `rs2306283 = G/G` (`*1B`) and `rs4149056 = T/C` (`*1/*5`) independently, outputting a contradictory 3-allele row (`SLCO1B1,*1B,*1,*5`) or flagging "missing phase data."
+  - However, because `rs2306283` (`c.388A>G`) is **homozygous `G/G`**, **both** maternal and paternal chromosomes carry `G` at position 388.
+  - Because `rs4149056` (`c.521T>C`) is **heterozygous `T/C`**, one chromosome is locked as **`[c.388G + c.521T]` (`SLCO1B1*1B` / `*37` — Normal Function)** and the other chromosome is locked as **`[c.388G + c.521C]` (`SLCO1B1*15` — Decreased Function)**.
+- **Real Clinical Example (`APOE` Lipid & Cardiovascular Isoform)**:
+  - `APOE` is defined by two SNPs (`rs429358` + `rs7412`). Whenever at least one of the two SNPs is homozygous (e.g., `rs429358 = T/T` + `rs7412 = C/C` $\rightarrow$ `APOE ε3/ε3`; or `rs429358 = C/T` + `rs7412 = C/C` $\rightarrow$ `APOE ε3/ε4`), the exact two-SNP isoform on each parental strand is 100% deterministic without parental DNA. (Only the rare double-heterozygote `rs429358 = C/T` + `rs7412 = C/T` has `ε2/ε4` vs. `ε1/ε3` phase ambiguity).
+
+#### Rule 2 — Single-Causal-SNP Pharmacogenes (Phenotype Driven by a Single Functional Locus)
+- Even when CPIC assigns different star-allele numbers to different chromosomal backbones, the clinical phenotype for several key pharmacogenes is governed by a **single causal functional variant**:
+  - **`SLCO1B1 rs4149056 (c.521T>C, p.Val174Ala)`**: Whether `c.521C` sits on a `c.388A` backbone (`*5`) or a `c.388G` backbone (`*15`), CPIC classifies both `*5` and `*15` identically as **No/Decreased Function** alleles conferring **SLCO1B1 Decreased Function** (statin myopathy susceptibility with high-dose simvastatin/atorvastatin) when heterozygous (`T/C`).
+  - **`VKORC1 rs9923231 (c.-1639G>A)`**: Warfarin target sensitivity is defined by this single regulatory promoter SNP (`C/C` = Normal sensitivity, `C/T` = Increased sensitivity, `T/T` = High sensitivity).
+  - **`CYP3A5 rs776746 (*3 splicing defect)`**: `C/C` (`*3/*3`) deterministically establishes non-expression on both chromosomes unless rare `*6`/`*7` alleles are involved.
+
+#### Rule 3 — Homozygous Loci (`A/A`, `G/G`, `C/C`, `T/T`)
+- Whenever a consumer array reports a **homozygous** call at a locus, both maternal and paternal chromosomes carry the identical base:
+  - **`LPA rs10455872 = A/A` & `rs3798220 = T/T`**: Deterministically **100% negative on both chromosomes** for the two primary European/Mendelian high-`Lp(a)` structural variants.
+  - **`IL6 -174G>C (rs1800795 = G/G)`**: Deterministically **homozygous** on both chromosomes for the high-transcription `IL-6` promoter allele (which drives acute-phase hepatic `LPA` gene transcription during severe Obstructive Sleep Apnea intermittent hypoxia).
+
+#### Rule 4 — Single-Locus Clinical & Disease-Modifier SNPs Correlated with Objective Labs
+- Unlike multi-SNP cytochrome P450 star alleles, clinical susceptibility and physiological modifier SNPs are evaluated **per locus** (additive or dominant allele presence) and correlated directly with a patient's longitudinal blood work and diagnoses:
+
+| Clinical Axis | Target Loci in `AncestryDNA.txt` / `23andMe` | Why Parental Phasing Is Not Required | Clinical & Lab Correlation |
+| :--- | :--- | :--- | :--- |
+| **1. Statin Transport & Myopathy** | `SLCO1B1 rs2306283` + `rs4149056`; `ABCG2 rs2231142` | `Hom + Het` (`G/G + T/C`) phases deterministically to `*1B/*15`; `c.521T>C` alone defines decreased OATP1B1 uptake | Explains statin muscle sensitivity; supports preferring rosuvastatin or low-dose therapy if needed |
+| **2. `Lp(a)` & OSA–`IL-6` Inflammatory Axis** | `LPA rs10455872`, `rs3798220` + `IL6 rs1800795 (-174G>C)` | Homozygous calls (`A/A`, `T/T`, `G/G`) have zero phase ambiguity | Distinguishes primary Mendelian `LPA` mutation from secondary `IL-6`-driven `Lp(a)` elevation caused by untreated Severe OSA (`AHI 52.8`) |
+| **3. Periodontal & Alveolar Bone Resorption** | `TNF rs1800629 (-308G>A)`, `IL6 rs1800795`, `VDR rs731236 (TaqI)` | Single-SNP promoter & receptor modifiers act by allele dosage | Explains accelerated periodontal ligament/alveolar bone loss when compounded by OSA mouth-breathing & bruxism |
+| **4. Vitamin D Synthesis & Transport** | `CYP2R1 rs10741657`, `GC rs7041`, `GC rs4588`, `VDR rs731236` | Single-SNP enzyme/binding-protein modifiers | Correlates with serum `25-OH Vitamin D` insufficiency (`<30 ng/mL`) and guides `D3` supplementation |
+| **5. Iron Regulation & Blood Donation Recovery** | `TMPRSS6 rs855791`, `HFE rs1799945 (H63D)`, `HFE rs1800562 (C282Y)` | Single-SNP hepcidin/iron modifiers | Guides post-donation iron recovery after frequent whole-blood or `Power Red` apheresis donations |
+| **6. African-Diaspora Hematology & Renal Traits** | `ACKR1 rs2814778` (Duffy-null), `APOL1 rs73885319`/`rs60910145`/`rs71785313`, `HBB rs334` | Single-SNP promoter (`ACKR1 c.-67T>C`) or biallelic risk loci | Establishes personalized ANC neutrophil reference ranges (`ACKR1`) and kidney screening (`APOL1`) |
+
+#### Reusable Family Member Tooling
+- **CLI Scanner**: [`C:\Projects\action\family_reunion\ancestry_com_migration\scripts\analyze_family_member_dna.py`](file:///c:/Projects/action/family_reunion/ancestry_com_migration/scripts/analyze_family_member_dna.py) — Any family member can pass their `AncestryDNA.txt` or `23andMe.txt` file to generate a complete **2-Part Clinical & Pharmacogenomic Report** separating **(Part A) Deterministically Phased / Phase-Free Clinical Findings** from **(Part B) Multi-SNP Unphased Pharmacogenes Requiring a CLIA/CAP Lab Panel**.
+- **Interactive Browser Tool**: Available in **Tab 6 (`🩺 Healthcare PGx`)** of the Dixon Family Reunion Portal (`https://dixon-family-reunion.jerome-dixon.io/`), documented in [`C:\Projects\action\family_reunion\ancestry_com_migration\README.md`](file:///c:/Projects/action/family_reunion/ancestry_com_migration/README.md).
+
 ---
 
 ## Automated Testing & Validation
