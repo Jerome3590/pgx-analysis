@@ -1,0 +1,422 @@
+<div id="image-lightbox-overlay" class="image-lightbox-overlay" aria-hidden="true">
+  <!-- Top Navigation & Controls Header -->
+  <div class="lightbox-header">
+    <div class="lightbox-meta">
+      <span class="lightbox-tag">Full-Page View</span>
+      <span id="lightbox-caption" class="lightbox-caption"></span>
+    </div>
+    
+    <div class="lightbox-controls">
+      <div class="lightbox-btn-group">
+        <button id="lightbox-zoom-out" class="lightbox-btn" title="Zoom Out (−)" aria-label="Zoom Out">−</button>
+        <span id="lightbox-zoom-display" class="lightbox-zoom-display">Fit</span>
+        <button id="lightbox-zoom-in" class="lightbox-btn" title="Zoom In (+)" aria-label="Zoom In">+</button>
+      </div>
+
+      <button id="lightbox-mode-toggle" class="lightbox-btn lightbox-btn-accent" title="Toggle Full Width / Fit to Screen">
+        <span id="lightbox-mode-icon">↔</span>
+        <span id="lightbox-mode-text">Fill Width</span>
+      </button>
+
+      <button id="lightbox-reset-btn" class="lightbox-btn" title="Reset View (0)">↺ Reset</button>
+      <button id="lightbox-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+    </div>
+  </div>
+
+  <!-- Main Viewport / Scroll & Pan Canvas -->
+  <div id="lightbox-viewport" class="lightbox-viewport mode-fit">
+    <div id="lightbox-canvas" class="lightbox-canvas">
+      <img id="lightbox-expanded-img" src="" alt="Expanded diagram" draggable="false" />
+    </div>
+  </div>
+
+  <!-- Bottom Interaction Hint -->
+  <div class="lightbox-footer">
+    <span class="lightbox-hint">
+      <strong>Navigation:</strong> Click image or <strong>Fill Width</strong> to expand • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan • <kbd>Esc</kbd> to exit
+    </span>
+  </div>
+</div>
+
+<script>
+(function() {
+  function initLightbox() {
+    const overlay = document.getElementById('image-lightbox-overlay');
+    const viewport = document.getElementById('lightbox-viewport');
+    const canvas = document.getElementById('lightbox-canvas');
+    const expandedImg = document.getElementById('lightbox-expanded-img');
+    const captionEl = document.getElementById('lightbox-caption');
+    const closeBtn = document.getElementById('lightbox-close-btn');
+    const zoomInBtn = document.getElementById('lightbox-zoom-in');
+    const zoomOutBtn = document.getElementById('lightbox-zoom-out');
+    const zoomDisplay = document.getElementById('lightbox-zoom-display');
+    const modeToggleBtn = document.getElementById('lightbox-mode-toggle');
+    const modeText = document.getElementById('lightbox-mode-text');
+    const modeIcon = document.getElementById('lightbox-mode-icon');
+    const resetBtn = document.getElementById('lightbox-reset-btn');
+
+    if (!overlay || !expandedImg || !viewport) return;
+
+    // View state
+    let currentMode = 'fit'; // 'fit' | 'fill-width' | 'custom-zoom'
+    let currentScale = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let hasDragged = false;
+
+    function applyTransform() {
+      if (currentMode === 'fit') {
+        viewport.className = 'lightbox-viewport mode-fit';
+        canvas.style.transform = '';
+        expandedImg.style.transform = '';
+        zoomDisplay.textContent = 'Fit';
+        modeText.textContent = 'Fill Width';
+        modeIcon.textContent = '↔';
+      } else if (currentMode === 'fill-width') {
+        viewport.className = 'lightbox-viewport mode-fill-width';
+        canvas.style.transform = '';
+        expandedImg.style.transform = '';
+        zoomDisplay.textContent = 'Width';
+        modeText.textContent = 'Fit Screen';
+        modeIcon.textContent = '↕';
+      } else {
+        viewport.className = 'lightbox-viewport mode-custom';
+        canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+        expandedImg.style.transform = `scale(${currentScale})`;
+        zoomDisplay.textContent = `${Math.round(currentScale * 100)}%`;
+        modeText.textContent = 'Fit Screen';
+        modeIcon.textContent = '↕';
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      if (mode === 'fit') {
+        currentScale = 1.0;
+        panX = 0;
+        panY = 0;
+        viewport.scrollTop = 0;
+        viewport.scrollLeft = 0;
+      } else if (mode === 'fill-width') {
+        currentScale = 1.0;
+        panX = 0;
+        panY = 0;
+        viewport.scrollTop = 0;
+      } else if (mode === 'custom-zoom') {
+        // keep current scale and pan
+      }
+      applyTransform();
+    }
+
+    function zoomBy(delta) {
+      if (currentMode === 'fit' || currentMode === 'fill-width') {
+        currentScale = currentMode === 'fit' ? 1.0 : 1.5;
+        currentMode = 'custom-zoom';
+      }
+      currentScale = Math.min(Math.max(currentScale + delta, 0.4), 4.0);
+      currentMode = 'custom-zoom';
+      applyTransform();
+    }
+
+    function toggleMode() {
+      if (currentMode === 'fit') {
+        setMode('fill-width');
+      } else {
+        setMode('fit');
+      }
+    }
+
+    function openLightbox(imgSrc, captionText) {
+      expandedImg.src = imgSrc;
+      captionEl.innerText = captionText || '';
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+
+      // Standardize pop-out logic across all diagrams:
+      // Default to Fill Width mode (up to 94vw / 1500px) so every diagram pops out bold, scaled, and instantly legible!
+      function applyDefaultMode() {
+        setMode('fill-width');
+      }
+
+      if (expandedImg.complete && expandedImg.naturalWidth > 0) {
+        applyDefaultMode();
+      } else {
+        expandedImg.onload = applyDefaultMode;
+      }
+
+
+      // Temporarily disable Reveal keyboard navigation while lightbox is active
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: false });
+      }
+    }
+
+    function closeLightbox() {
+      overlay.classList.remove('active');
+      overlay.setAttribute('aria-hidden', 'true');
+      expandedImg.src = '';
+      captionEl.innerText = '';
+      setMode('fit');
+
+      // Re-enable Reveal keyboard navigation
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: true });
+      }
+    }
+
+    function bindImages() {
+      const zoomableImages = document.querySelectorAll('.figure-frame img, img.zoomable, .reveal .slides img');
+      zoomableImages.forEach(img => {
+        if (img.classList.contains('no-zoom')) return;
+
+        img.style.cursor = 'zoom-in';
+
+        img.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const frame = img.closest('.figure-frame') || img.parentElement;
+          const caption = frame ? frame.querySelector('.caption')?.innerText : (img.getAttribute('alt') || '');
+          const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
+
+          if (src) {
+            openLightbox(src, caption);
+          }
+        };
+      });
+    }
+
+    // Event Listeners
+    closeBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeLightbox();
+    });
+
+    modeToggleBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMode();
+    });
+
+    resetBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setMode('fit');
+    });
+
+    zoomInBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zoomBy(0.25);
+    });
+
+    zoomOutBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zoomBy(-0.25);
+    });
+
+    // Image click toggles Fit vs Fill Width (if not dragged)
+    expandedImg.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (hasDragged) {
+        hasDragged = false;
+        return;
+      }
+      toggleMode();
+    });
+
+    // Mouse wheel zoom over viewport
+    viewport.addEventListener('wheel', function(e) {
+      if (e.ctrlKey || currentMode === 'custom-zoom') {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.2 : -0.2;
+        zoomBy(delta);
+      }
+    }, { passive: false });
+
+    // Drag to Pan functionality
+    viewport.addEventListener('mousedown', function(e) {
+      if (e.target === closeBtn || e.target.closest('.lightbox-header')) return;
+      isDragging = true;
+      hasDragged = false;
+      dragStartX = e.clientX - panX;
+      dragStartY = e.clientY - panY;
+      viewport.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', function(e) {
+      if (!isDragging) return;
+      hasDragged = true;
+      if (currentMode !== 'custom-zoom') {
+        currentMode = 'custom-zoom';
+      }
+      panX = e.clientX - dragStartX;
+      panY = e.clientY - dragStartY;
+      applyTransform();
+    });
+
+    window.addEventListener('mouseup', function() {
+      isDragging = false;
+      if (viewport) {
+        viewport.style.cursor = currentMode === 'custom-zoom' ? 'grab' : '';
+      }
+    });
+
+    // Background click (outside image) closes lightbox
+    viewport.addEventListener('click', function(e) {
+      if (e.target === viewport || e.target === canvas) {
+        if (!hasDragged) {
+          closeLightbox();
+        }
+        hasDragged = false;
+      }
+    });
+
+    // Keyboard controls
+    window.addEventListener('keydown', function(e) {
+      if (overlay.classList.contains('active')) {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeLightbox();
+        } else if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          zoomBy(0.25);
+        } else if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          zoomBy(-0.25);
+        } else if (e.key === '0') {
+          e.preventDefault();
+          setMode('fit');
+        } else if (e.key === 'w' || e.key === 'W' || e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          toggleMode();
+        }
+      }
+    }, true);
+
+    bindImages();
+
+    if (window.Reveal) {
+      window.Reveal.on('ready', bindImages);
+      window.Reveal.on('slidechanged', bindImages);
+    }
+  }
+
+  function initTitleSlideLogos() {
+    const titleSlide = document.querySelector('#title-slide');
+    if (!titleSlide || titleSlide.querySelector('.dual-logo-bar')) return;
+
+    const logoBar = document.createElement('div');
+    logoBar.className = 'dual-logo-bar';
+    logoBar.innerHTML = `
+      <img src="diagrams/vcu_life_sciences_stacked.png" class="no-zoom logo-ls" alt="VCU School of Life Sciences and Sustainability" />
+      <div class="logo-divider"></div>
+      <img src="diagrams/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
+    `;
+    titleSlide.appendChild(logoBar);
+  }
+
+  function initModuleNavBar() {
+    const footer = document.querySelector('.reveal .footer');
+    if (!footer) return;
+    if (footer.querySelector('.footer-nav')) return;
+
+    footer.innerHTML = `
+      <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Candidacy</span>
+      <nav class="footer-nav" aria-label="Presentation Module Navigation">
+        <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: 5 Core Modules (Slide 3)">Roadmap</a>
+        <a href="#/slide-1" class="nav-pill pill-p1" id="nav-pill-p1" title="Module I: Clinical Problem & The Empty Intersection (Slides 4–5)">I. Problem</a>
+        <a href="#/slide-2" class="nav-pill pill-p2" id="nav-pill-p2" title="Module II: Governance & Data (Slides 6–7)">II. Governance</a>
+        <a href="#/slide-4" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts & Temporal QA (Slides 8–10)">III. Cohorts</a>
+        <a href="#/slide-5" class="nav-pill pill-p4" id="nav-pill-p4" title="Module IV: Tri-Model & Consensus (Slides 11–14)">IV. Tri-Model</a>
+        <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Defenses (Slides 15–17)">V. Translation</a>
+        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (Slide 18+)">Appendix</a>
+      </nav>
+      <span class="footer-spacer"></span>
+    `;
+
+    footer.querySelectorAll('.nav-pill').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetHash = link.getAttribute('href');
+        if (window.Reveal) {
+          if (targetHash.startsWith('#/')) {
+            const slideId = targetHash.replace('#/', '');
+            const targetSlide = document.getElementById(slideId);
+            if (targetSlide) {
+              const indices = window.Reveal.getIndices(targetSlide);
+              window.Reveal.slide(indices.h, indices.v, indices.f);
+              return;
+            }
+          }
+          window.location.hash = targetHash;
+        }
+      });
+    });
+
+    function updateActiveNav() {
+      if (!window.Reveal) return;
+      const indices = window.Reveal.getIndices();
+      const h = indices ? indices.h : 0;
+      const currentSlide = window.Reveal.getCurrentSlide();
+
+      // Title Slide (Index 0) -> hide footer completely
+      if (h === 0 || (currentSlide && currentSlide.id === 'title-slide')) {
+        footer.style.display = 'none';
+        return;
+      } else {
+        footer.style.display = 'flex';
+      }
+
+      footer.querySelectorAll('.nav-pill').forEach(pill => pill.classList.remove('active'));
+
+      if (h === 2) {
+        footer.querySelector('#nav-pill-road')?.classList.add('active');
+      } else if (h >= 3 && h <= 4) {
+        footer.querySelector('#nav-pill-p1')?.classList.add('active');
+      } else if (h >= 5 && h <= 6) {
+        footer.querySelector('#nav-pill-p2')?.classList.add('active');
+      } else if (h >= 7 && h <= 9) {
+        footer.querySelector('#nav-pill-p3')?.classList.add('active');
+      } else if (h >= 10 && h <= 13) {
+        footer.querySelector('#nav-pill-p4')?.classList.add('active');
+      } else if (h >= 14 && h <= 16) {
+        footer.querySelector('#nav-pill-p5')?.classList.add('active');
+      } else if (h >= 17) {
+        footer.querySelector('#nav-pill-app')?.classList.add('active');
+      }
+    }
+
+    updateActiveNav();
+    if (window.Reveal) {
+      window.Reveal.on('slidechanged', updateActiveNav);
+    }
+  }
+
+  function onInit() {
+    initLightbox();
+    initTitleSlideLogos();
+    initModuleNavBar();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', onInit);
+  } else {
+    onInit();
+  }
+
+  if (window.Reveal) {
+    window.Reveal.on('ready', () => {
+      initTitleSlideLogos();
+      initModuleNavBar();
+    });
+  }
+})();
+</script>
