@@ -1,0 +1,212 @@
+direction: down
+
+title: "Dual-Cohort APCD Pipeline Architecture: Opioid ED vs. Polypharmacy ED" {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 26
+    bold: true
+    underline: true
+    fill: "#0F172A"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Common Foundation: Virginia APCD (2016–2020)
+# -----------------------------------------------------------------------------
+apcd_foundation: "Virginia All-Payer Claims Database (APCD) Data Lake (2016–2020)" {
+  style: {
+    fill: "#F8FAFC"
+    stroke: "#475569"
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  med_claims: "Medical Claims\n• Statewide Hospital & Community EDs\n• 10 Diagnostic Positions (ICD-10)\n• Procedure Codes (CPT/HCPCS)" {
+    shape: cylinder
+    style.fill: "#E2E8F0"
+  }
+  rx_claims: "Pharmacy Dispensing Claims\n• Paid & Adjudicated Fills (Possession Confirmed)\n• National Drug Codes (NDC) mapped to RxNorm\n• Days Supply, Metric Quantity, Fill Dates" {
+    shape: cylinder
+    style.fill: "#E2E8F0"
+  }
+  partitions: "Demographic & Temporal Partitioning Engine\n• 4 Study Years: 2016, 2017, 2018 (Dev/CV) | 2019 (Prospective Holdout)\n• 8 Age Bands: 0–12, 13–24, 25–44, 45–54, 55–64, 65–74, 75–84, 85–114" {
+    shape: rectangle
+    style: {
+      fill: "#F1F5F9"
+      stroke: "#64748B"
+      bold: true
+    }
+  }
+
+  med_claims -> partitions
+  rx_claims -> partitions
+}
+
+# -----------------------------------------------------------------------------
+# Fork: Dual Mutually Exclusive Clinical Targets
+# -----------------------------------------------------------------------------
+cohort_fork: "Dual Mutually Exclusive Target Derivation" {
+  style: {
+    fill: "#FAFAFA"
+    stroke: "#94A3B8"
+    stroke-width: 1
+    border-radius: 8
+  }
+
+  # Left Branch: Opioid ED
+  branch_opioid: "Branch A: Opioid-Related ED Cohort (opioid_ed)" {
+    style: {
+      fill: "#FEF2F2"
+      stroke: "#EF4444"
+      stroke-width: 2
+      border-radius: 8
+    }
+
+    op_target: "Clinical Target Anchor (t₀)\n• ICD-10 F11.20 (Opioid Dependence)\n• Acute Poisonings: T40.0X–T40.4X\n• Scanned across all 10 Dx positions" {
+      shape: step
+      style: {
+        fill: "#FEE2E2"
+        bold: true
+      }
+    }
+
+    op_lookback: "12-Month Chronic Lookback Horizon\n[t₀ - 365 days  →  t₀ - 1 day]\n• Longitudinal Opioid Titration & Cumulative MME\n• Sedative Overlap (Benzodiazepines, Gabapentinoids)\n• Behavioral Health & Chronic Pain Trajectories" {
+      shape: rectangle
+      style.fill: "#FECACA"
+    }
+
+    op_leakage: "Step 3b Temporal Reverse-Causality Purge\n• Strips 348 Post-Index Treatment Features:\n  - 164 OUD Meds (Suboxone, Naloxone, Vivitrol)\n  - 84 Drug Screens (CPT 80307 Urine Toxicology)\n  - 100 Post-Stabilization Secondary Billing Codes" {
+      shape: callout
+      style: {
+        fill: "#FCA5A5"
+        stroke: "#DC2626"
+        bold: true
+      }
+    }
+
+    op_target -> op_lookback: "Index Encounter"
+    op_lookback -> op_leakage: "Filter Contamination"
+  }
+
+  # Right Branch: Polypharmacy ED
+  branch_polypharmacy: "Branch B: Polypharmacy Adverse Drug Events (ed_non_opioid)" {
+    style: {
+      fill: "#FFFBEB"
+      stroke: "#F59E0B"
+      stroke-width: 2
+      border-radius: 8
+    }
+
+    poly_target: "Clinical Target Anchor (t₀) & Cleanse\n• Milliman HCG Detail Codes: P51b, O11, P33\n• ABSOLUTE Opioid Cleanse: Zero opioid ICD codes\n  across all 10 claim positions in study year" {
+      shape: step
+      style: {
+        fill: "#FEF3C7"
+        bold: true
+      }
+    }
+
+    poly_funnel: "Sequential ADE Filtering Funnel\n1. Utilization Cap: < 7 ED visits/yr (Drops 'flyers')\n2. Proximal Rx Window: 1–21 days pre-index\n   (Validated by FDA FAERS: captures ~90.5% ADEs)\n3. 0-Day Discharge Guard: Purges Day 0 discharge meds" {
+      shape: callout
+      style: {
+        fill: "#FDE68A"
+        stroke: "#D97706"
+        bold: true
+      }
+    }
+
+    poly_lookback: "21–30 Day Acute Lookback Horizon\n[t₀ - 21/30 days  →  t₀ - 1 day]\n• Multi-Drug Concurrency & Drug-Drug Interactions\n• Beers Criteria High-Risk Meds in Older Adults\n• Acute Anticholinergic & Sedative Burden" {
+      shape: rectangle
+      style.fill: "#FCD34D"
+    }
+
+    poly_target -> poly_funnel: "Raw ED Visits"
+    poly_funnel -> poly_lookback: "True ADE Encounters"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Convergence: Shared Epidemiological Matching & QA Engine
+# -----------------------------------------------------------------------------
+shared_engine: "Shared 1:5 Matching Engine & Epidemiological Safeguards" {
+  style: {
+    fill: "#F0FDF4"
+    stroke: "#16A34A"
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  matching: "1:5 Incidence-Density Matching Engine\n• 5 Matched Controls per Target Case (No Replacement)\n• Exact Stratification: Age Band (8 Strata), Sex, Calendar Year, Active Contact\n• Pseudo-Index Date Assignment (t_pseudo = earliest non-ED medical claim)" {
+    shape: hexagon
+    style: {
+      fill: "#DCFCE7"
+      bold: true
+    }
+  }
+
+  qa_uniqueness: "Automated DuckDB QA Unit Assertions (qa_index_date_uniqueness.py)\n• Asserts EXACTLY ONE index date per mi_person_key per partition\n• Cell-Size Suppression Policy: n ≤ 10 masked per CMS/VHI protocols\n• Control-Only Zero-Partition Safeguard for extreme age strata" {
+    shape: code
+    style: {
+      fill: "#BBF7D0"
+      stroke: "#15803D"
+    }
+  }
+
+  locked_whitelist: "Locked 682-Feature Pre-Index Whitelist\n• Applied symmetrically across Cases and Controls\n• Strict Toolbox Demarcation: Model Matrix vs. Dashboard Visuals" {
+    shape: stored_data
+    style: {
+      fill: "#86EFAC"
+      bold: true
+    }
+  }
+
+  matching -> qa_uniqueness: "Matched Cohorts"
+  qa_uniqueness -> locked_whitelist: "Validated Fact Table"
+}
+
+# -----------------------------------------------------------------------------
+# Downstream Ingestion: Modeling & Decision Support
+# -----------------------------------------------------------------------------
+downstream: "Downstream Machine Learning & Translational Decision Support" {
+  style: {
+    fill: "#EFF6FF"
+    stroke: "#2563EB"
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  s3_parquet: "Gold Cohort Fact Tables\ns3://pgx-repository/cohorts/\n(OPIOID_ED & ED_NON_OPIOID Parquets)" {
+    shape: cylinder
+    style.fill: "#DBEAFE"
+  }
+
+  tri_model: "Aim 1 & 2: Tri-Model Gradient-Boosted Trees\n• CatBoost (Symmetric/Oblivious Trees, Ordered Boosting)\n• XGBoost (Deep Multi-Drug Interactions, 2nd-Order Hessian)\n• XGBoost-RF (Bagged Forest Variance Reduction)\n• Formal Feature Attribution (FFA) Boolean Horn Rules" {
+    shape: rectangle
+    style: {
+      fill: "#BFDBFE"
+      bold: true
+    }
+  }
+
+  aim3_dashboard: "Aim 3: Consensus-Risk Triage Dashboard\n• Serverless Microservice (pgx.jerome-dixon.io)\n• Asynchronous MTM Review Queue for High-Risk Patients\n• Human-in-the-Loop Clinical OODA Loop Decisional Authority" {
+    shape: step
+    style: {
+      fill: "#93C5FD"
+      bold: true
+    }
+  }
+
+  s3_parquet -> tri_model: "Parquet Ingestion"
+  tri_model -> aim3_dashboard: "Consensus-Risk Scores & Horn Rules"
+}
+
+# -----------------------------------------------------------------------------
+# Inter-Module Pipeline Edges
+# -----------------------------------------------------------------------------
+apcd_foundation.partitions -> cohort_fork.branch_opioid.op_target: "Opioid Criteria Scan"
+apcd_foundation.partitions -> cohort_fork.branch_polypharmacy.poly_target: "Non-Opioid HCG Scan"
+
+cohort_fork.branch_opioid.op_leakage -> shared_engine.matching: "Validated Opioid Cases"
+cohort_fork.branch_polypharmacy.poly_lookback -> shared_engine.matching: "Validated Polypharmacy Cases"
+
+shared_engine.locked_whitelist -> downstream.s3_parquet: "Export Final Parquets"

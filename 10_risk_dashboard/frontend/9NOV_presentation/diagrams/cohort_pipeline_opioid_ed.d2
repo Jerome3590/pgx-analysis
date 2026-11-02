@@ -1,0 +1,193 @@
+direction: down
+
+title: "Opioid-Related ED Cohort Pipeline (opioid_ed)" {
+  near: top-center
+  shape: text
+  style: {
+    font-size: 28
+    bold: true
+    underline: true
+    fill: "#1E293B"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Phase 0: Raw Claims Data Ingestion
+# -----------------------------------------------------------------------------
+phase0: "Phase 0: Virginia APCD Longitudinal Lake (2016–2020)" {
+  style: {
+    fill: "#F8FAFC"
+    stroke: "#64748B"
+    stroke-dash: 0
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  med_claims: "Medical Claims Lake\n(All-Payer Encounters, Diagnosis & Procedure Positions 1–10)" {
+    shape: cylinder
+    style.fill: "#E2E8F0"
+  }
+  rx_claims: "Pharmacy Claims Lake\n(Adjudicated Dispensing, NDC Mappings, Days Supply)" {
+    shape: cylinder
+    style.fill: "#E2E8F0"
+  }
+  partitions: "Annual Partitions (2016, 2017, 2018, 2019)\nStratified into 8 Age Bands (0–12 to 85–114)" {
+    shape: rectangle
+    style.fill: "#F1F5F9"
+  }
+
+  med_claims -> partitions
+  rx_claims -> partitions
+}
+
+# -----------------------------------------------------------------------------
+# Phase 1: Diagnostic Filtering & Case Identification
+# -----------------------------------------------------------------------------
+phase1: "Phase 1: Case Identification & Exclusivity (phase1_data_preparation.py)" {
+  style: {
+    fill: "#FEF2F2"
+    stroke: "#EF4444"
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  dx_scanner: "10-Position Diagnostic Scanner\nScans Primary through 10th ICD Position" {
+    shape: rectangle
+    style.fill: "#FEE2E2"
+  }
+
+  target_cases: "Opioid ED Target Cases (t₀)\n• ICD-10 F11.20 (Opioid Dependence)\n• Acute Poisonings: T40.0X–T40.4X\nTimestamp: first_opioid_ed_date" {
+    shape: step
+    style: {
+      fill: "#FCA5A5"
+      bold: true
+    }
+  }
+
+  exclusivity_guard: "Cohort Exclusivity Boundary\nStrictly drops patients meeting\nPolypharmacy ED criteria" {
+    shape: diamond
+    style.fill: "#FED7AA"
+  }
+
+  dx_scanner -> target_cases: "Qualifying Emergency Encounter"
+  target_cases -> exclusivity_guard: "Validate Exclusivity"
+}
+
+# -----------------------------------------------------------------------------
+# Phase 2: Lookback Horizon & Leakage Prevention
+# -----------------------------------------------------------------------------
+phase2: "Phase 2: Temporal Exposure & Leakage Audit (phase2_event_processing.py)" {
+  style: {
+    fill: "#FFFBEB"
+    stroke: "#F59E0B"
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  lookback_window: "12-Month Pre-Index Baseline Window\n[t₀ - 365 days  →  t₀ - 1 day]\n• Longitudinal Opioid Titration & MME Escalation\n• Sedative Overlap (Benzodiazepines, Gabapentinoids)\n• CPIC CYP2D6/CYP2C19 Substrate Burden" {
+    shape: rectangle
+    style.fill: "#FEF3C7"
+  }
+
+  leakage_audit: "Step 3b Temporal Reverse-Causality Audit\nPurges 348 Post-Index Treatment Codes:\n• 164 OUD Meds (Buprenorphine, Naloxone, Vivitrol)\n• 84 Diagnostic CPTs (CPT 80307 Urine Drug Screens)\n• 100 Hospital Post-Stabilization Billing Codes" {
+    shape: callout
+    style: {
+      fill: "#FDE68A"
+      stroke: "#D97706"
+      bold: true
+    }
+  }
+
+  locked_whitelist: "Locked 682-Feature Whitelist\nStrictly derived from pre-index claims\nApplied symmetrically across Cases & Controls" {
+    shape: stored_data
+    style: {
+      fill: "#FEF9C3"
+      stroke: "#CA8A04"
+      bold: true
+    }
+  }
+
+  lookback_window -> leakage_audit: "Audit All Features"
+  leakage_audit -> locked_whitelist: "Lock Clean Features"
+}
+
+# -----------------------------------------------------------------------------
+# Phase 3: Incidence-Density Matched Control Sampling
+# -----------------------------------------------------------------------------
+phase3: "Phase 3: 1:5 Matched Case–Control Sampling (phase3_cohort_creation.py)" {
+  style: {
+    fill: "#F0FDF4"
+    stroke: "#22C55E"
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  control_pool: "Eligible Control Pool\n• Covered APCD members in same partition year\n• Zero opioid-related diagnoses in study year\n• Verified health system contact continuity" {
+    shape: rectangle
+    style.fill: "#DCFCE7"
+  }
+
+  matching_engine: "1:5 Incidence-Density Matching (No Replacement)\nExact Stratification On:\n1. Age Band (8 Strata: 0–12, 13–24, 25–44, ..., 85–114)\n2. Biological Sex (Exact M/F Match)\n3. Calendar Year Partition (2016–2019)\n4. Active Coverage Continuity" {
+    shape: hexagon
+    style: {
+      fill: "#BBF7D0"
+      bold: true
+    }
+  }
+
+  pseudo_index: "Pseudo-Index Reference Date (t_pseudo)\nControls assigned earliest non-ED medical claim date\nGuarantees identical 12-month baseline window" {
+    shape: step
+    style.fill: "#86EFAC"
+  }
+
+  control_pool -> matching_engine: "Candidate Pool"
+  matching_engine -> pseudo_index: "Assign Anchor"
+}
+
+# -----------------------------------------------------------------------------
+# Phase 4: Automated QA Integrity & S3 Persistence
+# -----------------------------------------------------------------------------
+phase4: "Phase 4: QA Assertion & Checkpointed Export (phase4_finalization.py)" {
+  style: {
+    fill: "#EFF6FF"
+    stroke: "#3B82F6"
+    stroke-width: 2
+    border-radius: 8
+  }
+
+  duckdb_qa: "DuckDB QA Unit Assertion (qa_index_date_uniqueness.py)\nSELECT mi_person_key, count(DISTINCT first_opioid_ed_date)\nHAVING count > 1;\nAsserts EXACTLY ONE index date per person-year" {
+    shape: code
+    style: {
+      fill: "#DBEAFE"
+      stroke: "#2563EB"
+    }
+  }
+
+  cell_suppression: "Cell-Size Suppression Guard\nSuppresses n ≤ 10 cell counts per CMS/VHI privacy policy" {
+    shape: rectangle
+    style.fill: "#BFDBFE"
+  }
+
+  s3_parquet: "Final Parquet Fact Table (s3://pgx-repository/cohorts/)\n• schema: final_cohort_schema.json\n• Cases + 5:1 Controls with 682 Whitelisted Features\n• Checkpointed to S3 pgx-pipeline-status/" {
+    shape: cylinder
+    style: {
+      fill: "#93C5FD"
+      bold: true
+    }
+  }
+
+  duckdb_qa -> cell_suppression: "QA Passed"
+  cell_suppression -> s3_parquet: "Write Gold Artifact"
+}
+
+# -----------------------------------------------------------------------------
+# Cross-Phase Pipeline Connections
+# -----------------------------------------------------------------------------
+phase0.partitions -> phase1.dx_scanner: "Claims Stream"
+phase0.partitions -> phase3.control_pool: "Enrollment Roster"
+
+phase1.exclusivity_guard -> phase2.lookback_window: "Validated Cases"
+phase1.exclusivity_guard -> phase3.matching_engine: "1 Target Case"
+
+phase3.pseudo_index -> phase2.lookback_window: "5 Matched Controls"
+phase2.locked_whitelist -> phase4.duckdb_qa: "Tabular Feature Matrix"
