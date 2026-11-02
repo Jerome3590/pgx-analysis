@@ -1,0 +1,649 @@
+<div id="image-lightbox-overlay" class="image-lightbox-overlay" aria-hidden="true">
+  <!-- Top Navigation & Controls Header -->
+  <div class="lightbox-header">
+    <div class="lightbox-meta">
+      <span class="lightbox-tag">Full-Page View</span>
+      <span id="lightbox-caption" class="lightbox-caption"></span>
+    </div>
+    
+    <div class="lightbox-controls">
+      <div class="lightbox-btn-group">
+        <button id="lightbox-zoom-out" class="lightbox-btn" title="Zoom Out (−)" aria-label="Zoom Out">−</button>
+        <span id="lightbox-zoom-display" class="lightbox-zoom-display">Fit</span>
+        <button id="lightbox-zoom-in" class="lightbox-btn" title="Zoom In (+)" aria-label="Zoom In">+</button>
+      </div>
+
+      <button id="lightbox-mode-toggle" class="lightbox-btn lightbox-btn-accent" title="Toggle Full Width / Fit to Screen">
+        <span id="lightbox-mode-icon">↔</span>
+        <span id="lightbox-mode-text">Fill Width</span>
+      </button>
+
+      <button id="lightbox-reset-btn" class="lightbox-btn" title="Reset View (0)">↺ Reset</button>
+      <button id="lightbox-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+    </div>
+  </div>
+
+  <!-- Main Viewport / Scroll & Pan Canvas -->
+  <div id="lightbox-viewport" class="lightbox-viewport mode-fit">
+    <div id="lightbox-canvas" class="lightbox-canvas">
+      <img id="lightbox-expanded-img" src="" alt="Expanded diagram" draggable="false" />
+    </div>
+  </div>
+
+  <!-- Bottom Interaction Hint -->
+  <div class="lightbox-footer">
+    <span class="lightbox-hint">
+      <strong>Navigation:</strong> Click image or <strong>Fill Width</strong> to expand • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan • <kbd>Esc</kbd> to exit
+    </span>
+  </div>
+</div>
+
+<script>
+(function() {
+  function initLightbox() {
+    const overlay = document.getElementById('image-lightbox-overlay');
+    const viewport = document.getElementById('lightbox-viewport');
+    const canvas = document.getElementById('lightbox-canvas');
+    const expandedImg = document.getElementById('lightbox-expanded-img');
+    const captionEl = document.getElementById('lightbox-caption');
+    const closeBtn = document.getElementById('lightbox-close-btn');
+    const zoomInBtn = document.getElementById('lightbox-zoom-in');
+    const zoomOutBtn = document.getElementById('lightbox-zoom-out');
+    const zoomDisplay = document.getElementById('lightbox-zoom-display');
+    const modeToggleBtn = document.getElementById('lightbox-mode-toggle');
+    const modeText = document.getElementById('lightbox-mode-text');
+    const modeIcon = document.getElementById('lightbox-mode-icon');
+    const resetBtn = document.getElementById('lightbox-reset-btn');
+
+    if (!overlay || !expandedImg || !viewport) return;
+
+    // View state
+    let currentMode = 'fit'; // 'fit' | 'fill-width' | 'custom-zoom'
+    let currentScale = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let hasDragged = false;
+
+    function applyTransform() {
+      if (currentMode === 'fit') {
+        viewport.className = 'lightbox-viewport mode-fit';
+        canvas.style.transform = '';
+        expandedImg.style.transform = '';
+        zoomDisplay.textContent = 'Fit';
+        modeText.textContent = 'Fill Width';
+        modeIcon.textContent = '↔';
+      } else if (currentMode === 'fill-width') {
+        viewport.className = 'lightbox-viewport mode-fill-width';
+        canvas.style.transform = '';
+        expandedImg.style.transform = '';
+        zoomDisplay.textContent = 'Width';
+        modeText.textContent = 'Fit Screen';
+        modeIcon.textContent = '↕';
+      } else {
+        viewport.className = 'lightbox-viewport mode-custom';
+        canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+        expandedImg.style.transform = `scale(${currentScale})`;
+        zoomDisplay.textContent = `${Math.round(currentScale * 100)}%`;
+        modeText.textContent = 'Fit Screen';
+        modeIcon.textContent = '↕';
+      }
+    }
+
+    function setMode(mode) {
+      currentMode = mode;
+      if (mode === 'fit') {
+        currentScale = 1.0;
+        panX = 0;
+        panY = 0;
+        viewport.scrollTop = 0;
+        viewport.scrollLeft = 0;
+      } else if (mode === 'fill-width') {
+        currentScale = 1.0;
+        panX = 0;
+        panY = 0;
+        viewport.scrollTop = 0;
+      } else if (mode === 'custom-zoom') {
+        // keep current scale and pan
+      }
+      applyTransform();
+    }
+
+    function zoomBy(delta) {
+      if (currentMode === 'fit' || currentMode === 'fill-width') {
+        currentScale = currentMode === 'fit' ? 1.0 : 1.5;
+        currentMode = 'custom-zoom';
+      }
+      currentScale = Math.min(Math.max(currentScale + delta, 0.4), 4.0);
+      currentMode = 'custom-zoom';
+      applyTransform();
+    }
+
+    function toggleMode() {
+      if (currentMode === 'fit') {
+        setMode('fill-width');
+      } else {
+        setMode('fit');
+      }
+    }
+
+    function openLightbox(imgSrc, captionText) {
+      expandedImg.src = imgSrc;
+      captionEl.innerText = captionText || '';
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+
+      function applyDefaultMode() {
+        setMode('fill-width');
+      }
+
+      if (expandedImg.complete && expandedImg.naturalWidth > 0) {
+        applyDefaultMode();
+      } else {
+        expandedImg.onload = applyDefaultMode;
+      }
+
+      // Temporarily disable Reveal keyboard navigation while lightbox is active
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: false });
+      }
+    }
+
+    function closeLightbox() {
+      overlay.classList.remove('active');
+      overlay.setAttribute('aria-hidden', 'true');
+      expandedImg.src = '';
+      captionEl.innerText = '';
+      setMode('fit');
+
+      // Re-enable Reveal keyboard navigation
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: true });
+      }
+    }
+
+    function bindImages() {
+      const zoomableImages = document.querySelectorAll('.figure-frame img, img.zoomable, .reveal .slides img');
+      zoomableImages.forEach(img => {
+        if (img.classList.contains('no-zoom')) return;
+
+        img.style.cursor = 'zoom-in';
+
+        img.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          const frame = img.closest('.figure-frame') || img.parentElement;
+          const caption = frame ? frame.querySelector('.caption')?.innerText : (img.getAttribute('alt') || '');
+          const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
+
+          if (src) {
+            openLightbox(src, caption);
+          }
+        };
+      });
+    }
+
+    // Event Listeners
+    closeBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeLightbox();
+    });
+
+    modeToggleBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMode();
+    });
+
+    resetBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      setMode('fit');
+    });
+
+    zoomInBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zoomBy(0.25);
+    });
+
+    zoomOutBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      zoomBy(-0.25);
+    });
+
+    expandedImg.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (hasDragged) {
+        hasDragged = false;
+        return;
+      }
+      toggleMode();
+    });
+
+    viewport.addEventListener('wheel', function(e) {
+      if (e.ctrlKey || currentMode === 'custom-zoom') {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 0.2 : -0.2;
+        zoomBy(delta);
+      }
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', function(e) {
+      if (e.target === closeBtn || e.target.closest('.lightbox-header')) return;
+      isDragging = true;
+      hasDragged = false;
+      dragStartX = e.clientX - panX;
+      dragStartY = e.clientY - panY;
+      viewport.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', function(e) {
+      if (!isDragging) return;
+      hasDragged = true;
+      if (currentMode !== 'custom-zoom') {
+        currentMode = 'custom-zoom';
+      }
+      panX = e.clientX - dragStartX;
+      panY = e.clientY - dragStartY;
+      applyTransform();
+    });
+
+    window.addEventListener('mouseup', function() {
+      isDragging = false;
+      if (viewport) {
+        viewport.style.cursor = currentMode === 'custom-zoom' ? 'grab' : '';
+      }
+    });
+
+    viewport.addEventListener('click', function(e) {
+      if (e.target === viewport || e.target === canvas) {
+        if (!hasDragged) {
+          closeLightbox();
+        }
+        hasDragged = false;
+      }
+    });
+
+    window.addEventListener('keydown', function(e) {
+      if (overlay.classList.contains('active')) {
+        if (e.key === 'Escape' || e.keyCode === 27) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeLightbox();
+        } else if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          zoomBy(0.25);
+        } else if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          zoomBy(-0.25);
+        } else if (e.key === '0') {
+          e.preventDefault();
+          setMode('fit');
+        } else if (e.key === 'w' || e.key === 'W' || e.key === 'f' || e.key === 'F') {
+          e.preventDefault();
+          toggleMode();
+        }
+      } else if (e.key === 'Escape' || e.keyCode === 27) {
+        // Clear any active table row or infographic spotlights on Escape
+        document.querySelectorAll('.table-compact.has-row-spotlight').forEach(tbl => {
+          tbl.classList.remove('has-row-spotlight');
+          tbl.querySelectorAll('tbody tr').forEach(r => r.classList.remove('row-spotlight-active'));
+        });
+        document.querySelectorAll('.ig-strip.has-ig-spotlight, .ig-svg-frame.has-ig-spotlight').forEach(c => {
+          c.classList.remove('has-ig-spotlight');
+          c.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
+        });
+        const oodaTable = document.getElementById('roadmap-ooda-table');
+        if (oodaTable) {
+          oodaTable.classList.remove('ooda-filtered');
+          oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
+        }
+        const oodaStatus = document.getElementById('ooda-filter-status');
+        if (oodaStatus) oodaStatus.classList.remove('active');
+        ['ch3', 'ch4'].forEach(prefix => {
+          const card = document.getElementById(`${prefix}-cohort-card`);
+          if (card) {
+            card.classList.remove('cohort-filtered');
+            card.querySelectorAll('tbody tr').forEach(r => r.classList.remove('cohort-row-match'));
+          }
+        });
+      }
+    }, true);
+
+    bindImages();
+
+    if (window.Reveal) {
+      window.Reveal.on('ready', bindImages);
+      window.Reveal.on('slidechanged', bindImages);
+    }
+  }
+
+  function applyCohortFilter(prefix, gaugeId, gaugeLabel) {
+    const card = document.getElementById(`${prefix}-cohort-card`);
+    const holdoutTable = document.getElementById(`${prefix}-holdout-table`);
+    const fiTable = document.getElementById(`${prefix}-fi-table`);
+    const bannerText = document.getElementById(`${prefix}-cohort-banner-text`);
+    const fiSubtitle = document.getElementById(`${prefix}-fi-subtitle`);
+    const strip = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"]`);
+    if (!card || !holdoutTable || !fiTable) return;
+
+    holdoutTable.classList.remove('has-row-spotlight');
+    holdoutTable.querySelectorAll('tbody tr').forEach(r => {
+      r.classList.remove('row-spotlight-active');
+      if (r.getAttribute('data-cohort-gauge') === gaugeId) {
+        r.classList.add('cohort-row-match');
+      } else {
+        r.classList.remove('cohort-row-match');
+      }
+    });
+
+    fiTable.classList.remove('has-row-spotlight');
+    fiTable.querySelectorAll('tbody tr').forEach(r => {
+      r.classList.remove('row-spotlight-active');
+      if (r.getAttribute('data-cohort-gauge') === gaugeId) {
+        r.classList.add('cohort-row-match');
+      } else {
+        r.classList.remove('cohort-row-match');
+      }
+    });
+
+    if (strip) {
+      strip.classList.add('has-ig-spotlight');
+      strip.querySelectorAll('.ig-step').forEach(s => {
+        if (s.getAttribute('data-cohort-gauge') === gaugeId) {
+          s.classList.add('ig-spotlight-active');
+        } else {
+          s.classList.remove('ig-spotlight-active');
+        }
+      });
+    }
+
+    if (bannerText) {
+      bannerText.textContent = `Cohort Filter: ${gaugeLabel}`;
+    }
+    if (fiSubtitle) {
+      fiSubtitle.innerHTML = `Top Consensus-Risk Feature Importances — <code>${gaugeId}</code> (<code>SHAP &ge; P75 &cap; FFA 0.05, 0.70</code>)`;
+    }
+    card.classList.add('cohort-filtered');
+    card.setAttribute('data-active-cohort', gaugeId);
+  }
+
+  function resetCohortFilter(prefix) {
+    const card = document.getElementById(`${prefix}-cohort-card`);
+    const strip = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"]`);
+    if (card) {
+      card.classList.remove('cohort-filtered');
+      card.removeAttribute('data-active-cohort');
+      card.querySelectorAll('tbody tr').forEach(r => r.classList.remove('cohort-row-match'));
+    }
+    if (strip) {
+      strip.classList.remove('has-ig-spotlight');
+      strip.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
+    }
+  }
+
+  // Interactive Stepwise Table Row Spotlight (Taming Cognitive Density in Live Defense)
+  function initTableRowSpotlight() {
+    document.querySelectorAll('.reveal .table-compact').forEach(table => {
+      if (table.dataset.spotlightBound) return;
+      table.dataset.spotlightBound = 'true';
+
+      const rows = table.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        row.setAttribute('title', 'Click row to spotlight / filter cohort');
+        row.addEventListener('click', function(e) {
+          if (e.target.closest('a')) return;
+          e.stopPropagation();
+
+          const cohortGauge = row.getAttribute('data-cohort-gauge');
+          const parentCard = row.closest('.cohort-interactive-card');
+          if (cohortGauge && parentCard && table.classList.contains('cohort-holdout-table')) {
+            const prefix = parentCard.id.startsWith('ch3') ? 'ch3' : 'ch4';
+            if (parentCard.getAttribute('data-active-cohort') === cohortGauge) {
+              resetCohortFilter(prefix);
+            } else {
+              const stripStep = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"] .ig-step[data-cohort-gauge="${cohortGauge}"]`);
+              const label = stripStep ? (stripStep.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || cohortGauge) : cohortGauge;
+              applyCohortFilter(prefix, cohortGauge, label);
+            }
+            return;
+          }
+
+          const isAlreadyActive = row.classList.contains('row-spotlight-active');
+          rows.forEach(r => r.classList.remove('row-spotlight-active'));
+          if (isAlreadyActive) {
+            table.classList.remove('has-row-spotlight');
+          } else {
+            row.classList.add('row-spotlight-active');
+            table.classList.add('has-row-spotlight');
+          }
+        });
+      });
+    });
+  }
+
+  function initTitleSlideLogos() {
+    const titleSlide = document.querySelector('#title-slide');
+    if (!titleSlide || titleSlide.querySelector('.dual-logo-bar')) return;
+
+    const usesParentDiagrams = !!document.querySelector('img[src^="../diagrams/"], img[data-src^="../diagrams/"]');
+    const diagPrefix = usesParentDiagrams ? '../diagrams' : 'diagrams';
+
+    const logoBar = document.createElement('div');
+    logoBar.className = 'dual-logo-bar';
+    logoBar.innerHTML = `
+      <img src="${diagPrefix}/vcu_life_sciences_stacked.png" class="no-zoom logo-ls" alt="VCU School of Life Sciences and Sustainability" />
+      <div class="logo-divider"></div>
+      <img src="${diagPrefix}/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
+    `;
+    titleSlide.appendChild(logoBar);
+  }
+
+  function initModuleNavBar() {
+    const footer = document.querySelector('.reveal .footer');
+    if (!footer) return;
+    if (footer.querySelector('.footer-nav')) return;
+
+    footer.innerHTML = `
+      <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Defense</span>
+      <nav class="footer-nav" aria-label="Presentation Chapter Navigation">
+        <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: Chapters 1–6 & 45–50 Min Pacing">Roadmap</a>
+        <a href="#/ch1-sqlr" class="nav-pill pill-p1" id="nav-pill-ch1" title="Chapter 1 (5–6 min): PRISMA 2020 SQLR, 5 Gaps & Empty Intersection (0/73)">Ch. 1 SQLR</a>
+        <a href="#/ch2-duckdb" class="nav-pill pill-p2" id="nav-pill-ch2" title="Chapter 2 (10–12 min): DuckDB + Spot EC2, Step 3b Leakage & 5-Set FFA">Ch. 2 Arch & QA</a>
+        <a href="#/ch3-holdout" class="nav-pill pill-p3" id="nav-pill-ch3" title="Chapter 3 (8–10 min): Opioid ED Holdout, Gate Ablation & DTW Window">Ch. 3 Opioid</a>
+        <a href="#/ch4-holdout-stress" class="nav-pill pill-p4" id="nav-pill-ch4" title="Chapter 4 (8–10 min): Polypharmacy Stress Test, Synergies, IR & Z-Code">Ch. 4 Polypharm</a>
+        <a href="#/ch5-dashboard" class="nav-pill pill-p5" id="nav-pill-ch5" title="Chapter 5 (4–5 min): Serverless PGx Dashboard & Sparsity Resilience">Ch. 5 Dashboard</a>
+        <a href="#/ch6-ooda-map" class="nav-pill pill-p2" id="nav-pill-ch6" title="Chapter 6 (4–5 min): Clinical OODA Synthesis, RWE Loop & 3 Propositions">Ch. 6 Synthesis</a>
+        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix (Q&A Backup): Empirical Tables, Sensitivity Proofs & Telemetry">Appendix</a>
+        <a href="final_defense_slides.pdf" target="_blank" rel="noopener" class="nav-pill pill-pdf print-hide" id="nav-pill-pdf" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 PDF ↗</a>
+      </nav>
+      <span class="footer-spacer"></span>
+    `;
+
+    footer.querySelectorAll('.nav-pill:not(.pill-pdf)').forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetHash = link.getAttribute('href');
+        if (window.Reveal) {
+          if (targetHash.startsWith('#/')) {
+            const slideId = targetHash.replace('#/', '');
+            const targetSlide = document.getElementById(slideId);
+            if (targetSlide) {
+              const indices = window.Reveal.getIndices(targetSlide);
+              window.Reveal.slide(indices.h, indices.v, indices.f);
+              return;
+            }
+          }
+          window.location.hash = targetHash;
+        }
+      });
+    });
+
+    function updateActiveNav() {
+      if (!window.Reveal) return;
+      const indices = window.Reveal.getIndices();
+      const h = indices ? indices.h : 0;
+      const currentSlide = window.Reveal.getCurrentSlide();
+      const slideId = (currentSlide && currentSlide.id) ? currentSlide.id : '';
+
+      if (h === 0 || slideId === 'title-slide') {
+        footer.style.setProperty('display', 'none', 'important');
+        return;
+      } else {
+        footer.style.setProperty('display', 'flex', 'important');
+      }
+
+      footer.querySelectorAll('.nav-pill').forEach(pill => pill.classList.remove('active'));
+
+      if (slideId === 'sec-roadmap') {
+        footer.querySelector('#nav-pill-road')?.classList.add('active');
+      } else if (slideId.startsWith('ch1-')) {
+        footer.querySelector('#nav-pill-ch1')?.classList.add('active');
+      } else if (slideId.startsWith('ch2-')) {
+        footer.querySelector('#nav-pill-ch2')?.classList.add('active');
+      } else if (slideId.startsWith('ch3-')) {
+        footer.querySelector('#nav-pill-ch3')?.classList.add('active');
+      } else if (slideId.startsWith('ch4-')) {
+        footer.querySelector('#nav-pill-ch4')?.classList.add('active');
+      } else if (slideId.startsWith('ch5-')) {
+        footer.querySelector('#nav-pill-ch5')?.classList.add('active');
+      } else if (slideId.startsWith('ch6-')) {
+        footer.querySelector('#nav-pill-ch6')?.classList.add('active');
+      } else if (slideId.startsWith('sec-appendix')) {
+        footer.querySelector('#nav-pill-app')?.classList.add('active');
+      }
+    }
+
+    updateActiveNav();
+    if (window.Reveal) {
+      window.Reveal.on('slidechanged', updateActiveNav);
+    }
+  }
+
+  // Interactive Stepwise Infographic Spotlight + Slide 3 OODA & CH3/CH4 Cohort Filters
+  function initInfographicSpotlight() {
+    const oodaResetBtn = document.getElementById('ooda-filter-reset');
+    if (oodaResetBtn && !oodaResetBtn.dataset.bound) {
+      oodaResetBtn.dataset.bound = 'true';
+      oodaResetBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const oodaTable = document.getElementById('roadmap-ooda-table');
+        if (oodaTable) {
+          oodaTable.classList.remove('ooda-filtered');
+          oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
+        }
+        const oodaStatus = document.getElementById('ooda-filter-status');
+        if (oodaStatus) oodaStatus.classList.remove('active');
+        document.querySelectorAll('#sec-roadmap .ig-strip').forEach(c => {
+          c.classList.remove('has-ig-spotlight');
+          c.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
+        });
+      });
+    }
+
+    document.querySelectorAll('.cohort-reset-btn').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = 'true';
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const prefix = btn.getAttribute('data-cohort-reset');
+        if (prefix) resetCohortFilter(prefix);
+      });
+    });
+
+    document.querySelectorAll('.reveal .ig-strip, .reveal .ig-svg-frame').forEach(container => {
+      if (container.dataset.igSpotlightBound) return;
+      container.dataset.igSpotlightBound = 'true';
+
+      const steps = container.querySelectorAll('.ig-step');
+      steps.forEach(step => {
+        step.setAttribute('title', 'Click stage/gauge to spotlight & filter matching rows (Esc to reset)');
+        step.addEventListener('click', function(e) {
+          if (e.target.closest('a')) return;
+          e.stopPropagation();
+          const isAlreadyActive = step.classList.contains('ig-spotlight-active');
+          steps.forEach(s => s.classList.remove('ig-spotlight-active'));
+
+          const cohortGauge = step.getAttribute('data-cohort-gauge');
+          const cohortTarget = container.getAttribute('data-cohort-target');
+          if (cohortGauge && cohortTarget) {
+            if (isAlreadyActive) {
+              resetCohortFilter(cohortTarget);
+            } else {
+              const gaugeLabel = step.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || cohortGauge;
+              applyCohortFilter(cohortTarget, cohortGauge, gaugeLabel);
+            }
+            return;
+          }
+
+          const oodaStage = step.getAttribute('data-ooda-stage');
+          const oodaTable = document.getElementById('roadmap-ooda-table');
+          const oodaStatus = document.getElementById('ooda-filter-status');
+          const oodaLabel = document.getElementById('ooda-filter-label');
+
+          if (isAlreadyActive) {
+            container.classList.remove('has-ig-spotlight');
+            if (oodaStage && oodaTable) {
+              oodaTable.classList.remove('ooda-filtered');
+              oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
+              if (oodaStatus) oodaStatus.classList.remove('active');
+            }
+          } else {
+            step.classList.add('ig-spotlight-active');
+            container.classList.add('has-ig-spotlight');
+            if (oodaStage && oodaTable) {
+              oodaTable.classList.remove('has-row-spotlight');
+              oodaTable.querySelectorAll('tbody tr').forEach(r => {
+                r.classList.remove('row-spotlight-active');
+                if (r.getAttribute('data-ooda-stage') === oodaStage) {
+                  r.classList.add('ooda-row-match');
+                } else {
+                  r.classList.remove('ooda-row-match');
+                }
+              });
+              oodaTable.classList.add('ooda-filtered');
+              if (oodaStatus && oodaLabel) {
+                const stageTitle = step.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || oodaStage;
+                oodaLabel.textContent = `Focused View: ${stageTitle} — Expanded Chapter Highlights`;
+                oodaStatus.classList.add('active');
+              }
+            }
+          }
+        });
+      });
+    });
+  }
+
+  function onInit() {
+    initLightbox();
+    initTitleSlideLogos();
+    initModuleNavBar();
+    initTableRowSpotlight();
+    initInfographicSpotlight();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', onInit);
+  } else {
+    onInit();
+  }
+
+  if (window.Reveal) {
+    window.Reveal.on('ready', () => {
+      initTitleSlideLogos();
+      initModuleNavBar();
+      initTableRowSpotlight();
+      initInfographicSpotlight();
+    });
+  }
+})();
+</script>

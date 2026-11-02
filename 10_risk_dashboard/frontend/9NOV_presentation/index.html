@@ -792,13 +792,13 @@ Supervised Tabular Model Inputs
 </div><div class="column" style="width:50%;">
 <div class="card-box card-slate card-compact">
 <div class="card-title">
-Specialized Analytical Visualizations
+Step 3b Leakage QA &amp; Step 9 Post-Consensus Visuals
 </div>
 <ul>
-<li><strong>bupaR Process Mining:</strong> Reconstructs claims event logs to audit transition bottlenecks and pre- vs.&nbsp;post-index timing.</li>
-<li><strong>Dynamic Time Warping (DTW):</strong> Aligns non-linear sequence similarity to isolate volatile patient trajectories.</li>
-<li><strong>FP-Growth Pattern Mining:</strong> Compresses transactional claims to identify multi-drug itemset co-occurrences.</li>
-<li><strong>Strict Demarcation:</strong> Powers the dashboard exploratory layer; excluded from supervised training matrices.</li>
+<li><strong>bupaR Process Mining (<code>Step 3b</code> &amp; <code>Step 9</code>):</strong> Upstream (<code>Step 3b</code>), audits pre- vs.&nbsp;post-index (<span class="math inline">\(t &lt; t_0\)</span> vs.&nbsp;<span class="math inline">\(t \ge t_0\)</span>) timestamps; downstream (<code>Step 9</code>), builds Sankey care pathways (<em>where</em> to intervene) on <code>SHAP ∩ FFA</code> allowed codes.</li>
+<li><strong>Dynamic Time Warping (<code>DTW</code>, <code>Step 9</code>):</strong> Aligns pre-index sequences on <code>SHAP ∩ FFA</code> allowed codes to define trajectory archetypes (<em>when</em> to intervene).</li>
+<li><strong>FP-Growth Pattern Mining (<code>Step 9</code>):</strong> Mines training-cohort frequent itemsets on <code>SHAP ∩ FFA</code> allowed codes for co-prescription hub visuals.</li>
+<li><strong>Strict Demarcation:</strong> Never enters the <code>Steps 4–6</code> predictor matrix and never computes <code>Step 8</code> <code>IR</code> or <code>IE</code>.</li>
 </ul>
 </div>
 </div></div>
@@ -1601,6 +1601,177 @@ Multi-stage Docker packaging, AWS Lambda deployment, API Gateway
 </div></div>
 <aside class="notes">
 <p>Slide A5 details the computational reproducibility of the dissertation. All ten analytical steps across our three specific aims are operationalized into seven sequential Jupyter notebooks in our public GitHub repository. The workflow uses S3-backed state checkpoints for idempotency and runs seamlessly on both local workstations and AWS EC2 spot instances. Every dataset transformation, hyperparameter search, and model artifact is fully versioned and traceable back to the raw APCD extracts.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-metrics" class="slide level2 unnumbered">
+<h2>Appendix A6: Pre-Specified Research Questions, Methodological Estimators &amp; Evaluation Metrics</h2>
+<p><span class="slide-badge badge-aim1">Aim 1 · RQ1</span> <span class="slide-badge badge-aim2">Aim 2 · RQ2</span> <span class="slide-badge badge-aim3">Aim 3 · RQ3</span> <span class="slide-badge badge-governance">Pre-Results Methodological &amp; Mathematical Specification</span></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<table class="table-compact" style="font-size: 0.58rem; line-height: 1.22;">
+<thead>
+<tr>
+<th style="width: 26%;">
+Aim / RQ &amp; Pipeline Stage
+</th>
+<th style="width: 32%;">
+Pre-Specified Design &amp; Transformation
+</th>
+<th style="width: 42%;">
+Mathematical Estimator &amp; Governance Gate
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<strong>RQ1 · Steps 1–2: Matching &amp; <code>0-Day</code> Guard</strong>
+</td>
+<td>
+<code>1:5</code> incidence-density control sampling on <code>(age_band, sex, year)</code>; lookback <span class="math inline">\([t_0-W, t_0-1]\)</span>
+</td>
+<td>
+<span class="math inline">\(t_{\text{claim}} &lt; t_0\)</span> (<span class="math inline">\(W=365\text{d}\)</span> <code>opioid_ed</code>, <span class="math inline">\(W=21\text{d}\)</span> <code>ed_non_opioid</code>; purges <span class="math inline">\(t=t_0\)</span> discharge fills)
+</td>
+</tr>
+<tr>
+<td>
+<strong>RQ1 · Step 3b: Leakage Ratio <span class="math inline">\(\tau_{\text{post}}(c)\)</span></strong>
+</td>
+<td>
+Event-level <code>bupaR</code> pre/post index (<span class="math inline">\(t_0\)</span>) timing partition across candidate claims
+</td>
+<td>
+<span class="math inline">\(\tau_{\text{post}}(c) = \frac{N_{t \ge t_0}(c)}{N_{t &lt; t_0}(c) + N_{t \ge t_0}(c)} &lt; 0.80\)</span><br>(locks symmetric <code>safe_feature_filter.json</code>)
+</td>
+</tr>
+<tr>
+<td>
+<strong>RQ1 · Step 4: Density Strata &amp; Burstiness <span class="math inline">\(B\)</span></strong>
+</td>
+<td>
+Training (<code>2016–2018</code>) pre-index claim quantiles (<span class="math inline">\(P_{25},P_{50},P_{95}\)</span>); inter-claim gaps <span class="math inline">\(\Delta t\)</span>
+</td>
+<td>
+<span class="math inline">\(b(n_{\text{ev}}) \in \{0,1,2,3\}\)</span> (<code>low</code>–<code>extreme</code>);<br><span class="math inline">\(B = \frac{\sigma_{\Delta t}-\mu_{\Delta t}}{\sigma_{\Delta t}+\mu_{\Delta t}} \in [-1, 1]\)</span>
+</td>
+</tr>
+<tr>
+<td>
+<strong>RQ1 · Step 5: CPIC Substrate Burden</strong>
+</td>
+<td>
+Pre-index active fills mapped to CPIC Level A/B gene–drug guidelines (<em>CYP2D6/2C19/3A4</em>)
+</td>
+<td>
+<span class="math inline">\(\text{pgx\_num\_drugs}_k = \sum_d x_{k,d}\mathbb{I}(d \in \mathcal{D}_{\text{PGx}})\)</span>;<br><span class="math inline">\(\text{pgx\_num\_cpic\_drugs}_k = \sum_d x_{k,d}\mathbb{I}(\text{CPIC}_{A/B})\)</span>
+</td>
+</tr>
+<tr>
+<td>
+<strong>RQ1 · Step 6: MCCV Ensemble &amp; Holdout</strong>
+</td>
+<td>
+25-split stratified MCCV (<code>CatBoost</code>, <code>XGB</code>, <code>XGB-RF</code>) + Platt scaling on untouched <code>2019</code> holdout
+</td>
+<td>
+<span class="math inline">\(\hat{p}_{\text{ens}}(\mathbf{x}) = \sum_{m=1}^3 w_m\hat{p}_m(\mathbf{x}),\; w_m = \frac{\text{PR-AUC}_m}{\sum_j \text{PR-AUC}_j}\)</span>;<br><span class="math inline">\(\text{Lift} = \frac{\text{AUPRC}}{\pi},\; \text{BS} = \frac{1}{N}\sum(\hat{p}_k - y_k)^2,\; \text{ICI}\)</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div><div class="column" style="width:50%;">
+<table class="table-compact" style="font-size: 0.58rem; line-height: 1.22;">
+<thead>
+<tr>
+<th style="width: 26%;">
+Aim / RQ &amp; Attribution Stage
+</th>
+<th style="width: 32%;">
+Pre-Specified Design &amp; Demarcation
+</th>
+<th style="width: 42%;">
+Mathematical Estimator &amp; Governance Gate
+</th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-focal-success">
+<td>
+<strong>RQ2 · Steps 7–8: Consensus Gate <span class="math inline">\(\mathcal{C}\)</span> ★</strong>
+</td>
+<td>
+Dual-model <code>TreeSHAP</code> (<code>Cat ∩ Best XGB</code>) + PySAT <code>Hitman(m22)</code> minimal hitting-set <code>AXP</code>
+</td>
+<td>
+<span class="math inline">\(\overline{|\phi_j|} \ge Q_{75} \;\cap\; \text{Supp}_{\text{AXP}}(f_j) \ge 0.05\)</span><br><span class="math inline">\(\cap\; \text{Conf}(r) = \frac{N(r \land \hat{y}=1)}{N(r)} \ge 0.70\)</span>
+</td>
+</tr>
+<tr class="row-focal">
+<td>
+<strong>RQ2 · Step 8: Intervention Rate (<code>IR</code>) ★</strong>
+</td>
+<td>
+Step 8 tree/<code>AXP</code> counterfactual neutralization (<span class="math inline">\(f_i \to x_{\text{med}}\)</span>); <strong>never from FP-Growth</strong>
+</td>
+<td>
+<span class="math inline">\(\text{IR}_{\Delta\hat{p}}(f_i) = \frac{1}{n}\sum_{k=1}^n\left(\hat{p}^{(k)} - \hat{p}^{(k)}_{f_i \to \text{med}}\right)\)</span>;<br><span class="math inline">\(\text{IR}_{\text{AXP}}(f_i) = \frac{1}{|E_1|}\sum_{k \in E_1}\mathbb{I}(\hat{y}_{f_i \to \text{med}} = 0)\)</span>
+</td>
+</tr>
+<tr class="row-focal-danger">
+<td>
+<strong>RQ2 · Step 8: Interaction Effect (<code>IE</code>) ★</strong>
+</td>
+<td>
+Risk-space contrast <span class="math inline">\(\Delta_{11}\)</span> &amp; Class-1 minimal <code>AXP</code> co-occurrence lift (1,000 bootstrap CIs)
+</td>
+<td>
+<span class="math inline">\(\Delta_{11} = \mathbb{E}[\hat{p}_{11}]-\mathbb{E}[\hat{p}_{10}]-\mathbb{E}[\hat{p}_{01}]+\mathbb{E}[\hat{p}_{00}]\)</span>;<br><span class="math inline">\(\text{IE}(f_i,f_j) = \frac{P(f_i \land f_j \mid \text{AXP}_1)}{P(f_i \mid \text{AXP}_1)P(f_j \mid \text{AXP}_1)} &gt; 1.0\)</span>
+</td>
+</tr>
+<tr>
+<td>
+<strong>RQ3 · Step 9: Visual Analytics Demarcation</strong>
+</td>
+<td>
+Training-cohort <code>bupaR</code>, <code>DTW</code>, &amp; <code>FP-Growth</code>; <strong>strictly excluded from predictor matrix</strong>
+</td>
+<td>
+<span class="math inline">\(D_{\text{DTW}} = \min_{\pi \in \mathcal{A}_w}\sqrt{\sum \|\mathbf{x}_{i,t_1}-\mathbf{x}_{j,t_2}\|_2^2}\)</span>;<br><span class="math inline">\(\text{Lift}_{\text{FPG}}(A\!\to\!B) = \frac{\text{Supp}(A\cup B)}{\text{Supp}(A)\text{Supp}(B)}\)</span>
+</td>
+</tr>
+<tr>
+<td>
+<strong>RQ3 · Step 10: OODA Scenario Delta <span class="math inline">\(\Delta\hat{p}\)</span></strong>
+</td>
+<td>
+Stateless counterfactual deprescribing (<span class="math inline">\(\mathbf{x}\!\to\!\mathbf{x}'\)</span>); Imputation of Normality (<span class="math inline">\(x_{\text{unobs}}=0\)</span>)
+</td>
+<td>
+<span class="math inline">\(\Delta\hat{p} = \hat{p}_{\text{ens}}(\mathbf{x}') - \hat{p}_{\text{ens}}(\mathbf{x})\)</span>;<br><span class="math inline">\(\text{Score}_{\text{comb}}(f) = 0.5\cdot\text{SHAP}_{\text{norm}}(f) + 0.5\cdot\text{FFA}_{\text{norm}}(f)\)</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div></div>
+<div class="takeaway-banner" style="margin-top: 4px; padding: 4px 10px; font-size: 0.72rem;">
+<p><strong>Candidacy (<code>9 NOV</code>) vs.&nbsp;Final Defense (<code>23 NOV</code>) Scope Demarcation:</strong> Today’s examination locks the pre-specified research questions (<code>RQ1–RQ3</code>), mathematical estimators, and strict predictive-vs.-visual boundary across Specific Aims 1–3. Complete empirical 2019 holdout outcomes, feature-level <code>IR</code>/<code>IE</code> rankings, and post-execution sensitivity findings are staged for the November 23 Final Dissertation Defense.</p>
+</div>
+<div style="margin-top: 4px;">
+<p><a href="#/slide-6a" class="appendix-return-btn">↩︎ Return to Consensus Attribution (Aim 2)</a> <a href="#/slide-10" class="appendix-return-btn">↩︎ Return to Committee Discussion (Slide 10)</a></p>
+</div>
+<aside class="notes">
+<p>Slide A6 provides a single-slide pre-results mathematical specification across Specific Aims 1 through 3 (Research Questions 1 through 3), documenting the pre-specified study design, data transformation, and formal estimator for every pipeline metric—and explicitly distinguishing supervised predictive and explanatory estimators (TreeSHAP, AXP, IR, IE) from exploratory visual analytics (DTW, FP-Growth, bupaR). Complete empirical holdout outcomes and post-execution sensitivity discoveries are staged for the November 23 Final Dissertation Defense.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
