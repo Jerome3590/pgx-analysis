@@ -6,8 +6,8 @@
 <script src="candidacy_exam_slides_files/libs/quarto-html/tippy.umd.min.js"></script>
 <link href="candidacy_exam_slides_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="candidacy_exam_slides_files/libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="candidacy_exam_slides_files/libs/quarto-html/quarto-syntax-highlighting-6fbc3b7d0ac83ab8a043646d6c6d94a5.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.6.33">
+<link href="candidacy_exam_slides_files/libs/quarto-html/quarto-syntax-highlighting-b7eb3ced35dd28f0c673f192a36525f2.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.7.28">
 
   <meta name="author" content="R. Jerome Dixon, MDA, MSc IT">
   <meta name="dcterms.date" content="2026-11-09">
@@ -30,7 +30,7 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="candidacy_exam_slides_files/libs/revealjs/dist/theme/quarto-e0b1e7507a0efbf2a852f0261d5e18d0.css">
+  <link rel="stylesheet" href="candidacy_exam_slides_files/libs/revealjs/dist/theme/quarto-e9b833ba0f45fb617e38b2b28cf830e6.css">
   <link href="candidacy_exam_slides_files/libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="candidacy_exam_slides_files/libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="candidacy_exam_slides_files/libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -271,14 +271,14 @@ Director of Real World Evidence Generation, CVS Health
 <p>V. Translation &amp; Defenses</p>
 </div>
 <ul>
-<li><strong>Translational Service:</strong> Serverless Zero-PHI Cloud Dashboard</li>
-<li><strong>Dissertation Portfolio:</strong> 5 Chapters &amp; Codebase Traceability</li>
+<li><strong>Translational Architecture:</strong> Serverless Zero-PHI CDS Design</li>
+<li><strong>Dissertation Portfolio:</strong> 6 Chapters &amp; Codebase Traceability</li>
 <li><strong>Methodological Defenses:</strong> Scope, Governance &amp; Transportability <br> <small style="color: #64748B; font-size: 0.72rem; line-height: 1.3; display: block;">Crosses translational valley of death; presents peer-reviewed track record and defense fences.</small></li>
 </ul>
 </div>
 </div></div>
 <aside class="notes">
-<p>To orient the committee, today’s qualifying examination is structured into five sequential modules. First, we establish the clinical and translational problem—the upstream burden of opioid overdoses and geriatric polypharmacy, the severe outcome imbalance across 94 reviewed ML studies, and the “Empty Intersection” across 73 PROBAST-assessed models. Second, we present our three-tier governance architecture and explain why Virginia’s APCD solves the fundamental blind spots of hospital EHRs. Third, we detail our epidemiological derivation pipelines and our Step 3b temporal audit that eradicated reverse causality. Fourth, we present our tri-model gradient-boosted tree architecture and our central innovation: interlocking additive SHAP and symbolic Formal Feature Attribution. Finally, we demonstrate our live serverless deployment, review our published manuscript portfolio, and open the floor for methodological examination.</p>
+<p>To orient the committee, today’s qualifying examination is structured into five sequential modules. First, we establish the clinical and translational problem—the upstream burden of opioid overdoses and geriatric polypharmacy, the severe outcome imbalance across 94 reviewed ML studies, and the “Empty Intersection” across 73 PROBAST-assessed models. Second, we present our three-tier governance architecture and explain why Virginia’s APCD solves the fundamental blind spots of hospital EHRs. Third, we detail our epidemiological derivation pipelines and our Step 3b temporal audit that eradicated reverse causality. Fourth, we present our tri-model gradient-boosted tree architecture and our central innovation: interlocking additive SHAP and symbolic Formal Feature Attribution. Finally, we present our proposed serverless clinical decision support architecture, review our dissertation portfolio, and open the floor for methodological examination.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -361,7 +361,7 @@ Figure 1A: Systematic Review Discovery Across 94 Supervised ML Studies &amp; 73 
 </section>
 <section id="slide-1a" class="slide level2">
 <h2>Clinical Problem Formulation: Dual Crises, “Silent ADEs” &amp; Specific Aims</h2>
-<p><span class="slide-badge badge-alert">Module I · Clinical Problem</span> <span class="slide-badge badge-aim1">Specific Aim 1 · Claims Operationalization</span></p>
+<p><span class="slide-badge badge-alert">Module I · Clinical Problem</span></p>
 <div class="columns">
 <div class="column" style="width:50%;">
 <div class="card-box card-danger card-compact" style="padding: 5px 10px;">
@@ -421,7 +421,7 @@ Figure 1A: Systematic Review Discovery Across 94 Supervised ML Studies &amp; 73 
 <p>Aim 3 · Translational CDS Prototype (Ch. 5)</p>
 </div>
 <div style="font-size: 0.60rem; line-height: 1.16;">
-<p>Integrate Aim 1 risk scores and Aim 2 Consensus-Risk rules into an asynchronous, zero-PHI serverless <strong>Clinical OODA Loop</strong> review-prioritization prototype (<code>pgx.jerome-dixon.io</code>) for pharmacist-led MTM.</p>
+<p>Integrate Aim 1 risk scores and Aim 2 Consensus-Risk rules into an asynchronous, zero-PHI serverless <strong>Clinical OODA Loop</strong> review-prioritization prototype for pharmacist-led MTM.</p>
 </div>
 </div>
 </div></div>
@@ -803,7 +803,7 @@ Step 3b Leakage QA &amp; Step 9 Post-Consensus Visuals
 </div>
 </div></div>
 <aside class="notes">
-<p>Slide 6 establishes our architectural foundation and strict toolbox demarcation. Supervised gradient-boosted tree models ingest clean tabular features—whitelisted pre-index antecedent indicators, claims density strata, event intervals, and our CPIC cumulative substrate burden proxy. In parallel, specialized analytical methodologies power our temporal QA and clinical dashboard exploratory layer: bupaR reconstructs care pathways to audit pre- versus post-index event timing, Dynamic Time Warping aligns non-linear clinical intervals across heterogeneous patients, and FP-Growth mines multi-drug co-occurrence patterns. Crucially, exploratory visual outputs are strictly demarcated from the supervised predictive matrix.</p>
+<p>Slide 6 establishes our architectural foundation and strict toolbox demarcation. Supervised gradient-boosted tree models ingest clean tabular features—whitelisted pre-index antecedent indicators, claims density strata, event intervals, and our CPIC cumulative substrate burden proxy. In parallel, specialized analytical methodologies power our temporal QA and clinical decision support exploratory layer: bupaR reconstructs care pathways to audit pre- versus post-index event timing, Dynamic Time Warping aligns non-linear clinical intervals across heterogeneous patients, and FP-Growth mines multi-drug co-occurrence patterns. Crucially, exploratory visual outputs are strictly demarcated from the supervised predictive matrix.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -910,25 +910,25 @@ Step 3b Symmetric Antecedent Whitelist
       }</style></aside>
 </section>
 <section id="slide-8" class="slide level2">
-<h2>Deployment &amp; Translation: The Serverless PGx Risk Dashboard</h2>
+<h2>Translational Architecture: Serverless Clinical Decision Support</h2>
 <p><span class="slide-badge badge-aim3">Module V · Translation &amp; Defenses</span> <span class="slide-badge badge-governance">Specific Aim 3 · CRISP-DM Phase 6</span></p>
 <div class="figure-frame frame-landscape">
-<img src="diagrams/dashboard.png" alt="Clinical Decision Support Architecture: Aim 3 Serverless PGx Risk Dashboard" style="max-height: 235px;">
+<img src="diagrams/dashboard.png" alt="Clinical Decision Support Architecture: Aim 3 Serverless PGx CDS Design" style="max-height: 235px;">
 <div class="caption">
-Figure 8: Aim 3 Translational Architecture: Executive consensus triangulation (Tier 1–3), FFA Boolean Horn rules, legacy CDS comparison, and interactive OODA scenario planning (<a href="https://pgx.jerome-dixon.io/" target="_blank" style="color: #2563EB;">pgx.jerome-dixon.io</a>). <span class="print-hide"><em>Click image to expand full-page.</em></span>
+Figure 8: Aim 3 Translational Architecture: Executive consensus triangulation (Tier 1–3), FFA Boolean Horn rules, legacy CDS comparison, and interactive OODA scenario planning. <span class="print-hide"><em>Click image to expand full-page.</em></span>
 </div>
 </div>
 <div class="columns">
 <div class="column" style="width:50%;">
 <div class="card-box card-primary card-compact">
 <div class="card-title">
-Systems Engineering &amp; Deployment
+Systems Engineering &amp; Deployment Architecture
 </div>
 <ul>
-<li><strong>Live Cloud Microservice:</strong> <a href="https://pgx.jerome-dixon.io/">https://pgx.jerome-dixon.io/</a></li>
-<li><strong>Stateless AWS Lambda Environment:</strong> Docker container runtime, sub-500ms inference, operating costs <strong>&lt;$5.00/month</strong>.</li>
+<li><strong>Containerized Cloud Microservice:</strong> Decouples inference from institutional EHR databases via REST API.</li>
+<li><strong>Stateless AWS Lambda Environment:</strong> Docker container runtime targeting sub-500ms inference and operating costs <strong>&lt;$5.00/month</strong>.</li>
 <li><strong>Zero-PHI Data Hygiene:</strong> Ephemeral memory execution; zero patient data stored at rest.</li>
-<li><a href="#/sec-appendix-cloud" class="appendix-jump-btn">View Cloud Architecture &amp; Latency Verification ↗</a></li>
+<li><a href="#/sec-appendix-cloud" class="appendix-jump-btn">View Cloud Architecture &amp; Target Specifications ↗</a></li>
 </ul>
 </div>
 </div><div class="column" style="width:50%;">
@@ -944,7 +944,7 @@ Cognitive Ergonomics vs.&nbsp;95% Alert Fatigue
 </div>
 </div></div>
 <aside class="notes">
-<p>Slide 8 presents our translational deployment and clinical cognitive ergonomics, closing the loop on Specific Aim 3 and CRISP-DM Phase 6. Traditional clinical decision support systems fail because synchronous pop-up alerts disrupt clinical workflow, suffering 90% to 95% override rates. We overcome alert fatigue through two engineering innovations. First, an asynchronous review queue that stratifies risk into Tier 1 unanimous consensus, Tier 2 agreement, and Tier 3 monitoring. Second, each alert is paired with an exact, human-readable Boolean Horn rule explaining the multi-drug mechanism in under 30 seconds. Deployed as a stateless Docker container on AWS Lambda at pgx.jerome-dixon.io, the service delivers sub-second inference and what-if deprescribing simulations for under five dollars a month with zero PHI retained at rest.</p>
+<p>Slide 8 presents our proposed translational architecture and clinical cognitive ergonomics, closing the loop on Specific Aim 3 and CRISP-DM Phase 6. Traditional clinical decision support systems fail because synchronous pop-up alerts disrupt clinical workflow, suffering 90% to 95% override rates. We overcome alert fatigue through two engineering innovations. First, an asynchronous review queue that stratifies risk into Tier 1 unanimous consensus, Tier 2 agreement, and Tier 3 monitoring. Second, each alert is paired with an exact, human-readable Boolean Horn rule explaining the multi-drug mechanism in under 30 seconds. Designed as a stateless Docker container on AWS Lambda, the service targets sub-second inference and what-if deprescribing simulations for under five dollars a month with zero PHI retained at rest.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -964,14 +964,15 @@ Cognitive Ergonomics vs.&nbsp;95% Alert Fatigue
 <div class="column" style="width:48%;">
 <div class="card-box card-primary card-compact" style="height: 100%;">
 <div class="card-title">
-<p>5-Chapter Dissertation Portfolio</p>
+<p>6-Chapter Dissertation Portfolio</p>
 </div>
 <ul>
 <li><strong>Chapter 1:</strong> <em>Explainable AI &amp; PGx Review</em> (Invited, <em>J Pers Med</em>).</li>
 <li><strong>Chapter 2:</strong> <em>Scalable Claims Architecture &amp; OODA</em> (With Editor for Review, <em>J Big Data</em>).</li>
 <li><strong>Chapter 3:</strong> <em>Temporal Drivers of Opioid ED Visits</em> (<strong>Published</strong>, <em>Clin Transl Sci</em>, 2026; <a href="https://doi.org/10.1111/cts.70690">DOI: 10.1111/cts.70690</a>).</li>
 <li><strong>Chapter 4:</strong> <em>SHAP-Informed Formal Feature Attribution</em> (<strong>Published</strong>, <em>Clin Transl Sci</em>, Sep 2026; <a href="https://doi.org/10.1111/cts.70718">DOI: 10.1111/cts.70718</a>).</li>
-<li><strong>Chapter 5:</strong> <em>Serverless PGx Risk Dashboard</em> (<strong>Published</strong>, <em>Clin Transl Sci</em>, Oct 2026; <a href="https://doi.org/10.1111/cts.70697">DOI: 10.1111/cts.70697</a>).</li>
+<li><strong>Chapter 5:</strong> <em>Serverless PGx Clinical Decision Support</em> (<strong>Published</strong>, <em>Clin Transl Sci</em>, Oct 2026; <a href="https://doi.org/10.1111/cts.70697">DOI: 10.1111/cts.70697</a>).</li>
+<li><strong>Chapter 6:</strong> <em>Synthesis of All Five Chapters &amp; Build of Final Dissertation</em>.</li>
 </ul>
 </div>
 </div><div class="column" style="width:52%;">
@@ -997,7 +998,7 @@ Cognitive Ergonomics vs.&nbsp;95% Alert Fatigue
 <p><strong style="color: #1E3A8A; font-size: 0.8rem;">Committee Sovereign Authority:</strong> <span style="font-size: 0.77rem; color: #1E293B;">While 3 of 5 research chapters are peer-reviewed and published in <em>Clinical and Translational Science</em>, the candidate stands fully prepared to refine, expand, or adjust published works and analyses as the committee directs.</span></p>
 </div>
 <aside class="notes">
-<p>Slide 9 demonstrates our current state and translational maturity. Three of our five dissertation chapters are already peer-reviewed and published in Clinical and Translational Science, covering our ensemble methodology, our formal feature attribution framework, and our serverless dashboard deployment. Every analytical step in this dissertation is fully reproducible across seven structured Jupyter notebooks in our production codebase at github.com/Jerome3590/pgx-analysis. While these manuscripts have passed external peer review, I recognize this committee’s sovereign academic authority and stand fully prepared to refine or expand these analyses as you direct.</p>
+<p>Slide 9 demonstrates our current state and translational maturity across the 6-chapter dissertation portfolio. Three of our five empirical research chapters are already peer-reviewed and published in Clinical and Translational Science, covering our ensemble methodology, our formal feature attribution framework, and our serverless clinical decision support architecture, while Chapter 6 provides the unifying synthesis of all five chapters and compiles the final dissertation manuscript. Every analytical step in this dissertation is fully reproducible across seven structured Jupyter notebooks in our production codebase at github.com/Jerome3590/pgx-analysis. While these manuscripts have passed external peer review, I recognize this committee’s sovereign academic authority and stand fully prepared to refine or expand these analyses as you direct.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -1035,9 +1036,9 @@ Cognitive Ergonomics vs.&nbsp;95% Alert Fatigue
 </ul></li>
 </ol>
 </div><div class="column" style="width:40%;">
-<h3 id="candidate-contact-credentials">Candidate Contact &amp; Credentials</h3>
+<h3 id="contact-credentials">Contact &amp; Credentials</h3>
 <p><strong>R. Jerome Dixon, MDA, MSc IT</strong><br>
-<em>Ph.D.&nbsp;Candidate, Integrative Life Sciences</em><br>
+<em>Ph.D.&nbsp;Student, Integrative Life Sciences</em><br>
 <em>Personalized Medicine Track</em><br>
 Virginia Commonwealth University<br>
 Email: <a href="mailto:dixonrj@vcu.edu">dixonrj@vcu.edu</a><br>
@@ -1050,7 +1051,7 @@ Phone: (804) 828-6885</p>
 </div>
 </div></div>
 <aside class="notes">
-<p>In summary, this dissertation provides an engineered, reproducible, and clinically grounded framework for medication safety prediction in Virginia. The methods are locked, the pipeline is verified, the translation is demonstrated live, and our scientific boundaries are clearly drawn. I thank Dr.&nbsp;Price, Prof.&nbsp;Bost, Dr.&nbsp;Gal, Dr.&nbsp;Wijesinghe, and Dr.&nbsp;DeShazo for your mentorship, and I now welcome your questions.</p>
+<p>In summary, this dissertation provides an engineered, reproducible, and clinically grounded framework for medication safety prediction in Virginia. The methods are locked, the pipeline is verified, the translational architecture is specified, and our scientific boundaries are clearly drawn. I thank Dr.&nbsp;Price, Prof.&nbsp;Bost, Dr.&nbsp;Gal, Dr.&nbsp;Wijesinghe, and Dr.&nbsp;DeShazo for your mentorship, and I now welcome your questions.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -1348,13 +1349,13 @@ Competitive substrate inhibition during polypharmacy escalation
       }</style></aside>
 </section>
 <section id="sec-appendix-cloud" class="slide level2 unnumbered">
-<h2>Appendix A4: Serverless Cloud Architecture, Latency &amp; Cost Verification</h2>
+<h2>Appendix A4: Serverless Cloud Architecture &amp; Target Specifications</h2>
 <p><span class="slide-badge badge-aim3">Specific Aim 3</span> <span class="slide-badge badge-governance">CRISP-DM Phase 6</span></p>
 <div class="columns">
 <div class="column" style="width:55%;">
 <div class="card-box card-primary card-compact">
 <div class="card-title">
-<p>AWS Production Systems Architecture</p>
+<p>AWS Serverless Systems Architecture</p>
 </div>
 <ul>
 <li><strong>Entry Point:</strong> Amazon CloudFront CDN <span class="math inline">\(\rightarrow\)</span> Amazon S3 (Static UI Assets).</li>
@@ -1375,7 +1376,7 @@ Competitive substrate inhibition during polypharmacy escalation
 </div><div class="column" style="width:45%;">
 <div class="card-box card-slate card-compact">
 <div class="card-title">
-<p>Empirical Latency &amp; Operating Cost Model</p>
+<p>Target Latency &amp; Operating Cost Model</p>
 </div>
 <table class="table-compact">
 <thead>
@@ -1384,10 +1385,10 @@ Competitive substrate inhibition during polypharmacy escalation
 Metric / Service
 </th>
 <th>
-Observed Performance
+Target Specification
 </th>
 <th>
-Monthly Cost
+Estimated Cost
 </th>
 </tr>
 </thead>
@@ -1397,7 +1398,7 @@ Monthly Cost
 <strong>Warm Inference</strong>
 </td>
 <td>
-42 ms (P50) / 78 ms (P95)
+&lt; 100 ms (P95)
 </td>
 <td>
 $0.48 / mo
@@ -1408,7 +1409,7 @@ $0.48 / mo
 <strong>Cold Start</strong>
 </td>
 <td>
-378 ms (Container Init)
+&lt; 500 ms (Container Init)
 </td>
 <td>
 $0.12 / mo
@@ -1441,21 +1442,21 @@ $0.50 / mo
 <strong>Total Footprint</strong>
 </td>
 <td>
-<strong>Production Verified</strong>
+<strong>Target Envelope</strong>
 </td>
 <td>
-<strong>$3.82 / mo</strong>
+<strong>&lt; $5.00 / mo</strong>
 </td>
 </tr>
 </tbody>
 </table>
 </div>
 <div style="margin-top: 14px;">
-<p><a href="#/slide-8" class="appendix-return-btn">↩︎ Return to Deployment &amp; Translation (Aim 3)</a></p>
+<p><a href="#/slide-8" class="appendix-return-btn">↩︎ Return to Translational Architecture (Aim 3)</a></p>
 </div>
 </div></div>
 <aside class="notes">
-<p>Slide A4 documents our systems engineering economics. Many academic algorithms die in the lab because hospital IT departments refuse to maintain expensive GPU clusters or handle complex HIPAA compliance. Our serverless architecture eliminates both barriers: it runs statelessly in memory with zero PHI stored at rest, delivers sub-second inference, and costs under four dollars a month on AWS Lambda.</p>
+<p>Slide A4 documents our systems engineering economics. Many academic algorithms die in the lab because hospital IT departments refuse to maintain expensive GPU clusters or handle complex HIPAA compliance. Our serverless architecture eliminates both barriers: it runs statelessly in memory with zero PHI stored at rest, targets sub-second inference, and operates for under five dollars a month on AWS Lambda.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -1591,7 +1592,6 @@ Multi-stage Docker packaging, AWS Lambda deployment, API Gateway
 <li><strong>Source Control &amp; Public Artifacts:</strong>
 <ul>
 <li>Monorepo: <a href="https://github.com/Jerome3590/pgx-analysis"><code>github.com/Jerome3590/pgx-analysis</code></a></li>
-<li>Live Decision Support: <a href="https://pgx.jerome-dixon.io/"><code>pgx.jerome-dixon.io</code></a></li>
 </ul></li>
 </ul>
 </div>
@@ -1638,10 +1638,15 @@ Mathematical Estimator &amp; Governance Gate
 <strong>RQ1 · Steps 1–2: Matching &amp; <code>0-Day</code> Guard</strong>
 </td>
 <td>
-<code>1:5</code> incidence-density control sampling on <code>(age_band, sex, year)</code>; lookback <span class="math inline">\([t_0-W, t_0-1]\)</span>
+<code>1:5</code> incidence-density control sampling on <code>(age_band, sex, year)</code>; lookback <span class="math inline">\([t_0 - W,\; t_0 - 1]\)</span>
 </td>
 <td>
-<span class="math inline">\(t_{\text{claim}} &lt; t_0\)</span> (<span class="math inline">\(W=365\text{d}\)</span> <code>opioid_ed</code>, <span class="math inline">\(W=21\text{d}\)</span> <code>ed_non_opioid</code>; purges <span class="math inline">\(t=t_0\)</span> discharge fills)
+<div class="eq-line">
+<span class="math inline">\(t_{\text{claim}} \;&lt;\; t_0 \quad (W = 365\text{d}\;\; \texttt{opioid\_ed},\;\; W = 21\text{d}\;\; \texttt{ed\_non\_opioid})\)</span>
+</div>
+<div class="eq-line">
+(purges <span class="math inline">\(t = t_0\)</span> discharge fills)
+</div>
 </td>
 </tr>
 <tr>
@@ -1652,7 +1657,12 @@ Mathematical Estimator &amp; Governance Gate
 Event-level <code>bupaR</code> pre/post index (<span class="math inline">\(t_0\)</span>) timing partition across candidate claims
 </td>
 <td>
-<span class="math inline">\(\tau_{\text{post}}(c) = \frac{N_{t \ge t_0}(c)}{N_{t &lt; t_0}(c) + N_{t \ge t_0}(c)} &lt; 0.80\)</span><br>(locks symmetric <code>safe_feature_filter.json</code>)
+<div class="eq-line">
+<span class="math inline">\(\tau_{\text{post}}(c) \;=\; \frac{N_{t \ge t_0}(c)}{N_{t &lt; t_0}(c) \;+\; N_{t \ge t_0}(c)} \;&lt;\; 0.80\)</span>
+</div>
+<div class="eq-line">
+(locks symmetric <code>safe_feature_filter.json</code>)
+</div>
 </td>
 </tr>
 <tr>
@@ -1660,10 +1670,15 @@ Event-level <code>bupaR</code> pre/post index (<span class="math inline">\(t_0\)
 <strong>RQ1 · Step 4: Density Strata &amp; Burstiness <span class="math inline">\(B\)</span></strong>
 </td>
 <td>
-Training (<code>2016–2018</code>) pre-index claim quantiles (<span class="math inline">\(P_{25},P_{50},P_{95}\)</span>); inter-claim gaps <span class="math inline">\(\Delta t\)</span>
+Training (<code>2016–2018</code>) pre-index claim quantiles (<span class="math inline">\(P_{25},\; P_{50},\; P_{95}\)</span>); inter-claim gaps <span class="math inline">\(\Delta t\)</span>
 </td>
 <td>
-<span class="math inline">\(b(n_{\text{ev}}) \in \{0,1,2,3\}\)</span> (<code>low</code>–<code>extreme</code>);<br><span class="math inline">\(B = \frac{\sigma_{\Delta t}-\mu_{\Delta t}}{\sigma_{\Delta t}+\mu_{\Delta t}} \in [-1, 1]\)</span>
+<div class="eq-line">
+<span class="math inline">\(b(n_{\text{ev}}) \;\in\; \{0,\; 1,\; 2,\; 3\}\)</span> (<code>low</code>–<code>extreme</code>);
+</div>
+<div class="eq-line">
+<span class="math inline">\(B \;=\; \frac{\sigma_{\Delta t} \;-\; \mu_{\Delta t}}{\sigma_{\Delta t} \;+\; \mu_{\Delta t}} \;\in\; [-1,\; 1]\)</span>
+</div>
 </td>
 </tr>
 <tr>
@@ -1674,7 +1689,12 @@ Training (<code>2016–2018</code>) pre-index claim quantiles (<span class="math
 Pre-index active fills mapped to CPIC Level A/B gene–drug guidelines (<em>CYP2D6/2C19/3A4</em>)
 </td>
 <td>
-<span class="math inline">\(\text{pgx\_num\_drugs}_k = \sum_d x_{k,d}\mathbb{I}(d \in \mathcal{D}_{\text{PGx}})\)</span>;<br><span class="math inline">\(\text{pgx\_num\_cpic\_drugs}_k = \sum_d x_{k,d}\mathbb{I}(\text{CPIC}_{A/B})\)</span>
+<div class="eq-line">
+<span class="math inline">\(\text{pgx\_num\_drugs}_k \;=\; \sum_d x_{k,d}\,\mathbb{I}(d \;\in\; \mathcal{D}_{\text{PGx}})\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{pgx\_num\_cpic\_drugs}_k \;=\; \sum_d x_{k,d}\,\mathbb{I}(\text{CPIC}_{A/B})\)</span>
+</div>
 </td>
 </tr>
 <tr>
@@ -1685,7 +1705,12 @@ Pre-index active fills mapped to CPIC Level A/B gene–drug guidelines (<em>CYP2
 25-split stratified MCCV (<code>CatBoost</code>, <code>XGB</code>, <code>XGB-RF</code>) + Platt scaling on untouched <code>2019</code> holdout
 </td>
 <td>
-<span class="math inline">\(\hat{p}_{\text{ens}}(\mathbf{x}) = \sum_{m=1}^3 w_m\hat{p}_m(\mathbf{x}),\; w_m = \frac{\text{PR-AUC}_m}{\sum_j \text{PR-AUC}_j}\)</span>;<br><span class="math inline">\(\text{Lift} = \frac{\text{AUPRC}}{\pi},\; \text{BS} = \frac{1}{N}\sum(\hat{p}_k - y_k)^2,\; \text{ICI}\)</span>
+<div class="eq-line">
+<span class="math inline">\(\hat{p}_{\text{ens}}(\mathbf{x}) \;=\; \sum_{m=1}^3 w_m\,\hat{p}_m(\mathbf{x}), \quad w_m \;=\; \frac{\text{PR-AUC}_m}{\sum_j \text{PR-AUC}_j}\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{Lift} \;=\; \frac{\text{AUPRC}}{\pi}, \quad \text{BS} \;=\; \frac{1}{N}\sum\left(\hat{p}_k \;-\; y_k\right)^2, \quad \text{ICI}\)</span>
+</div>
 </td>
 </tr>
 </tbody>
@@ -1714,7 +1739,12 @@ Mathematical Estimator &amp; Governance Gate
 Dual-model <code>TreeSHAP</code> (<code>Cat ∩ Best XGB</code>) + PySAT <code>Hitman(m22)</code> minimal hitting-set <code>AXP</code>
 </td>
 <td>
-<span class="math inline">\(\overline{|\phi_j|} \ge Q_{75} \;\cap\; \text{Supp}_{\text{AXP}}(f_j) \ge 0.05\)</span><br><span class="math inline">\(\cap\; \text{Conf}(r) = \frac{N(r \land \hat{y}=1)}{N(r)} \ge 0.70\)</span>
+<div class="eq-line">
+<span class="math inline">\(\overline{|\phi_j|} \;\ge\; Q_{75} \quad\cap\quad \text{Supp}_{\text{AXP}}(f_j) \;\ge\; 0.05\)</span>
+</div>
+<div class="eq-line">
+<span class="math inline">\(\cap\quad \text{Conf}(r) \;=\; \frac{N(r \;\land\; \hat{y} = 1)}{N(r)} \;\ge\; 0.70\)</span>
+</div>
 </td>
 </tr>
 <tr class="row-focal">
@@ -1722,10 +1752,15 @@ Dual-model <code>TreeSHAP</code> (<code>Cat ∩ Best XGB</code>) + PySAT <code>H
 <strong>RQ2 · Step 8: Intervention Rate (<code>IR</code>) ★</strong>
 </td>
 <td>
-Step 8 tree/<code>AXP</code> counterfactual neutralization (<span class="math inline">\(f_i \to x_{\text{med}}\)</span>); <strong>never from FP-Growth</strong>
+Step 8 tree/<code>AXP</code> counterfactual neutralization (<span class="math inline">\(f_i \;\to\; x_{\text{med}}\)</span>); <strong>never from FP-Growth</strong>
 </td>
 <td>
-<span class="math inline">\(\text{IR}_{\Delta\hat{p}}(f_i) = \frac{1}{n}\sum_{k=1}^n\left(\hat{p}^{(k)} - \hat{p}^{(k)}_{f_i \to \text{med}}\right)\)</span>;<br><span class="math inline">\(\text{IR}_{\text{AXP}}(f_i) = \frac{1}{|E_1|}\sum_{k \in E_1}\mathbb{I}(\hat{y}_{f_i \to \text{med}} = 0)\)</span>
+<div class="eq-line">
+<span class="math inline">\(\text{IR}_{\Delta\hat{p}}(f_i) \;=\; \frac{1}{n}\sum_{k=1}^n\left(\hat{p}^{(k)} \;-\; \hat{p}^{(k)}_{f_i \to \text{med}}\right)\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{IR}_{\text{AXP}}(f_i) \;=\; \frac{1}{|E_1|}\sum_{k \in E_1}\mathbb{I}\!\left(\hat{y}_{f_i \to \text{med}} \;=\; 0\right)\)</span>
+</div>
 </td>
 </tr>
 <tr class="row-focal-danger">
@@ -1736,7 +1771,12 @@ Step 8 tree/<code>AXP</code> counterfactual neutralization (<span class="math in
 Risk-space contrast <span class="math inline">\(\Delta_{11}\)</span> &amp; Class-1 minimal <code>AXP</code> co-occurrence lift (1,000 bootstrap CIs)
 </td>
 <td>
-<span class="math inline">\(\Delta_{11} = \mathbb{E}[\hat{p}_{11}]-\mathbb{E}[\hat{p}_{10}]-\mathbb{E}[\hat{p}_{01}]+\mathbb{E}[\hat{p}_{00}]\)</span>;<br><span class="math inline">\(\text{IE}(f_i,f_j) = \frac{P(f_i \land f_j \mid \text{AXP}_1)}{P(f_i \mid \text{AXP}_1)P(f_j \mid \text{AXP}_1)} &gt; 1.0\)</span>
+<div class="eq-line">
+<span class="math inline">\(\Delta_{11} \;=\; \mathbb{E}[\hat{p}_{11}] \;-\; \mathbb{E}[\hat{p}_{10}] \;-\; \mathbb{E}[\hat{p}_{01}] \;+\; \mathbb{E}[\hat{p}_{00}]\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{IE}(f_i,\,f_j) \;=\; \frac{P(f_i \;\land\; f_j \;\mid\; \text{AXP}_1)}{P(f_i \;\mid\; \text{AXP}_1)\,P(f_j \;\mid\; \text{AXP}_1)} \;&gt;\; 1.0\)</span>
+</div>
 </td>
 </tr>
 <tr>
@@ -1747,7 +1787,12 @@ Risk-space contrast <span class="math inline">\(\Delta_{11}\)</span> &amp; Class
 Training-cohort <code>bupaR</code>, <code>DTW</code>, &amp; <code>FP-Growth</code>; <strong>strictly excluded from predictor matrix</strong>
 </td>
 <td>
-<span class="math inline">\(D_{\text{DTW}} = \min_{\pi \in \mathcal{A}_w}\sqrt{\sum \|\mathbf{x}_{i,t_1}-\mathbf{x}_{j,t_2}\|_2^2}\)</span>;<br><span class="math inline">\(\text{Lift}_{\text{FPG}}(A\!\to\!B) = \frac{\text{Supp}(A\cup B)}{\text{Supp}(A)\text{Supp}(B)}\)</span>
+<div class="eq-line">
+<span class="math inline">\(D_{\text{DTW}} \;=\; \min_{\pi \in \mathcal{A}_w}\sqrt{\sum \left\|\mathbf{x}_{i,t_1} \;-\; \mathbf{x}_{j,t_2}\right\|_2^2}\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{Lift}_{\text{FPG}}(A \;\to\; B) \;=\; \frac{\text{Supp}(A \;\cup\; B)}{\text{Supp}(A)\,\text{Supp}(B)}\)</span>
+</div>
 </td>
 </tr>
 <tr>
@@ -1755,10 +1800,15 @@ Training-cohort <code>bupaR</code>, <code>DTW</code>, &amp; <code>FP-Growth</cod
 <strong>RQ3 · Step 10: OODA Scenario Delta <span class="math inline">\(\Delta\hat{p}\)</span></strong>
 </td>
 <td>
-Stateless counterfactual deprescribing (<span class="math inline">\(\mathbf{x}\!\to\!\mathbf{x}'\)</span>); Imputation of Normality (<span class="math inline">\(x_{\text{unobs}}=0\)</span>)
+Stateless counterfactual deprescribing (<span class="math inline">\(\mathbf{x} \;\to\; \mathbf{x}'\)</span>); Imputation of Normality (<span class="math inline">\(x_{\text{unobs}} = 0\)</span>)
 </td>
 <td>
-<span class="math inline">\(\Delta\hat{p} = \hat{p}_{\text{ens}}(\mathbf{x}') - \hat{p}_{\text{ens}}(\mathbf{x})\)</span>;<br><span class="math inline">\(\text{Score}_{\text{comb}}(f) = 0.5\cdot\text{SHAP}_{\text{norm}}(f) + 0.5\cdot\text{FFA}_{\text{norm}}(f)\)</span>
+<div class="eq-line">
+<span class="math inline">\(\Delta\hat{p} \;=\; \hat{p}_{\text{ens}}(\mathbf{x}') \;-\; \hat{p}_{\text{ens}}(\mathbf{x})\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{Score}_{\text{comb}}(f) \;=\; 0.5\cdot\text{SHAP}_{\text{norm}}(f) \;+\; 0.5\cdot\text{FFA}_{\text{norm}}(f)\)</span>
+</div>
 </td>
 </tr>
 </tbody>
@@ -2001,1044 +2051,831 @@ Stateless counterfactual deprescribing (<span class="math inline">\(\mathbf{x}\!
       });
     </script>
     <div id="image-lightbox-overlay" class="image-lightbox-overlay" aria-hidden="true">
-
       <!-- Top Navigation & Controls Header -->
-
       <div class="lightbox-header">
-
         <div class="lightbox-meta">
-
           <span class="lightbox-tag">Full-Page View</span>
-
           <span id="lightbox-caption" class="lightbox-caption"></span>
-
         </div>
-
         
-
         <div class="lightbox-controls">
-
           <div class="lightbox-btn-group">
-
             <button id="lightbox-zoom-out" class="lightbox-btn" title="Zoom Out (−)" aria-label="Zoom Out">−</button>
-
             <span id="lightbox-zoom-display" class="lightbox-zoom-display">Fit</span>
-
             <button id="lightbox-zoom-in" class="lightbox-btn" title="Zoom In (+)" aria-label="Zoom In">+</button>
-
           </div>
 
-    
-
           <button id="lightbox-mode-toggle" class="lightbox-btn lightbox-btn-accent" title="Toggle Full Width / Fit to Screen">
-
             <span id="lightbox-mode-icon">↔</span>
-
             <span id="lightbox-mode-text">Fill Width</span>
-
           </button>
 
-    
-
           <button id="lightbox-reset-btn" class="lightbox-btn" title="Reset View (0)">↺ Reset</button>
-
           <button id="lightbox-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
-
         </div>
-
       </div>
-
-    
 
       <!-- Main Viewport / Scroll & Pan Canvas -->
-
       <div id="lightbox-viewport" class="lightbox-viewport mode-fit">
-
         <div id="lightbox-canvas" class="lightbox-canvas">
-
           <img id="lightbox-expanded-img" src="" alt="Expanded diagram" draggable="false">
-
         </div>
-
       </div>
-
-    
 
       <!-- Bottom Interaction Hint -->
-
       <div class="lightbox-footer">
-
         <span class="lightbox-hint">
-
-          <strong>Navigation:</strong> Click image or <strong>Fill Width</strong> to expand • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan • <kbd>Esc</kbd> to exit
-
+          <strong>Navigation:</strong> <strong>Single-click anywhere on image</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan
         </span>
-
       </div>
-
     </div>
 
-    
+    <div id="card-lightbox-overlay" class="card-lightbox-overlay" aria-hidden="true">
+      <div class="lightbox-header">
+        <div class="lightbox-meta">
+          <span class="lightbox-tag">Card Focus View</span>
+          <span id="card-lightbox-caption" class="lightbox-caption"></span>
+        </div>
+        <div class="lightbox-controls">
+          <div class="lightbox-btn-group">
+            <button id="card-zoom-out" class="lightbox-btn" title="Decrease Font Size (−)" aria-label="Decrease Font Size">A−</button>
+            <span id="card-zoom-display" class="lightbox-zoom-display">100%</span>
+            <button id="card-zoom-in" class="lightbox-btn" title="Increase Font Size (+)" aria-label="Increase Font Size">A+</button>
+          </div>
+          <button id="card-reset-btn" class="lightbox-btn" title="Reset Font Size (0)">↺ Reset</button>
+          <button id="card-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+        </div>
+      </div>
+      <div id="card-lightbox-viewport" class="card-lightbox-viewport">
+        <div id="card-lightbox-modal" class="card-lightbox-modal"></div>
+      </div>
+      <div class="lightbox-footer">
+        <span class="lightbox-hint">
+          <strong>Card Focus View:</strong> <strong>Single-click anywhere on card</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Use <strong>A+/A−</strong> or <strong>+/−</strong> keys to scale font
+        </span>
+      </div>
+    </div>
 
     <script>
-
     (function() {
-
       function initLightbox() {
-
         const overlay = document.getElementById('image-lightbox-overlay');
-
         const viewport = document.getElementById('lightbox-viewport');
-
         const canvas = document.getElementById('lightbox-canvas');
-
         const expandedImg = document.getElementById('lightbox-expanded-img');
-
         const captionEl = document.getElementById('lightbox-caption');
-
         const closeBtn = document.getElementById('lightbox-close-btn');
-
         const zoomInBtn = document.getElementById('lightbox-zoom-in');
-
         const zoomOutBtn = document.getElementById('lightbox-zoom-out');
-
         const zoomDisplay = document.getElementById('lightbox-zoom-display');
-
         const modeToggleBtn = document.getElementById('lightbox-mode-toggle');
-
         const modeText = document.getElementById('lightbox-mode-text');
-
         const modeIcon = document.getElementById('lightbox-mode-icon');
-
         const resetBtn = document.getElementById('lightbox-reset-btn');
-
-    
 
         if (!overlay || !expandedImg || !viewport) return;
 
-    
-
         // View state
-
         let currentMode = 'fit'; // 'fit' | 'fill-width' | 'custom-zoom'
-
         let currentScale = 1.0;
-
         let panX = 0;
-
         let panY = 0;
-
         let isDragging = false;
-
         let dragStartX = 0;
-
         let dragStartY = 0;
-
         let hasDragged = false;
 
-    
-
         function applyTransform() {
-
           if (currentMode === 'fit') {
-
             viewport.className = 'lightbox-viewport mode-fit';
-
             canvas.style.transform = '';
-
             expandedImg.style.transform = '';
-
             zoomDisplay.textContent = 'Fit';
-
             modeText.textContent = 'Fill Width';
-
             modeIcon.textContent = '↔';
-
           } else if (currentMode === 'fill-width') {
-
             viewport.className = 'lightbox-viewport mode-fill-width';
-
             canvas.style.transform = '';
-
             expandedImg.style.transform = '';
-
             zoomDisplay.textContent = 'Width';
-
             modeText.textContent = 'Fit Screen';
-
             modeIcon.textContent = '↕';
-
           } else {
-
             viewport.className = 'lightbox-viewport mode-custom';
-
             canvas.style.transform = `translate(${panX}px, ${panY}px)`;
-
             expandedImg.style.transform = `scale(${currentScale})`;
-
             zoomDisplay.textContent = `${Math.round(currentScale * 100)}%`;
-
             modeText.textContent = 'Fit Screen';
-
             modeIcon.textContent = '↕';
-
           }
-
         }
-
-    
 
         function setMode(mode) {
-
           currentMode = mode;
-
           if (mode === 'fit') {
-
             currentScale = 1.0;
-
             panX = 0;
-
             panY = 0;
-
             viewport.scrollTop = 0;
-
             viewport.scrollLeft = 0;
-
           } else if (mode === 'fill-width') {
-
             currentScale = 1.0;
-
             panX = 0;
-
             panY = 0;
-
             viewport.scrollTop = 0;
-
           } else if (mode === 'custom-zoom') {
-
             // keep current scale and pan
-
           }
-
           applyTransform();
-
         }
-
-    
 
         function zoomBy(delta) {
-
           if (currentMode === 'fit' || currentMode === 'fill-width') {
-
             currentScale = currentMode === 'fit' ? 1.0 : 1.5;
-
             currentMode = 'custom-zoom';
-
           }
-
           currentScale = Math.min(Math.max(currentScale + delta, 0.4), 4.0);
-
           currentMode = 'custom-zoom';
-
           applyTransform();
-
         }
-
-    
 
         function toggleMode() {
-
           if (currentMode === 'fit') {
-
             setMode('fill-width');
-
           } else {
-
             setMode('fit');
-
           }
-
         }
-
-    
 
         function openLightbox(imgSrc, captionText) {
-
           expandedImg.src = imgSrc;
-
           captionEl.innerText = captionText || '';
-
           overlay.classList.add('active');
-
           overlay.setAttribute('aria-hidden', 'false');
 
-    
-
           // Standardize pop-out logic across all diagrams:
-
           // Default to Fill Width mode (up to 94vw / 1500px) so every diagram pops out bold, scaled, and instantly legible!
-
           function applyDefaultMode() {
-
             setMode('fill-width');
-
           }
-
-    
 
           if (expandedImg.complete && expandedImg.naturalWidth > 0) {
-
             applyDefaultMode();
-
           } else {
-
             expandedImg.onload = applyDefaultMode;
-
           }
 
-    
-
-    
 
           // Temporarily disable Reveal keyboard navigation while lightbox is active
-
           if (window.Reveal) {
-
             window.Reveal.configure({ keyboard: false });
-
           }
-
         }
-
-    
 
         function closeLightbox() {
-
           overlay.classList.remove('active');
-
           overlay.setAttribute('aria-hidden', 'true');
-
           expandedImg.src = '';
-
           captionEl.innerText = '';
-
           setMode('fit');
 
-    
-
           // Re-enable Reveal keyboard navigation
-
           if (window.Reveal) {
-
             window.Reveal.configure({ keyboard: true });
-
           }
-
         }
 
-    
-
         function bindImages() {
-
           const zoomableImages = document.querySelectorAll('.figure-frame img, img.zoomable, .reveal .slides img');
-
           zoomableImages.forEach(img => {
-
             if (img.classList.contains('no-zoom')) return;
-
-    
 
             img.style.cursor = 'zoom-in';
 
-    
-
             img.onclick = function(e) {
-
               e.preventDefault();
-
               e.stopPropagation();
-
-    
 
               const frame = img.closest('.figure-frame') || img.parentElement;
-
               const caption = frame ? frame.querySelector('.caption')?.innerText : (img.getAttribute('alt') || '');
-
               const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
 
-    
-
               if (src) {
-
                 openLightbox(src, caption);
-
               }
-
             };
-
           });
 
+          document.querySelectorAll('.figure-frame').forEach(frame => {
+            if (frame.dataset.frameBound === 'true') return;
+            frame.dataset.frameBound = 'true';
+            frame.addEventListener('click', function(e) {
+              if (e.target.closest('a, button')) return;
+              const img = frame.querySelector('img:not(.no-zoom)');
+              if (!img) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const caption = frame.querySelector('.caption')?.innerText || img.getAttribute('alt') || '';
+              const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
+              if (src) {
+                openLightbox(src, caption);
+              }
+            });
+          });
         }
 
-    
-
         // Event Listeners
-
         closeBtn.addEventListener('click', function(e) {
-
           e.preventDefault();
-
           e.stopPropagation();
-
           closeLightbox();
-
         });
-
-    
 
         modeToggleBtn.addEventListener('click', function(e) {
-
           e.preventDefault();
-
           e.stopPropagation();
-
           toggleMode();
-
         });
-
-    
 
         resetBtn.addEventListener('click', function(e) {
-
           e.preventDefault();
-
           e.stopPropagation();
-
           setMode('fit');
-
         });
-
-    
 
         zoomInBtn.addEventListener('click', function(e) {
-
           e.preventDefault();
-
           e.stopPropagation();
-
           zoomBy(0.25);
-
         });
-
-    
 
         zoomOutBtn.addEventListener('click', function(e) {
-
           e.preventDefault();
-
           e.stopPropagation();
-
           zoomBy(-0.25);
-
         });
 
-    
-
-        // Image click toggles Fit vs Fill Width (if not dragged)
-
+        // Single-click on expanded image closes lightbox (if not dragged)
         expandedImg.addEventListener('click', function(e) {
-
           e.stopPropagation();
-
           if (hasDragged) {
-
             hasDragged = false;
-
             return;
-
           }
-
-          toggleMode();
-
+          closeLightbox();
         });
-
-    
 
         // Mouse wheel zoom over viewport
-
         viewport.addEventListener('wheel', function(e) {
-
           if (e.ctrlKey || currentMode === 'custom-zoom') {
-
             e.preventDefault();
-
             const delta = e.deltaY < 0 ? 0.2 : -0.2;
-
             zoomBy(delta);
-
           }
-
         }, { passive: false });
 
-    
-
         // Drag to Pan functionality
-
         viewport.addEventListener('mousedown', function(e) {
-
           if (e.target === closeBtn || e.target.closest('.lightbox-header')) return;
-
           isDragging = true;
-
           hasDragged = false;
-
           dragStartX = e.clientX - panX;
-
           dragStartY = e.clientY - panY;
-
           viewport.style.cursor = 'grabbing';
-
         });
-
-    
 
         window.addEventListener('mousemove', function(e) {
-
           if (!isDragging) return;
-
           hasDragged = true;
-
           if (currentMode !== 'custom-zoom') {
-
             currentMode = 'custom-zoom';
-
           }
-
           panX = e.clientX - dragStartX;
-
           panY = e.clientY - dragStartY;
-
           applyTransform();
-
         });
-
-    
 
         window.addEventListener('mouseup', function() {
-
           isDragging = false;
-
           if (viewport) {
-
             viewport.style.cursor = currentMode === 'custom-zoom' ? 'grab' : '';
-
           }
-
         });
-
-    
 
         // Background click (outside image) closes lightbox
-
         viewport.addEventListener('click', function(e) {
-
           if (e.target === viewport || e.target === canvas) {
-
             if (!hasDragged) {
-
               closeLightbox();
-
             }
-
             hasDragged = false;
-
           }
-
         });
 
-    
-
         // Keyboard controls
-
         window.addEventListener('keydown', function(e) {
-
           if (overlay.classList.contains('active')) {
-
-            if (e.key === 'Escape' || e.keyCode === 27) {
-
+            if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
               e.preventDefault();
-
               e.stopPropagation();
-
               closeLightbox();
-
             } else if (e.key === '+' || e.key === '=') {
-
               e.preventDefault();
-
               zoomBy(0.25);
-
             } else if (e.key === '-' || e.key === '_') {
-
               e.preventDefault();
-
               zoomBy(-0.25);
-
             } else if (e.key === '0') {
-
               e.preventDefault();
-
               setMode('fit');
-
             } else if (e.key === 'w' || e.key === 'W' || e.key === 'f' || e.key === 'F') {
-
               e.preventDefault();
-
               toggleMode();
-
             }
-
           }
-
         }, true);
-
-    
 
         bindImages();
 
-    
-
         if (window.Reveal) {
-
           window.Reveal.on('ready', bindImages);
-
           window.Reveal.on('slidechanged', bindImages);
-
         }
-
       }
-
-    
 
       function initTitleSlideLogos() {
-
         const titleSlide = document.querySelector('#title-slide');
-
         if (!titleSlide || titleSlide.querySelector('.dual-logo-bar')) return;
 
-    
-
         const usesParentDiagrams = !!document.querySelector('img[src^="../diagrams/"], img[data-src^="../diagrams/"]');
-
         const diagPrefix = usesParentDiagrams ? '../diagrams' : 'diagrams';
 
-    
-
         const logoBar = document.createElement('div');
-
         logoBar.className = 'dual-logo-bar';
-
         logoBar.innerHTML = `
-
           <img src="${diagPrefix}/vcu_life_sciences_stacked.png" class="no-zoom logo-ls" alt="VCU School of Life Sciences and Sustainability" />
-
           <div class="logo-divider"></div>
-
           <img src="${diagPrefix}/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
-
         `;
-
         titleSlide.appendChild(logoBar);
-
       }
 
-    
-
       function initModuleNavBar() {
-
         const footer = document.querySelector('.reveal .footer');
-
         if (!footer) return;
-
         if (footer.querySelector('.footer-nav')) return;
 
-    
-
         footer.innerHTML = `
-
           <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Candidacy</span>
-
           <nav class="footer-nav" aria-label="Presentation Module Navigation">
-
             <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: 5 Core Modules (Slide 3)">Roadmap</a>
-
             <a href="#/slide-1" class="nav-pill pill-p1" id="nav-pill-p1" title="Module I: Clinical Problem & The Empty Intersection (Slides 4–5)">I. Problem</a>
-
             <a href="#/slide-2" class="nav-pill pill-p2" id="nav-pill-p2" title="Module II: Governance & Data (Slides 6–7)">II. Governance</a>
-
             <a href="#/slide-4" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts & Temporal QA (Slides 8–10)">III. Cohorts</a>
-
             <a href="#/slide-5" class="nav-pill pill-p4" id="nav-pill-p4" title="Module IV: Tri-Model & Consensus (Slides 11–14)">IV. Tri-Model</a>
-
             <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Defenses (Slides 15–17)">V. Translation</a>
-
             <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (Slide 18+)">Appendix</a>
-
             <a href="candidacy_exam_slides.pdf" target="_blank" rel="noopener" class="nav-pill pill-pdf print-hide" id="nav-pill-pdf" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 PDF ↗</a>
-
           </nav>
-
           <span class="footer-spacer"></span>
-
         `;
 
-    
-
         footer.querySelectorAll('.nav-pill:not(.pill-pdf)').forEach(link => {
-
           link.addEventListener('click', function(e) {
-
             e.preventDefault();
-
             e.stopPropagation();
-
             const targetHash = link.getAttribute('href');
-
             if (window.Reveal) {
-
               if (targetHash.startsWith('#/')) {
-
                 const slideId = targetHash.replace('#/', '');
-
                 const targetSlide = document.getElementById(slideId);
-
                 if (targetSlide) {
-
                   const indices = window.Reveal.getIndices(targetSlide);
-
                   window.Reveal.slide(indices.h, indices.v, indices.f);
-
                   return;
-
                 }
-
               }
-
               window.location.hash = targetHash;
-
             }
-
           });
-
         });
 
-    
-
         function updateActiveNav() {
-
           if (!window.Reveal) return;
-
           const indices = window.Reveal.getIndices();
-
           const h = indices ? indices.h : 0;
-
           const currentSlide = window.Reveal.getCurrentSlide();
 
-    
-
           // Title Slide (Index 0) -> hide footer completely
-
           if (h === 0 || (currentSlide && currentSlide.id === 'title-slide')) {
-
             footer.style.setProperty('display', 'none', 'important');
-
             return;
-
           } else {
-
             footer.style.setProperty('display', 'flex', 'important');
-
           }
-
-    
 
           footer.querySelectorAll('.nav-pill').forEach(pill => pill.classList.remove('active'));
 
-    
-
           if (h === 2) {
-
             footer.querySelector('#nav-pill-road')?.classList.add('active');
-
           } else if (h >= 3 && h <= 4) {
-
             footer.querySelector('#nav-pill-p1')?.classList.add('active');
-
           } else if (h >= 5 && h <= 6) {
-
             footer.querySelector('#nav-pill-p2')?.classList.add('active');
-
           } else if (h >= 7 && h <= 9) {
-
             footer.querySelector('#nav-pill-p3')?.classList.add('active');
-
           } else if (h >= 10 && h <= 13) {
-
             footer.querySelector('#nav-pill-p4')?.classList.add('active');
-
           } else if (h >= 14 && h <= 16) {
-
             footer.querySelector('#nav-pill-p5')?.classList.add('active');
-
           } else if (h >= 17) {
-
             footer.querySelector('#nav-pill-app')?.classList.add('active');
-
           }
-
         }
-
-    
 
         updateActiveNav();
-
         if (window.Reveal) {
-
           window.Reveal.on('slidechanged', updateActiveNav);
-
-        }
-
-      }
-
-    
-
-      function onInit() {
-
-        initLightbox();
-
-        initTitleSlideLogos();
-
-        initModuleNavBar();
-
-      }
-
-    
-
-      if (document.readyState === 'loading') {
-
-        document.addEventListener('DOMContentLoaded', onInit);
-
-      } else {
-
-        onInit();
-
-      }
-
-    
-
-      if (window.Reveal) {
-
-        window.Reveal.on('ready', () => {
-
-          initTitleSlideLogos();
-
-          initModuleNavBar();
-
-        });
-
-      }
-
-    })();
-
-    </script>
-
-    <script id="quarto-html-after-body" type="application/javascript">
-    window.document.addEventListener("DOMContentLoaded", function (event) {
-      const toggleBodyColorMode = (bsSheetEl) => {
-        const mode = bsSheetEl.getAttribute("data-mode");
-        const bodyEl = window.document.querySelector("body");
-        if (mode === "dark") {
-          bodyEl.classList.add("quarto-dark");
-          bodyEl.classList.remove("quarto-light");
-        } else {
-          bodyEl.classList.add("quarto-light");
-          bodyEl.classList.remove("quarto-dark");
         }
       }
-      const toggleBodyColorPrimary = () => {
-        const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
-        if (bsSheetEl) {
-          toggleBodyColorMode(bsSheetEl);
-        }
-      }
-      toggleBodyColorPrimary();  
-      const tabsets =  window.document.querySelectorAll(".panel-tabset-tabby")
-      tabsets.forEach(function(tabset) {
-        const tabby = new Tabby('#' + tabset.id);
-      });
-      const isCodeAnnotation = (el) => {
-        for (const clz of el.classList) {
-          if (clz.startsWith('code-annotation-')) {                     
-            return true;
+
+      function initCardLightbox() {
+        const overlay = document.getElementById('card-lightbox-overlay');
+        const viewport = document.getElementById('card-lightbox-viewport');
+        const modal = document.getElementById('card-lightbox-modal');
+        const captionEl = document.getElementById('card-lightbox-caption');
+        const closeBtn = document.getElementById('card-close-btn');
+        const zoomInBtn = document.getElementById('card-zoom-in');
+        const zoomOutBtn = document.getElementById('card-zoom-out');
+        const zoomDisplay = document.getElementById('card-zoom-display');
+        const resetBtn = document.getElementById('card-reset-btn');
+
+        if (!overlay || !viewport || !modal) return;
+
+        let cardScale = 1.0;
+
+        function applyCardScale() {
+          modal.style.setProperty('--card-scale', String(cardScale));
+          if (zoomDisplay) {
+            zoomDisplay.textContent = `${Math.round(cardScale * 100)}%`;
           }
         }
-        return false;
-      }
-      const onCopySuccess = function(e) {
-        // button target
-        const button = e.trigger;
-        // don't keep focus
-        button.blur();
-        // flash "checked"
-        button.classList.add('code-copy-button-checked');
-        var currentTitle = button.getAttribute("title");
-        button.setAttribute("title", "Copied!");
-        let tooltip;
-        if (window.bootstrap) {
-          button.setAttribute("data-bs-toggle", "tooltip");
-          button.setAttribute("data-bs-placement", "left");
-          button.setAttribute("data-bs-title", "Copied!");
-          tooltip = new bootstrap.Tooltip(button, 
-            { trigger: "manual", 
-              customClass: "code-copy-button-tooltip",
-              offset: [0, -8]});
-          tooltip.show();    
-        }
-        setTimeout(function() {
-          if (tooltip) {
-            tooltip.hide();
-            button.removeAttribute("data-bs-title");
-            button.removeAttribute("data-bs-toggle");
-            button.removeAttribute("data-bs-placement");
+
+        function openCardLightbox(cardEl) {
+          const slide = cardEl.closest('section');
+          const slideTitle = slide?.querySelector('h2, h1')?.innerText?.trim() || '';
+          const cardTitle = cardEl.querySelector('.card-title, h3, h4, .chair-name, .member-name')?.innerText?.trim() || '';
+          if (captionEl) {
+            captionEl.textContent = cardTitle && slideTitle ? `${slideTitle} — ${cardTitle}` : (cardTitle || slideTitle);
           }
-          button.setAttribute("title", currentTitle);
-          button.classList.remove('code-copy-button-checked');
-        }, 1000);
-        // clear code selection
-        e.clearSelection();
-      }
-      const getTextToCopy = function(trigger) {
-          const codeEl = trigger.previousElementSibling.cloneNode(true);
-          for (const childEl of codeEl.children) {
-            if (isCodeAnnotation(childEl)) {
-              childEl.remove();
+
+          modal.className = 'card-lightbox-modal';
+          ['card-primary', 'card-warning', 'card-danger', 'card-success', 'card-slate'].forEach(cls => {
+            if (cardEl.classList.contains(cls)) {
+              modal.classList.add(cls);
             }
+          });
+
+          if (cardEl.tagName === 'TABLE' || cardEl.querySelector('table')) {
+            modal.classList.add('card-modal-table');
           }
-          return codeEl.innerText;
-      }
-      const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
-        text: getTextToCopy
-      });
-      clipboard.on('success', onCopySuccess);
-      if (window.document.getElementById('quarto-embedded-source-code-modal')) {
-        // For code content inside modals, clipBoardJS needs to be initialized with a container option
-        // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
-        const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
-          text: getTextToCopy,
-          container: window.document.getElementById('quarto-embedded-source-code-modal')
-        });
-        clipboardModal.on('success', onCopySuccess);
-      }
-        var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
-        var mailtoRegex = new RegExp(/^mailto:/);
-          var filterRegex = new RegExp('/' + window.location.host + '/');
-        var isInternal = (href) => {
-            return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
-        }
-        // Inspect non-navigation links and adorn them if external
-     	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
-        for (var i=0; i<links.length; i++) {
-          const link = links[i];
-          if (!isInternal(link.href)) {
-            // undo the damage that might have been done by quarto-nav.js in the case of
-            // links that we want to consider external
-            if (link.dataset.originalHref !== undefined) {
-              link.href = link.dataset.originalHref;
+
+          if (cardEl.tagName === 'TABLE') {
+            modal.innerHTML = cardEl.outerHTML;
+            const clonedTable = modal.querySelector('table');
+            if (clonedTable) {
+              clonedTable.style.fontSize = '';
+              clonedTable.style.lineHeight = '';
             }
-          }
-        }
-      function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
-        const config = {
-          allowHTML: true,
-          maxWidth: 500,
-          delay: 100,
-          arrow: false,
-          appendTo: function(el) {
-              return el.closest('section.slide') || el.parentElement;
-          },
-          interactive: true,
-          interactiveBorder: 10,
-          theme: 'light-border',
-          placement: 'bottom-start',
-        };
-        if (contentFn) {
-          config.content = contentFn;
-        }
-        if (onTriggerFn) {
-          config.onTrigger = onTriggerFn;
-        }
-        if (onUntriggerFn) {
-          config.onUntrigger = onUntriggerFn;
-        }
-          config['offset'] = [0,0];
-          config['maxWidth'] = 700;
-        window.tippy(el, config); 
-      }
-      const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
-      for (var i=0; i<noterefs.length; i++) {
-        const ref = noterefs[i];
-        tippyHover(ref, function() {
-          // use id or data attribute instead here
-          let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
-          try { href = new URL(href).hash; } catch {}
-          const id = href.replace(/^#\/?/, "");
-          const note = window.document.getElementById(id);
-          if (note) {
-            return note.innerHTML;
           } else {
-            return "";
-          }
-        });
-      }
-      const findCites = (el) => {
-        const parentEl = el.parentElement;
-        if (parentEl) {
-          const cites = parentEl.dataset.cites;
-          if (cites) {
-            return {
-              el,
-              cites: cites.split(' ')
-            };
-          } else {
-            return findCites(el.parentElement)
-          }
-        } else {
-          return undefined;
-        }
-      };
-      var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
-      for (var i=0; i<bibliorefs.length; i++) {
-        const ref = bibliorefs[i];
-        const citeInfo = findCites(ref);
-        if (citeInfo) {
-          tippyHover(citeInfo.el, function() {
-            var popup = window.document.createElement('div');
-            citeInfo.cites.forEach(function(cite) {
-              var citeDiv = window.document.createElement('div');
-              citeDiv.classList.add('hanging-indent');
-              citeDiv.classList.add('csl-entry');
-              var biblioDiv = window.document.getElementById('ref-' + cite);
-              if (biblioDiv) {
-                citeDiv.innerHTML = biblioDiv.innerHTML;
-              }
-              popup.appendChild(citeDiv);
+            modal.innerHTML = cardEl.innerHTML;
+            modal.querySelectorAll('table').forEach(tbl => {
+              tbl.style.fontSize = '';
+              tbl.style.lineHeight = '';
             });
-            return popup.innerHTML;
+          }
+
+          // Remove inline font-size overrides that MathJax v2 bakes onto .MathJax / .mjx-chtml based on tiny slide table font sizes
+          modal.querySelectorAll('.MathJax, .mjx-chtml, .MathJax_CHTML').forEach(mj => {
+            mj.style.fontSize = '';
+          });
+
+          // Wire internal appendix jump/return links inside the modal so clicking them closes the modal and navigates
+          modal.querySelectorAll('a[href^="#/"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+              const targetHash = link.getAttribute('href');
+              closeCardLightbox();
+              if (window.Reveal && targetHash.startsWith('#/')) {
+                const slideId = targetHash.replace('#/', '');
+                const targetSlide = document.getElementById(slideId);
+                if (targetSlide) {
+                  const ind = window.Reveal.getIndices(targetSlide);
+                  window.Reveal.slide(ind.h, ind.v, ind.f);
+                  return;
+                }
+              }
+              window.location.hash = targetHash;
+            });
+          });
+
+          cardScale = 1.0;
+          applyCardScale();
+          overlay.classList.add('active');
+          overlay.setAttribute('aria-hidden', 'false');
+
+          if (window.Reveal) {
+            window.Reveal.configure({ keyboard: false });
+          }
+        }
+
+        function closeCardLightbox() {
+          overlay.classList.remove('active');
+          overlay.setAttribute('aria-hidden', 'true');
+          modal.innerHTML = '';
+          if (window.Reveal) {
+            window.Reveal.configure({ keyboard: true });
+          }
+        }
+
+        function bindCards() {
+          const selector = [
+            '.reveal .slides .card-box',
+            '.reveal .slides .committee-chair-card',
+            '.reveal .slides .committee-member-strip',
+            '.reveal .slides .takeaway-banner',
+            '.reveal .slides table.table-compact'
+          ].join(', ');
+
+          document.querySelectorAll(selector).forEach(el => {
+            if (el.dataset.cardBound === 'true') return;
+            // Skip tables that are already inside a .card-box (clicking the card-box handles them)
+            if (el.tagName === 'TABLE' && el.closest('.card-box')) return;
+
+            el.dataset.cardBound = 'true';
+            el.addEventListener('click', function(e) {
+              if (e.target.closest('a, button')) return;
+              e.preventDefault();
+              e.stopPropagation();
+              openCardLightbox(el);
+            });
           });
         }
+
+        closeBtn?.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeCardLightbox();
+        });
+
+        zoomInBtn?.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+          applyCardScale();
+        });
+
+        zoomOutBtn?.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+          applyCardScale();
+        });
+
+        resetBtn?.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          cardScale = 1.0;
+          applyCardScale();
+        });
+
+        viewport.addEventListener('click', function(e) {
+          if (e.target.closest('a, button')) return;
+          const sel = window.getSelection ? window.getSelection().toString() : '';
+          if (sel && sel.length > 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          closeCardLightbox();
+        });
+
+        window.addEventListener('keydown', function(e) {
+          if (!overlay.classList.contains('active')) return;
+          if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            closeCardLightbox();
+          } else if (e.key === '+' || e.key === '=') {
+            e.preventDefault();
+            cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+            applyCardScale();
+          } else if (e.key === '-' || e.key === '_') {
+            e.preventDefault();
+            cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+            applyCardScale();
+          } else if (e.key === '0') {
+            e.preventDefault();
+            cardScale = 1.0;
+            applyCardScale();
+          }
+        }, true);
+
+        bindCards();
+        if (window.Reveal) {
+          window.Reveal.on('ready', bindCards);
+          window.Reveal.on('slidechanged', bindCards);
+        }
       }
-    });
+
+      function onInit() {
+        initLightbox();
+        initCardLightbox();
+        initTitleSlideLogos();
+        initModuleNavBar();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', onInit);
+      } else {
+        onInit();
+      }
+
+      if (window.Reveal) {
+        window.Reveal.on('ready', () => {
+          initCardLightbox();
+          initTitleSlideLogos();
+          initModuleNavBar();
+        });
+      }
+    })();
     </script>
+    <script id="quarto-html-after-body" type="application/javascript">
+      window.document.addEventListener("DOMContentLoaded", function (event) {
+        const tabsets =  window.document.querySelectorAll(".panel-tabset-tabby")
+        tabsets.forEach(function(tabset) {
+          const tabby = new Tabby('#' + tabset.id);
+        });
+        const isCodeAnnotation = (el) => {
+          for (const clz of el.classList) {
+            if (clz.startsWith('code-annotation-')) {                     
+              return true;
+            }
+          }
+          return false;
+        }
+        const onCopySuccess = function(e) {
+          // button target
+          const button = e.trigger;
+          // don't keep focus
+          button.blur();
+          // flash "checked"
+          button.classList.add('code-copy-button-checked');
+          var currentTitle = button.getAttribute("title");
+          button.setAttribute("title", "Copied!");
+          let tooltip;
+          if (window.bootstrap) {
+            button.setAttribute("data-bs-toggle", "tooltip");
+            button.setAttribute("data-bs-placement", "left");
+            button.setAttribute("data-bs-title", "Copied!");
+            tooltip = new bootstrap.Tooltip(button, 
+              { trigger: "manual", 
+                customClass: "code-copy-button-tooltip",
+                offset: [0, -8]});
+            tooltip.show();    
+          }
+          setTimeout(function() {
+            if (tooltip) {
+              tooltip.hide();
+              button.removeAttribute("data-bs-title");
+              button.removeAttribute("data-bs-toggle");
+              button.removeAttribute("data-bs-placement");
+            }
+            button.setAttribute("title", currentTitle);
+            button.classList.remove('code-copy-button-checked');
+          }, 1000);
+          // clear code selection
+          e.clearSelection();
+        }
+        const getTextToCopy = function(trigger) {
+            const codeEl = trigger.previousElementSibling.cloneNode(true);
+            for (const childEl of codeEl.children) {
+              if (isCodeAnnotation(childEl)) {
+                childEl.remove();
+              }
+            }
+            return codeEl.innerText;
+        }
+        const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+          text: getTextToCopy
+        });
+        clipboard.on('success', onCopySuccess);
+        if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+          const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+            text: getTextToCopy,
+            container: window.document.getElementById('quarto-embedded-source-code-modal')
+          });
+          clipboardModal.on('success', onCopySuccess);
+        }
+          var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+          var mailtoRegex = new RegExp(/^mailto:/);
+            var filterRegex = new RegExp('/' + window.location.host + '/');
+          var isInternal = (href) => {
+              return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+          }
+          // Inspect non-navigation links and adorn them if external
+         var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+          for (var i=0; i<links.length; i++) {
+            const link = links[i];
+            if (!isInternal(link.href)) {
+              // undo the damage that might have been done by quarto-nav.js in the case of
+              // links that we want to consider external
+              if (link.dataset.originalHref !== undefined) {
+                link.href = link.dataset.originalHref;
+              }
+            }
+          }
+        function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+          const config = {
+            allowHTML: true,
+            maxWidth: 500,
+            delay: 100,
+            arrow: false,
+            appendTo: function(el) {
+                return el.closest('section.slide') || el.parentElement;
+            },
+            interactive: true,
+            interactiveBorder: 10,
+            theme: 'light-border',
+            placement: 'bottom-start',
+          };
+          if (contentFn) {
+            config.content = contentFn;
+          }
+          if (onTriggerFn) {
+            config.onTrigger = onTriggerFn;
+          }
+          if (onUntriggerFn) {
+            config.onUntrigger = onUntriggerFn;
+          }
+            config['offset'] = [0,0];
+            config['maxWidth'] = 700;
+          window.tippy(el, config); 
+        }
+        const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+        for (var i=0; i<noterefs.length; i++) {
+          const ref = noterefs[i];
+          tippyHover(ref, function() {
+            // use id or data attribute instead here
+            let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+            try { href = new URL(href).hash; } catch {}
+            const id = href.replace(/^#\/?/, "");
+            const note = window.document.getElementById(id);
+            if (note) {
+              return note.innerHTML;
+            } else {
+              return "";
+            }
+          });
+        }
+        const findCites = (el) => {
+          const parentEl = el.parentElement;
+          if (parentEl) {
+            const cites = parentEl.dataset.cites;
+            if (cites) {
+              return {
+                el,
+                cites: cites.split(' ')
+              };
+            } else {
+              return findCites(el.parentElement)
+            }
+          } else {
+            return undefined;
+          }
+        };
+        var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+        for (var i=0; i<bibliorefs.length; i++) {
+          const ref = bibliorefs[i];
+          const citeInfo = findCites(ref);
+          if (citeInfo) {
+            tippyHover(citeInfo.el, function() {
+              var popup = window.document.createElement('div');
+              citeInfo.cites.forEach(function(cite) {
+                var citeDiv = window.document.createElement('div');
+                citeDiv.classList.add('hanging-indent');
+                citeDiv.classList.add('csl-entry');
+                var biblioDiv = window.document.getElementById('ref-' + cite);
+                if (biblioDiv) {
+                  citeDiv.innerHTML = biblioDiv.innerHTML;
+                }
+                popup.appendChild(citeDiv);
+              });
+              return popup.innerHTML;
+            });
+          }
+        }
+      });
+      </script>
     
 
 </body></html>
