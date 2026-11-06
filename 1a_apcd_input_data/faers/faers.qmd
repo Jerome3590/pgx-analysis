@@ -457,6 +457,30 @@ plt.show()
 
 ```{python}
 
+# ADE Time-to-Onset Bucket Metrics (1-7d, 8-14d, 15-21d, 22-29d on cleaned HO/DE events <30d)
+ade_window_metrics = duckdb.sql("""
+    WITH bucketed AS (
+        SELECT
+            CASE
+                WHEN duration <= 7 THEN '1-7'
+                WHEN duration <= 14 THEN '8-14'
+                WHEN duration <= 21 THEN '15-21'
+                ELSE '22-29'
+            END AS bucket,
+            duration
+        FROM faers_events_cleaned
+    )
+    SELECT
+        bucket,
+        COUNT(*) AS n,
+        ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS pct,
+        ROUND(100.0 * SUM(COUNT(*)) OVER (ORDER BY MIN(duration)) / SUM(COUNT(*)) OVER (), 2) AS cum_pct
+    FROM bucketed
+    GROUP BY bucket
+    ORDER BY MIN(duration)
+""").df()
+print(ade_window_metrics.to_string(index=False))
+
 # Duration Analysis
 duration_data = duckdb.sql("""
     SELECT 
