@@ -7,7 +7,7 @@
 **Academic Affiliation:** Virginia Commonwealth University (Integrative Life Sciences, School of Pharmacy / Department of Pharmacotherapy & Outcomes Science)  
 **Related Grant:** VCU Wright Center for Clinical and Translational Research (CCTR) $25,000 Pilot Grant (*REDCap ID 3APJPFWR / 1a18dfe1eae3a835*)  
 **Companion Manuscripts:** *Clinical and Translational Science* (Wiley, Accepted/Published: [10.1111/cts.70697](https://doi.org/10.1111/cts.70697), [10.1111/cts.70718](https://doi.org/10.1111/cts.70718), [10.1111/cts.70690](https://doi.org/10.1111/cts.70690))  
-**Document Version:** 2.1 (Updated Post-Committee Review · November 2026)
+**Document Version:** 2.2 (Updated Post-Committee Review · November 2026)
 
 ---
 
@@ -39,7 +39,26 @@ Healthcare machine learning systems often face an adoption bottleneck: monolithi
 
 ---
 
-## 1. Regulatory Context & Committee Governance
+## 1. Regulatory Context, Scope Clarification & Committee Governance
+
+### Scope Clarification: Patient vs. Healthcare Organization
+
+Your first premise is **accurate**: HIPAA rules and BAA requirements apply exclusively when a regulated entity (a covered entity like a hospital/clinic, or another Business Associate) uses your tool to process patient data. When an individual patient directly inputs their own personal health data for their own use, HIPAA does not govern that relationship, and no BAA is required or legally valid.
+
+```
++--------------------------------------------------------------------------------------------------+
+|                                REGULATORY SCOPE DEMARCATION                                      |
++-------------------------------------------------+------------------------------------------------+
+| 1. HEALTHCARE ORGANIZATION (COVERED ENTITY)     | 2. INDIVIDUAL PATIENT (DIRECT-TO-CONSUMER)     |
++-------------------------------------------------+------------------------------------------------+
+| • Regulated by: HIPAA (HHS OCR), HITECH         | • Regulated by: FTC Act (§ 5), FTC HBNR        |
+| • Data: ePHI (Protected Health Information)     | • Data: Consumer Health Data (Non-ePHI)        |
+| • BAA Status: Mandatory if vendor hosts ePHI    | • BAA Status: Not applicable (legally invalid) |
+| • Responsibility: Enterprise IT & Compliance    | • Responsibility: Individual End User          |
++-------------------------------------------------+------------------------------------------------+
+```
+
+### Committee Governance (Dr. Tamas Gal & Dr. Elvin Price)
 
 During the doctoral defense review process, committee member **Dr. Tamas Gal** (Director of Research Informatics, VCU Massey Comprehensive Cancer Center) and Dissertation Chair **Dr. Elvin T. Price** highlighted the essential legal and regulatory nuance governing transient healthcare data:
 
@@ -107,6 +126,17 @@ Mode 1 is the default open-source and clinical prototype footprint evaluated in 
 
 When a health system, accountable care organization (ACO), or clinical research study requires storing Protected Health Information (PHI/ePHI)—for longitudinal patient tracking, cohort re-identification, automated EHR order-entry, or clinical trial follow-up—the platform transitions to a fully compliant **AWS HIPAA-Eligible Architecture**.
 
+### The Legal BAA Execution Chain
+
+When a healthcare organization uses your hosted service, the agreement chain involves two separate contracts rather than a single direct link between the hospital and your AWS account:
+
+```
+[ Healthcare Organization ] ── ( BAA #1 ) ──► [ Your Business / Legal Entity ] ── ( BAA #2 ) ──► [ AWS ]
+```
+
+1. **Covered Entity to Vendor (You):** You (or your legal entity/company) sign a BAA directly with the healthcare organization. The BAA is executed with your legal entity, not your AWS account number.
+2. **Vendor (You) to Cloud Provider (AWS):** You sign a Business Associate Addendum with AWS through **AWS Artifact** in your AWS Management Console. This legally covers AWS as your subcontractor for the underlying infrastructure processing the ePHI.
+
 ```
                    MODE 2: ENTERPRISE HIPAA-COMPLIANT ARCHITECTURE
                    
@@ -137,6 +167,33 @@ When a health system, accountable care organization (ACO), or clinical research 
       │  [ AWS GuardDuty + CloudWatch Immutable Log Stream ]          │
       └───────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+### AWS Technical Reality: "HIPAA-Eligible" vs. "HIPAA-Compliant"
+
+Switching to AWS Lambda and S3 is necessary, but AWS operates on a **Shared Responsibility Model**. AWS provides *HIPAA-eligible* services, but turning them into a *HIPAA-compliant* application requires specific configurations on your end. There are no separate "HIPAA Lambdas"—the same standard services are used under specific security controls.
+
+#### Required Technical Configurations for Lambda & S3
+
+| Component | AWS Requirement | Mandatory Configuration |
+| :--- | :--- | :--- |
+| **AWS Account BAA** | AWS Artifact | Log into AWS Artifact and accept the AWS Business Associate Addendum before routing ePHI. |
+| **S3 Buckets** | Encryption at Rest | Enforce AWS KMS encryption (`SSE-KMS`), disable public access completely, and enforce TLS (`aws:SecureTransport`) in bucket policies. |
+| **AWS Lambda** | Environment & Memory Security | Encrypt environment variables using KMS. Ensure temporary storage (`/tmp`) does not persist ePHI across invocations. |
+| **Logging (CloudWatch)** | Prevent ePHI Leaks | **Critical:** Ensure print/log statements inside your Lambda functions do not output raw request/response payloads containing ePHI into AWS CloudWatch logs. |
+| **Audit Logging** | AWS CloudTrail | Enable CloudTrail to capture management and data API events for compliance auditing under 45 CFR § 164.312(b). |
+
+---
+
+### Important Nuance for AI & External API Workflows
+
+If your Lambda function calls third-party APIs (such as external LLMs or data enrichment services):
+
+* **AWS-Native Models:** Using **Amazon Bedrock** or models hosted on **AWS SageMaker** within your AWS account falls under your existing AWS BAA.
+* **External APIs (e.g., OpenAI, Anthropic):** If your Lambda makes outbound HTTPS calls to an external API service outside AWS, **that external vendor must also sign a BAA with you**, regardless of whether their processing is ephemeral. Routing ePHI to a third-party API without a BAA violates HIPAA compliance even if your AWS environment is fully secured.
+
+---
 
 ### HIPAA Security Rule Compliance Matrix (45 CFR Part 164 Subpart C)
 
@@ -232,8 +289,10 @@ Healthcare IT administrators and cloud architects deploying this repository shou
     [ ] Deploy AWS CloudFormation / Terraform templates in dedicated AWS VPC private subnets.
     [ ] Provision AWS KMS Customer Managed Keys (CMKs) for database and storage encryption.
     [ ] Enable AWS CloudTrail with log file validation and send logs to S3 Object Lock bucket.
+    [ ] Verify CloudWatch log scrubbers prevent printing ePHI request/response payloads.
     [ ] Configure SMART-on-FHIR OAuth 2.0 reverse proxy for EHR integration.
     [ ] Connect Amazon GuardDuty and configure AWS Security Hub alerting.
+    [ ] If using AI/LLM features: Ensure models are AWS-native (Bedrock/SageMaker) or vendor signs BAA.
 
 [ ] 4. Clinical Governance & Institutional Review:
     [ ] Complete institutional Risk Analysis under 45 CFR § 164.308(a)(1)(ii)(A).
@@ -254,4 +313,3 @@ This software is an analytical clinical decision support prototype designed stri
 
 *Specification maintained by the VCU Pharmacotherapy & Outcomes Science / Integrative Life Sciences Clinical ML Team.*  
 *Correspondence: R. Jerome Dixon (`dixonrj@vcu.edu`) & Dr. Elvin T. Price (`etprice@vcu.edu`).*
-
