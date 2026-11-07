@@ -39,10 +39,15 @@ Companion Web Deck: pgx.jerome-dixon.io/9NOV_presentation & 16:9 Print-Ready PDF
 
 ##### Spoken Presenter Script (60–90 Seconds)
 
-"Good morning, Dr. Price, esteemed members of the Supervisory Committee, and colleagues. *Brief pause* My name is Jerome Dixon, doctoral candidate in Integrative Life Sciences at the VCU School of Pharmacy, and today I present my candidacy proposal: *Gradient-Boosted Trees and Consensus-Risk For Opioid and Polypharmacy Emergency Department Visits in Virginia’s APCD*.  
-**First**, our health economics motivation centers on the severe financial and operational strain caused by preventable drug-related emergency admissions across the Commonwealth of Virginia. **Second**, I want to establish our formal scope boundary for today's November 9 candidacy examination: today we lock and defend our pre-specified Specific Aims one through three, study designs, mathematical estimators, data engineering pipelines, and four-pillar governance architecture. **Third**, while our core methodologies across Chapters 3, 4, and 5 are peer-reviewed and published in *Clinical and Translational Science*, complete empirical 2019 holdout performance tables, feature-level Intervention Rate and Interaction Effect rankings, and sensitivity sweeps are staged for our Final Dissertation Defense on November 23.  
+"Good afternoon, members of the committee. *Brief pause*  
+My name is Jerome Dixon. I am a student in the Integrative Life Sciences Doctoral Program, conducting my dissertation research within the School of Pharmacy at Virginia Commonwealth University.  
+Welcome to my doctoral candidacy proposal defense: *Gradient-Boosted Trees and Consensus-Risk For Opioid and Polypharmacy Emergency Department Visits in Virginia’s APCD*.  
+Across emergency medicine and outpatient pharmacotherapy, clinicians face an escalating dual crisis: the ongoing mortality of the opioid epidemic and the surging, silent morbidity of geriatric polypharmacy adverse drug events - ADEs. Today, I will present our computational framework addressing this challenge.  
+This research presents an end-to-end architecture that connects population-scale predictive analytics with explainable clinical decision support.  
+Using longitudinal statewide claims from the Virginia All-Payer Claims Database, the architecture integrates gradient-boosted tree ensembles across multiple topologies, rigorous temporal leakage audits, and a dual-model consensus attribution framework combining SHAP values with formal symbolic logic.  
 *Lean in / Vocal emphasis*  
-The clinical goal of this dissertation is to move beyond retrospective utilization review toward predictive, data-driven pharmacovigilance."
+Our ultimate aim is to support actionable insights at the point of care while minimizing unnecessary alerts and clinician alert fatigue.  
+With that, let us proceed on our journey."
 
 ##### Oral Delivery & Vocal Notes
 
