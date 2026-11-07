@@ -1299,13 +1299,17 @@ Cognitive Ergonomics vs.&nbsp;95% Alert Fatigue
 </ul>
 </div>
 </div></div>
+<div style="margin-top: 5px; text-align: right;">
+<p><a href="#/sec-appendix-hipaa" class="appendix-jump-btn">📎 Appendix A7: Regulatory Demarcation &amp; HIPAA Cloud Architecture →</a></p>
+</div>
 <aside class="notes">
 <p>“Slide 20 presents Specific Aim 3: translating our validated modeling and attribution insights into an actionable clinical decision-support prototype. <em>Brief pause</em><br>
 Traditional EHR drug-interaction checkers fire synchronous pop-up interrupts during rapid clinical encounters, suffering 90% to 95% clinician override rates. Furthermore, because administrative claims carry billing latency, claims-based consensus models are designed to support proactive Medication Therapy Management rather than acute bedside emergency triage.<br>
 <strong>First</strong>, our interface operationalizes the Clinical OODA Loop—Observe, Orient, Decide, and Act—delivering information structured for rapid clinical review while preserving 100% human clinician authority.<br>
 <strong>Second</strong>, we implement a Lean value stream framework, ranking and laying out information from high to low and left to right by clinical value—pairing patient event-density tiers with verifiable Boolean Horn rules rather than unexplained probability scores.<br>
 <em>Lean in / Vocal emphasis</em><br>
-<strong>Third</strong>, an interactive ‘What-If’ scenario exploration view displays model-predicted risk shifts when candidate regimen features are toggled, supporting pharmacist medication review and evaluating explanation fidelity and clinical usability rather than claiming clinical outcomes effectiveness.”</p>
+<strong>Third</strong>, an interactive ‘What-If’ scenario exploration view displays model-predicted risk shifts when candidate regimen features are toggled, supporting pharmacist medication review and evaluating explanation fidelity and clinical usability rather than claiming clinical outcomes effectiveness.<br>
+<strong>Fourth [Preempting Committee — Patient vs.&nbsp;Hospital System Use]</strong>: We establish a strict regulatory scope demarcation: when an individual patient directly inputs their own personal health data (e.g., consumer DNA files), HIPAA does not govern that relationship and no BAA is required (regulated by FTC Act / HBNR consumer privacy). Conversely, when a hospital system or healthcare organization deploys the tool for patient care, we execute the formal two-tier BAA chain—Hospital to our entity, and our entity to AWS via AWS Artifact—enforcing KMS encryption at rest, private VPC isolation, and CloudWatch log scrubbing.”</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -1443,7 +1447,7 @@ Methodological &amp; Clinical Governance (4 Safeguards)
 </ol>
 </div>
 <div style="font-size: 0.65rem; line-height: 1.25;">
-<p>Translates validated model findings into an interpretable prototype tool evaluating explanation fidelity; prospective clinical trials are out of scope.</p>
+<p>Translates validated model findings into an interpretable prototype tool evaluating explanation fidelity; prospective clinical trials are out of scope. <a href="#/sec-appendix-hipaa" class="appendix-jump-btn" style="font-size: 0.58rem; padding: 1px 5px; display: inline-block;">App. A7 ↗</a></p>
 </div>
 </div>
 <div class="card-box card-warning card-compact" style="margin-bottom: 5px; padding: 6px 10px;">
@@ -1489,7 +1493,7 @@ Methodological &amp; Clinical Governance (4 Safeguards)
 <strong>Fourth</strong>, the Zero-Day Discharge Guard systematically purging day-zero fills and post-index confounders to eliminate target leakage.<br>
 <em>Brief pause</em><br>
 <strong>On the right</strong>, our governance framework establishes:<br>
-<strong>Fifth</strong>, Aim 3 is decision-support triage evaluating explanation fidelity, not a patient outcomes trial;<br>
+<strong>Fifth</strong>, Aim 3 is decision-support triage evaluating explanation fidelity, not a patient outcomes trial—with a strict regulatory boundary separating direct patient self-use under FTC privacy from enterprise hospital deployment under our two-tier HIPAA BAA chain;<br>
 <strong>Sixth</strong>, Consensus Attribution quantifies predictive consensus risk for clinical review rather than causal treatment effects;<br>
 <strong>Seventh</strong>, the untouched 2019 temporal holdout evaluates real-world model transportability with zero recalibration; and<br>
 <strong>Eighth</strong>, our pharmacogenomic features evaluate claims-derived CPIC medication exposure rather than inferred germline genotypes.<br>
@@ -1517,7 +1521,7 @@ Questions &amp; Discussion
 
 </div>
 <div>
-<p><a href="#/sec-appendix" class="appendix-jump-btn" style="font-size: 1.05rem; padding: 12px 26px;">📎 Technical Appendix Defenses (A1–A6) →</a></p>
+<p><a href="#/sec-appendix" class="appendix-jump-btn" style="font-size: 1.05rem; padding: 12px 26px;">📎 Technical Appendix Defenses (A1–A7) →</a></p>
 </div>
 </div>
 <aside class="notes">
@@ -1543,7 +1547,7 @@ Committee Q&amp;A Backup Bank
 Supplemental Technical Evidence
 </div>
 <div class="section-desc">
-<p>Mathematical derivations, feature audit catalogs, pharmacogenomic scoring matrices, cloud systems architecture, and reproducible notebook pipelines supporting defense inquiries.</p>
+<p>Mathematical derivations, feature audit catalogs, pharmacogenomic scoring matrices, regulatory/HIPAA frameworks, and reproducible notebook pipelines supporting defense inquiries.</p>
 </div>
 <p style="margin-top: 18px;">
 <a href="candidacy_exam_slides.pdf" target="_blank" class="appendix-jump-btn print-hide" style="font-size: 0.84rem; padding: 6px 16px;">📄 Download Complete Defense Deck (16:9 PDF) ↗</a><a href="https://pgx.jerome-dixon.io/9NOV_presentation/" target="_blank" class="appendix-jump-btn print-only" style="font-size: 0.82rem; padding: 5px 14px;">🌐 Open Interactive Web Presentation (pgx.jerome-dixon.io/9NOV_presentation) ↗</a>
@@ -2388,10 +2392,90 @@ Aim 3 stateless, zero-PHI AWS Lambda microservice (<span class="math inline">\(\
 </table>
 </div></div>
 <div style="margin-top: 4px;">
-<p><a href="#/slide-2" class="appendix-return-btn">↩︎ Return to Governance and Frameworks</a> <a href="#/slide-4b" class="appendix-return-btn">↩︎ Return to Polypharmacy Cohort Pipeline</a> <a href="#/slide-10" class="appendix-return-btn">↩︎ Return to Methodological Fences</a></p>
+<p><a href="#/slide-2" class="appendix-return-btn">↩︎ Return to Governance and Frameworks</a> <a href="#/slide-4b" class="appendix-return-btn">↩︎ Return to Polypharmacy Cohort Pipeline</a> <a href="#/slide-10" class="appendix-return-btn">↩︎ Return to Methodological Fences</a> <a href="#/sec-appendix-hipaa" class="appendix-jump-btn" style="margin-left: 6px;">📎 Appendix A7: Regulatory &amp; HIPAA Scope →</a></p>
 </div>
 <aside class="notes">
 <p>Appendix A6 provides a comprehensive quick-reference glossary of all governance, clinical, biostatistical, machine learning, formal logic, and cloud engineering acronyms used across the five scientific modules of the dissertation—including CRISP-DM, TRIPOD+AI, the Clinical OODA Loop, PROBAST, Virginia APCD, Milliman Health Cost Guidelines (<code>HCG</code>: <code>hcg_setting</code>, <code>hcg_line</code>, <code>hcg_detail</code> emergency acuity codes <code>P51b</code>, <code>O11</code>, <code>P33</code>), CPIC pharmacogenomics, Silent ADEs, GBDT tree geometries, TreeSHAP, Formal Feature Attribution (FFA), Conjunctive Normal Form (CNF), Abductive Explanations (AXPs), Intervention Rate (IR), Interaction Effect (IE), and our zero-PHI Medication Therapy Management (MTM) Clinical Decision Support (CDS) prototype.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-hipaa" class="slide level2 unnumbered">
+<h2>Appendix A7: Regulatory Scope Demarcation &amp; HIPAA Cloud Architecture</h2>
+<p><span class="slide-badge badge-aim3">Specific Aim 3 · Clinical Deployment &amp; Translation</span> <span class="slide-badge badge-governance">Regulatory Scope: FTC Act vs.&nbsp;HIPAA BAA</span> <span class="slide-badge badge-aim1">AWS HIPAA-Eligible Enclave &amp; Shared Responsibility</span></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="card-box card-primary card-compact">
+<div class="card-title">
+<ol type="1">
+<li>Scope Demarcation: Direct Patient vs.&nbsp;Hospital Deployment</li>
+</ol>
+</div>
+<ul>
+<li><strong>Direct Patient Self-Use (FTC Consumer Scope):</strong>
+<ul>
+<li>Direct individual input of personal health or genetic data is governed by <strong>FTC Act Section 5</strong> and the <strong>FTC Health Breach Notification Rule (HBNR)</strong>.</li>
+<li>HIPAA applies <em>exclusively</em> to covered entities and business associates; when a consumer directly uses the tool, a BAA is <strong>neither required nor legally valid</strong>.</li>
+</ul></li>
+<li><strong>Hospital / Healthcare Organization Use (HIPAA Scope):</strong>
+<ul>
+<li>Clinical deployment processing patient records constitutes ePHI under <strong>45 CFR § 160.103</strong>.</li>
+<li><strong>Two-Tier Legal BAA Execution Chain:</strong> <span class="math display">\[\text{[ Covered Entity / Hospital ]} \xrightarrow{\text{BAA \#1}} \text{[ Our Legal Entity ]} \xrightarrow{\text{BAA \#2}} \text{[ AWS via AWS Artifact ]}\]</span></li>
+<li>Entity executes BAA with hospital; entity executes BAA with AWS via AWS Artifact.</li>
+</ul></li>
+<li><strong>VCU CCTR Pilot Grant Integration:</strong>
+<ul>
+<li>VCU Wright Center CCTR $25,000 Grant formally funds Aim 2 Compliance &amp; Legal Review ($4,500) to partner with VCU Health Compliance and Counsel to execute institutional DUAs and BAAs prior to prospective clinical pilot testing.</li>
+</ul></li>
+</ul>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="card-box card-success card-compact">
+<div class="card-title">
+<ol start="2" type="1">
+<li>AWS Technical Reality: “HIPAA-Eligible” vs.&nbsp;“HIPAA-Compliant”</li>
+</ol>
+</div>
+<ul>
+<li><strong>AWS Shared Responsibility Model:</strong>
+<ul>
+<li>AWS services are <em>HIPAA-eligible</em>; application architecture must implement mandatory administrative, physical, and technical safeguards.</li>
+</ul></li>
+<li><strong>Mandatory Cloud Technical Configurations:</strong>
+<ul>
+<li><strong>S3 Buckets:</strong> Enforce AWS KMS encryption (<code>SSE-KMS</code>), block all public access, enforce TLS (<code>aws:SecureTransport</code>) in bucket policies.</li>
+<li><strong>AWS Lambda &amp; Memory Security:</strong> Environment variables KMS-encrypted; Firecracker microVM <code>/tmp</code> wiped post-invocation; zero ePHI persisted.</li>
+<li><strong>CloudWatch Log Scrubbing (Critical):</strong> Custom log sanitizers strictly prevent ePHI from leaking into log streams, stdout, or telemetry.</li>
+<li><strong>CloudTrail Auditing:</strong> Immutable management and data API event trails under <strong>45 CFR § 164.312(b)</strong>.</li>
+</ul></li>
+<li><strong>AI &amp; External API Boundaries:</strong>
+<ul>
+<li><strong>AWS-Native:</strong> Amazon Bedrock / SageMaker models hosted within VPC fall under AWS BAA.</li>
+<li><strong>External Third-Party APIs (OpenAI, Anthropic):</strong> Inbound/outbound calls require a separate signed BAA with each vendor, regardless of ephemeral processing.</li>
+</ul></li>
+</ul>
+</div>
+<div style="margin-top: 6px;">
+<p><a href="#/slide-8" class="appendix-return-btn">↩︎ Return to Aim 3 Decision Support (Slide 8)</a> <a href="#/slide-10" class="appendix-return-btn">↩︎ Return to Methodological Fences (Slide 10)</a> <a href="#/sec-appendix" class="appendix-jump-btn" style="margin-left: 6px;">📎 Technical Appendix Overview →</a></p>
+</div>
+</div></div>
+<div class="takeaway-banner" style="margin-top: 5px; padding: 4px 10px; font-size: 0.69rem; line-height: 1.25;">
+<p><strong>Architectural Synthesis:</strong> Ephemeral compute with zero persistent PHI is a sound engineering safeguard, but enterprise clinical deployment legally requires the <strong>two-tier BAA chain</strong> and AWS HIPAA hardening. VCU CCTR Pilot Grant funding guarantees institutional legal review and DUA execution before prospective clinical pilot deployment.</p>
+</div>
+<aside class="notes">
+<p>Slide A7 addresses the critical governance, regulatory, and legal questions regarding our clinical decision-support architecture.<br>
+First, we establish a strict statutory demarcation: when an individual patient directly enters their own personal health data or uploads consumer genetic files for personal use, federal statute dictates that HIPAA does not govern that relationship. It falls under Federal Trade Commission Section 5 and the FTC Health Breach Notification Rule, meaning a BAA is neither required nor legally recognized.<br>
+Second, when deployed within a healthcare provider or hospital system processing ePHI under 45 CFR Section 160.103, compliance is governed by a two-tier legal BAA execution chain: the covered entity signs BAA number 1 with our legal entity, and our legal entity executes BAA number 2 directly with AWS through AWS Artifact covering the underlying cloud infrastructure.<br>
+Third, on AWS, services are ‘HIPAA-eligible,’ not automatically compliant. We implement the full technical safeguard suite: mandatory KMS envelope encryption on S3, Firecracker microVM ephemeral compute with zero persistence in slash-tmp, strict CloudWatch log scrubbing to prevent ePHI from entering cloud telemetry, and CloudTrail audit logging under 45 CFR Section 164.312(b). Furthermore, any external AI APIs outside of AWS Bedrock would require their own signed BAA.<br>
+Finally, in response to Dr.&nbsp;Gal’s and Dr.&nbsp;Price’s guidance, our VCU Wright Center CCTR Pilot Grant formally funds institutional compliance and university legal review to vet our ephemeral compute posture and execute the required hospital BAA and DUA framework prior to prospective clinical pilot testing.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
