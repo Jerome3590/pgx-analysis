@@ -129,12 +129,14 @@ Partitions the candidacy examination into five high-level modules tracking the e
 
 ##### Spoken Presenter Script (60–90 Seconds)
 
-"As shown on Slide 3, today's examination is structured into five sequential scientific modules that trace our end-to-end research lifecycle. *Brief pause*  
-**First**, in Modules I and II, we establish the dual clinical crises of acute opioid toxicity and geriatric polypharmacy—presenting our systematic review of 94 studies that uncovered 'The Empty Intersection'—and lock our three-tier governance framework uniting CRISP-DM, TRIPOD+AI, and the Clinical OODA Loop on statewide Virginia APCD claims.  
-**Second**, in Module III, we detail our 39-column medical and pharmacy table join, contrast our 12-month chronic opioid trajectory against our 21-day proximal polypharmacy funnel, and enforce our Step 3b temporal leakage audit.  
-**Third**, in Modules IV and V, we unpack our tri-model gradient-boosted tree geometry, claims-density stratification, and Consensus-Risk engine uniting dual-model TreeSHAP with symbolic Formal Feature Attribution, culminating in our zero-PHI serverless clinical decision support prototype, six-chapter published portfolio, and four methodological defense fences.  
+"Here on our Roadmap slide, we outline the qualifying exam agenda, structuring the presentation across five core modules that systematically address our research questions: *Brief pause*  
+**Module I: Problem:** Establishes the clinical and epidemiological urgency across our opioid and geriatric polypharmacy populations, reviews existing predictive modeling literature gaps, and outlines our Specific Aims.  
+**Module II: Governance & Data:** Details our three-tier oversight framework—integrating CRISP-DM, TRIPOD+AI, and the clinical OODA loop—while methodologically justifying the selection of the Virginia All-Payer Claims Database over single-facility EHR systems.  
+**Module III: Cohorts:** Maps the data engineering and cohort derivation pipelines, defining the clinical anchors, sequential exclusion funnels, and temporal partitioning for both our opioid and polypharmacy cohorts.  
+**Module IV: Modeling:** Dives into the algorithmic core—benchmarking our gradient-boosted decision tree architectures, running our target leakage audit, and establishing our dual-gated TreeSHAP and symbolic formal feature attribution (FFA) consensus engine.  
+**Module V: Translation & Deployment:** Operationalizes empirical risk models within clinical workflows, integrating human-centered cognitive ergonomics to minimize alert fatigue and increase decision support for preventative interventions.  
 *Lean in / Vocal emphasis*  
-Each module builds directly upon the last to guarantee temporal validity, interpretability, and clinical actionability."
+This structured, multi-phase roadmap establishes a rigorous analytical pipeline, transforming longitudinal claims data into proactive, actionable insights designed to avert adverse events prior to any emergency escalation."
 
 ##### Oral Delivery & Vocal Notes
 
