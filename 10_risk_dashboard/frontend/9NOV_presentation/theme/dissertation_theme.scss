@@ -1773,6 +1773,20 @@ html.print-pdf {
 }
 
 // -----------------------------------------------------------------------------
+// SLIDE 16: POLYPHARMACY ADE PIPELINE (#slide-4b)
+// -----------------------------------------------------------------------------
+#slide-4b {
+  .card-box {
+    padding: 8px 13px !important;
+    margin-bottom: 10px !important;
+
+    &:last-child {
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
 // SLIDE 22: METHODOLOGICAL FENCES & STUDY BOUNDARIES (#slide-10)
 // -----------------------------------------------------------------------------
 #slide-10 {
