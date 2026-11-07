@@ -23,3 +23,9 @@
 - Non-destructive commands (linters, static checks, test runners) can execute automatically.
 - Structural modifications, external network requests, or database migrations require explicit review.
 - Break complex refactoring or multi-file builds into parallel sub-agents.
+
+
+## 6. PDF Generation & Type 3 Font Elimination Standards (`Type3: 0` / IDE `pdf.js` Compatibility — `RC-31`)
+- **Zero `/Subtype /Type3` Fonts Mandate (`Type3: 0`)**: Every automated PDF build script must inspect the generated PDF binary after `page.pdf()` and verify `len(re.findall(r"/Subtype\s+/Type3", raw_ascii)) == 0`.
+- **Static TrueType Fonts Only**: Never use Windows Variable Fonts (`"Cascadia Code"`), Color Emojis (`"Segoe UI Emoji"`), or dynamic MathJax CHTML webfonts in PDF print stylesheets; always specify `"Segoe UI", Arial, sans-serif` for body text and `"Consolas", "Courier New", monospace` for code blocks.
+- **No Synthetic Bold on `Cambria Math`**: Verify all non-ASCII characters against the TrueType `cmap` tables of `segoeui.ttf` and `consola.ttf` (`SAFE_CPS`) and render mathematical expressions using native HTML/CSS (`<span class="frac">`, `.overline`, `.hat`, `<sub>`, `<sup>`).

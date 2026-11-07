@@ -50,3 +50,15 @@ description: Universal development guidelines, architectural patterns, test gene
   - Structural modifications, external network requests, or database migrations require explicit review.
 - **Sub-Agent Delegation**:
   - Break complex refactoring or multi-file builds into parallel sub-agents (e.g., separate front-end, back-end, and QA sub-agents).
+
+
+---
+
+## 6. PDF Generation & Type 3 Font Elimination Standards (`Type3: 0` / IDE `pdf.js` Compatibility — `RC-31`)
+To ensure all generated PDFs render 100% cleanly inside strict Content-Security-Policy (CSP) IDE `pdf.js` webviews (which block `/Subtype /Type3` procedural font evaluation when `unsafe-eval` is disabled):
+1. **Zero `/Subtype /Type3` Fonts Mandate (`Type3: 0`)**:
+   - Every automated PDF build script must inspect the generated PDF binary after `page.pdf()` and verify `len(re.findall(r"/Subtype\s+/Type3", raw_ascii)) == 0`.
+2. **Never Use Windows Variable Fonts (`"Cascadia Code"`), Color Emojis (`"Segoe UI Emoji"`), or Dynamic MathJax CHTML Webfonts in PDF Print Stylesheets**:
+   - Always specify static TrueType fonts in PDF CSS: `font-family: "Segoe UI", Arial, sans-serif;` for body text and `font-family: "Consolas", "Courier New", monospace;` for code blocks.
+3. **Avoid Synthetic Bold on Single-Weight Math Fallback Fonts (`Cambria Math`)**:
+   - Verify all non-ASCII characters against the TrueType `cmap` tables of `segoeui.ttf` and `consola.ttf` (`SAFE_CPS`) and render mathematical expressions using native HTML/CSS (`<span class="frac">`, `.overline`, `.hat`, `<sub>`, `<sup>`).

@@ -393,11 +393,13 @@ $presentation-heading-letter-spacing: -0.02em;
 
   img {
     max-height: 480px;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     height: auto;
     object-fit: contain;
     border-radius: 4px;
-    margin: 0 !important;
+    display: block;
+    margin: 0 auto !important;
   }
 
   .caption {
@@ -927,20 +929,25 @@ $presentation-heading-letter-spacing: -0.02em;
     // Mode 2: Fill Width Mode (High-resolution full-span scroll view)
     &.mode-fill-width {
       display: block;
+      text-align: center;
 
       .lightbox-canvas {
         display: flex;
         justify-content: center;
+        align-items: flex-start;
+        width: 100%;
         min-height: 100%;
+        margin: 0 auto;
 
         img {
+          display: block;
+          margin: 0 auto 30px auto;
           width: min(94vw, 1500px);
           max-width: 94vw;
           height: auto;
           max-height: none;
-          object-fit: unset;
+          object-fit: contain;
           cursor: zoom-out;
-          margin-bottom: 30px;
         }
       }
     }

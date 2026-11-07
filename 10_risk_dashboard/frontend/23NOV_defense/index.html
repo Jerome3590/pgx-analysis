@@ -30,7 +30,7 @@
       vertical-align: middle;
     }
   </style>
-  <link rel="stylesheet" href="final_defense_slides_files/libs/revealjs/dist/theme/quarto-3972fd328d04451b5c6300a953da31a2.css">
+  <link rel="stylesheet" href="final_defense_slides_files/libs/revealjs/dist/theme/quarto-ba4fe2b7b0165da9bdd8243ac3a39d53.css">
   <link href="final_defense_slides_files/libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
   <link href="final_defense_slides_files/libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
   <link href="final_defense_slides_files/libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
@@ -137,7 +137,7 @@
 R. Jerome Dixon, MDA, MSc IT 
 </div>
         <p class="quarto-title-affiliation">
-            <span class="affil-dept">Integrative Life Sciences Doctoral Program</span> <span class="affil-meta">(Personalized Medicine Track · Home Department)</span><br><span class="affil-lab">School of Pharmacy</span> <span class="affil-meta">(Department of Pharmacotherapy &amp; Outcomes Science · Research Lab)</span><br><span class="affil-univ">Virginia Commonwealth University</span>
+            <span class="affil-dept">Integrative Life Sciences Doctoral Program</span> <span class="affil-meta">(Home Department)</span><br><span class="affil-lab">School of Pharmacy</span> <span class="affil-meta">(Department of Pharmacotherapy &amp; Outcomes Science · Research Lab)</span><br><span class="affil-univ">Virginia Commonwealth University</span>
           </p>
     </div>
 </div>
@@ -156,7 +156,7 @@ R. Jerome Dixon, MDA, MSc IT
 VCU Integrative Life Sciences
 </div>
 <div class="ig-body">
-Personalized Medicine Track · Genomics, Bioinformatics &amp; Quantitative Systems Biology
+Genomics, Bioinformatics &amp; Quantitative Systems Biology
 </div>
 </div>
 <div class="ig-arrow">
@@ -1181,7 +1181,7 @@ Downstream of <span class="math inline">\(t_0\)</span>
 </ul></li>
 <li><strong>Locked Safe Whitelist (<code>682</code> Features = <code>66.2%</code>):</strong>
 <ul>
-<li><strong><code>114</code> Pure Antecedents</strong> (<span class="math inline">\(\text{pre\_ratio} \ge 0.80\)</span>) + <strong><code>567</code> Mixed-Timing</strong> (<span class="math inline">\(\text{pre} &gt; 0, \text{post\_ratio} &lt; 0.80\)</span>) + <strong><code>1</code> Low-Freq Signal</strong>.</li>
+<li><strong><code>114</code> Pure Antecedents</strong> (<span class="math inline">\(\tau_{\text{pre}} \ge 0.80\)</span>) + <strong><code>567</code> Mixed-Timing</strong> (<span class="math inline">\(\text{pre} &gt; 0, \tau_{\text{post}} &lt; 0.80\)</span>) + <strong><code>1</code> Low-Freq Signal</strong>.</li>
 </ul></li>
 <li><strong>Empirical Discrimination Correction (<code>Ch. 2–3</code>):</strong>
 <ul>
@@ -1433,11 +1433,11 @@ Figure 2.5 (Ch. 2): Dual-confirmation Consensus Filter (<span class="math inline
 </div>
 <div class="card-box card-primary card-compact">
 <div class="card-title">
-<p>Step 8 Responsibility &amp; Counterfactual Intervention Rate (<code>IR</code>)</p>
+<p>Step 8 Consensus Responsibility &amp; Intervention Rate (<code>IR</code>)</p>
 </div>
 <ul>
-<li><strong>Combined Synthesis (<code>Step 10</code>):</strong> <span class="math display">\[\text{CausalResp}(f) = \frac{\text{RuleFreq}(f)}{\sum_k \text{RuleFreq}(f_k)} \times \text{SHAP}_{\text{consensus}}(f)\]</span></li>
-<li><strong>Counterfactual Intervention Rate (<code>IR</code> &gt; 0.10):</strong> Measures how often setting feature <span class="math inline">\(j\)</span> to its training median changes the patient’s minimal Abductive Explanation (<span class="math inline">\(\text{AXP}\)</span>): <span class="math display">\[\text{IR}(j) = \frac{\left|\left\{i \in S_j : \text{AXP}\!\left(x_i^{(j \to \text{med})}\right) \neq \text{AXP}(x_i)\right\}\right|}{|S_j|}\]</span></li>
+<li><strong>Combined Synthesis (<code>Step 10</code>):</strong> <span class="math display">\[\text{ConsensusResp}(f) = \frac{\text{RuleFreq}(f)}{\sum_k \text{RuleFreq}(f_k)} \times \text{SHAP}_{\text{consensus}}(f)\]</span></li>
+<li><strong>Model-Perturbation Intervention Rate (<code>IR</code> &gt; 0.10):</strong> Measures how often resetting feature <span class="math inline">\(j\)</span> to its cohort median changes the patient’s minimal Abductive Explanation (<span class="math inline">\(\text{AXP}\)</span>): <span class="math display">\[\text{IR}(j) = \frac{\left|\left\{i \in S_j : \text{AXP}\!\left(x_i^{(j \to \text{med})}\right) \neq \text{AXP}(x_i)\right\}\right|}{|S_j|}\]</span></li>
 </ul>
 </div>
 </div><div class="column" style="width:52%;">
@@ -3738,16 +3738,17 @@ Figure 5.2 (Ch. 5): <strong>Live PGx Risk Assessment Dashboard Screenshot</stron
 </div>
 <div class="card-box card-success card-compact" style="padding: 5px 9px;">
 <div class="card-title">
-<p>Compute-Respond-Discard Privacy &amp; Zero-EHR Deployment</p>
+<p>Compute-Respond-Discard Privacy &amp; Dual Deployment Modes</p>
 </div>
 <ul>
-<li><strong>No Institutional EHR Barrier:</strong> Clinicians enter mandatory <strong>age</strong> (<code>13–114</code>) and select active <strong>drugs, ICD-10 diagnoses, and CPT procedures</strong> mapped to <code>item_*</code> indicators.</li>
-<li><strong>Ephemeral Privacy Boundary:</strong> Patient inputs and consumer <code>23andMe</code> genotypes execute strictly in Lambda memory (<code>compute-respond-discard</code>), returning <strong><code>3/3</code> model agreement</strong>, <strong>top-5 SHAP drivers</strong>, and <strong><code>573 / 573</code> (<code>100%</code>) verified CPIC rules</strong> with zero persistent storage.</li>
+<li><strong>Native Stateless Mode (Zero-PHI):</strong> Patient inputs execute strictly in volatile Lambda RAM (<code>compute-respond-discard</code>), returning <strong><code>3/3</code> model agreement</strong>, <strong>top-5 SHAP drivers</strong>, and <strong><code>573 / 573</code> verified CPIC rules</strong> with zero persistent storage at <code>&lt;\$5/mo</code>.</li>
+<li><strong>Enterprise PHI Extension:</strong> If a health system requires storing persistent PHI, we seamlessly switch to an <strong>AWS HIPAA-Eligible Architecture with executed BAA</strong>, KMS encryption at rest, and CloudTrail audit logging—though this is not our native lightweight use case.</li>
+<li><strong>Legal &amp; HIPAA Audit (VCU CCTR Grant):</strong> Addressing <strong>Dr.&nbsp;Gal’s</strong> committee inquiry on cloud RAM compliance, our pending <strong>VCU CCTR $25,000 Pilot Grant</strong> funds an institutional review with VCU Health / Massey Legal to codify BAA and enclave boundaries before EHR integration.</li>
 </ul>
 </div>
 </div></div>
 <aside class="notes">
-<p><strong>[⏱ Pacing: 1.5 min | Cumulative: 36:30 / 48:00 | Ch. 5 &amp; 6 (8–10 min Block)]</strong> <strong>[👉 Visual Callout]:</strong> Direct committee eyes to the <strong>Serverless Architecture Diagram (<code>Fig. 5.1</code>)</strong> on the left and the <strong>Live PGx Risk Assessment Dashboard Screenshot (<code>Fig. 5.2</code>, <code>pgx.jerome-dixon.io</code>)</strong> on the right. Our ephemeral Lambda container packages all <code>56</code> bin-level ensembles (<code>168</code> base learners) + the <code>573</code>-pair CPIC cache to deliver <code>6 ms</code> warm inference at <code>&lt;$5/mo</code> with zero PHI stored.</p>
+<p><strong>[⏱ Pacing: 1.5 min | Cumulative: 36:30 / 48:00 | Ch. 5 &amp; 6 (8–10 min Block)]</strong> <strong>[👉 Visual Callout]:</strong> Direct committee eyes to the <strong>Serverless Architecture Diagram (<code>Fig. 5.1</code>)</strong> on the left and the <strong>Live PGx Risk Assessment Dashboard Screenshot (<code>Fig. 5.2</code>, <code>pgx.jerome-dixon.io</code>)</strong> on the right. Our ephemeral Lambda container packages all <code>56</code> bin-level ensembles (<code>168</code> base learners) + the <code>573</code>-pair CPIC cache to deliver <code>6 ms</code> warm inference at <code>&lt;$5/mo</code> with zero PHI stored. <strong>[👥 Preempting Committee Q&amp;A — Dr.&nbsp;Gal (“Legal &amp; HIPAA Boundaries of Ephemeral Cloud RAM”)]:</strong> As Dr.&nbsp;Gal previously noted, does ephemeral in-memory processing truly bypass HIPAA encumbrances? On the podium, clarify our dual architecture: (1) Our <strong>native use case</strong> is strictly stateless Zero-PHI triage—minimizing liability and infrastructure cost for safety-net clinics. (2) If a health system demands storing PHI, we switch over to a full <strong>AWS HIPAA-compliant architecture under an executed BAA</strong> with KMS-encrypted data stores and private VPC subnets. But that is an enterprise option, not our native model. (3) Our pending VCU CCTR $25,000 Pilot Grant formally funds VCU Health Compliance and Legal to evaluate this boundary prior to enterprise EHR integration.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -3772,7 +3773,7 @@ Figure 5.2 (Ch. 5): <strong>Live PGx Risk Assessment Dashboard Screenshot</stron
 Clinician Enters 3 Meds <span class="math inline">\(\rightarrow\)</span> <span class="math inline">\(|\Delta\hat{p}| &amp;lt; 0.06\)</span> Error (87% Band Stability)
 </div>
 <div class="ig-body">
-Injects cohort training-median baseline (<span class="math inline">\(\mathbf{X}_{\text{full}} = \text{median}[\text{age\_band}]\)</span>) for unentered claims covariates, avoiding false zero-imputation.
+Injects cohort training-median baseline (<span class="math inline">\(\mathbf{X}_{\text{full}} = \text{median}[\text{age}_{\text{band}}]\)</span>) for unentered claims covariates, avoiding false zero-imputation.
 </div>
 </div>
 <div class="ig-arrow">
@@ -3804,7 +3805,7 @@ Figure 5.3 (Ch. 5): <strong>Imputation of Normality</strong> sparsity sensitivit
 </div>
 <ul>
 <li><strong>Clinical Reality:</strong> Bedside clinicians enter age, sex, and <code>2–5</code> active drugs—not a complete 3-year APCD claims history.</li>
-<li><strong>Algorithm:</strong> Initializes <span class="math inline">\(\mathbf{X}_{\text{full}} = \text{training\_median\_vector}[\text{age\_band}]\)</span> and overwrites provided <code>item_*</code> codes.</li>
+<li><strong>Algorithm:</strong> Initializes <span class="math inline">\(\mathbf{X}_{\text{full}} = \text{median}_{\text{train}}[\text{age}_{\text{band}}]\)</span> and overwrites provided <code>item_*</code> codes.</li>
 <li><strong>Holdout Validation (<code>10%–90%</code> Masking):</strong> Maintains <strong><code>mean</code> <span class="math inline">\(|\Delta\hat{p}| &lt; 0.06\)</span> up to <code>70%</code> sparsity</strong> and preserves <strong>identical Low/Moderate/High risk-band assignment for <code>87%</code> of patients at <code>50%</code> sparsity (<code>74%</code> at <code>70%</code>)</strong>!</li>
 </ul>
 </div>
@@ -4293,10 +4294,10 @@ Journal / Identifier
 <p>Near-Term (<code>1–2 Yr</code>) &amp; Long-Term (<code>3–5 Yr</code>) Clinical Validation</p>
 </div>
 <ul>
-<li><strong>Phase 1 — Prospective Clinical Pilot (<code>N = 200–500</code> encounters, 6-mo follow-up):</strong>
+<li><strong>Phase 1 — VCU CCTR Pilot Grant &amp; Prospective Pilot (<code>N = 200–500</code> encounters, 6-mo follow-up):</strong>
 <ul>
-<li>Target <strong><span class="math inline">\(\ge 70\%\)</span> clinician acceptance rate</strong> on Consensus-Risk &amp; CPIC cards and a <strong><code>10-percentage-point</code> reduction</strong> in 30-day high-risk opioid/CNS re-prescriptions.</li>
-<li><strong><code>2x2</code> Factorial Cluster RCT:</strong> Evaluates <code>DTW Trajectory Alerts</code> <span class="math inline">\(\times\)</span> <code>Stateless PGx Cards</code> on 30-day ED revisit rates.</li>
+<li><strong>CCTR Pilot Grant Governance (Dr.&nbsp;Gal Inquiry):</strong> Funds formal VCU Health legal/compliance audit of ephemeral serverless RAM / HIPAA BAA boundaries and pharmacist usability testing.</li>
+<li><strong>Clinical &amp; RCT Endpoints:</strong> Target <strong><span class="math inline">\(\ge 70\%\)</span> clinician acceptance rate</strong> and a <strong><code>10-percentage-point</code> reduction</strong> in 30-day high-risk re-prescriptions via a <strong><code>2x2</code> Factorial Cluster RCT</strong> (<code>DTW Alerts</code> <span class="math inline">\(\times\)</span> <code>Stateless PGx Cards</code>).</li>
 </ul></li>
 <li><strong>Phase 2 — Measured Genotype Linkage &amp; Regional Federation:</strong>
 <ul>
@@ -4377,7 +4378,7 @@ FDA Predetermined Change Control Plan
 </div>
 </div></div>
 <aside class="notes">
-<p><strong>[⏱ Pacing: 1.5 min | Cumulative: 43:30 / 45:00 | Conclusion &amp; Impact (Slide 29 of 30)]</strong> To transition from an academic prototype to a regulated clinical instrument, Slide 29 details our two-phase clinical validation and FDA Software as a Medical Device (<code>21 CFR Part 820</code>) roadmap—combining a 200-to-500 encounter prospective clinical pilot, VCF v4.3 and HL7 FHIR R4 Genomics parsers, Predetermined Change Control Plan (<code>&gt;15%</code> SHAP drift CI/CD triggers), and 4-state federated learning across Virginia, Maryland, North Carolina, and West Virginia.</p>
+<p><strong>[⏱ Pacing: 1.5 min | Cumulative: 43:30 / 45:00 | Conclusion &amp; Impact (Slide 29 of 30)]</strong> To transition from an academic prototype to a regulated clinical instrument, Slide 29 details our two-phase clinical validation and FDA Software as a Medical Device (<code>21 CFR Part 820</code>) roadmap. Phase 1 is supported by our submitted VCU Wright Center CCTR $25,000 Pilot Grant, which specifically evaluates clinical pharmacist usability and funds a formal institutional legal review of ephemeral cloud storage and HIPAA/BAA compliance—directly addressing Dr.&nbsp;Gal’s committee comments on the legal boundaries of cloud RAM prior to multi-state federation.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -4421,7 +4422,7 @@ FDA Predetermined Change Control Plan
 </div>
 <ul>
 <li><strong>Dissertation Committee:</strong> <strong>Dr.&nbsp;Elvin T. Price</strong> <em>(Chair)</em>, <strong>Prof.&nbsp;Franklin Bost</strong>, <strong>Dr.&nbsp;Tamas S. Gal</strong>, <strong>Dr.&nbsp;Dayanjan S. Wijesinghe</strong>, <strong>Dr.&nbsp;Jonathan P. DeShazo</strong></li>
-<li><strong>Candidate:</strong> <strong>R. Jerome Dixon, MDA, MSc IT</strong> · Ph.D.&nbsp;Candidate, VCU Integrative Life Sciences (<em>Personalized Medicine Track</em>) · <a href="mailto:dixonrj@vcu.edu">dixonrj@vcu.edu</a> · IRB: <code>HM20022300</code> · PROSPERO: <code>CRD420261354089</code></li>
+<li><strong>Candidate:</strong> <strong>R. Jerome Dixon, MDA, MSc IT</strong> · Ph.D.&nbsp;Candidate, VCU Integrative Life Sciences · <a href="mailto:dixonrj@vcu.edu">dixonrj@vcu.edu</a> · IRB: <code>HM20022300</code> · PROSPERO: <code>CRD420261354089</code></li>
 </ul>
 </div>
 <div class="card-box card-success card-compact">
@@ -5098,7 +5099,7 @@ Empirical Pre/Post Timing &amp; Representative Examples
 <strong><code>100</code> (<code>9.7%</code>)</strong><br><small>(<code>28.7%</code> of purged)</small>
 </td>
 <td>
-Subsequent encounter / rehabilitation / remission monitoring ICD-10 codes (<span class="math inline">\(\text{post\_target\_ratio} \ge 0.80\)</span>)
+Subsequent encounter / rehabilitation / remission monitoring ICD-10 codes (<span class="math inline">\(\tau_{\text{post}} \ge 0.80\)</span>)
 </td>
 </tr>
 <tr class="row-focal-success">
@@ -5109,7 +5110,7 @@ Subsequent encounter / rehabilitation / remission monitoring ICD-10 codes (<span
 <strong><code>114</code> (<code>11.1%</code>)</strong>
 </td>
 <td>
-Verified <span class="math inline">\(\text{pre\_target\_ratio} \ge 0.80\)</span> on <span class="math inline">\([t_0 - 365, t_0 - 1]\)</span>
+Verified <span class="math inline">\(\tau_{\text{pre}} \ge 0.80\)</span> on <span class="math inline">\([t_0 - 365, t_0 - 1]\)</span>
 </td>
 </tr>
 <tr class="row-focal-success">
@@ -5120,7 +5121,7 @@ Verified <span class="math inline">\(\text{pre\_target\_ratio} \ge 0.80\)</span>
 <strong><code>567</code> (<code>55.1%</code>)</strong>
 </td>
 <td>
-Verified pre-index presence (<span class="math inline">\(\text{pre} &gt; 0\)</span>) and <span class="math inline">\(\text{post\_ratio} &lt; 0.80\)</span> (plus <code>1</code> low-frequency signal = <strong><code>682</code> total whitelisted</strong>)
+Verified pre-index presence (<span class="math inline">\(\text{pre} &gt; 0\)</span>) and <span class="math inline">\(\tau_{\text{post}} &lt; 0.80\)</span> (plus <code>1</code> low-frequency signal = <strong><code>682</code> total whitelisted</strong>)
 </td>
 </tr>
 </tbody>
@@ -6197,11 +6198,13 @@ Care-Delivery Interpretation
 <li><strong>Tier 1 — Cures Act § 3060(a) Transparent CDS Exemption:</strong>
 <ul>
 <li>Because our system surfaces the exact <strong>Consensus Horn-clause rules (<code>Set 5</code>)</strong>, <strong>patient-specific <code>IR</code> deltas</strong>, and <strong>peer-reviewed CPIC Level A/B citations</strong>, clinicians can <em>independently review the basis</em> for every recommendation.</li>
+<li><strong>Ephemeral Storage Legal Audit (VCU CCTR Grant):</strong> Addressing committee review (Dr.&nbsp;Gal / Dr.&nbsp;Price) on whether in-memory processing requires a BAA, our CCTR grant funds an institutional legal review to formalize BAA and enclave protocols.</li>
 </ul></li>
 <li><strong>Tier 2 — Full FDA SaMD (<code>21 CFR Part 820</code>) Readiness:</strong>
 <ul>
 <li><strong><code>820.30</code> Design Validation:</strong> <code>573 / 573</code> deterministic CPIC unit tests + locked <code>safe_feature_filter.json</code> provenance.</li>
 <li><strong>Predetermined Change Control Plan (<code>PCCP</code>):</strong> Automated GitHub Actions / ECR container rebuild triggered whenever quarterly top-10 <code>|SHAP|</code> Spearman rank correlation shifts by <strong><code>&gt;15%</code></strong> (<span class="math inline">\(\rho &lt; 0.85\)</span>).</li>
+<li><strong>Dual Architecture Model:</strong> Native stateless Zero-PHI triage (<code>&lt;\$5/mo</code>) vs.&nbsp;Enterprise AWS HIPAA-Eligible BAA architecture with KMS encryption and private VPC when persistent PHI storage is required.</li>
 </ul></li>
 </ul>
 </div>
@@ -6349,7 +6352,7 @@ Packages <code>56</code> bin ensembles + <code>573</code> CPIC rules into ECR <c
 <ul>
 <li><strong>Dr.&nbsp;Elvin Price (Chair):</strong> CPIC phenoconversion proxies, geriatric polypharmacy <code>IR</code> deprescribing, Z-code <code>OR = 0.25</code>, SNP-to-bedside OODA translation.</li>
 <li><strong>Prof.&nbsp;Franklin Bost:</strong> Systems lifecycle, 5-Set solver tractability, <code>\$6–\$10/pass</code> EC2 economics, <code>&lt;\$5/mo</code> serverless deployment, FDA SaMD (<code>21 CFR 820</code>) roadmap.</li>
-<li><strong>Dr.&nbsp;Tamas Gal:</strong> Partition-first DuckDB APCD architecture (<code>15.1x</code>), 2020 COVID quarantine (<em>JAMA 2020</em>), statewide Step 3b confirmation of post-overdose MAT (<em>DADR 2023</em>), zero-PHI Lambda privacy (<em>IJISP 2008</em>).</li>
+<li><strong>Dr.&nbsp;Tamas Gal:</strong> Partition-first DuckDB APCD architecture (<code>15.1x</code>), 2020 COVID quarantine (<em>JAMA 2020</em>), statewide Step 3b confirmation of post-overdose MAT (<em>DADR 2023</em>), zero-PHI Lambda privacy (<em>IJISP 2008</em>), and CCTR grant legal audit of ephemeral storage HIPAA/BAA boundaries.</li>
 <li><strong>Dr.&nbsp;Dayanjan Wijesinghe:</strong> Multi-modal trajectory clustering (<code>DTW</code> <code>6.8-mo</code> window), hepatic aging phenoconversion, stateless cloud CDS.</li>
 <li><strong>Dr.&nbsp;Jonathan DeShazo:</strong> Statewide RWE provenance, Milliman HCG “Silent ADE” capture, human-in-the-loop OODA ergonomics vs.&nbsp;95% alert fatigue.</li>
 </ul>
@@ -6477,7 +6480,7 @@ Untouched <code>2019</code> holdout (<code>gold/final_model/</code>); LOESS <spa
 Inter-claim gaps <span class="math inline">\(\Delta t\)</span>; Step 5 CPIC Level A/B drug-gene table
 </td>
 <td>
-<span class="math inline">\(B = \frac{\sigma_{\Delta t}-\mu_{\Delta t}}{\sigma_{\Delta t}+\mu_{\Delta t}} \in [-1,1]\)</span>;<br><span class="math inline">\(\text{pgx\_num\_cpic\_drugs}_k = \sum_d \mathbb{I}(\text{CPIC}_{A/B})\)</span>
+<span class="math inline">\(B = \frac{\sigma_{\Delta t}-\mu_{\Delta t}}{\sigma_{\Delta t}+\mu_{\Delta t}} \in [-1,1]\)</span>;<br><code>pgx_num_cpic_drugs</code><span class="math inline">\(_k = \sum_d \mathbb{I}(\text{CPIC}_{A/B})\)</span>
 </td>
 </tr>
 </tbody>
@@ -6823,654 +6826,1305 @@ Unphased consumer microarray (<span class="math inline">\(k\)</span> heterozygou
       });
     </script>
     <div id="image-lightbox-overlay" class="image-lightbox-overlay" aria-hidden="true">
+
       <!-- Top Navigation & Controls Header -->
+
       <div class="lightbox-header">
+
         <div class="lightbox-meta">
+
           <span class="lightbox-tag">Full-Page View</span>
+
           <span id="lightbox-caption" class="lightbox-caption"></span>
+
         </div>
+
         
+
         <div class="lightbox-controls">
+
           <div class="lightbox-btn-group">
+
             <button id="lightbox-zoom-out" class="lightbox-btn" title="Zoom Out (−)" aria-label="Zoom Out">−</button>
+
             <span id="lightbox-zoom-display" class="lightbox-zoom-display">Fit</span>
+
             <button id="lightbox-zoom-in" class="lightbox-btn" title="Zoom In (+)" aria-label="Zoom In">+</button>
+
           </div>
 
+    
+
           <button id="lightbox-mode-toggle" class="lightbox-btn lightbox-btn-accent" title="Toggle Full Width / Fit to Screen">
+
             <span id="lightbox-mode-icon">↔</span>
+
             <span id="lightbox-mode-text">Fill Width</span>
+
           </button>
 
+    
+
           <button id="lightbox-reset-btn" class="lightbox-btn" title="Reset View (0)">↺ Reset</button>
+
           <button id="lightbox-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+
         </div>
+
       </div>
+
+    
 
       <!-- Main Viewport / Scroll & Pan Canvas -->
+
       <div id="lightbox-viewport" class="lightbox-viewport mode-fit">
+
         <div id="lightbox-canvas" class="lightbox-canvas">
+
           <img id="lightbox-expanded-img" src="" alt="Expanded diagram" draggable="false">
+
         </div>
+
       </div>
+
+    
 
       <!-- Bottom Interaction Hint -->
+
       <div class="lightbox-footer">
+
         <span class="lightbox-hint">
+
           <strong>Navigation:</strong> Click image or <strong>Fill Width</strong> to expand • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan • <kbd>Esc</kbd> to exit
+
         </span>
+
       </div>
+
     </div>
 
+    
+
     <script>
+
     (function() {
+
       function initLightbox() {
+
         const overlay = document.getElementById('image-lightbox-overlay');
+
         const viewport = document.getElementById('lightbox-viewport');
+
         const canvas = document.getElementById('lightbox-canvas');
+
         const expandedImg = document.getElementById('lightbox-expanded-img');
+
         const captionEl = document.getElementById('lightbox-caption');
+
         const closeBtn = document.getElementById('lightbox-close-btn');
+
         const zoomInBtn = document.getElementById('lightbox-zoom-in');
+
         const zoomOutBtn = document.getElementById('lightbox-zoom-out');
+
         const zoomDisplay = document.getElementById('lightbox-zoom-display');
+
         const modeToggleBtn = document.getElementById('lightbox-mode-toggle');
+
         const modeText = document.getElementById('lightbox-mode-text');
+
         const modeIcon = document.getElementById('lightbox-mode-icon');
+
         const resetBtn = document.getElementById('lightbox-reset-btn');
+
+    
 
         if (!overlay || !expandedImg || !viewport) return;
 
+    
+
         // View state
+
         let currentMode = 'fit'; // 'fit' | 'fill-width' | 'custom-zoom'
+
         let currentScale = 1.0;
+
         let panX = 0;
+
         let panY = 0;
+
         let isDragging = false;
+
         let dragStartX = 0;
+
         let dragStartY = 0;
+
         let hasDragged = false;
 
+    
+
         function applyTransform() {
+
           if (currentMode === 'fit') {
+
             viewport.className = 'lightbox-viewport mode-fit';
+
             canvas.style.transform = '';
+
             expandedImg.style.transform = '';
+
             zoomDisplay.textContent = 'Fit';
+
             modeText.textContent = 'Fill Width';
+
             modeIcon.textContent = '↔';
+
           } else if (currentMode === 'fill-width') {
+
             viewport.className = 'lightbox-viewport mode-fill-width';
+
             canvas.style.transform = '';
+
             expandedImg.style.transform = '';
+
             zoomDisplay.textContent = 'Width';
+
             modeText.textContent = 'Fit Screen';
+
             modeIcon.textContent = '↕';
+
           } else {
+
             viewport.className = 'lightbox-viewport mode-custom';
+
             canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+
             expandedImg.style.transform = `scale(${currentScale})`;
+
             zoomDisplay.textContent = `${Math.round(currentScale * 100)}%`;
+
             modeText.textContent = 'Fit Screen';
+
             modeIcon.textContent = '↕';
+
           }
+
         }
+
+    
 
         function setMode(mode) {
+
           currentMode = mode;
+
           if (mode === 'fit') {
+
             currentScale = 1.0;
+
             panX = 0;
+
             panY = 0;
+
             viewport.scrollTop = 0;
+
             viewport.scrollLeft = 0;
+
           } else if (mode === 'fill-width') {
+
             currentScale = 1.0;
+
             panX = 0;
+
             panY = 0;
+
             viewport.scrollTop = 0;
+
+            viewport.scrollLeft = 0;
+
           } else if (mode === 'custom-zoom') {
+
             // keep current scale and pan
+
           }
+
           applyTransform();
+
         }
+
+    
 
         function zoomBy(delta) {
+
           if (currentMode === 'fit' || currentMode === 'fill-width') {
+
             currentScale = currentMode === 'fit' ? 1.0 : 1.5;
+
             currentMode = 'custom-zoom';
+
           }
+
           currentScale = Math.min(Math.max(currentScale + delta, 0.4), 4.0);
+
           currentMode = 'custom-zoom';
+
           applyTransform();
+
         }
+
+    
 
         function toggleMode() {
+
           if (currentMode === 'fit') {
+
             setMode('fill-width');
+
           } else {
+
             setMode('fit');
+
           }
+
         }
+
+    
 
         function openLightbox(imgSrc, captionText) {
+
           expandedImg.src = imgSrc;
+
           captionEl.innerText = captionText || '';
+
           overlay.classList.add('active');
+
           overlay.setAttribute('aria-hidden', 'false');
 
+    
+
           function applyDefaultMode() {
+
             setMode('fill-width');
+
           }
+
+    
 
           if (expandedImg.complete && expandedImg.naturalWidth > 0) {
+
             applyDefaultMode();
+
           } else {
+
             expandedImg.onload = applyDefaultMode;
+
           }
+
+    
 
           // Temporarily disable Reveal keyboard navigation while lightbox is active
+
           if (window.Reveal) {
+
             window.Reveal.configure({ keyboard: false });
+
           }
+
         }
+
+    
 
         function closeLightbox() {
+
           overlay.classList.remove('active');
+
           overlay.setAttribute('aria-hidden', 'true');
+
           expandedImg.src = '';
+
           captionEl.innerText = '';
+
           setMode('fit');
 
+    
+
           // Re-enable Reveal keyboard navigation
+
           if (window.Reveal) {
+
             window.Reveal.configure({ keyboard: true });
+
           }
+
         }
 
+    
+
         function bindImages() {
+
           const zoomableImages = document.querySelectorAll('.figure-frame img, img.zoomable, .reveal .slides img');
+
           zoomableImages.forEach(img => {
+
             if (img.classList.contains('no-zoom')) return;
+
+    
 
             img.style.cursor = 'zoom-in';
 
+    
+
             img.onclick = function(e) {
+
               e.preventDefault();
+
               e.stopPropagation();
+
+    
 
               const frame = img.closest('.figure-frame') || img.parentElement;
+
               const caption = frame ? frame.querySelector('.caption')?.innerText : (img.getAttribute('alt') || '');
+
               const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
 
+    
+
               if (src) {
+
                 openLightbox(src, caption);
+
               }
+
             };
+
           });
+
         }
 
+    
+
         // Event Listeners
+
         closeBtn.addEventListener('click', function(e) {
+
           e.preventDefault();
+
           e.stopPropagation();
+
           closeLightbox();
+
         });
+
+    
 
         modeToggleBtn.addEventListener('click', function(e) {
+
           e.preventDefault();
+
           e.stopPropagation();
+
           toggleMode();
+
         });
+
+    
 
         resetBtn.addEventListener('click', function(e) {
+
           e.preventDefault();
+
           e.stopPropagation();
+
           setMode('fit');
+
         });
+
+    
 
         zoomInBtn.addEventListener('click', function(e) {
+
           e.preventDefault();
+
           e.stopPropagation();
+
           zoomBy(0.25);
+
         });
+
+    
 
         zoomOutBtn.addEventListener('click', function(e) {
+
           e.preventDefault();
+
           e.stopPropagation();
+
           zoomBy(-0.25);
+
         });
+
+    
 
         expandedImg.addEventListener('click', function(e) {
+
           e.stopPropagation();
+
           if (hasDragged) {
+
             hasDragged = false;
+
             return;
+
           }
+
           toggleMode();
+
         });
+
+    
 
         viewport.addEventListener('wheel', function(e) {
+
           if (e.ctrlKey || currentMode === 'custom-zoom') {
+
             e.preventDefault();
+
             const delta = e.deltaY < 0 ? 0.2 : -0.2;
+
             zoomBy(delta);
+
           }
+
         }, { passive: false });
 
+    
+
         viewport.addEventListener('mousedown', function(e) {
+
           if (e.target === closeBtn || e.target.closest('.lightbox-header')) return;
+
           isDragging = true;
+
           hasDragged = false;
+
           dragStartX = e.clientX - panX;
+
           dragStartY = e.clientY - panY;
+
           viewport.style.cursor = 'grabbing';
+
         });
+
+    
 
         window.addEventListener('mousemove', function(e) {
+
           if (!isDragging) return;
+
           hasDragged = true;
+
           if (currentMode !== 'custom-zoom') {
+
             currentMode = 'custom-zoom';
+
           }
+
           panX = e.clientX - dragStartX;
+
           panY = e.clientY - dragStartY;
+
           applyTransform();
+
         });
+
+    
 
         window.addEventListener('mouseup', function() {
+
           isDragging = false;
+
           if (viewport) {
+
             viewport.style.cursor = currentMode === 'custom-zoom' ? 'grab' : '';
+
           }
+
         });
+
+    
 
         viewport.addEventListener('click', function(e) {
+
           if (e.target === viewport || e.target === canvas) {
+
             if (!hasDragged) {
+
               closeLightbox();
+
             }
+
             hasDragged = false;
+
           }
+
         });
 
+    
+
         window.addEventListener('keydown', function(e) {
+
           if (overlay.classList.contains('active')) {
+
             if (e.key === 'Escape' || e.keyCode === 27) {
+
               e.preventDefault();
+
               e.stopPropagation();
+
               closeLightbox();
+
             } else if (e.key === '+' || e.key === '=') {
+
               e.preventDefault();
+
               zoomBy(0.25);
+
             } else if (e.key === '-' || e.key === '_') {
+
               e.preventDefault();
+
               zoomBy(-0.25);
+
             } else if (e.key === '0') {
+
               e.preventDefault();
+
               setMode('fit');
+
             } else if (e.key === 'w' || e.key === 'W' || e.key === 'f' || e.key === 'F') {
+
               e.preventDefault();
+
               toggleMode();
+
             }
+
           } else if (e.key === 'Escape' || e.keyCode === 27) {
+
             // Clear any active table row or infographic spotlights on Escape
+
             document.querySelectorAll('.table-compact.has-row-spotlight').forEach(tbl => {
+
               tbl.classList.remove('has-row-spotlight');
+
               tbl.querySelectorAll('tbody tr').forEach(r => r.classList.remove('row-spotlight-active'));
+
             });
+
             document.querySelectorAll('.ig-strip.has-ig-spotlight, .ig-svg-frame.has-ig-spotlight').forEach(c => {
+
               c.classList.remove('has-ig-spotlight');
+
               c.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
+
             });
+
             const oodaTable = document.getElementById('roadmap-ooda-table');
+
             if (oodaTable) {
+
               oodaTable.classList.remove('ooda-filtered');
+
               oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
+
             }
+
             const oodaStatus = document.getElementById('ooda-filter-status');
+
             if (oodaStatus) oodaStatus.classList.remove('active');
+
             ['ch3', 'ch4'].forEach(prefix => {
+
               const card = document.getElementById(`${prefix}-cohort-card`);
+
               if (card) {
+
                 card.classList.remove('cohort-filtered');
+
                 card.querySelectorAll('tbody tr').forEach(r => r.classList.remove('cohort-row-match'));
+
               }
+
             });
+
           }
+
         }, true);
+
+    
 
         bindImages();
 
+    
+
         if (window.Reveal) {
+
           window.Reveal.on('ready', bindImages);
+
           window.Reveal.on('slidechanged', bindImages);
+
         }
+
       }
+
+    
 
       function applyCohortFilter(prefix, gaugeId, gaugeLabel) {
+
         const card = document.getElementById(`${prefix}-cohort-card`);
+
         const holdoutTable = document.getElementById(`${prefix}-holdout-table`);
+
         const fiTable = document.getElementById(`${prefix}-fi-table`);
+
         const bannerText = document.getElementById(`${prefix}-cohort-banner-text`);
+
         const fiSubtitle = document.getElementById(`${prefix}-fi-subtitle`);
+
         const strip = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"]`);
+
         if (!card || !holdoutTable || !fiTable) return;
 
+    
+
         holdoutTable.classList.remove('has-row-spotlight');
+
         holdoutTable.querySelectorAll('tbody tr').forEach(r => {
+
           r.classList.remove('row-spotlight-active');
+
           if (r.getAttribute('data-cohort-gauge') === gaugeId) {
+
             r.classList.add('cohort-row-match');
+
           } else {
+
             r.classList.remove('cohort-row-match');
+
           }
+
         });
+
+    
 
         fiTable.classList.remove('has-row-spotlight');
+
         fiTable.querySelectorAll('tbody tr').forEach(r => {
+
           r.classList.remove('row-spotlight-active');
+
           if (r.getAttribute('data-cohort-gauge') === gaugeId) {
+
             r.classList.add('cohort-row-match');
+
           } else {
+
             r.classList.remove('cohort-row-match');
+
           }
+
         });
 
+    
+
         if (strip) {
+
           strip.classList.add('has-ig-spotlight');
+
           strip.querySelectorAll('.ig-step').forEach(s => {
+
             if (s.getAttribute('data-cohort-gauge') === gaugeId) {
+
               s.classList.add('ig-spotlight-active');
+
             } else {
+
               s.classList.remove('ig-spotlight-active');
+
             }
+
           });
+
         }
+
+    
 
         if (bannerText) {
+
           bannerText.textContent = `Cohort Filter: ${gaugeLabel}`;
+
         }
+
         if (fiSubtitle) {
+
           fiSubtitle.innerHTML = `Top Consensus-Risk Feature Importances — <code>${gaugeId}</code> (<code>SHAP &ge; P75 &cap; FFA 0.05, 0.70</code>)`;
+
         }
+
         card.classList.add('cohort-filtered');
+
         card.setAttribute('data-active-cohort', gaugeId);
+
       }
+
+    
 
       function resetCohortFilter(prefix) {
+
         const card = document.getElementById(`${prefix}-cohort-card`);
+
         const strip = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"]`);
+
         if (card) {
+
           card.classList.remove('cohort-filtered');
+
           card.removeAttribute('data-active-cohort');
+
           card.querySelectorAll('tbody tr').forEach(r => r.classList.remove('cohort-row-match'));
+
         }
+
         if (strip) {
+
           strip.classList.remove('has-ig-spotlight');
+
           strip.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
+
         }
+
       }
+
+    
 
       // Interactive Stepwise Table Row Spotlight (Taming Cognitive Density in Live Defense)
+
       function initTableRowSpotlight() {
+
         document.querySelectorAll('.reveal .table-compact').forEach(table => {
+
           if (table.dataset.spotlightBound) return;
+
           table.dataset.spotlightBound = 'true';
 
+    
+
           const rows = table.querySelectorAll('tbody tr');
+
           rows.forEach(row => {
+
             row.setAttribute('title', 'Click row to spotlight / filter cohort');
+
             row.addEventListener('click', function(e) {
+
               if (e.target.closest('a')) return;
+
               e.stopPropagation();
 
+    
+
               const cohortGauge = row.getAttribute('data-cohort-gauge');
+
               const parentCard = row.closest('.cohort-interactive-card');
+
               if (cohortGauge && parentCard && table.classList.contains('cohort-holdout-table')) {
+
                 const prefix = parentCard.id.startsWith('ch3') ? 'ch3' : 'ch4';
+
                 if (parentCard.getAttribute('data-active-cohort') === cohortGauge) {
+
                   resetCohortFilter(prefix);
+
                 } else {
+
                   const stripStep = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"] .ig-step[data-cohort-gauge="${cohortGauge}"]`);
+
                   const label = stripStep ? (stripStep.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || cohortGauge) : cohortGauge;
+
                   applyCohortFilter(prefix, cohortGauge, label);
+
                 }
+
                 return;
+
               }
+
+    
 
               const isAlreadyActive = row.classList.contains('row-spotlight-active');
+
               rows.forEach(r => r.classList.remove('row-spotlight-active'));
+
               if (isAlreadyActive) {
+
                 table.classList.remove('has-row-spotlight');
+
               } else {
+
                 row.classList.add('row-spotlight-active');
+
                 table.classList.add('has-row-spotlight');
+
               }
+
             });
+
           });
+
         });
+
       }
+
+    
 
       function initTitleSlideLogos() {
+
         const titleSlide = document.querySelector('#title-slide');
+
         if (!titleSlide || titleSlide.querySelector('.dual-logo-bar')) return;
 
+    
+
         const usesParentDiagrams = !!document.querySelector('img[src^="../diagrams/"], img[data-src^="../diagrams/"]');
+
         const diagPrefix = usesParentDiagrams ? '../diagrams' : 'diagrams';
 
+    
+
         const logoBar = document.createElement('div');
+
         logoBar.className = 'dual-logo-bar';
+
         logoBar.innerHTML = `
+
           <img src="${diagPrefix}/vcu_life_sciences_stacked.png" class="no-zoom logo-ls" alt="VCU School of Life Sciences and Sustainability" />
+
           <div class="logo-divider"></div>
+
           <img src="${diagPrefix}/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
+
         `;
+
         titleSlide.appendChild(logoBar);
+
       }
 
+    
+
       function initModuleNavBar() {
+
         const footer = document.querySelector('.reveal .footer');
+
         if (!footer) return;
+
         if (footer.querySelector('.footer-nav')) return;
 
+    
+
         footer.innerHTML = `
+
           <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Defense</span>
+
           <nav class="footer-nav" aria-label="Presentation Chapter Navigation">
+
             <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: Chapters 1–6 & 45–50 Min Pacing">Roadmap</a>
+
             <a href="#/ch1-sqlr" class="nav-pill pill-p1" id="nav-pill-ch1" title="Chapter 1 (5–6 min): PRISMA 2020 SQLR, 5 Gaps & Empty Intersection (0/73)">Ch. 1 SQLR</a>
+
             <a href="#/ch2-duckdb" class="nav-pill pill-p2" id="nav-pill-ch2" title="Chapter 2 (10–12 min): DuckDB + Spot EC2, Step 3b Leakage & 5-Set FFA">Ch. 2 Arch & QA</a>
+
             <a href="#/ch3-holdout" class="nav-pill pill-p3" id="nav-pill-ch3" title="Chapter 3 (8–10 min): Opioid ED Holdout, Gate Ablation & DTW Window">Ch. 3 Opioid</a>
+
             <a href="#/ch4-holdout-stress" class="nav-pill pill-p4" id="nav-pill-ch4" title="Chapter 4 (8–10 min): Polypharmacy Stress Test, Synergies, IR & Z-Code">Ch. 4 Polypharm</a>
+
             <a href="#/ch5-dashboard" class="nav-pill pill-p5" id="nav-pill-ch5" title="Chapter 5 (4–5 min): Serverless PGx Dashboard & Sparsity Resilience">Ch. 5 Dashboard</a>
+
             <a href="#/ch6-ooda-map" class="nav-pill pill-p2" id="nav-pill-ch6" title="Chapter 6 (4–5 min): Clinical OODA Synthesis, RWE Loop & 3 Propositions">Ch. 6 Synthesis</a>
+
             <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix (Q&A Backup): Empirical Tables, Sensitivity Proofs & Telemetry">Appendix</a>
+
             <a href="final_defense_slides.pdf" target="_blank" rel="noopener" class="nav-pill pill-pdf print-hide" id="nav-pill-pdf" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 PDF ↗</a>
+
           </nav>
+
           <span class="footer-spacer"></span>
+
         `;
 
+    
+
         footer.querySelectorAll('.nav-pill:not(.pill-pdf)').forEach(link => {
+
           link.addEventListener('click', function(e) {
+
             e.preventDefault();
+
             e.stopPropagation();
+
             const targetHash = link.getAttribute('href');
+
             if (window.Reveal) {
+
               if (targetHash.startsWith('#/')) {
+
                 const slideId = targetHash.replace('#/', '');
+
                 const targetSlide = document.getElementById(slideId);
+
                 if (targetSlide) {
+
                   const indices = window.Reveal.getIndices(targetSlide);
+
                   window.Reveal.slide(indices.h, indices.v, indices.f);
+
                   return;
+
                 }
+
               }
+
               window.location.hash = targetHash;
+
             }
+
           });
+
         });
 
+    
+
         function updateActiveNav() {
+
           if (!window.Reveal) return;
+
           const indices = window.Reveal.getIndices();
+
           const h = indices ? indices.h : 0;
+
           const currentSlide = window.Reveal.getCurrentSlide();
+
           const slideId = (currentSlide && currentSlide.id) ? currentSlide.id : '';
 
+    
+
           if (h === 0 || slideId === 'title-slide') {
+
             footer.style.setProperty('display', 'none', 'important');
+
             return;
+
           } else {
+
             footer.style.setProperty('display', 'flex', 'important');
+
           }
+
+    
 
           footer.querySelectorAll('.nav-pill').forEach(pill => pill.classList.remove('active'));
 
+    
+
           if (slideId === 'sec-roadmap') {
+
             footer.querySelector('#nav-pill-road')?.classList.add('active');
+
           } else if (slideId.startsWith('ch1-')) {
+
             footer.querySelector('#nav-pill-ch1')?.classList.add('active');
+
           } else if (slideId.startsWith('ch2-')) {
+
             footer.querySelector('#nav-pill-ch2')?.classList.add('active');
+
           } else if (slideId.startsWith('ch3-')) {
+
             footer.querySelector('#nav-pill-ch3')?.classList.add('active');
+
           } else if (slideId.startsWith('ch4-')) {
+
             footer.querySelector('#nav-pill-ch4')?.classList.add('active');
+
           } else if (slideId.startsWith('ch5-')) {
+
             footer.querySelector('#nav-pill-ch5')?.classList.add('active');
+
           } else if (slideId.startsWith('ch6-')) {
+
             footer.querySelector('#nav-pill-ch6')?.classList.add('active');
+
           } else if (slideId.startsWith('sec-appendix')) {
+
             footer.querySelector('#nav-pill-app')?.classList.add('active');
+
           }
+
         }
+
+    
 
         updateActiveNav();
+
         if (window.Reveal) {
+
           window.Reveal.on('slidechanged', updateActiveNav);
+
         }
+
       }
+
+    
 
       // Interactive Stepwise Infographic Spotlight + Slide 3 OODA & CH3/CH4 Cohort Filters
+
       function initInfographicSpotlight() {
+
         const oodaResetBtn = document.getElementById('ooda-filter-reset');
+
         if (oodaResetBtn && !oodaResetBtn.dataset.bound) {
+
           oodaResetBtn.dataset.bound = 'true';
+
           oodaResetBtn.addEventListener('click', function(e) {
+
             e.preventDefault();
+
             e.stopPropagation();
+
             const oodaTable = document.getElementById('roadmap-ooda-table');
+
             if (oodaTable) {
+
               oodaTable.classList.remove('ooda-filtered');
+
               oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
+
             }
+
             const oodaStatus = document.getElementById('ooda-filter-status');
+
             if (oodaStatus) oodaStatus.classList.remove('active');
+
             document.querySelectorAll('#sec-roadmap .ig-strip').forEach(c => {
+
               c.classList.remove('has-ig-spotlight');
+
               c.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
+
             });
+
           });
+
         }
 
+    
+
         document.querySelectorAll('.cohort-reset-btn').forEach(btn => {
+
           if (btn.dataset.bound) return;
+
           btn.dataset.bound = 'true';
+
           btn.addEventListener('click', function(e) {
+
             e.preventDefault();
+
             e.stopPropagation();
+
             const prefix = btn.getAttribute('data-cohort-reset');
+
             if (prefix) resetCohortFilter(prefix);
+
           });
+
         });
+
+    
 
         document.querySelectorAll('.reveal .ig-strip, .reveal .ig-svg-frame').forEach(container => {
+
           if (container.dataset.igSpotlightBound) return;
+
           container.dataset.igSpotlightBound = 'true';
 
+    
+
           const steps = container.querySelectorAll('.ig-step');
+
           steps.forEach(step => {
+
             step.setAttribute('title', 'Click stage/gauge to spotlight & filter matching rows (Esc to reset)');
+
             step.addEventListener('click', function(e) {
+
               if (e.target.closest('a')) return;
+
               e.stopPropagation();
+
               const isAlreadyActive = step.classList.contains('ig-spotlight-active');
+
               steps.forEach(s => s.classList.remove('ig-spotlight-active'));
 
+    
+
               const cohortGauge = step.getAttribute('data-cohort-gauge');
+
               const cohortTarget = container.getAttribute('data-cohort-target');
+
               if (cohortGauge && cohortTarget) {
+
                 if (isAlreadyActive) {
+
                   resetCohortFilter(cohortTarget);
+
                 } else {
+
                   const gaugeLabel = step.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || cohortGauge;
+
                   applyCohortFilter(cohortTarget, cohortGauge, gaugeLabel);
+
                 }
+
                 return;
+
               }
+
+    
 
               const oodaStage = step.getAttribute('data-ooda-stage');
+
               const oodaTable = document.getElementById('roadmap-ooda-table');
+
               const oodaStatus = document.getElementById('ooda-filter-status');
+
               const oodaLabel = document.getElementById('ooda-filter-label');
 
+    
+
               if (isAlreadyActive) {
+
                 container.classList.remove('has-ig-spotlight');
+
                 if (oodaStage && oodaTable) {
+
                   oodaTable.classList.remove('ooda-filtered');
+
                   oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
+
                   if (oodaStatus) oodaStatus.classList.remove('active');
+
                 }
+
               } else {
+
                 step.classList.add('ig-spotlight-active');
+
                 container.classList.add('has-ig-spotlight');
+
                 if (oodaStage && oodaTable) {
+
                   oodaTable.classList.remove('has-row-spotlight');
+
                   oodaTable.querySelectorAll('tbody tr').forEach(r => {
+
                     r.classList.remove('row-spotlight-active');
+
                     if (r.getAttribute('data-ooda-stage') === oodaStage) {
+
                       r.classList.add('ooda-row-match');
+
                     } else {
+
                       r.classList.remove('ooda-row-match');
+
                     }
+
                   });
+
                   oodaTable.classList.add('ooda-filtered');
+
                   if (oodaStatus && oodaLabel) {
+
                     const stageTitle = step.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || oodaStage;
+
                     oodaLabel.textContent = `Focused View: ${stageTitle} — Expanded Chapter Highlights`;
+
                     oodaStatus.classList.add('active');
+
                   }
+
                 }
+
               }
+
             });
+
           });
+
         });
+
       }
+
+    
 
       function onInit() {
+
         initLightbox();
+
         initTitleSlideLogos();
+
         initModuleNavBar();
+
         initTableRowSpotlight();
+
         initInfographicSpotlight();
+
       }
+
+    
 
       if (document.readyState === 'loading') {
+
         document.addEventListener('DOMContentLoaded', onInit);
+
       } else {
+
         onInit();
+
       }
 
+    
+
       if (window.Reveal) {
+
         window.Reveal.on('ready', () => {
+
           initTitleSlideLogos();
+
           initModuleNavBar();
+
           initTableRowSpotlight();
+
           initInfographicSpotlight();
+
         });
+
       }
+
     })();
+
     </script>
+
     <script id="quarto-html-after-body" type="application/javascript">
     window.document.addEventListener("DOMContentLoaded", function (event) {
       const toggleBodyColorMode = (bsSheetEl) => {

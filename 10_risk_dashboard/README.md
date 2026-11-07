@@ -8,6 +8,8 @@ This directory contains the **production-ready risk assessment dashboard** and d
 
 **How to use (persona → tab → numbered steps):** [docs/DASHBOARD_USE_CASES.md](docs/DASHBOARD_USE_CASES.md) — live UI names for clinician, researcher, and patient workflows. In-app **User Guide** embeds a compact summary plus a training table (video / slides / audio).
 
+**Compliance & Security Specification:** [HIPAA_PHI_REQUIREMENTS.md](HIPAA_PHI_REQUIREMENTS.md) — Native stateless in-memory execution ("compute, respond, discard"), zero-PHI triage, VCU CCTR $25k pilot grant audit, and the opt-in enterprise AWS HIPAA-compliant BAA architecture.
+
 ## Quick Overview
 
 The dashboard provides multiple capabilities (live tab names):
