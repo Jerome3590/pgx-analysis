@@ -86,12 +86,10 @@ Committee Member,Academic Role & Affiliation,Domain Expertise,Primary Dissertati
 
 ##### Spoken Presenter Script (60–90 Seconds)
 
-"Turning to Slide 2, this dissertation was intentionally engineered at the intersection of the five scientific disciplines represented on this committee. *Brief pause*  
-**First**, for Dr. Price's domain in pharmacogenomics and geriatric pharmacotherapy, our pipeline maps dispensed APCD medications against official CPIC guidelines to quantify patient-level total and CPIC drug counts (`pgx_num_drugs` and `pgx_num_cpic_drugs`) to capture actionable medication exposure burden directly from claims data.  
-**Second**, for Prof. Bost's systems engineering perspective and Dr. Gal's biostatistics and data warehousing domain, we enforce the six-phase CRISP-DM lifecycle, compile piecewise-constant tree paths into symbolic Boolean Horn rules in polynomial time proportional to tree count times leaf count, and execute the Step 3b temporal event-partitioning protocol on out-of-core DuckDB workers to eliminate post-index target leakage.  
-**Third**, for Dr. Wijesinghe's work in pharmacometabolomics and Dr. DeShazo's domain in real-world evidence, our tree geometries capture non-linear multi-drug synergies and validate statewide APCD claims under TRIPOD+AI standards to power a zero-PHI serverless microservice.  
+"Before we dive into the core modules, I want to express my sincere gratitude to my supervisory committee for your time, guidance, and invaluable mentorship throughout this journey. *Brief pause*  
+Your combined expertise across pharmacotherapy, systems engineering, informatics, and real-world evidence has been vital to this work.  
 *Lean in / Vocal emphasis*  
-This five-pillar alignment ensures methodological rigor across every phase of our clinical and engineering pipeline."
+I’d like to specifically thank my chair and sponsor, Dr. Price, as well as Professor Bost, Dr. Gal, Dr. Wijesinghe, and Dr. DeShazo. Thank you all for being here today to evaluate this candidacy proposal."
 
 ##### Oral Delivery & Vocal Notes
 
