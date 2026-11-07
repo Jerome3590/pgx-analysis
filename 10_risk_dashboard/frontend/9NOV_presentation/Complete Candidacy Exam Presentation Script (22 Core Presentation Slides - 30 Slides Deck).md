@@ -86,8 +86,8 @@ Committee Member,Academic Role & Affiliation,Domain Expertise,Primary Dissertati
 
 ##### Spoken Presenter Script (60–90 Seconds)
 
-"Before we dive into the core modules, I want to express my sincere gratitude to my supervisory committee for your time, guidance, and invaluable mentorship throughout this journey. *Brief pause*  
-Your combined expertise across pharmacotherapy, systems engineering, informatics, and real-world evidence has been vital to this work.  
+"Before we dive into the core modules, I want to express my sincere gratitude to my supervisory committee for your time, example, and invaluable mentorship throughout this journey. *Brief pause*  
+Your combined expertise across pharmacotherapy, systems engineering, informatics, and real-world evidence is vital to this work.  
 *Lean in / Vocal emphasis*  
 I’d like to specifically thank my chair and sponsor, Dr. Price, as well as Professor Bost, Dr. Gal, Dr. Wijesinghe, and Dr. DeShazo. Thank you all for being here today to evaluate this candidacy proposal."
 
