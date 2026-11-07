@@ -33,13 +33,77 @@
   <!-- Bottom Interaction Hint -->
   <div class="lightbox-footer">
     <span class="lightbox-hint">
-      <strong>Navigation:</strong> Click image or <strong>Fill Width</strong> to expand • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan • <kbd>Esc</kbd> to exit
+      <strong>Navigation:</strong> <strong>Single-click anywhere on image</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan
+    </span>
+  </div>
+</div>
+
+<div id="card-lightbox-overlay" class="card-lightbox-overlay" aria-hidden="true">
+  <div class="lightbox-header">
+    <div class="lightbox-meta">
+      <span class="lightbox-tag">Card Focus View</span>
+      <span id="card-lightbox-caption" class="lightbox-caption"></span>
+    </div>
+    <div class="lightbox-controls">
+      <div class="lightbox-btn-group">
+        <button id="card-zoom-out" class="lightbox-btn" title="Decrease Font Size (−)" aria-label="Decrease Font Size">A−</button>
+        <span id="card-zoom-display" class="lightbox-zoom-display">100%</span>
+        <button id="card-zoom-in" class="lightbox-btn" title="Increase Font Size (+)" aria-label="Increase Font Size">A+</button>
+      </div>
+      <button id="card-reset-btn" class="lightbox-btn" title="Reset Font Size (0)">↺ Reset</button>
+      <button id="card-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+    </div>
+  </div>
+  <div id="card-lightbox-viewport" class="card-lightbox-viewport">
+    <div id="card-lightbox-modal" class="card-lightbox-modal"></div>
+  </div>
+  <div class="lightbox-footer">
+    <span class="lightbox-hint">
+      <strong>Card Focus View:</strong> <strong>Single-click anywhere on card</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Use <strong>A+/A−</strong> or <strong>+/−</strong> keys to scale font
     </span>
   </div>
 </div>
 
 <script>
 (function() {
+  let openImageLightboxFn = null;
+
+  function sanitizeMathText(container) {
+    if (!container) return '';
+    const clone = container.cloneNode(true);
+
+    const scripts = Array.from(clone.querySelectorAll('script[type*="math"]'));
+    scripts.forEach(script => {
+      let tex = script.textContent || '';
+      tex = tex
+        .replace(/\\text\{([^}]+)\}/g, '$1')
+        .replace(/_\{([^}]+)\}/g, '_$1')
+        .replace(/\\cap/g, '∩')
+        .replace(/\\ge/g, '≥')
+        .replace(/\\le/g, '≤')
+        .replace(/\\to/g, '→')
+        .replace(/\\sum/g, 'Σ')
+        .replace(/\\mathbb\{I\}/g, '𝕀')
+        .replace(/\\in/g, '∈')
+        .replace(/\\tau/g, 'τ')
+        .replace(/\\Delta/g, 'Δ')
+        .replace(/\\times/g, '×')
+        .replace(/[\$\{\}\\]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      const parentMath = script.closest('span.math, .math');
+      if (parentMath) {
+        parentMath.replaceWith(document.createTextNode(' ' + tex + ' '));
+      } else {
+        script.replaceWith(document.createTextNode(' ' + tex + ' '));
+      }
+    });
+
+    clone.querySelectorAll('.MJX_Assistive_MathML, .MathJax_Preview, .MathJax, annotation, .print-hide, script').forEach(el => el.remove());
+    return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
   function initLightbox() {
     const overlay = document.getElementById('image-lightbox-overlay');
     const viewport = document.getElementById('lightbox-viewport');
@@ -105,6 +169,7 @@
         panX = 0;
         panY = 0;
         viewport.scrollTop = 0;
+        viewport.scrollLeft = 0;
       } else if (mode === 'custom-zoom') {
         // keep current scale and pan
       }
@@ -154,6 +219,9 @@
       }
     }
 
+    openImageLightboxFn = openLightbox;
+    window.openImageLightbox = openLightbox;
+
     function closeLightbox() {
       overlay.classList.remove('active');
       overlay.setAttribute('aria-hidden', 'true');
@@ -167,10 +235,17 @@
       }
     }
 
+    function getCleanCaption(frame, img) {
+      const cap = frame ? frame.querySelector('.caption') : null;
+      if (!cap) return img.getAttribute('alt') || '';
+      return sanitizeMathText(cap) || img.getAttribute('alt') || '';
+    }
+
     function bindImages() {
       const zoomableImages = document.querySelectorAll('.figure-frame img, img.zoomable, .reveal .slides img');
       zoomableImages.forEach(img => {
         if (img.classList.contains('no-zoom')) return;
+        if (img.closest('.infographic-swap-container')) return;
 
         img.style.cursor = 'zoom-in';
 
@@ -179,13 +254,30 @@
           e.stopPropagation();
 
           const frame = img.closest('.figure-frame') || img.parentElement;
-          const caption = frame ? frame.querySelector('.caption')?.innerText : (img.getAttribute('alt') || '');
+          const caption = getCleanCaption(frame, img);
           const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
 
           if (src) {
             openLightbox(src, caption);
           }
         };
+      });
+
+      document.querySelectorAll('.figure-frame').forEach(frame => {
+        if (frame.dataset.frameBound === 'true') return;
+        frame.dataset.frameBound = 'true';
+        frame.addEventListener('click', function(e) {
+          if (e.target.closest('a, button')) return;
+          const img = frame.querySelector('img:not(.no-zoom)');
+          if (!img) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const caption = getCleanCaption(frame, img);
+          const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
+          if (src) {
+            openLightbox(src, caption);
+          }
+        });
       });
     }
 
@@ -220,14 +312,14 @@
       zoomBy(-0.25);
     });
 
-    // Image click toggles Fit vs Fill Width (if not dragged)
+    // Single-click on expanded image closes lightbox (if not dragged)
     expandedImg.addEventListener('click', function(e) {
       e.stopPropagation();
       if (hasDragged) {
         hasDragged = false;
         return;
       }
-      toggleMode();
+      closeLightbox();
     });
 
     // Mouse wheel zoom over viewport
@@ -280,7 +372,7 @@
     // Keyboard controls
     window.addEventListener('keydown', function(e) {
       if (overlay.classList.contains('active')) {
-        if (e.key === 'Escape' || e.keyCode === 27) {
+        if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
           e.stopPropagation();
           closeLightbox();
@@ -312,14 +404,24 @@
     const titleSlide = document.querySelector('#title-slide');
     if (!titleSlide || titleSlide.querySelector('.dual-logo-bar')) return;
 
+    const usesParentDiagrams = !!document.querySelector('img[src^="../diagrams/"], img[data-src^="../diagrams/"]');
+    const diagPrefix = usesParentDiagrams ? '../diagrams' : 'diagrams';
+
     const logoBar = document.createElement('div');
     logoBar.className = 'dual-logo-bar';
     logoBar.innerHTML = `
-      <img src="diagrams/vcu_life_sciences_stacked.png" class="no-zoom logo-ls" alt="VCU School of Life Sciences and Sustainability" />
+      <img src="${diagPrefix}/vcu_life_sciences_stacked.png" class="no-zoom logo-ls" alt="VCU School of Life Sciences and Sustainability" />
       <div class="logo-divider"></div>
-      <img src="diagrams/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
+      <img src="${diagPrefix}/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
     `;
     titleSlide.appendChild(logoBar);
+
+    const pdfBar = document.createElement('div');
+    pdfBar.className = 'title-pdf-bar print-hide';
+    pdfBar.innerHTML = `
+      <a href="candidacy_exam_slides.pdf" target="_blank" rel="noopener" class="title-pdf-pill" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 Presentation Slides (PDF) ↗</a>
+    `;
+    titleSlide.appendChild(pdfBar);
   }
 
   function initModuleNavBar() {
@@ -331,17 +433,18 @@
       <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Candidacy</span>
       <nav class="footer-nav" aria-label="Presentation Module Navigation">
         <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: 5 Core Modules (Slide 3)">Roadmap</a>
-        <a href="#/slide-1" class="nav-pill pill-p1" id="nav-pill-p1" title="Module I: Clinical Problem & The Empty Intersection (Slides 4–5)">I. Problem</a>
-        <a href="#/slide-2" class="nav-pill pill-p2" id="nav-pill-p2" title="Module II: Governance & Data (Slides 6–7)">II. Governance</a>
-        <a href="#/slide-4" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts & Temporal QA (Slides 8–10)">III. Cohorts</a>
-        <a href="#/slide-5" class="nav-pill pill-p4" id="nav-pill-p4" title="Module IV: Tri-Model & Consensus (Slides 11–14)">IV. Tri-Model</a>
-        <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Defenses (Slides 15–17)">V. Translation</a>
-        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (Slide 18+)">Appendix</a>
+        <a href="#/slide-1" class="nav-pill pill-p1" id="nav-pill-p1" title="Module I: Problem (Slides 4–11)">I. Problem</a>
+        <a href="#/slide-2" class="nav-pill pill-p2" id="nav-pill-p2" title="Module II: Governance & Data (Slides 12–13)">II. Governance & Data</a>
+        <a href="#/slide-4" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts (Slides 14–16)">III. Cohorts</a>
+        <a href="#/slide-5" class="nav-pill pill-p4" id="nav-pill-p4" title="Module IV: Modeling (Slides 17–19)">IV. Modeling</a>
+        <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Deployment (Slides 20–22)">V. Translation & Deployment</a>
+        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (Slides 24–30)">Appendix</a>
+        <a href="candidacy_exam_slides.pdf" target="_blank" rel="noopener" class="nav-pill pill-pdf print-hide" id="nav-pill-pdf" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 PDF ↗</a>
       </nav>
       <span class="footer-spacer"></span>
     `;
 
-    footer.querySelectorAll('.nav-pill').forEach(link => {
+    footer.querySelectorAll('.nav-pill:not(.pill-pdf)').forEach(link => {
       link.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -361,6 +464,15 @@
       });
     });
 
+    function getSlideH(id, fallback) {
+      const el = document.getElementById(id);
+      if (el && window.Reveal) {
+        const ind = window.Reveal.getIndices(el);
+        if (ind && typeof ind.h === 'number') return ind.h;
+      }
+      return fallback;
+    }
+
     function updateActiveNav() {
       if (!window.Reveal) return;
       const indices = window.Reveal.getIndices();
@@ -369,27 +481,35 @@
 
       // Title Slide (Index 0) -> hide footer completely
       if (h === 0 || (currentSlide && currentSlide.id === 'title-slide')) {
-        footer.style.display = 'none';
+        footer.style.setProperty('display', 'none', 'important');
         return;
       } else {
-        footer.style.display = 'flex';
+        footer.style.setProperty('display', 'flex', 'important');
       }
 
       footer.querySelectorAll('.nav-pill').forEach(pill => pill.classList.remove('active'));
 
-      if (h === 2) {
+      const hRoad = getSlideH('sec-roadmap', 2);
+      const hP1 = getSlideH('slide-1', 3);
+      const hP2 = getSlideH('slide-2', 8);
+      const hP3 = getSlideH('slide-4', 10);
+      const hP4 = getSlideH('slide-5', 13);
+      const hP5 = getSlideH('slide-8', 17);
+      const hApp = getSlideH('sec-appendix', 20);
+
+      if (h === hRoad) {
         footer.querySelector('#nav-pill-road')?.classList.add('active');
-      } else if (h >= 3 && h <= 4) {
+      } else if (h >= hP1 && h < hP2) {
         footer.querySelector('#nav-pill-p1')?.classList.add('active');
-      } else if (h >= 5 && h <= 6) {
+      } else if (h >= hP2 && h < hP3) {
         footer.querySelector('#nav-pill-p2')?.classList.add('active');
-      } else if (h >= 7 && h <= 9) {
+      } else if (h >= hP3 && h < hP4) {
         footer.querySelector('#nav-pill-p3')?.classList.add('active');
-      } else if (h >= 10 && h <= 13) {
+      } else if (h >= hP4 && h < hP5) {
         footer.querySelector('#nav-pill-p4')?.classList.add('active');
-      } else if (h >= 14 && h <= 16) {
+      } else if (h >= hP5 && h < hApp) {
         footer.querySelector('#nav-pill-p5')?.classList.add('active');
-      } else if (h >= 17) {
+      } else if (h >= hApp) {
         footer.querySelector('#nav-pill-app')?.classList.add('active');
       }
     }
@@ -400,8 +520,226 @@
     }
   }
 
+  function initCardLightbox() {
+    const overlay = document.getElementById('card-lightbox-overlay');
+    const viewport = document.getElementById('card-lightbox-viewport');
+    const modal = document.getElementById('card-lightbox-modal');
+    const captionEl = document.getElementById('card-lightbox-caption');
+    const closeBtn = document.getElementById('card-close-btn');
+    const zoomInBtn = document.getElementById('card-zoom-in');
+    const zoomOutBtn = document.getElementById('card-zoom-out');
+    const zoomDisplay = document.getElementById('card-zoom-display');
+    const resetBtn = document.getElementById('card-reset-btn');
+
+    if (!overlay || !viewport || !modal) return;
+
+    let cardScale = 1.0;
+
+    function applyCardScale() {
+      modal.style.setProperty('--card-scale', String(cardScale));
+      if (zoomDisplay) {
+        zoomDisplay.textContent = `${Math.round(cardScale * 100)}%`;
+      }
+    }
+
+    function openCardLightbox(cardEl) {
+      const slide = cardEl.closest('section');
+      const slideTitle = slide?.querySelector('h2, h1')?.innerText?.trim() || '';
+      const titleEl = cardEl.querySelector('.card-title, h3, h4, .chair-name, .member-name');
+      const cardTitle = sanitizeMathText(titleEl);
+      if (captionEl) {
+        captionEl.textContent = cardTitle && slideTitle ? `${slideTitle} — ${cardTitle}` : (cardTitle || slideTitle);
+      }
+
+      modal.className = 'card-lightbox-modal';
+      ['card-primary', 'card-warning', 'card-danger', 'card-success', 'card-slate'].forEach(cls => {
+        if (cardEl.classList.contains(cls)) {
+          modal.classList.add(cls);
+        }
+      });
+
+      if (cardEl.tagName === 'TABLE' || cardEl.querySelector('table')) {
+        modal.classList.add('card-modal-table');
+      }
+
+      if (cardEl.tagName === 'TABLE') {
+        modal.innerHTML = cardEl.outerHTML;
+        const clonedTable = modal.querySelector('table');
+        if (clonedTable) {
+          clonedTable.style.fontSize = '';
+          clonedTable.style.lineHeight = '';
+        }
+      } else {
+        modal.innerHTML = cardEl.innerHTML;
+        modal.querySelectorAll('table').forEach(tbl => {
+          tbl.style.fontSize = '';
+          tbl.style.lineHeight = '';
+        });
+      }
+
+      // Remove inline font-size overrides that MathJax v2 bakes onto .MathJax / .mjx-chtml based on tiny slide table font sizes
+      modal.querySelectorAll('.MathJax, .mjx-chtml, .MathJax_CHTML').forEach(mj => {
+        mj.style.fontSize = '';
+      });
+
+      // Wire internal appendix jump/return links inside the modal so clicking them closes the modal and navigates
+      modal.querySelectorAll('a[href^="#/"]').forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          const targetHash = link.getAttribute('href');
+          closeCardLightbox();
+          if (window.Reveal && targetHash.startsWith('#/')) {
+            const slideId = targetHash.replace('#/', '');
+            const targetSlide = document.getElementById(slideId);
+            if (targetSlide) {
+              const ind = window.Reveal.getIndices(targetSlide);
+              window.Reveal.slide(ind.h, ind.v, ind.f);
+              return;
+            }
+          }
+          window.location.hash = targetHash;
+        });
+      });
+
+      cardScale = 1.0;
+      applyCardScale();
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: false });
+      }
+    }
+
+    function closeCardLightbox() {
+      overlay.classList.remove('active');
+      overlay.setAttribute('aria-hidden', 'true');
+      modal.innerHTML = '';
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: true });
+      }
+    }
+
+    function bindCards() {
+      const selector = [
+        '.reveal .slides .card-box',
+        '.reveal .slides .committee-chair-card',
+        '.reveal .slides .committee-member-strip',
+        '.reveal .slides .takeaway-banner',
+        '.reveal .slides table.table-compact'
+      ].join(', ');
+
+      document.querySelectorAll(selector).forEach(el => {
+        if (el.dataset.cardBound === 'true') return;
+        // Skip Roadmap (Slide 3) high-level module cards and Infographic Swap containers (Slides 4-7)
+        if (el.closest('#sec-roadmap')) return;
+        if (el.closest('.infographic-swap-container')) return;
+        // Skip tables that are already inside a .card-box (clicking the card-box handles them)
+        if (el.tagName === 'TABLE' && el.closest('.card-box')) return;
+
+        el.dataset.cardBound = 'true';
+        el.addEventListener('click', function(e) {
+          const popoutImg = el.getAttribute('data-popout-img') || el.dataset.popoutImg;
+          if (popoutImg) {
+            e.preventDefault();
+            e.stopPropagation();
+            const caption = el.getAttribute('data-popout-caption') || el.dataset.popoutCaption || 'Figure 1B - FAERS vs APCD ADE Events';
+            const fn = openImageLightboxFn || window.openImageLightbox;
+            if (fn) {
+              fn(popoutImg, caption);
+            }
+            return;
+          }
+          if (e.target.closest('a, button')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openCardLightbox(el);
+        });
+      });
+    }
+
+    closeBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCardLightbox();
+    });
+
+    zoomInBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+      applyCardScale();
+    });
+
+    zoomOutBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+      applyCardScale();
+    });
+
+    resetBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      cardScale = 1.0;
+      applyCardScale();
+    });
+
+    viewport.addEventListener('click', function(e) {
+      if (e.target.closest('a, button')) return;
+      const sel = window.getSelection ? window.getSelection().toString() : '';
+      if (sel && sel.length > 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeCardLightbox();
+    });
+
+    window.addEventListener('keydown', function(e) {
+      if (!overlay.classList.contains('active')) return;
+      if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeCardLightbox();
+      } else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+        applyCardScale();
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+        applyCardScale();
+      } else if (e.key === '0') {
+        e.preventDefault();
+        cardScale = 1.0;
+        applyCardScale();
+      }
+    }, true);
+
+    bindCards();
+    if (window.Reveal) {
+      window.Reveal.on('ready', bindCards);
+      window.Reveal.on('slidechanged', bindCards);
+    }
+  }
+
+  function initInfographicSwap() {
+    document.querySelectorAll('.infographic-swap-container').forEach(container => {
+      if (container.dataset.swapBound === 'true') return;
+      container.dataset.swapBound = 'true';
+      container.addEventListener('click', function(e) {
+        if (e.target.closest('a')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        container.classList.toggle('swapped');
+      });
+    });
+  }
+
   function onInit() {
+    initInfographicSwap();
     initLightbox();
+    initCardLightbox();
     initTitleSlideLogos();
     initModuleNavBar();
   }
@@ -414,6 +752,8 @@
 
   if (window.Reveal) {
     window.Reveal.on('ready', () => {
+      initInfographicSwap();
+      initCardLightbox();
       initTitleSlideLogos();
       initModuleNavBar();
     });

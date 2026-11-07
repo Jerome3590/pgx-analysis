@@ -49,29 +49,37 @@ $presentation-heading-letter-spacing: -0.02em;
   // Title Slide Typography & Dual Institutional Branding
   #title-slide {
     text-align: center;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
+
+    &.present {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+
+    &:not(.present) {
+      display: none !important;
+    }
 
     .title, .subtitle {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
-      font-size: 2.0rem !important;
       line-height: 1.25 !important;
     }
 
     .title {
       order: 2;
+      font-size: 2.65rem !important;
       font-weight: 700 !important;
       color: $theme-navy !important;
-      margin-bottom: 0.35em !important;
+      margin-bottom: 0.32em !important;
     }
 
     .subtitle {
       order: 3;
+      font-size: 2.25rem !important;
       font-weight: 600 !important;
       color: $theme-slate !important;
-      margin-bottom: 0.85em !important;
+      margin-bottom: 0.65em !important;
     }
 
     .quarto-title-authors {
@@ -79,15 +87,15 @@ $presentation-heading-letter-spacing: -0.02em;
       margin-bottom: 0.1em !important;
 
       .quarto-title-author-name {
-        font-size: 1.15rem !important;
+        font-size: 1.55rem !important;
         font-weight: 700 !important;
         color: $theme-navy !important;
         margin-bottom: 0.25em !important;
       }
 
       .quarto-title-affiliation {
-        font-size: 0.86rem !important;
-        line-height: 1.45 !important;
+        font-size: 1.18rem !important;
+        line-height: 1.52 !important;
         color: #334155 !important;
         margin: 0 0 0.45em 0 !important;
 
@@ -98,23 +106,23 @@ $presentation-heading-letter-spacing: -0.02em;
 
         .affil-meta {
           color: $theme-muted !important;
-          font-size: 0.82rem !important;
+          font-size: 1.08rem !important;
           font-weight: 400 !important;
         }
 
         .affil-univ {
-          font-size: 0.82rem !important;
+          font-size: 1.12rem !important;
           color: #475569 !important;
           font-weight: 600 !important;
           display: inline-block;
-          margin-top: 3px;
+          margin-top: 4px;
         }
       }
     }
 
     .date {
       order: 5;
-      font-size: 0.85rem !important;
+      font-size: 1.14rem !important;
       color: $theme-muted !important;
       margin: 0 0 16px 0 !important;
     }
@@ -128,7 +136,7 @@ $presentation-heading-letter-spacing: -0.02em;
       margin: 2px auto 0 auto;
 
       img.logo-ls, img.logo-pharm {
-        height: 50px !important;
+        height: 68px !important;
         width: auto !important;
         max-width: none !important;
         object-fit: contain;
@@ -139,6 +147,49 @@ $presentation-heading-letter-spacing: -0.02em;
         height: 38px;
         width: 1px;
         background: #CBD5E1;
+      }
+    }
+
+    .title-pdf-bar {
+      order: 7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 14px auto 0 auto;
+
+      a.title-pdf-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 14px;
+        border-radius: 18px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-decoration: none;
+        color: #1D4ED8;
+        background: #EFF6FF;
+        border: 1px solid #BFDBFE;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        transition: all 0.15s ease-in-out;
+
+        &:hover {
+          background: #2563EB;
+          border-color: #1D4ED8;
+          color: #FFFFFF !important;
+        }
+
+        &.title-pdf-pill-script {
+          color: #0F172A;
+          background: #F8FAFC;
+          border-color: #CBD5E1;
+
+          &:hover {
+            background: #0F172A;
+            border-color: #0F172A;
+            color: #FFFFFF !important;
+          }
+        }
       }
     }
   }
@@ -159,9 +210,6 @@ $presentation-heading-letter-spacing: -0.02em;
     padding-bottom: 0.25em;
     margin-top: 0;
     margin-bottom: 0.6em;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
   }
 
   h3 {
@@ -330,6 +378,19 @@ $presentation-heading-letter-spacing: -0.02em;
           &.pill-p5 { background: $theme-navy; }
           &.pill-app { background: #7C3AED; }
         }
+
+        &.pill-pdf {
+          color: #1D4ED8;
+          background: #EFF6FF;
+          border: 1px solid #BFDBFE;
+          margin-left: 2px;
+
+          &:hover {
+            background: #2563EB;
+            border-color: #1D4ED8;
+            color: #FFFFFF !important;
+          }
+        }
       }
     }
 
@@ -383,11 +444,13 @@ $presentation-heading-letter-spacing: -0.02em;
 
   img {
     max-height: 480px;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     height: auto;
     object-fit: contain;
     border-radius: 4px;
-    margin: 0 !important;
+    display: block;
+    margin: 0 auto !important;
   }
 
   .caption {
@@ -501,18 +564,23 @@ $presentation-heading-letter-spacing: -0.02em;
 }
 
 // Supervisory Committee Single-Column Profile Strips (Style A)
+#supervisory-committee .slide-badge {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+}
+
 .committee-chair-card {
   background: #EFF6FF;
   border: 1px solid #BFDBFE;
   border-left: 4px solid #2563EB;
   border-radius: 6px;
-  padding: 12px 18px;
-  margin-top: 14px;
-  margin-bottom: 20px;
+  padding: 13px 20px;
+  margin-top: 10px;
+  margin-bottom: 14px;
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.04);
 
   .chair-label {
-    font-size: 0.78rem;
+    font-size: 0.96rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -520,47 +588,47 @@ $presentation-heading-letter-spacing: -0.02em;
     margin-bottom: 4px;
   }
   .chair-name {
-    font-size: 1.15rem;
+    font-size: 1.44rem;
     font-weight: 700;
     color: #0F172A;
   }
   .chair-desc {
-    font-size: 0.88rem;
+    font-size: 1.08rem;
     color: #475569;
     margin-top: 2px;
   }
 }
 
 .committee-roster-title {
-  font-size: 0.78rem;
+  font-size: 0.96rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #64748B;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .committee-roster {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
 
   .committee-member-strip {
     background: #F8FAFC;
     border: 1px solid #E2E8F0;
     border-left: 3px solid #CBD5E1;
     border-radius: 4px;
-    padding: 10px 16px;
+    padding: 10px 18px;
     transition: all 0.15s ease;
 
     .member-name {
       font-weight: 700;
       color: #0F172A;
-      font-size: 0.96rem;
+      font-size: 1.22rem;
     }
     .member-desc {
       color: #64748B;
-      font-size: 0.84rem;
+      font-size: 1.02rem;
       margin-top: 2px;
     }
 
@@ -639,10 +707,13 @@ $presentation-heading-letter-spacing: -0.02em;
     margin-bottom: 12px;
   }
 
-  h1 {
+  h1, .section-main-heading {
     font-size: 2.6rem;
+    font-weight: 800;
+    color: #F8FAFC !important;
     border-bottom: 2px solid #334155;
     padding-bottom: 0.3em;
+    margin-bottom: 0.4em;
   }
 
   .section-desc {
@@ -650,6 +721,18 @@ $presentation-heading-letter-spacing: -0.02em;
     font-size: 1.05rem;
     max-width: 800px;
     line-height: 1.5;
+  }
+
+  .appendix-jump-btn {
+    background: #F8FAFC !important;
+    color: #0F172A !important;
+    border: 1px solid #CBD5E1 !important;
+
+    &:hover {
+      background: #2563EB !important;
+      color: #FFFFFF !important;
+      border-color: #1D4ED8 !important;
+    }
   }
 }
 
@@ -759,6 +842,7 @@ $presentation-heading-letter-spacing: -0.02em;
         color: #E2E8F0;
         font-size: 0.84rem;
         font-weight: 500;
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
@@ -894,7 +978,7 @@ $presentation-heading-letter-spacing: -0.02em;
           width: auto;
           height: auto;
           object-fit: contain;
-          cursor: zoom-in;
+          cursor: zoom-out;
         }
       }
     }
@@ -902,20 +986,25 @@ $presentation-heading-letter-spacing: -0.02em;
     // Mode 2: Fill Width Mode (High-resolution full-span scroll view)
     &.mode-fill-width {
       display: block;
+      text-align: center;
 
       .lightbox-canvas {
         display: flex;
         justify-content: center;
+        align-items: flex-start;
+        width: 100%;
         min-height: 100%;
+        margin: 0 auto;
 
         img {
+          display: block;
+          margin: 0 auto 30px auto;
           width: min(94vw, 1500px);
           max-width: 94vw;
           height: auto;
           max-height: none;
-          object-fit: unset;
+          object-fit: contain;
           cursor: zoom-out;
-          margin-bottom: 30px;
         }
       }
     }
@@ -966,6 +1055,350 @@ $presentation-heading-letter-spacing: -0.02em;
         padding: 1px 5px;
         font-family: inherit;
         font-size: 0.7rem;
+        color: #FFFFFF;
+      }
+    }
+  }
+}
+
+// Hover styling for zoomable text cards & tables (excluding Slide 3 Roadmap cards)
+.reveal .slides section:not(#sec-roadmap) .card-box,
+.reveal .slides .committee-chair-card,
+.reveal .slides .committee-member-strip,
+.reveal .slides .takeaway-banner {
+  position: relative;
+  cursor: zoom-in;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.11);
+
+    &::after {
+      content: "🔍 Click to enlarge";
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: rgba(15, 23, 42, 0.86);
+      color: #FFFFFF;
+      font-size: 0.62rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 14px;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      z-index: 10;
+      line-height: 1.3;
+    }
+  }
+}
+
+.reveal .slides table.table-compact {
+  cursor: zoom-in;
+}
+
+// Fullscreen Text Card Pop-Out Lightbox Overlay
+.card-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(10, 15, 30, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  font-family: $font-family-sans-serif;
+
+  &.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .lightbox-header {
+    height: 56px;
+    background: rgba(15, 23, 42, 0.9);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+    z-index: 1000001;
+
+    .lightbox-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 62%;
+
+      .lightbox-tag {
+        background: #2563EB;
+        color: #FFFFFF;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 4px 10px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+
+      .lightbox-caption {
+        color: #E2E8F0;
+        font-size: 0.9rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+
+    .lightbox-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+
+      .lightbox-btn-group {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 6px;
+        overflow: hidden;
+
+        .lightbox-zoom-display {
+          color: #F8FAFC;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.8rem;
+          font-weight: 600;
+          padding: 0 10px;
+          min-width: 52px;
+          text-align: center;
+          user-select: none;
+        }
+      }
+
+      .lightbox-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: #F8FAFC;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+        line-height: 1;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+          border-color: rgba(255, 255, 255, 0.35);
+          color: #FFFFFF;
+        }
+
+        &.lightbox-btn-close {
+          background: rgba(239, 68, 68, 0.2);
+          border-color: rgba(239, 68, 68, 0.4);
+          color: #FCA5A5;
+          font-size: 1.1rem;
+          padding: 6px 14px;
+
+          &:hover {
+            background: #DC2626;
+            border-color: #EF4444;
+            color: #FFFFFF;
+          }
+        }
+      }
+    }
+  }
+
+  .card-lightbox-viewport {
+    flex: 1;
+    width: 100vw;
+    height: calc(100vh - 94px);
+    overflow-y: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 32px;
+    box-sizing: border-box;
+
+    .card-lightbox-modal {
+      --card-scale: 1;
+      width: min(92vw, 1140px);
+      max-height: calc(100vh - 140px);
+      overflow-y: auto;
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-left: 8px solid #2563EB;
+      border-radius: 14px;
+      padding: 28px 36px;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75);
+      box-sizing: border-box;
+      color: #0F172A;
+      font-size: calc(1.32rem * var(--card-scale));
+      line-height: 1.55;
+      cursor: zoom-out;
+
+      &.card-primary { border-left-color: #2563EB; background: #FAFCFF; }
+      &.card-warning { border-left-color: #D97706; background: #FFFDF8; }
+      &.card-danger  { border-left-color: #DC2626; background: #FFF8F8; }
+      &.card-success { border-left-color: #16A34A; background: #F8FFF9; }
+      &.card-slate   { border-left-color: #475569; background: #F8FAFC; }
+      &.card-modal-table {
+        width: min(96vw, 1340px);
+        padding: 24px 30px;
+      }
+
+      .card-title, h3, h4, .chair-name, .member-name {
+        font-size: calc(1.75rem * var(--card-scale)) !important;
+        font-weight: 800 !important;
+        color: #0F172A !important;
+        margin-top: 0 !important;
+        margin-bottom: 14px !important;
+        padding-bottom: 10px !important;
+        border-bottom: 2px solid #E2E8F0 !important;
+        line-height: 1.3 !important;
+        display: block !important;
+      }
+
+      .chair-label {
+        font-size: calc(1.05rem * var(--card-scale)) !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        color: #1D4ED8 !important;
+        margin-bottom: 6px !important;
+      }
+
+      p, li, div:not(.card-title):not(.chair-label):not(.chair-name):not(.member-name):not(.eq-line), span:not(.MathJax):not(.MathJax *):not(.mjx-chtml):not(.mjx-chtml *), small {
+        font-size: calc(1.32rem * var(--card-scale)) !important;
+        line-height: 1.55 !important;
+        color: #1E293B !important;
+      }
+
+      ul, ol {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        padding-left: 28px !important;
+      }
+
+      li {
+        margin-bottom: 10px !important;
+        strong {
+          color: #0F172A !important;
+          font-weight: 700 !important;
+        }
+      }
+
+      code {
+        font-family: $font-family-monospace !important;
+        font-size: calc(1.14rem * var(--card-scale)) !important;
+        background: #F1F5F9 !important;
+        color: #0F172A !important;
+        padding: 2px 7px !important;
+        border-radius: 5px !important;
+        border: 1px solid #CBD5E1 !important;
+      }
+
+      a, a > code {
+        color: #2563EB !important;
+      }
+
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 8px 0 !important;
+        font-size: calc(1.16rem * var(--card-scale)) !important;
+
+        th {
+          background: #F1F5F9 !important;
+          color: #0F172A !important;
+          font-weight: 700 !important;
+          padding: 12px 16px !important;
+          border-bottom: 2px solid #CBD5E1 !important;
+          font-size: calc(1.16rem * var(--card-scale)) !important;
+          text-align: left !important;
+        }
+
+        td {
+          padding: 14px 18px !important;
+          border-bottom: 1px solid #E2E8F0 !important;
+          vertical-align: middle !important;
+          font-size: calc(1.15rem * var(--card-scale)) !important;
+          line-height: 1.75 !important;
+
+          .eq-line {
+            display: block !important;
+            font-size: calc(1.16rem * var(--card-scale)) !important;
+            line-height: 1.85 !important;
+            padding: 3px 0 !important;
+
+            & + .eq-line {
+              margin-top: 6px !important;
+              padding-top: 6px !important;
+              border-top: 1px dashed rgba(148, 163, 184, 0.35) !important;
+            }
+          }
+        }
+
+        .MathJax, .mjx-chtml, .MathJax_CHTML {
+          font-size: calc(1.22rem * var(--card-scale)) !important;
+          margin: 2px 4px !important;
+          letter-spacing: 0.025em !important;
+        }
+      }
+
+      .appendix-jump-btn, .appendix-return-btn {
+        font-size: calc(1.05rem * var(--card-scale)) !important;
+        padding: 6px 14px !important;
+        margin-top: 8px !important;
+      }
+    }
+  }
+
+  .lightbox-footer {
+    height: 38px;
+    background: rgba(15, 23, 42, 0.9);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 20px;
+    box-sizing: border-box;
+
+    .lightbox-hint {
+      color: #94A3B8;
+      font-size: 0.76rem;
+      letter-spacing: 0.02em;
+
+      strong {
+        color: #F1F5F9;
+      }
+
+      kbd {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-family: inherit;
+        font-size: 0.72rem;
         color: #FFFFFF;
       }
     }
@@ -1055,3 +1488,392 @@ $presentation-heading-letter-spacing: -0.02em;
   }
 }
 
+// -----------------------------------------------------------------------------
+// DUAL-TARGET DESIGN CONTROL: SCREEN (HTML) VS. PRINT / PDF EXPORT
+// -----------------------------------------------------------------------------
+
+// Screen-default visibility helpers
+.print-only {
+  display: none !important;
+}
+
+@page {
+  size: 1280px 720px;
+  margin: 0;
+}
+
+// Dedicated Print-PDF Mixin (Triggered by Reveal.js ?print-pdf & @media print)
+@mixin print-pdf-styles {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  // Hide web-only interactive UI prompts, lightbox overlay, and Reveal controls
+  .print-hide,
+  .web-only,
+  #image-lightbox-overlay,
+  #card-lightbox-overlay,
+  .reveal .controls,
+  .reveal .progress,
+  .reveal .slide-menu-button,
+  .reveal .speaker-notes {
+    display: none !important;
+  }
+
+  // Reveal print-only static annotations & URLs
+  .print-only {
+    display: inline !important;
+  }
+
+  div.print-only,
+  p.print-only {
+    display: block !important;
+  }
+
+  // Lock 16:9 PDF page containers and prevent stray overflow pages
+  .reveal .slides section,
+  .reveal .slides section.present,
+  .pdf-page {
+    overflow: hidden !important;
+    page-break-after: always;
+    break-after: page;
+    box-sizing: border-box !important;
+  }
+
+  // Replace rasterizing blur/drop-shadows with crisp vector borders in PDF
+  .reveal .figure-frame,
+  .reveal .card-box,
+  .reveal .committee-chair-card,
+  .reveal .committee-member-strip,
+  .reveal .takeaway-banner,
+  .reveal .metric-pill,
+  .reveal pre,
+  .reveal .footer,
+  .reveal .footer .footer-nav,
+  .reveal .appendix-jump-btn,
+  .reveal .appendix-return-btn {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+
+  // Crisp vector framing for cards and figures in static PDF output
+  .reveal .figure-frame {
+    border: 1px solid #CBD5E1 !important;
+    background: #FFFFFF !important;
+
+    img {
+      cursor: default !important;
+      image-rendering: -webkit-optimize-contrast;
+    }
+  }
+
+  .reveal .card-box {
+    border-top: 1px solid #CBD5E1 !important;
+    border-right: 1px solid #CBD5E1 !important;
+    border-bottom: 1px solid #CBD5E1 !important;
+
+    &:not(.card-primary):not(.card-warning):not(.card-danger):not(.card-success):not(.card-slate) {
+      border-left: 1px solid #CBD5E1 !important;
+    }
+  }
+
+  // Clean non-overlapping vector footer bar in PDF
+  .reveal .footer {
+    background: transparent !important;
+    border-top: none !important;
+    bottom: 4px !important;
+
+    .footer-nav {
+      background: #F8FAFC !important;
+      border: 1px solid #CBD5E1 !important;
+    }
+  }
+
+  // Style appendix navigation links as clean static cross-reference badges in PDF
+  .reveal .appendix-jump-btn,
+  .reveal .appendix-return-btn {
+    background: #F8FAFC !important;
+    border: 1px solid #94A3B8 !important;
+    color: #0F172A !important;
+    padding: 2px 9px !important;
+    border-radius: 4px !important;
+  }
+}
+
+html.print-pdf {
+  @include print-pdf-styles;
+}
+
+@media print {
+  @include print-pdf-styles;
+}
+
+//Tight vertical budget for Slide 8 (#slide-1a: Dual Crises + Methodological Demarcation + 3 Aims)
+.reveal #slide-1a {
+  h2 {
+    margin-bottom: 0.35em !important;
+    padding-bottom: 0.15em !important;
+  }
+  .slide-badge {
+    margin-bottom: 4px !important;
+  }
+  .card-compact li {
+    font-size: 0.76rem !important;
+    line-height: 1.26 !important;
+    margin-bottom: 2px !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// INFOGRAPHIC <-> BULLET POINTS SWAP CONTAINER (Slides 4-7)
+// -----------------------------------------------------------------------------
+.reveal .slides .infographic-swap-container {
+  position: relative;
+  width: 100%;
+  margin-top: 4px;
+  cursor: pointer;
+  user-select: none;
+
+  .swap-view-infographic {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 14px;
+    padding: 14px 24px 10px 24px;
+    min-height: 568px;
+    height: 568px;
+    box-sizing: border-box;
+    box-shadow: 0 6px 22px rgba(15, 23, 42, 0.07);
+    position: relative;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+      border-color: #94A3B8;
+    }
+
+    img {
+      display: block;
+      margin: auto !important;
+      width: 97% !important;
+      max-width: 1140px !important;
+      max-height: 505px !important;
+      height: auto !important;
+      object-fit: contain;
+      cursor: pointer !important;
+    }
+
+    .swap-caption {
+      font-size: 0.76rem;
+      color: #64748B;
+      margin-top: 6px;
+      text-align: center;
+      line-height: 1.3;
+      flex-shrink: 0;
+    }
+  }
+
+  .swap-pill-hint {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: rgba(15, 23, 42, 0.9);
+    color: #FFFFFF;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 16px;
+    letter-spacing: 0.01em;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 10;
+    transition: background 0.15s ease;
+  }
+
+  &:hover .swap-pill-hint {
+    background: #2563EB;
+  }
+
+  .swap-view-bullets {
+    display: none;
+    background: #F8FAFC;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 14px;
+    padding: 18px 24px 16px 24px;
+    min-height: 568px;
+    box-sizing: border-box;
+    box-shadow: 0 6px 22px rgba(15, 23, 42, 0.07);
+    position: relative;
+
+    .swap-bullets-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #E2E8F0;
+
+      .swap-bullets-tag {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #475569;
+      }
+
+      .swap-return-pill {
+        background: #1E293B;
+        color: #FFFFFF;
+        font-size: 0.74rem;
+        font-weight: 600;
+        padding: 5px 14px;
+        border-radius: 16px;
+        transition: background 0.15s ease;
+      }
+    }
+
+    &:hover .swap-return-pill {
+      background: #2563EB;
+    }
+
+    // Disable individual card zoom badges inside the swap view so clicking swaps cleanly back to infographic
+    .card-box, .takeaway-banner {
+      cursor: pointer !important;
+      &:hover {
+        transform: none !important;
+        &::after {
+          display: none !important;
+          content: none !important;
+        }
+      }
+    }
+  }
+
+  &.swapped {
+    .swap-view-infographic {
+      display: none;
+    }
+    .swap-view-bullets {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 10px;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 22: METHODOLOGICAL FENCES & STUDY BOUNDARIES (#slide-10)
+// -----------------------------------------------------------------------------
+#slide-10 {
+  .card-box {
+    padding: 12px 20px !important;
+    margin-bottom: 12px !important;
+    border-radius: 8px !important;
+
+    .card-title {
+      font-size: 1.22rem !important;
+      font-weight: 800 !important;
+      margin-bottom: 5px !important;
+      line-height: 1.3 !important;
+    }
+
+    ul {
+      margin: 0 !important;
+      padding-left: 24px !important;
+    }
+
+    li {
+      font-size: 1.05rem !important;
+      line-height: 1.45 !important;
+      color: #1E293B !important;
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// CENTERED Q & A SLIDE (#slide-qa)
+// -----------------------------------------------------------------------------
+#slide-qa {
+  &.present {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    height: 100% !important;
+  }
+
+  &:not(.present) {
+    display: none !important;
+  }
+
+  h2 {
+    display: none !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .qa-center-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin: auto 0;
+    width: 100%;
+  }
+
+  .qa-title {
+    font-size: 4.5rem !important;
+    font-weight: 900 !important;
+    color: #0F172A !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1.15 !important;
+    margin-bottom: 24px !important;
+  }
+
+  .qa-subtitle {
+    font-size: 2.2rem !important;
+    font-weight: 700 !important;
+    color: #2563EB !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    margin-bottom: 20px !important;
+  }
+
+  .qa-divider {
+    width: 120px !important;
+    height: 5px !important;
+    background: linear-gradient(90deg, #2563EB, #10B981) !important;
+    border-radius: 3px !important;
+    margin: 0 auto 28px auto !important;
+  }
+
+  .qa-committee {
+    font-size: 1.35rem !important;
+    font-weight: 500 !important;
+    color: #475569 !important;
+    max-width: 850px !important;
+    line-height: 1.5 !important;
+    margin: 0 auto 32px auto !important;
+  }
+}
+
+body.print-pdf .reveal .slides {
+  #title-slide, #slide-qa {
+    display: flex !important;
+  }
+}
