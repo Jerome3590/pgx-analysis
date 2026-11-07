@@ -2428,7 +2428,24 @@ Aim 3 stateless, zero-PHI AWS Lambda microservice (<span class="math inline">\(\
 <li><strong>Hospital / Healthcare Organization Use (HIPAA Scope):</strong>
 <ul>
 <li>Clinical deployment processing patient records constitutes ePHI under <strong>45 CFR § 160.103</strong>.</li>
-<li><strong>Two-Tier Legal BAA Execution Chain:</strong> <span class="math display">\[\text{[ Covered Entity / Hospital ]} \xrightarrow{\text{BAA \#1}} \text{[ Our Legal Entity ]} \xrightarrow{\text{BAA \#2}} \text{[ AWS via AWS Artifact ]}\]</span></li>
+<li><strong>Two-Tier Legal BAA Execution Chain:</strong>
+<div style="margin: 4px 0 6px 0; display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 0.64rem;">
+<div style="background: rgba(30, 58, 138, 0.05); border: 1px solid rgba(30, 58, 138, 0.2); border-radius: 4px; padding: 3px 6px; text-align: center; flex: 1;">
+<p><strong style="color: #1e3a8a;">Hospital</strong><br><span style="font-size: 0.56rem; color: #64748b;">(Covered Entity)</span></p>
+</div>
+<div style="font-size: 0.58rem; font-weight: 700; color: #1e3a8a; white-space: nowrap;">
+<p>→ <span style="background: #e0e7ff; padding: 1px 4px; border-radius: 3px;">BAA #1</span> →</p>
+</div>
+<div style="background: rgba(30, 58, 138, 0.05); border: 1px solid rgba(30, 58, 138, 0.2); border-radius: 4px; padding: 3px 6px; text-align: center; flex: 1;">
+<p><strong style="color: #1e3a8a;">Our Legal Entity</strong><br><span style="font-size: 0.56rem; color: #64748b;">(Business Assoc.)</span></p>
+</div>
+<div style="font-size: 0.58rem; font-weight: 700; color: #1e3a8a; white-space: nowrap;">
+<p>→ <span style="background: #e0e7ff; padding: 1px 4px; border-radius: 3px;">BAA #2</span> →</p>
+</div>
+<div style="background: rgba(30, 58, 138, 0.05); border: 1px solid rgba(30, 58, 138, 0.2); border-radius: 4px; padding: 3px 6px; text-align: center; flex: 1;">
+<p><strong style="color: #1e3a8a;">AWS Enclave</strong><br><span style="font-size: 0.56rem; color: #64748b;">(via Artifact)</span></p>
+</div>
+</div></li>
 <li>Entity executes BAA with hospital; entity executes BAA with AWS via AWS Artifact.</li>
 </ul></li>
 <li><strong>VCU CCTR Pilot Grant Integration:</strong>
