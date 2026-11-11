@@ -49,29 +49,37 @@ $presentation-heading-letter-spacing: -0.02em;
   // Title Slide Typography & Dual Institutional Branding
   #title-slide {
     text-align: center;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
+
+    &.present {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+
+    &:not(.present) {
+      display: none !important;
+    }
 
     .title, .subtitle {
       font-family: 'Plus Jakarta Sans', sans-serif !important;
-      font-size: 2.0rem !important;
       line-height: 1.25 !important;
     }
 
     .title {
       order: 2;
+      font-size: 2.65rem !important;
       font-weight: 700 !important;
       color: $theme-navy !important;
-      margin-bottom: 0.35em !important;
+      margin-bottom: 0.32em !important;
     }
 
     .subtitle {
       order: 3;
+      font-size: 2.25rem !important;
       font-weight: 600 !important;
       color: $theme-slate !important;
-      margin-bottom: 0.85em !important;
+      margin-bottom: 0.65em !important;
     }
 
     .quarto-title-authors {
@@ -79,15 +87,15 @@ $presentation-heading-letter-spacing: -0.02em;
       margin-bottom: 0.1em !important;
 
       .quarto-title-author-name {
-        font-size: 1.15rem !important;
+        font-size: 1.55rem !important;
         font-weight: 700 !important;
         color: $theme-navy !important;
         margin-bottom: 0.25em !important;
       }
 
       .quarto-title-affiliation {
-        font-size: 0.86rem !important;
-        line-height: 1.45 !important;
+        font-size: 1.18rem !important;
+        line-height: 1.52 !important;
         color: #334155 !important;
         margin: 0 0 0.45em 0 !important;
 
@@ -98,23 +106,23 @@ $presentation-heading-letter-spacing: -0.02em;
 
         .affil-meta {
           color: $theme-muted !important;
-          font-size: 0.82rem !important;
+          font-size: 1.08rem !important;
           font-weight: 400 !important;
         }
 
         .affil-univ {
-          font-size: 0.82rem !important;
+          font-size: 1.12rem !important;
           color: #475569 !important;
           font-weight: 600 !important;
           display: inline-block;
-          margin-top: 3px;
+          margin-top: 4px;
         }
       }
     }
 
     .date {
       order: 5;
-      font-size: 0.85rem !important;
+      font-size: 1.14rem !important;
       color: $theme-muted !important;
       margin: 0 0 16px 0 !important;
     }
@@ -128,7 +136,7 @@ $presentation-heading-letter-spacing: -0.02em;
       margin: 2px auto 0 auto;
 
       img.logo-ls, img.logo-pharm {
-        height: 50px !important;
+        height: 68px !important;
         width: auto !important;
         max-width: none !important;
         object-fit: contain;
@@ -139,6 +147,49 @@ $presentation-heading-letter-spacing: -0.02em;
         height: 38px;
         width: 1px;
         background: #CBD5E1;
+      }
+    }
+
+    .title-pdf-bar {
+      order: 7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 14px auto 0 auto;
+
+      a.title-pdf-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 14px;
+        border-radius: 18px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-decoration: none;
+        color: #1D4ED8;
+        background: #EFF6FF;
+        border: 1px solid #BFDBFE;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        transition: all 0.15s ease-in-out;
+
+        &:hover {
+          background: #2563EB;
+          border-color: #1D4ED8;
+          color: #FFFFFF !important;
+        }
+
+        &.title-pdf-pill-script {
+          color: #0F172A;
+          background: #F8FAFC;
+          border-color: #CBD5E1;
+
+          &:hover {
+            background: #0F172A;
+            border-color: #0F172A;
+            color: #FFFFFF !important;
+          }
+        }
       }
     }
   }
@@ -266,9 +317,9 @@ $presentation-heading-letter-spacing: -0.02em;
     display: flex !important;
     justify-content: space-between !important;
     align-items: center !important;
-    padding: 0 24px 0 54px !important;
+    padding: 0 18px 0 46px !important;
     bottom: 10px !important;
-    font-size: 0.72rem !important;
+    font-size: 0.68rem !important;
     z-index: 20 !important;
     border-top: 1px solid rgba(226, 232, 240, 0.6) !important;
     background: rgba(255, 255, 255, 0.85);
@@ -282,18 +333,18 @@ $presentation-heading-letter-spacing: -0.02em;
     .footer-candidate {
       color: $theme-muted;
       font-weight: 600;
-      font-size: 0.70rem;
+      font-size: 0.65rem;
       letter-spacing: -0.01em;
       white-space: nowrap;
     }
 
     .footer-nav {
       display: flex;
-      gap: 6px;
+      gap: 4px;
       align-items: center;
       background: rgba(248, 250, 252, 0.95);
       backdrop-filter: blur(8px);
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: 20px;
       border: 1px solid #E2E8F0;
       box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
@@ -301,10 +352,11 @@ $presentation-heading-letter-spacing: -0.02em;
       a.nav-pill {
         color: #475569;
         text-decoration: none;
-        padding: 2px 9px;
+        padding: 2px 7px;
         border-radius: 12px;
         font-weight: 600;
-        font-size: 0.68rem;
+        font-size: 0.62rem;
+        white-space: nowrap;
         transition: all 0.15s ease-in-out;
         display: inline-block;
         line-height: 1.4;
@@ -325,6 +377,8 @@ $presentation-heading-letter-spacing: -0.02em;
           &.pill-p3 { background: $theme-gold; }
           &.pill-p4 { background: $theme-green; }
           &.pill-p5 { background: $theme-navy; }
+          &.pill-p6 { background: #0D9488; }
+          &.pill-p7 { background: #4F46E5; }
           &.pill-app { background: #7C3AED; }
         }
 
@@ -344,7 +398,7 @@ $presentation-heading-letter-spacing: -0.02em;
     }
 
     .footer-spacer {
-      width: 140px;
+      width: 68px;
       display: inline-block;
     }
   }
@@ -374,6 +428,8 @@ $presentation-heading-letter-spacing: -0.02em;
   &.badge-aim3 { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
   &.badge-governance { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
   &.badge-alert { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
+  &.badge-results { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+  &.badge-next { background: #EEF2FF; color: #4338CA; border-color: #C7D2FE; }
 }
 
 // Standardized Figure Frame (Placement Container)
@@ -447,7 +503,11 @@ $presentation-heading-letter-spacing: -0.02em;
 
 .card-compact {
   padding: 8px 12px !important;
-  margin-bottom: 0 !important;
+  margin-bottom: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
   h3, h4, .card-title {
     font-size: 0.92rem !important;
     margin-bottom: 3px !important;
@@ -510,21 +570,36 @@ $presentation-heading-letter-spacing: -0.02em;
     border-left: 4px solid #475569;
     background: #F8FAFC;
   }
+
+  &.card-teal {
+    border-left: 4px solid #0D9488;
+    background: #F0FDFA;
+  }
+
+  &.card-indigo {
+    border-left: 4px solid #4F46E5;
+    background: #EEF2FF;
+  }
 }
 
 // Supervisory Committee Single-Column Profile Strips (Style A)
+#supervisory-committee .slide-badge {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+}
+
 .committee-chair-card {
   background: #EFF6FF;
   border: 1px solid #BFDBFE;
   border-left: 4px solid #2563EB;
   border-radius: 6px;
-  padding: 12px 18px;
-  margin-top: 14px;
-  margin-bottom: 20px;
+  padding: 13px 20px;
+  margin-top: 10px;
+  margin-bottom: 14px;
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.04);
 
   .chair-label {
-    font-size: 0.78rem;
+    font-size: 0.96rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -532,47 +607,47 @@ $presentation-heading-letter-spacing: -0.02em;
     margin-bottom: 4px;
   }
   .chair-name {
-    font-size: 1.15rem;
+    font-size: 1.44rem;
     font-weight: 700;
     color: #0F172A;
   }
   .chair-desc {
-    font-size: 0.88rem;
+    font-size: 1.08rem;
     color: #475569;
     margin-top: 2px;
   }
 }
 
 .committee-roster-title {
-  font-size: 0.78rem;
+  font-size: 0.96rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #64748B;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .committee-roster {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
 
   .committee-member-strip {
     background: #F8FAFC;
     border: 1px solid #E2E8F0;
     border-left: 3px solid #CBD5E1;
     border-radius: 4px;
-    padding: 10px 16px;
+    padding: 10px 18px;
     transition: all 0.15s ease;
 
     .member-name {
       font-weight: 700;
       color: #0F172A;
-      font-size: 0.96rem;
+      font-size: 1.22rem;
     }
     .member-desc {
       color: #64748B;
-      font-size: 0.84rem;
+      font-size: 1.02rem;
       margin-top: 2px;
     }
 
@@ -786,6 +861,7 @@ $presentation-heading-letter-spacing: -0.02em;
         color: #E2E8F0;
         font-size: 0.84rem;
         font-weight: 500;
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
@@ -921,7 +997,7 @@ $presentation-heading-letter-spacing: -0.02em;
           width: auto;
           height: auto;
           object-fit: contain;
-          cursor: zoom-in;
+          cursor: zoom-out;
         }
       }
     }
@@ -998,6 +1074,381 @@ $presentation-heading-letter-spacing: -0.02em;
         padding: 1px 5px;
         font-family: inherit;
         font-size: 0.7rem;
+        color: #FFFFFF;
+      }
+    }
+  }
+}
+
+// Hover styling for zoomable text cards & tables (excluding Slide 3 Roadmap cards)
+.reveal .slides section:not(#sec-roadmap) .card-box,
+.reveal .slides .committee-chair-card,
+.reveal .slides .committee-member-strip,
+.reveal .slides .takeaway-banner {
+  position: relative;
+  cursor: zoom-in;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.11);
+
+    &::after {
+      content: "🔍 Click to enlarge";
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: rgba(15, 23, 42, 0.86);
+      color: #FFFFFF;
+      font-size: 0.62rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 14px;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      z-index: 10;
+      line-height: 1.3;
+    }
+  }
+}
+
+.reveal .slides table.table-compact {
+  cursor: zoom-in;
+}
+
+// Interactive Roadmap Module Navigation Cards
+.reveal .slides #sec-roadmap .card-box {
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+
+    &::after {
+      content: "Jump to Module ↗";
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      color: #FFFFFF;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 12px;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+  }
+}
+
+// Fullscreen Text Card Pop-Out Lightbox Overlay
+.card-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(10, 15, 30, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  font-family: $font-family-sans-serif;
+
+  &.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .lightbox-header {
+    height: 56px;
+    background: rgba(15, 23, 42, 0.9);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    box-sizing: border-box;
+    z-index: 1000001;
+
+    .lightbox-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 62%;
+
+      .lightbox-tag {
+        background: #2563EB;
+        color: #FFFFFF;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 4px 10px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+
+      .lightbox-caption {
+        color: #E2E8F0;
+        font-size: 0.9rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+
+    .lightbox-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+
+      .lightbox-btn-group {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 6px;
+        overflow: hidden;
+
+        .lightbox-zoom-display {
+          color: #F8FAFC;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 0.8rem;
+          font-weight: 600;
+          padding: 0 10px;
+          min-width: 52px;
+          text-align: center;
+          user-select: none;
+        }
+      }
+
+      .lightbox-btn {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: #F8FAFC;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+        line-height: 1;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+          border-color: rgba(255, 255, 255, 0.35);
+          color: #FFFFFF;
+        }
+
+        &.lightbox-btn-close {
+          background: rgba(239, 68, 68, 0.2);
+          border-color: rgba(239, 68, 68, 0.4);
+          color: #FCA5A5;
+          font-size: 1.1rem;
+          padding: 6px 14px;
+
+          &:hover {
+            background: #DC2626;
+            border-color: #EF4444;
+            color: #FFFFFF;
+          }
+        }
+      }
+    }
+  }
+
+  .card-lightbox-viewport {
+    flex: 1;
+    width: 100vw;
+    height: calc(100vh - 94px);
+    overflow-y: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 32px;
+    box-sizing: border-box;
+
+    .card-lightbox-modal {
+      --card-scale: 1;
+      width: min(92vw, 1140px);
+      max-height: calc(100vh - 140px);
+      overflow-y: auto;
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-left: 8px solid #2563EB;
+      border-radius: 14px;
+      padding: 28px 36px;
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.75);
+      box-sizing: border-box;
+      color: #0F172A;
+      font-size: calc(1.32rem * var(--card-scale));
+      line-height: 1.55;
+      cursor: zoom-out;
+
+      &.card-primary { border-left-color: #2563EB; background: #FAFCFF; }
+      &.card-warning { border-left-color: #D97706; background: #FFFDF8; }
+      &.card-danger  { border-left-color: #DC2626; background: #FFF8F8; }
+      &.card-success { border-left-color: #16A34A; background: #F8FFF9; }
+      &.card-slate   { border-left-color: #475569; background: #F8FAFC; }
+      &.card-teal    { border-left-color: #0D9488; background: #F0FDFA; }
+      &.card-indigo  { border-left-color: #4F46E5; background: #EEF2FF; }
+      &.card-modal-table {
+        width: min(96vw, 1340px);
+        padding: 24px 30px;
+      }
+
+      .card-title, h3, h4, .chair-name, .member-name {
+        font-size: calc(1.75rem * var(--card-scale)) !important;
+        font-weight: 800 !important;
+        color: #0F172A !important;
+        margin-top: 0 !important;
+        margin-bottom: 14px !important;
+        padding-bottom: 10px !important;
+        border-bottom: 2px solid #E2E8F0 !important;
+        line-height: 1.3 !important;
+        display: block !important;
+      }
+
+      .chair-label {
+        font-size: calc(1.05rem * var(--card-scale)) !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        color: #1D4ED8 !important;
+        margin-bottom: 6px !important;
+      }
+
+      p, li, div:not(.card-title):not(.chair-label):not(.chair-name):not(.member-name):not(.eq-line), span:not(.MathJax):not(.MathJax *):not(.mjx-chtml):not(.mjx-chtml *), small {
+        font-size: calc(1.32rem * var(--card-scale)) !important;
+        line-height: 1.55 !important;
+        color: #1E293B !important;
+      }
+
+      ul, ol {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        padding-left: 28px !important;
+      }
+
+      li {
+        margin-bottom: 10px !important;
+        strong {
+          color: #0F172A !important;
+          font-weight: 700 !important;
+        }
+      }
+
+      code {
+        font-family: $font-family-monospace !important;
+        font-size: calc(1.14rem * var(--card-scale)) !important;
+        background: #F1F5F9 !important;
+        color: #0F172A !important;
+        padding: 2px 7px !important;
+        border-radius: 5px !important;
+        border: 1px solid #CBD5E1 !important;
+      }
+
+      a, a > code {
+        color: #2563EB !important;
+      }
+
+      table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 8px 0 !important;
+        font-size: calc(1.16rem * var(--card-scale)) !important;
+
+        th {
+          background: #F1F5F9 !important;
+          color: #0F172A !important;
+          font-weight: 700 !important;
+          padding: 12px 16px !important;
+          border-bottom: 2px solid #CBD5E1 !important;
+          font-size: calc(1.16rem * var(--card-scale)) !important;
+          text-align: left !important;
+        }
+
+        td {
+          padding: 14px 18px !important;
+          border-bottom: 1px solid #E2E8F0 !important;
+          vertical-align: middle !important;
+          font-size: calc(1.15rem * var(--card-scale)) !important;
+          line-height: 1.75 !important;
+
+          .eq-line {
+            display: block !important;
+            font-size: calc(1.16rem * var(--card-scale)) !important;
+            line-height: 1.85 !important;
+            padding: 3px 0 !important;
+
+            & + .eq-line {
+              margin-top: 6px !important;
+              padding-top: 6px !important;
+              border-top: 1px dashed rgba(148, 163, 184, 0.35) !important;
+            }
+          }
+        }
+
+        .MathJax, .mjx-chtml, .MathJax_CHTML {
+          font-size: calc(1.22rem * var(--card-scale)) !important;
+          margin: 2px 4px !important;
+          letter-spacing: 0.025em !important;
+        }
+      }
+
+      .appendix-jump-btn, .appendix-return-btn {
+        font-size: calc(1.05rem * var(--card-scale)) !important;
+        padding: 6px 14px !important;
+        margin-top: 8px !important;
+      }
+    }
+  }
+
+  .lightbox-footer {
+    height: 38px;
+    background: rgba(15, 23, 42, 0.9);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 20px;
+    box-sizing: border-box;
+
+    .lightbox-hint {
+      color: #94A3B8;
+      font-size: 0.76rem;
+      letter-spacing: 0.02em;
+
+      strong {
+        color: #F1F5F9;
+      }
+
+      kbd {
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 3px;
+        padding: 1px 5px;
+        font-family: inherit;
+        font-size: 0.72rem;
         color: #FFFFFF;
       }
     }
@@ -1113,6 +1564,7 @@ $presentation-heading-letter-spacing: -0.02em;
   .print-hide,
   .web-only,
   #image-lightbox-overlay,
+  #card-lightbox-overlay,
   .reveal .controls,
   .reveal .progress,
   .reveal .slide-menu-button,
@@ -1176,7 +1628,7 @@ $presentation-heading-letter-spacing: -0.02em;
     border-right: 1px solid #CBD5E1 !important;
     border-bottom: 1px solid #CBD5E1 !important;
 
-    &:not(.card-primary):not(.card-warning):not(.card-danger):not(.card-success):not(.card-slate) {
+    &:not(.card-primary):not(.card-warning):not(.card-danger):not(.card-success):not(.card-slate):not(.card-teal):not(.card-indigo) {
       border-left: 1px solid #CBD5E1 !important;
     }
   }
@@ -1212,7 +1664,7 @@ html.print-pdf {
   @include print-pdf-styles;
 }
 
-// Tight vertical budget for Slide 5 (#slide-1a: Dual Crises + Methodological Demarcation + 3 Aims)
+//Tight vertical budget for Slide 11 (#slide-1a: Dual Crises + Methodological Demarcation + 3 Aims)
 .reveal #slide-1a {
   h2 {
     margin-bottom: 0.35em !important;
@@ -1226,484 +1678,973 @@ html.print-pdf {
     line-height: 1.26 !important;
     margin-bottom: 2px !important;
   }
-}
 
+  // Right panel cohort cards: expanded spacing and padding
+  .column:last-child {
+    .card-box {
+      padding: 12px 16px !important;
+      margin-bottom: 14px !important;
 
-// -----------------------------------------------------------------------------
-// STRATEGIC DELIVERY & STEPWISE ROW CALLOUTS (TAMING COGNITIVE DENSITY)
-// -----------------------------------------------------------------------------
-.reveal .slide-badge.badge-pacing {
-  background: #F1F5F9;
-  color: #334155;
-  border-color: #CBD5E1;
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.03em;
-}
-
-.reveal .table-compact {
-  tbody tr {
-    transition: opacity 0.18s ease, background-color 0.18s ease;
-    cursor: pointer;
-  }
-
-  tr.row-focal td {
-    background: #EFF6FF !important;
-    border-top: 1.5px solid #93C5FD !important;
-    border-bottom: 1.5px solid #93C5FD !important;
-    color: #0F172A !important;
-  }
-  tr.row-focal td:first-child {
-    border-left: 4px solid #2563EB !important;
-  }
-
-  tr.row-focal-danger td {
-    background: #FEF2F2 !important;
-    border-top: 1.5px solid #FCA5A5 !important;
-    border-bottom: 1.5px solid #FCA5A5 !important;
-    color: #0F172A !important;
-  }
-  tr.row-focal-danger td:first-child {
-    border-left: 4px solid #DC2626 !important;
-  }
-
-  tr.row-focal-success td {
-    background: #F0FDF4 !important;
-    border-top: 1.5px solid #86EFAC !important;
-    border-bottom: 1.5px solid #86EFAC !important;
-    color: #0F172A !important;
-  }
-  tr.row-focal-success td:first-child {
-    border-left: 4px solid #16A34A !important;
-  }
-
-  // Interactive Stepwise Row Spotlight Mode (Click row during defense to dim non-active rows)
-  &.has-row-spotlight tbody tr:not(.row-spotlight-active) {
-    opacity: 0.34;
-  }
-  &.has-row-spotlight tbody tr.row-spotlight-active td {
-    background: #FEF9C3 !important;
-    border-top: 1.5px solid #F59E0B !important;
-    border-bottom: 1.5px solid #F59E0B !important;
-    color: #0F172A !important;
-  }
-  &.has-row-spotlight tbody tr.row-spotlight-active td:first-child {
-    border-left: 5px solid #D97706 !important;
-  }
-}
-
-
-// -----------------------------------------------------------------------------
-// VISUAL INFOGRAPHIC SYSTEM & STEPWISE CLICK-TO-SPOTLIGHT CHOREOGRAPHY
-// Color Hierarchy: Navy/Slate (#1B365D/#334155) | Teal/Green (#0D9488/#007A53) | Coral/Amber (#DC2626/#D97706)
-// -----------------------------------------------------------------------------
-.reveal .ig-strip {
-  display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 4px 0 6px 0;
-  width: 100%;
-  box-sizing: border-box;
-
-  .ig-step {
-    flex: 1;
-    border-radius: 8px;
-    padding: 6px 10px;
-    box-sizing: border-box;
-    position: relative;
-    cursor: pointer;
-    transition: opacity 0.22s ease, transform 0.18s ease, box-shadow 0.18s ease;
-    border: 1.5px solid #CBD5E1;
-    background: #F8FAFC;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 3px 8px rgba(15, 23, 42, 0.10);
-    }
-
-    .ig-kicker {
-      font-size: 0.60rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 2px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .ig-title {
-      font-size: 0.76rem;
-      font-weight: 800;
-      color: #0F172A;
-      line-height: 1.18;
-      margin-bottom: 2px;
-    }
-
-    .ig-body {
-      font-size: 0.66rem;
-      color: #334155;
-      line-height: 1.24;
-    }
-
-    .ig-metric {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.78rem;
-      font-weight: 800;
-      padding: 1px 6px;
-      border-radius: 4px;
-      display: inline-block;
-      margin-top: 2px;
-    }
-  }
-
-  // Palette 1: Navy / Slate (Data Pipelines, Cloud Infrastructure, Statistical AI)
-  .ig-navy {
-    background: linear-gradient(135deg, #F0F5FA 0%, #E2E8F0 100%);
-    border-color: #94A3B8;
-    border-left: 4px solid #1B365D;
-    .ig-kicker { color: #1B365D; }
-    .ig-metric { background: #1B365D; color: #FFFFFF; }
-  }
-
-  // Palette 2: Teal / Green (Validated Holdouts, Symbolic Logic, Protective Effects)
-  .ig-teal {
-    background: linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%);
-    border-color: #5EEAD4;
-    border-left: 4px solid #0D9488;
-    .ig-kicker { color: #0F766E; }
-    .ig-metric { background: #0D9488; color: #FFFFFF; }
-  }
-
-  // Palette 3: Coral / Red (Target Leakage, Spark OOMs, SHAP Collapse, Acute Risk)
-  .ig-coral {
-    background: linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%);
-    border-color: #FCA5A5;
-    border-left: 4px solid #DC2626;
-    .ig-kicker { color: #B91C1C; }
-    .ig-metric { background: #DC2626; color: #FFFFFF; }
-  }
-
-  // Palette 4: Amber / Gold (Clinical Escalation, Archway Synthesis, Caution Gates)
-  .ig-amber {
-    background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
-    border-color: #FCD34D;
-    border-left: 4px solid #D97706;
-    .ig-kicker { color: #B45309; }
-    .ig-metric { background: #D97706; color: #FFFFFF; }
-  }
-
-  .ig-arrow {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.05rem;
-    font-weight: 900;
-    color: #64748B;
-    flex: 0 0 18px;
-    user-select: none;
-  }
-
-  // Interactive Stepwise Spotlight Dimming (Click any .ig-step during live talk)
-  &.has-ig-spotlight {
-    .ig-step:not(.ig-spotlight-active) {
-      opacity: 0.28;
-      filter: grayscale(35%);
-    }
-    .ig-step.ig-spotlight-active {
-      opacity: 1 !important;
-      transform: translateY(-2px) scale(1.01);
-      box-shadow: 0 0 0 2.5px #F59E0B, 0 6px 14px rgba(15, 23, 42, 0.16) !important;
-      z-index: 5;
-    }
-  }
-}
-
-// SVG Infographic Containers with Interactive Group Spotlighting
-.reveal .ig-svg-frame {
-  background: #FFFFFF;
-  border: 1.5px solid #CBD5E1;
-  border-radius: 8px;
-  padding: 4px 8px;
-  margin: 3px 0 5px 0;
-  box-sizing: border-box;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
-
-  svg {
-    width: 100%;
-    height: auto;
-    display: block;
-
-    .ig-step {
-      cursor: pointer;
-      transition: opacity 0.22s ease;
-    }
-  }
-
-  &.has-ig-spotlight svg .ig-step:not(.ig-spotlight-active) {
-    opacity: 0.26;
-  }
-}
-
-// -----------------------------------------------------------------------------
-// SLIDE 3 (#sec-roadmap) INTERACTIVE OODA STAGE FILTER & EXPANDED CHAPTER VIEW
-// Clicking any OODA tab filters #roadmap-ooda-table to that stage's chapter(s)
-// with larger typography and expanded chapter highlights.
-// -----------------------------------------------------------------------------
-.reveal #roadmap-ooda-table {
-  .ooda-expanded-detail {
-    display: none;
-    margin-top: 4px;
-    padding-top: 4px;
-    border-top: 1px dashed #94A3B8;
-    font-size: 0.72rem;
-    line-height: 1.28;
-    color: #0F172A;
-
-    .ooda-detail-badges {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-      margin-top: 4px;
-    }
-
-    .ooda-highlight-pill {
-      display: inline-block;
-      padding: 1px 7px;
-      border-radius: 4px;
-      font-size: 0.68rem;
-      font-weight: 700;
-      background: #0F172A;
-      color: #FFFFFF;
-    }
-
-    .ooda-anchor-pill {
-      display: inline-block;
-      padding: 1px 7px;
-      border-radius: 4px;
-      font-size: 0.68rem;
-      font-weight: 700;
-      background: #FEF3C7;
-      color: #92400E;
-      border: 1px solid #F59E0B;
-    }
-  }
-
-  &.ooda-filtered {
-    font-size: 0.72rem !important;
-    line-height: 1.22 !important;
-    margin-top: 2px !important;
-
-    th {
-      padding: 4px 8px !important;
-      font-size: 0.72rem !important;
-    }
-
-    tbody tr:not(.ooda-row-match) {
-      display: none !important;
-    }
-
-    tbody tr.ooda-row-match td {
-      padding: 4px 8px !important;
-      vertical-align: top;
-      font-size: 0.72rem !important;
-      line-height: 1.20 !important;
-
-      code {
-        font-size: 0.68rem !important;
-        padding: 1px 4px !important;
+      &:last-child {
+        margin-bottom: 0 !important;
       }
-    }
 
-    tbody tr.ooda-row-match .ooda-expanded-detail {
-      display: block !important;
-      font-size: 0.68rem !important;
-      line-height: 1.18 !important;
-      margin-top: 2px !important;
-      padding-top: 2px !important;
-
-      .ooda-detail-badges {
-        margin-top: 2px !important;
-        gap: 4px !important;
+      .card-title {
+        font-size: 0.94rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 8px !important;
       }
-    }
 
-    // Extra-large typography when filtering to single-chapter stages (Observe = Ch. 1, Orient = Ch. 2)
-    tbody tr.ooda-row-match[data-ooda-stage="observe"] td,
-    tbody tr.ooda-row-match[data-ooda-stage="orient"] td {
-      padding: 10px 12px !important;
-      font-size: 0.84rem !important;
-      line-height: 1.38 !important;
+      ul {
+        padding-left: 20px !important;
+      }
 
-      code {
+      li {
         font-size: 0.78rem !important;
-      }
+        line-height: 1.40 !important;
+        margin-bottom: 7px !important;
 
-      .ooda-expanded-detail {
-        font-size: 0.78rem !important;
-        line-height: 1.35 !important;
-        margin-top: 6px !important;
-        padding-top: 6px !important;
-      }
-    }
-  }
+        &:last-child {
+          margin-bottom: 0 !important;
+        }
 
-  &.ooda-filtered ~ .takeaway-banner {
-    display: none !important;
-  }
-}
-
-.reveal #ooda-filter-status {
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  background: #FEF9C3;
-  border: 1.5px solid #F59E0B;
-  color: #78350F;
-  border-radius: 6px;
-  padding: 3px 10px;
-  margin: 2px 0 4px 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-
-  &.active {
-    display: flex;
-  }
-
-  .ooda-reset-btn {
-    background: #0F172A;
-    color: #FFFFFF;
-    border: none;
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-}
-
-// -----------------------------------------------------------------------------
-// CH. 3 (#ch3-holdout) & CH. 4 (#ch4-holdout-stress) COHORT GAUGE FILTER
-// Clicking any Cohort Gauge filters the Holdout table to that cohort and
-// reveals that cohort's top Consensus-Risk Feature Importances.
-// -----------------------------------------------------------------------------
-.reveal .cohort-interactive-card {
-  .card-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .cohort-click-hint {
-    font-size: 0.58rem;
-    font-weight: 700;
-    background: #FEF3C7;
-    color: #92400E;
-    border: 1px solid #F59E0B;
-    border-radius: 4px;
-    padding: 1px 6px;
-    letter-spacing: 0.01em;
-  }
-
-  .cohort-filter-banner {
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    background: #FEF9C3;
-    border: 1.5px solid #F59E0B;
-    color: #78350F;
-    border-radius: 5px;
-    padding: 2px 8px;
-    margin: 0 0 3px 0;
-    font-size: 0.64rem;
-    font-weight: 700;
-
-    .cohort-reset-btn {
-      background: #0F172A;
-      color: #FFFFFF;
-      border: none;
-      border-radius: 4px;
-      padding: 1px 7px;
-      font-size: 0.60rem;
-      font-weight: 700;
-      cursor: pointer;
-    }
-  }
-
-  .cohort-fi-wrapper {
-    display: none;
-    margin-top: 4px;
-    border-top: 1.5px solid #0D9488;
-    padding-top: 3px;
-
-    .cohort-fi-subtitle {
-      font-size: 0.63rem;
-      font-weight: 800;
-      color: #0F766E;
-      margin-bottom: 2px;
-      letter-spacing: 0.01em;
-    }
-
-    .cohort-fi-table {
-      font-size: 0.60rem !important;
-      line-height: 1.15 !important;
-      margin: 0 !important;
-
-      th {
-        padding: 2px 5px !important;
-        font-size: 0.60rem !important;
-        background: #0F766E !important;
-        color: #FFFFFF !important;
-      }
-
-      td {
-        padding: 2px 5px !important;
-        font-size: 0.60rem !important;
-        line-height: 1.15 !important;
-
-        code {
-          font-size: 0.57rem !important;
-          padding: 0 3px !important;
+        strong {
+          color: #0F172A !important;
         }
       }
 
-      tbody tr:not(.cohort-row-match) {
-        display: none !important;
+      ul ul {
+        margin-top: 3px !important;
+        padding-left: 16px !important;
+
+        li {
+          font-size: 0.74rem !important;
+          line-height: 1.32 !important;
+          margin-bottom: 2px !important;
+        }
       }
-    }
-  }
-
-  &.cohort-filtered {
-    .cohort-click-hint,
-    .cohort-default-note {
-      display: none !important;
-    }
-
-    .cohort-filter-banner {
-      display: flex !important;
-    }
-
-    .cohort-holdout-table {
-      font-size: 0.63rem !important;
-      margin-bottom: 2px !important;
-
-      th, td {
-        padding: 2px 5px !important;
-      }
-
-      tbody tr:not(.cohort-row-match) {
-        display: none !important;
-      }
-    }
-
-    .cohort-fi-wrapper {
-      display: block !important;
     }
   }
 }
+
+// -----------------------------------------------------------------------------
+// INFOGRAPHIC <-> BULLET POINTS SWAP CONTAINER (Slides 4-7)
+// -----------------------------------------------------------------------------
+.reveal .slides .infographic-swap-container {
+  position: relative;
+  width: 100%;
+  margin-top: 4px;
+  cursor: pointer;
+  user-select: none;
+
+  .swap-view-infographic {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 14px;
+    padding: 14px 24px 10px 24px;
+    min-height: 568px;
+    height: 568px;
+    box-sizing: border-box;
+    box-shadow: 0 6px 22px rgba(15, 23, 42, 0.07);
+    position: relative;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+      border-color: #94A3B8;
+    }
+
+    img {
+      display: block;
+      margin: auto !important;
+      width: 97% !important;
+      max-width: 1140px !important;
+      max-height: 505px !important;
+      height: auto !important;
+      object-fit: contain;
+      cursor: pointer !important;
+    }
+
+    .swap-caption {
+      font-size: 0.76rem;
+      color: #64748B;
+      margin-top: 6px;
+      text-align: center;
+      line-height: 1.3;
+      flex-shrink: 0;
+    }
+  }
+
+  .swap-zoom-btn {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    background: rgba(15, 23, 42, 0.9);
+    color: #FFFFFF;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 16px;
+    letter-spacing: 0.01em;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 10;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease;
+
+    &:hover {
+      background: #16A34A;
+      transform: translateY(-1px);
+    }
+  }
+
+  .swap-pill-hint {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: rgba(15, 23, 42, 0.9);
+    color: #FFFFFF;
+    font-size: 0.74rem;
+    font-weight: 600;
+    padding: 5px 14px;
+    border-radius: 16px;
+    letter-spacing: 0.01em;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    z-index: 10;
+    transition: background 0.15s ease;
+  }
+
+  &:hover .swap-pill-hint {
+    background: #2563EB;
+  }
+
+  .swap-view-bullets {
+    display: none;
+    background: #F8FAFC;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 14px;
+    padding: 18px 24px 16px 24px;
+    min-height: 568px;
+    box-sizing: border-box;
+    box-shadow: 0 6px 22px rgba(15, 23, 42, 0.07);
+    position: relative;
+
+    .swap-bullets-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #E2E8F0;
+
+      .swap-bullets-tag {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #475569;
+      }
+
+      .swap-return-pill {
+        background: #1E293B;
+        color: #FFFFFF;
+        font-size: 0.74rem;
+        font-weight: 600;
+        padding: 5px 14px;
+        border-radius: 16px;
+        transition: background 0.15s ease;
+      }
+    }
+
+    &:hover .swap-return-pill {
+      background: #2563EB;
+    }
+
+    .columns {
+      align-items: stretch;
+      display: flex;
+      margin-bottom: 0 !important;
+    }
+
+    .column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-box {
+      flex: 1;
+      padding: 22px 26px !important;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      margin-bottom: 0 !important;
+      border-radius: 10px !important;
+      cursor: zoom-in !important;
+      position: relative;
+      transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+
+      &:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12) !important;
+        &::after {
+          content: "🔍 Focus Card";
+          position: absolute;
+          top: 8px;
+          right: 14px;
+          background: rgba(15, 23, 42, 0.85);
+          color: #FFFFFF;
+          font-size: 0.68rem;
+          font-weight: 700;
+          padding: 3px 9px;
+          border-radius: 12px;
+          letter-spacing: 0.02em;
+          pointer-events: none;
+        }
+      }
+
+      .card-title {
+        font-size: 1.22rem !important;
+        font-weight: 800 !important;
+        line-height: 1.32 !important;
+        margin-bottom: 16px !important;
+        color: #0F172A !important;
+      }
+
+      ul, ol {
+        margin: 0 !important;
+        padding-left: 24px !important;
+        display: flex;
+        flex-direction: column;
+      }
+
+      li {
+        font-size: 1.08rem !important;
+        line-height: 1.58 !important;
+        color: #1E293B !important;
+        margin-bottom: 20px !important;
+
+        &:last-child {
+          margin-bottom: 0 !important;
+        }
+
+        code {
+          font-size: 0.95em !important;
+          padding: 2px 5px !important;
+        }
+
+        strong {
+          color: #0F172A !important;
+          font-weight: 700 !important;
+        }
+      }
+
+      // Nested lists (e.g. sub-bullets in Slide 7 FAERS / APCD or Slide 6 PROBAST failure list)
+      ul ul, ul ol, ol ul, ol ol {
+        margin-top: 6px !important;
+        margin-bottom: 0 !important;
+        padding-left: 18px !important;
+        display: flex;
+        flex-direction: column;
+
+        li {
+          font-size: 0.96rem !important;
+          line-height: 1.44 !important;
+          margin-bottom: 6px !important;
+
+          &:last-child {
+            margin-bottom: 0 !important;
+          }
+        }
+      }
+    }
+
+    .takeaway-banner {
+      cursor: pointer !important;
+      &:hover {
+        transform: none !important;
+        &::after {
+          display: none !important;
+          content: none !important;
+        }
+      }
+    }
+  }
+
+  &.swapped {
+    .swap-view-infographic {
+      display: none;
+    }
+    .swap-view-bullets {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      gap: 10px;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 12: GOVERNANCE AND FRAMEWORKS (#slide-2)
+// -----------------------------------------------------------------------------
+#slide-2 {
+  .card-box {
+    padding: 10px 14px !important;
+    margin-bottom: 8px !important;
+
+    &:last-child {
+      margin-bottom: 0 !important;
+    }
+
+    .card-title {
+      font-size: 0.95rem !important;
+      font-weight: 700 !important;
+      margin-bottom: 5px !important;
+    }
+
+    ul {
+      padding-left: 18px !important;
+      margin: 0 !important;
+    }
+
+    li {
+      font-size: 0.82rem !important;
+      line-height: 1.40 !important;
+      margin-bottom: 6px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 13: WHY VIRGINIA APCD OVER EHR (#slide-3)
+// -----------------------------------------------------------------------------
+#slide-3 {
+  .columns {
+    display: flex !important;
+  }
+  .column {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .card-box {
+    height: 100% !important;
+    padding: 14px 18px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    .card-title {
+      font-size: 1.05rem !important;
+      font-weight: 700 !important;
+      margin-bottom: 12px !important;
+    }
+
+    ul {
+      padding-left: 20px !important;
+      margin: 0 !important;
+    }
+
+    li {
+      font-size: 0.86rem !important;
+      line-height: 1.48 !important;
+      margin-bottom: 14px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 14: MEDICAL & PHARMACY CLAIMS SCHEMA (#slide-4)
+// -----------------------------------------------------------------------------
+#slide-4 {
+  .card-box {
+    padding: 10px 14px !important;
+    margin-bottom: 8px !important;
+
+    &:last-child {
+      margin-bottom: 0 !important;
+    }
+
+    .card-title {
+      font-size: 0.95rem !important;
+      font-weight: 700 !important;
+      margin-bottom: 8px !important;
+    }
+
+    ul {
+      padding-left: 18px !important;
+      margin: 0 !important;
+    }
+
+    li {
+      font-size: 0.82rem !important;
+      line-height: 1.40 !important;
+      margin-bottom: 10px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+
+  .takeaway-banner {
+    margin-top: 8px !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 16: POLYPHARMACY ADE PIPELINE (#slide-4b)
+// -----------------------------------------------------------------------------
+#slide-4b {
+  .card-box {
+    padding: 8px 13px !important;
+    margin-bottom: 10px !important;
+
+    &:last-child {
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 17: GRADIENT-BOOSTED TREES & MODEL SELECTION (#slide-5)
+// -----------------------------------------------------------------------------
+#slide-5 {
+  .card-box {
+    padding: 12px 14px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    .card-title {
+      font-size: 0.98rem !important;
+      font-weight: 700 !important;
+      margin-bottom: 8px !important;
+    }
+
+    ul {
+      padding-left: 18px !important;
+      margin: 0 !important;
+    }
+
+    li {
+      font-size: 0.84rem !important;
+      line-height: 1.45 !important;
+      margin-bottom: 12px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+
+  .takeaway-banner {
+    margin-top: 10px !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 18: CONSENSUS RISK ATTRIBUTION (#slide-6a)
+// -----------------------------------------------------------------------------
+#slide-6a {
+  .columns {
+    display: flex !important;
+  }
+  .column {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .card-box {
+    height: 100% !important;
+    padding: 14px 18px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    .card-title {
+      font-size: 1.05rem !important;
+      font-weight: 700 !important;
+      margin-bottom: 12px !important;
+    }
+
+    ul {
+      padding-left: 20px !important;
+      margin: 0 !important;
+    }
+
+    li {
+      font-size: 0.86rem !important;
+      line-height: 1.48 !important;
+      margin-bottom: 14px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 19: TARGET LEAKAGE (#slide-7)
+// -----------------------------------------------------------------------------
+#slide-7 {
+  .columns {
+    display: flex !important;
+  }
+  .column {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .card-box {
+    height: 100% !important;
+    padding: 14px 18px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    .card-title {
+      font-size: 1.05rem !important;
+      font-weight: 700 !important;
+      margin-bottom: 10px !important;
+    }
+
+    ul {
+      padding-left: 20px !important;
+      margin: 0 !important;
+    }
+
+    li {
+      font-size: 0.84rem !important;
+      line-height: 1.45 !important;
+      margin-bottom: 12px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+
+  // Distribute the 2 bullets in Card 1 to nicely balance Card 2
+  .column:first-child .card-box li:not(:last-child) {
+    margin-bottom: 18px !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 20: ACTIONABLE INTELLIGENCE & WORKFLOW INTEGRATION (#slide-8)
+// -----------------------------------------------------------------------------
+#slide-8 {
+  .columns {
+    display: flex !important;
+  }
+  .column {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .card-box {
+    height: 100% !important;
+    padding: 10px 14px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    .card-title {
+      font-size: 0.98rem !important;
+      font-weight: 700 !important;
+      margin-bottom: 8px !important;
+    }
+
+    ul {
+      padding-left: 18px !important;
+      margin: 0 !important;
+    }
+
+    li {
+      font-size: 0.82rem !important;
+      line-height: 1.42 !important;
+      margin-bottom: 8px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 21: DISSERTATION PORTFOLIO & STATUS (#slide-9)
+// -----------------------------------------------------------------------------
+#slide-9 {
+  .card-box {
+    padding: 16px 20px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    .card-title {
+      font-size: 1.08rem !important;
+      font-weight: 800 !important;
+      margin-bottom: 14px !important;
+    }
+
+    ul {
+      padding-left: 20px !important;
+      margin: 0 !important;
+      display: flex;
+      flex-direction: column;
+    }
+
+    li {
+      font-size: 0.86rem !important;
+      line-height: 1.48 !important;
+      margin-bottom: 22px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+
+      strong {
+        color: #0F172A !important;
+      }
+    }
+  }
+
+  .takeaway-banner {
+    margin-top: 10px !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SLIDE 22: METHODOLOGICAL FENCES & STUDY BOUNDARIES (#slide-10)
+// -----------------------------------------------------------------------------
+#slide-10 {
+  .card-box {
+    padding: 12px 20px !important;
+    margin-bottom: 12px !important;
+    border-radius: 8px !important;
+
+    .card-title {
+      font-size: 1.22rem !important;
+      font-weight: 800 !important;
+      margin-bottom: 5px !important;
+      line-height: 1.3 !important;
+    }
+
+    ul {
+      margin: 0 !important;
+      padding-left: 24px !important;
+    }
+
+    li {
+      font-size: 1.05rem !important;
+      line-height: 1.45 !important;
+      color: #1E293B !important;
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
+// CENTERED Q & A SLIDE (#slide-qa)
+// -----------------------------------------------------------------------------
+#slide-qa {
+  &.present {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    height: 100% !important;
+  }
+
+  &:not(.present) {
+    display: none !important;
+  }
+
+  h2 {
+    display: none !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .qa-center-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin: auto 0;
+    width: 100%;
+  }
+
+  .qa-title {
+    font-size: 4.5rem !important;
+    font-weight: 900 !important;
+    color: #0F172A !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1.15 !important;
+    margin-bottom: 24px !important;
+  }
+
+  .qa-subtitle {
+    font-size: 2.2rem !important;
+    font-weight: 700 !important;
+    color: #2563EB !important;
+    letter-spacing: 0.05em !important;
+    text-transform: uppercase !important;
+    margin-bottom: 20px !important;
+  }
+
+  .qa-divider {
+    width: 120px !important;
+    height: 5px !important;
+    background: linear-gradient(90deg, #2563EB, #10B981) !important;
+    border-radius: 3px !important;
+    margin: 0 auto 28px auto !important;
+  }
+
+  .qa-committee {
+    font-size: 1.35rem !important;
+    font-weight: 500 !important;
+    color: #475569 !important;
+    max-width: 850px !important;
+    line-height: 1.5 !important;
+    margin: 0 auto 32px auto !important;
+  }
+}
+
+body.print-pdf .reveal .slides {
+  #title-slide, #slide-qa {
+    display: flex !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 7-MODULE ROADMAP GRID & EMPIRICAL RESULTS FOCAL TABLE ROWS
+// -----------------------------------------------------------------------------
+.reveal .slides #sec-roadmap .roadmap-grid-7 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: minmax(132px, 1fr) 22px 50px minmax(160px, 1.35fr);
+  min-block-size: 440px;
+  gap: 0 10px;
+  margin-block-start: 8px;
+  align-items: stretch;
+
+  .card-box {
+    grid-row: span 4;
+    margin-block-end: 0 !important;
+    padding-block: 16px;
+    padding-inline: 6px;
+    display: grid;
+    grid-template-rows: minmax(132px, 1fr) 22px 50px minmax(160px, 1.35fr);
+    grid-template-rows: subgrid;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .roadmap-num {
+    font-size: 2.15rem;
+    font-weight: 800;
+    line-height: 1;
+    align-self: end;
+    padding-block-end: 2px;
+  }
+
+  .roadmap-rule {
+    inline-size: 34px;
+    block-size: 3px;
+    border-radius: 2px;
+    align-self: center;
+  }
+
+  .roadmap-title {
+    font-size: 1.12rem;
+    font-weight: 800;
+    color: #0F172A;
+    line-height: 1.22;
+    padding-block-start: 3px;
+    align-self: start;
+  }
+
+  ul.roadmap-sublist {
+    list-style: none !important;
+    margin: 6px auto 0 auto !important;
+    padding: 0 !important;
+    inline-size: fit-content;
+    max-inline-size: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-self: start;
+    text-align: start;
+
+    li {
+      margin: 0 !important;
+      padding: 0 !important;
+      font-size: 0.71rem;
+      font-weight: 600;
+      line-height: 1.32;
+      color: #64748B;
+      display: flex;
+      align-items: baseline;
+      gap: 5px;
+      white-space: nowrap;
+
+      &::before {
+        content: "•";
+        font-weight: 800;
+        color: #94A3B8;
+        flex: 0 0 auto;
+      }
+    }
+
+    &.roadmap-sublist-focal-teal li {
+      font-size: 0.69rem;
+      font-weight: 700;
+      color: #0F766E;
+
+      &::before {
+        color: #0D9488;
+      }
+    }
+
+    &.roadmap-sublist-focal-indigo li {
+      font-size: 0.66rem;
+      font-weight: 700;
+      color: #4338CA;
+
+      &::before {
+        color: #4F46E5;
+      }
+    }
+  }
+}
+
+.reveal .table-compact {
+  tr.row-focal td {
+    background: #EFF6FF !important;
+    color: #0F172A !important;
+    font-weight: 600;
+  }
+  tr.row-focal-success td {
+    background: #F0FDF4 !important;
+    color: #0F172A !important;
+    font-weight: 600;
+  }
+  tr.row-focal-danger td {
+    background: #FEF2F2 !important;
+    color: #0F172A !important;
+    font-weight: 600;
+  }
+}
+
+.reveal .slides #slide-res-summary {
+  table.executive-summary-table {
+    font-size: 0.83rem !important;
+    line-height: 1.4 !important;
+    margin-block: 10px 0 !important;
+    inline-size: 100%;
+
+    th {
+      font-size: 0.88rem !important;
+      font-weight: 700 !important;
+      line-height: 1.32 !important;
+      padding-block: 11px !important;
+      padding-inline: 13px !important;
+    }
+
+    td {
+      padding-block: 13px !important;
+      padding-inline: 13px !important;
+      text-wrap: pretty;
+      overflow-wrap: break-word;
+    }
+  }
+
+  .executive-summary-banner {
+    margin-block-start: 14px !important;
+    padding-block: 13px !important;
+    padding-inline: 18px !important;
+    font-size: 0.90rem !important;
+    line-height: 1.4 !important;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Q&A ACTION ROW & THANK YOU / ACKNOWLEDGEMENTS 2x2 GRID
+// -----------------------------------------------------------------------------
+.reveal .qa-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  flex-wrap: balance;
+  justify-content: center;
+  align-items: safe center;
+  gap: 12px;
+}
+
+.reveal .slides #slide-acknowledgements {
+  .ack-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 4px;
+    align-items: stretch;
+
+    .card-box {
+      min-inline-size: 0;
+      margin-bottom: 0 !important;
+      padding: 10px 14px !important;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+
+      .card-title {
+        font-size: 0.94rem !important;
+        margin-bottom: 5px !important;
+      }
+
+      li {
+        font-size: 0.79rem !important;
+        line-height: 1.38 !important;
+        margin-bottom: 5px !important;
+      }
+
+      li:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+
+  .ack-banner {
+    margin-top: 10px;
+    padding: 7px 14px;
+    font-size: 0.76rem;
+    justify-content: space-between;
+    gap: 12px;
+
+    .ack-nav-links {
+      display: flex;
+      flex-wrap: wrap;
+      flex-wrap: balance;
+      align-items: safe center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+  }
+}
+
+

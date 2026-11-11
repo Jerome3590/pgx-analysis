@@ -33,13 +33,77 @@
   <!-- Bottom Interaction Hint -->
   <div class="lightbox-footer">
     <span class="lightbox-hint">
-      <strong>Navigation:</strong> Click image or <strong>Fill Width</strong> to expand • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan • <kbd>Esc</kbd> to exit
+      <strong>Navigation:</strong> <strong>Single-click anywhere on image</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan
+    </span>
+  </div>
+</div>
+
+<div id="card-lightbox-overlay" class="card-lightbox-overlay" aria-hidden="true">
+  <div class="lightbox-header">
+    <div class="lightbox-meta">
+      <span class="lightbox-tag">Card Focus View</span>
+      <span id="card-lightbox-caption" class="lightbox-caption"></span>
+    </div>
+    <div class="lightbox-controls">
+      <div class="lightbox-btn-group">
+        <button id="card-zoom-out" class="lightbox-btn" title="Decrease Font Size (−)" aria-label="Decrease Font Size">A−</button>
+        <span id="card-zoom-display" class="lightbox-zoom-display">100%</span>
+        <button id="card-zoom-in" class="lightbox-btn" title="Increase Font Size (+)" aria-label="Increase Font Size">A+</button>
+      </div>
+      <button id="card-reset-btn" class="lightbox-btn" title="Reset Font Size (0)">↺ Reset</button>
+      <button id="card-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+    </div>
+  </div>
+  <div id="card-lightbox-viewport" class="card-lightbox-viewport">
+    <div id="card-lightbox-modal" class="card-lightbox-modal"></div>
+  </div>
+  <div class="lightbox-footer">
+    <span class="lightbox-hint">
+      <strong>Card Focus View:</strong> <strong>Single-click anywhere on card</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Use <strong>A+/A−</strong> or <strong>+/−</strong> keys to scale font
     </span>
   </div>
 </div>
 
 <script>
 (function() {
+  let openImageLightboxFn = null;
+
+  function sanitizeMathText(container) {
+    if (!container) return '';
+    const clone = container.cloneNode(true);
+
+    const scripts = Array.from(clone.querySelectorAll('script[type*="math"]'));
+    scripts.forEach(script => {
+      let tex = script.textContent || '';
+      tex = tex
+        .replace(/\\text\{([^}]+)\}/g, '$1')
+        .replace(/_\{([^}]+)\}/g, '_$1')
+        .replace(/\\cap/g, '∩')
+        .replace(/\\ge/g, '≥')
+        .replace(/\\le/g, '≤')
+        .replace(/\\to/g, '→')
+        .replace(/\\sum/g, 'Σ')
+        .replace(/\\mathbb\{I\}/g, '𝕀')
+        .replace(/\\in/g, '∈')
+        .replace(/\\tau/g, 'τ')
+        .replace(/\\Delta/g, 'Δ')
+        .replace(/\\times/g, '×')
+        .replace(/[\$\{\}\\]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      const parentMath = script.closest('span.math, .math');
+      if (parentMath) {
+        parentMath.replaceWith(document.createTextNode(' ' + tex + ' '));
+      } else {
+        script.replaceWith(document.createTextNode(' ' + tex + ' '));
+      }
+    });
+
+    clone.querySelectorAll('.MJX_Assistive_MathML, .MathJax_Preview, .MathJax, annotation, .print-hide, script').forEach(el => el.remove());
+    return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
   function initLightbox() {
     const overlay = document.getElementById('image-lightbox-overlay');
     const viewport = document.getElementById('lightbox-viewport');
@@ -136,6 +200,8 @@
       overlay.classList.add('active');
       overlay.setAttribute('aria-hidden', 'false');
 
+      // Standardize pop-out logic across all diagrams:
+      // Default to Fill Width mode (up to 94vw / 1500px) so every diagram pops out bold, scaled, and instantly legible!
       function applyDefaultMode() {
         setMode('fill-width');
       }
@@ -146,11 +212,16 @@
         expandedImg.onload = applyDefaultMode;
       }
 
+
       // Temporarily disable Reveal keyboard navigation while lightbox is active
       if (window.Reveal) {
         window.Reveal.configure({ keyboard: false });
       }
     }
+
+    openImageLightboxFn = openLightbox;
+    window.openImageLightbox = openLightbox;
+    window.closeImageLightbox = closeLightbox;
 
     function closeLightbox() {
       overlay.classList.remove('active');
@@ -165,10 +236,17 @@
       }
     }
 
+    function getCleanCaption(frame, img) {
+      const cap = frame ? frame.querySelector('.caption') : null;
+      if (!cap) return img.getAttribute('alt') || '';
+      return sanitizeMathText(cap) || img.getAttribute('alt') || '';
+    }
+
     function bindImages() {
       const zoomableImages = document.querySelectorAll('.figure-frame img, img.zoomable, .reveal .slides img');
       zoomableImages.forEach(img => {
         if (img.classList.contains('no-zoom')) return;
+        if (img.closest('.infographic-swap-container')) return;
 
         img.style.cursor = 'zoom-in';
 
@@ -177,13 +255,30 @@
           e.stopPropagation();
 
           const frame = img.closest('.figure-frame') || img.parentElement;
-          const caption = frame ? frame.querySelector('.caption')?.innerText : (img.getAttribute('alt') || '');
+          const caption = getCleanCaption(frame, img);
           const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
 
           if (src) {
             openLightbox(src, caption);
           }
         };
+      });
+
+      document.querySelectorAll('.figure-frame').forEach(frame => {
+        if (frame.dataset.frameBound === 'true') return;
+        frame.dataset.frameBound = 'true';
+        frame.addEventListener('click', function(e) {
+          if (e.target.closest('a, button')) return;
+          const img = frame.querySelector('img:not(.no-zoom)');
+          if (!img) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const caption = getCleanCaption(frame, img);
+          const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
+          if (src) {
+            openLightbox(src, caption);
+          }
+        });
       });
     }
 
@@ -218,15 +313,17 @@
       zoomBy(-0.25);
     });
 
+    // Single-click on expanded image closes lightbox (if not dragged)
     expandedImg.addEventListener('click', function(e) {
       e.stopPropagation();
       if (hasDragged) {
         hasDragged = false;
         return;
       }
-      toggleMode();
+      closeLightbox();
     });
 
+    // Mouse wheel zoom over viewport
     viewport.addEventListener('wheel', function(e) {
       if (e.ctrlKey || currentMode === 'custom-zoom') {
         e.preventDefault();
@@ -235,6 +332,7 @@
       }
     }, { passive: false });
 
+    // Drag to Pan functionality
     viewport.addEventListener('mousedown', function(e) {
       if (e.target === closeBtn || e.target.closest('.lightbox-header')) return;
       isDragging = true;
@@ -262,6 +360,7 @@
       }
     });
 
+    // Background click (outside image) closes lightbox
     viewport.addEventListener('click', function(e) {
       if (e.target === viewport || e.target === canvas) {
         if (!hasDragged) {
@@ -271,9 +370,10 @@
       }
     });
 
+    // Keyboard controls
     window.addEventListener('keydown', function(e) {
       if (overlay.classList.contains('active')) {
-        if (e.key === 'Escape' || e.keyCode === 27) {
+        if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
           e.preventDefault();
           e.stopPropagation();
           closeLightbox();
@@ -290,30 +390,6 @@
           e.preventDefault();
           toggleMode();
         }
-      } else if (e.key === 'Escape' || e.keyCode === 27) {
-        // Clear any active table row or infographic spotlights on Escape
-        document.querySelectorAll('.table-compact.has-row-spotlight').forEach(tbl => {
-          tbl.classList.remove('has-row-spotlight');
-          tbl.querySelectorAll('tbody tr').forEach(r => r.classList.remove('row-spotlight-active'));
-        });
-        document.querySelectorAll('.ig-strip.has-ig-spotlight, .ig-svg-frame.has-ig-spotlight').forEach(c => {
-          c.classList.remove('has-ig-spotlight');
-          c.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
-        });
-        const oodaTable = document.getElementById('roadmap-ooda-table');
-        if (oodaTable) {
-          oodaTable.classList.remove('ooda-filtered');
-          oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
-        }
-        const oodaStatus = document.getElementById('ooda-filter-status');
-        if (oodaStatus) oodaStatus.classList.remove('active');
-        ['ch3', 'ch4'].forEach(prefix => {
-          const card = document.getElementById(`${prefix}-cohort-card`);
-          if (card) {
-            card.classList.remove('cohort-filtered');
-            card.querySelectorAll('tbody tr').forEach(r => r.classList.remove('cohort-row-match'));
-          }
-        });
       }
     }, true);
 
@@ -323,110 +399,6 @@
       window.Reveal.on('ready', bindImages);
       window.Reveal.on('slidechanged', bindImages);
     }
-  }
-
-  function applyCohortFilter(prefix, gaugeId, gaugeLabel) {
-    const card = document.getElementById(`${prefix}-cohort-card`);
-    const holdoutTable = document.getElementById(`${prefix}-holdout-table`);
-    const fiTable = document.getElementById(`${prefix}-fi-table`);
-    const bannerText = document.getElementById(`${prefix}-cohort-banner-text`);
-    const fiSubtitle = document.getElementById(`${prefix}-fi-subtitle`);
-    const strip = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"]`);
-    if (!card || !holdoutTable || !fiTable) return;
-
-    holdoutTable.classList.remove('has-row-spotlight');
-    holdoutTable.querySelectorAll('tbody tr').forEach(r => {
-      r.classList.remove('row-spotlight-active');
-      if (r.getAttribute('data-cohort-gauge') === gaugeId) {
-        r.classList.add('cohort-row-match');
-      } else {
-        r.classList.remove('cohort-row-match');
-      }
-    });
-
-    fiTable.classList.remove('has-row-spotlight');
-    fiTable.querySelectorAll('tbody tr').forEach(r => {
-      r.classList.remove('row-spotlight-active');
-      if (r.getAttribute('data-cohort-gauge') === gaugeId) {
-        r.classList.add('cohort-row-match');
-      } else {
-        r.classList.remove('cohort-row-match');
-      }
-    });
-
-    if (strip) {
-      strip.classList.add('has-ig-spotlight');
-      strip.querySelectorAll('.ig-step').forEach(s => {
-        if (s.getAttribute('data-cohort-gauge') === gaugeId) {
-          s.classList.add('ig-spotlight-active');
-        } else {
-          s.classList.remove('ig-spotlight-active');
-        }
-      });
-    }
-
-    if (bannerText) {
-      bannerText.textContent = `Cohort Filter: ${gaugeLabel}`;
-    }
-    if (fiSubtitle) {
-      fiSubtitle.innerHTML = `Top Consensus-Risk Feature Importances — <code>${gaugeId}</code> (<code>SHAP &ge; P75 &cap; FFA 0.05, 0.70</code>)`;
-    }
-    card.classList.add('cohort-filtered');
-    card.setAttribute('data-active-cohort', gaugeId);
-  }
-
-  function resetCohortFilter(prefix) {
-    const card = document.getElementById(`${prefix}-cohort-card`);
-    const strip = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"]`);
-    if (card) {
-      card.classList.remove('cohort-filtered');
-      card.removeAttribute('data-active-cohort');
-      card.querySelectorAll('tbody tr').forEach(r => r.classList.remove('cohort-row-match'));
-    }
-    if (strip) {
-      strip.classList.remove('has-ig-spotlight');
-      strip.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
-    }
-  }
-
-  // Interactive Stepwise Table Row Spotlight (Taming Cognitive Density in Live Defense)
-  function initTableRowSpotlight() {
-    document.querySelectorAll('.reveal .table-compact').forEach(table => {
-      if (table.dataset.spotlightBound) return;
-      table.dataset.spotlightBound = 'true';
-
-      const rows = table.querySelectorAll('tbody tr');
-      rows.forEach(row => {
-        row.setAttribute('title', 'Click row to spotlight / filter cohort');
-        row.addEventListener('click', function(e) {
-          if (e.target.closest('a')) return;
-          e.stopPropagation();
-
-          const cohortGauge = row.getAttribute('data-cohort-gauge');
-          const parentCard = row.closest('.cohort-interactive-card');
-          if (cohortGauge && parentCard && table.classList.contains('cohort-holdout-table')) {
-            const prefix = parentCard.id.startsWith('ch3') ? 'ch3' : 'ch4';
-            if (parentCard.getAttribute('data-active-cohort') === cohortGauge) {
-              resetCohortFilter(prefix);
-            } else {
-              const stripStep = document.querySelector(`.cohort-gauge-strip[data-cohort-target="${prefix}"] .ig-step[data-cohort-gauge="${cohortGauge}"]`);
-              const label = stripStep ? (stripStep.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || cohortGauge) : cohortGauge;
-              applyCohortFilter(prefix, cohortGauge, label);
-            }
-            return;
-          }
-
-          const isAlreadyActive = row.classList.contains('row-spotlight-active');
-          rows.forEach(r => r.classList.remove('row-spotlight-active'));
-          if (isAlreadyActive) {
-            table.classList.remove('has-row-spotlight');
-          } else {
-            row.classList.add('row-spotlight-active');
-            table.classList.add('has-row-spotlight');
-          }
-        });
-      });
-    });
   }
 
   function initTitleSlideLogos() {
@@ -444,6 +416,13 @@
       <img src="${diagPrefix}/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
     `;
     titleSlide.appendChild(logoBar);
+
+    const pdfBar = document.createElement('div');
+    pdfBar.className = 'title-pdf-bar print-hide';
+    pdfBar.innerHTML = `
+      <a href="final_defense_slides.pdf" target="_blank" rel="noopener" class="title-pdf-pill" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 Presentation Slides (PDF) ↗</a>
+    `;
+    titleSlide.appendChild(pdfBar);
   }
 
   function initModuleNavBar() {
@@ -453,15 +432,16 @@
 
     footer.innerHTML = `
       <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Defense</span>
-      <nav class="footer-nav" aria-label="Presentation Chapter Navigation">
-        <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: Chapters 1–6 & 45–50 Min Pacing">Roadmap</a>
-        <a href="#/ch1-sqlr" class="nav-pill pill-p1" id="nav-pill-ch1" title="Chapter 1 (5–6 min): PRISMA 2020 SQLR, 5 Gaps & Empty Intersection (0/73)">Ch. 1 SQLR</a>
-        <a href="#/ch2-duckdb" class="nav-pill pill-p2" id="nav-pill-ch2" title="Chapter 2 (10–12 min): DuckDB + Spot EC2, Step 3b Leakage & 5-Set FFA">Ch. 2 Arch & QA</a>
-        <a href="#/ch3-holdout" class="nav-pill pill-p3" id="nav-pill-ch3" title="Chapter 3 (8–10 min): Opioid ED Holdout, Gate Ablation & DTW Window">Ch. 3 Opioid</a>
-        <a href="#/ch4-holdout-stress" class="nav-pill pill-p4" id="nav-pill-ch4" title="Chapter 4 (8–10 min): Polypharmacy Stress Test, Synergies, IR & Z-Code">Ch. 4 Polypharm</a>
-        <a href="#/ch5-dashboard" class="nav-pill pill-p5" id="nav-pill-ch5" title="Chapter 5 (4–5 min): Serverless PGx Dashboard & Sparsity Resilience">Ch. 5 Dashboard</a>
-        <a href="#/ch6-ooda-map" class="nav-pill pill-p2" id="nav-pill-ch6" title="Chapter 6 (4–5 min): Clinical OODA Synthesis, RWE Loop & 3 Propositions">Ch. 6 Synthesis</a>
-        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix (Q&A Backup): Empirical Tables, Sensitivity Proofs & Telemetry">Appendix</a>
+      <nav class="footer-nav" aria-label="Presentation Module Navigation">
+        <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: 7 Core Modules (Slide 3)">Roadmap</a>
+        <a href="#/slide-1" class="nav-pill pill-p1" id="nav-pill-p1" title="Module I: Problem">I. Problem</a>
+        <a href="#/slide-2" class="nav-pill pill-p2" id="nav-pill-p2" title="Module II: Governance & Data">II. Governance</a>
+        <a href="#/slide-4" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts">III. Cohorts</a>
+        <a href="#/slide-5" class="nav-pill pill-p4" id="nav-pill-p4" title="Module IV: Modeling">IV. Modeling</a>
+        <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Deployment">V. Translation</a>
+        <a href="#/slide-res-ch2" class="nav-pill pill-p6" id="nav-pill-p6" title="Module VI: Empirical Results (CH2–CH5)">VI. Results</a>
+        <a href="#/slide-next-steps" class="nav-pill pill-p7" id="nav-pill-p7" title="Module VII: Next Steps (Pending 9NOV Feedback)">VII. Next Steps</a>
+        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (A1–A8)">Appendix</a>
         <a href="final_defense_slides.pdf" target="_blank" rel="noopener" class="nav-pill pill-pdf print-hide" id="nav-pill-pdf" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 PDF ↗</a>
       </nav>
       <span class="footer-spacer"></span>
@@ -487,14 +467,23 @@
       });
     });
 
+    function getSlideH(id, fallback) {
+      const el = document.getElementById(id);
+      if (el && window.Reveal) {
+        const ind = window.Reveal.getIndices(el);
+        if (ind && typeof ind.h === 'number') return ind.h;
+      }
+      return fallback;
+    }
+
     function updateActiveNav() {
       if (!window.Reveal) return;
       const indices = window.Reveal.getIndices();
       const h = indices ? indices.h : 0;
       const currentSlide = window.Reveal.getCurrentSlide();
-      const slideId = (currentSlide && currentSlide.id) ? currentSlide.id : '';
 
-      if (h === 0 || slideId === 'title-slide') {
+      // Title Slide (Index 0) -> hide footer completely
+      if (h === 0 || (currentSlide && currentSlide.id === 'title-slide')) {
         footer.style.setProperty('display', 'none', 'important');
         return;
       } else {
@@ -503,21 +492,34 @@
 
       footer.querySelectorAll('.nav-pill').forEach(pill => pill.classList.remove('active'));
 
-      if (slideId === 'sec-roadmap') {
+      const hRoad = getSlideH('sec-roadmap', 2);
+      const hP1 = getSlideH('slide-1', 3);
+      const hP2 = getSlideH('slide-2', 11);
+      const hP3 = getSlideH('slide-4', 13);
+      const hP4 = getSlideH('slide-5', 16);
+      const hP5 = getSlideH('slide-8', 19);
+      const hP6 = getSlideH('slide-res-ch2', 23);
+      const hP7 = getSlideH('slide-next-steps', 32);
+      const hQA = getSlideH('slide-qa', 33);
+      const hApp = getSlideH('sec-appendix', 35);
+
+      if (h === hRoad) {
         footer.querySelector('#nav-pill-road')?.classList.add('active');
-      } else if (slideId.startsWith('ch1-')) {
-        footer.querySelector('#nav-pill-ch1')?.classList.add('active');
-      } else if (slideId.startsWith('ch2-')) {
-        footer.querySelector('#nav-pill-ch2')?.classList.add('active');
-      } else if (slideId.startsWith('ch3-')) {
-        footer.querySelector('#nav-pill-ch3')?.classList.add('active');
-      } else if (slideId.startsWith('ch4-')) {
-        footer.querySelector('#nav-pill-ch4')?.classList.add('active');
-      } else if (slideId.startsWith('ch5-')) {
-        footer.querySelector('#nav-pill-ch5')?.classList.add('active');
-      } else if (slideId.startsWith('ch6-')) {
-        footer.querySelector('#nav-pill-ch6')?.classList.add('active');
-      } else if (slideId.startsWith('sec-appendix')) {
+      } else if (h >= hP1 && h < hP2) {
+        footer.querySelector('#nav-pill-p1')?.classList.add('active');
+      } else if (h >= hP2 && h < hP3) {
+        footer.querySelector('#nav-pill-p2')?.classList.add('active');
+      } else if (h >= hP3 && h < hP4) {
+        footer.querySelector('#nav-pill-p3')?.classList.add('active');
+      } else if (h >= hP4 && h < hP5) {
+        footer.querySelector('#nav-pill-p4')?.classList.add('active');
+      } else if (h >= hP5 && h < hP6) {
+        footer.querySelector('#nav-pill-p5')?.classList.add('active');
+      } else if (h >= hP6 && h < hP7) {
+        footer.querySelector('#nav-pill-p6')?.classList.add('active');
+      } else if (h >= hP7 && h < hQA) {
+        footer.querySelector('#nav-pill-p7')?.classList.add('active');
+      } else if (h >= hApp) {
         footer.querySelector('#nav-pill-app')?.classList.add('active');
       }
     }
@@ -528,108 +530,350 @@
     }
   }
 
-  // Interactive Stepwise Infographic Spotlight + Slide 3 OODA & CH3/CH4 Cohort Filters
-  function initInfographicSpotlight() {
-    const oodaResetBtn = document.getElementById('ooda-filter-reset');
-    if (oodaResetBtn && !oodaResetBtn.dataset.bound) {
-      oodaResetBtn.dataset.bound = 'true';
-      oodaResetBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const oodaTable = document.getElementById('roadmap-ooda-table');
-        if (oodaTable) {
-          oodaTable.classList.remove('ooda-filtered');
-          oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
+  function initCardLightbox() {
+    const overlay = document.getElementById('card-lightbox-overlay');
+    const viewport = document.getElementById('card-lightbox-viewport');
+    const modal = document.getElementById('card-lightbox-modal');
+    const captionEl = document.getElementById('card-lightbox-caption');
+    const closeBtn = document.getElementById('card-close-btn');
+    const zoomInBtn = document.getElementById('card-zoom-in');
+    const zoomOutBtn = document.getElementById('card-zoom-out');
+    const zoomDisplay = document.getElementById('card-zoom-display');
+    const resetBtn = document.getElementById('card-reset-btn');
+
+    if (!overlay || !viewport || !modal) return;
+
+    let cardScale = 1.0;
+
+    function applyCardScale() {
+      modal.style.setProperty('--card-scale', String(cardScale));
+      if (zoomDisplay) {
+        zoomDisplay.textContent = `${Math.round(cardScale * 100)}%`;
+      }
+    }
+
+    function openCardLightbox(cardEl) {
+      const slide = cardEl.closest('section');
+      const slideTitle = slide?.querySelector('h2, h1')?.innerText?.trim() || '';
+      const titleEl = cardEl.querySelector('.card-title, h3, h4, .chair-name, .member-name');
+      const cardTitle = sanitizeMathText(titleEl);
+      if (captionEl) {
+        captionEl.textContent = cardTitle && slideTitle ? `${slideTitle} — ${cardTitle}` : (cardTitle || slideTitle);
+      }
+
+      modal.className = 'card-lightbox-modal';
+      ['card-primary', 'card-warning', 'card-danger', 'card-success', 'card-slate', 'card-teal', 'card-indigo'].forEach(cls => {
+        if (cardEl.classList.contains(cls)) {
+          modal.classList.add(cls);
         }
-        const oodaStatus = document.getElementById('ooda-filter-status');
-        if (oodaStatus) oodaStatus.classList.remove('active');
-        document.querySelectorAll('#sec-roadmap .ig-strip').forEach(c => {
-          c.classList.remove('has-ig-spotlight');
-          c.querySelectorAll('.ig-step').forEach(s => s.classList.remove('ig-spotlight-active'));
+      });
+
+      if (cardEl.tagName === 'TABLE' || cardEl.querySelector('table')) {
+        modal.classList.add('card-modal-table');
+      }
+
+      if (cardEl.tagName === 'TABLE') {
+        modal.innerHTML = cardEl.outerHTML;
+        const clonedTable = modal.querySelector('table');
+        if (clonedTable) {
+          clonedTable.style.fontSize = '';
+          clonedTable.style.lineHeight = '';
+        }
+      } else {
+        modal.innerHTML = cardEl.innerHTML;
+        modal.querySelectorAll('table').forEach(tbl => {
+          tbl.style.fontSize = '';
+          tbl.style.lineHeight = '';
+        });
+      }
+
+      // Remove inline font-size overrides that MathJax v2 bakes onto .MathJax / .mjx-chtml based on tiny slide table font sizes
+      modal.querySelectorAll('.MathJax, .mjx-chtml, .MathJax_CHTML').forEach(mj => {
+        mj.style.fontSize = '';
+      });
+
+      // Wire internal appendix jump/return links inside the modal so clicking them closes the modal and navigates
+      modal.querySelectorAll('a[href^="#/"]').forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          const targetHash = link.getAttribute('href');
+          closeCardLightbox();
+          if (window.Reveal && targetHash.startsWith('#/')) {
+            const slideId = targetHash.replace('#/', '');
+            const targetSlide = document.getElementById(slideId);
+            if (targetSlide) {
+              const ind = window.Reveal.getIndices(targetSlide);
+              window.Reveal.slide(ind.h, ind.v, ind.f);
+              return;
+            }
+          }
+          window.location.hash = targetHash;
+        });
+      });
+
+      cardScale = 1.0;
+      applyCardScale();
+      overlay.classList.add('active');
+      overlay.setAttribute('aria-hidden', 'false');
+
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: false });
+      }
+    }
+
+    window.openCardLightbox = openCardLightbox;
+    window.closeCardLightbox = closeCardLightbox;
+
+    function closeCardLightbox() {
+      overlay.classList.remove('active');
+      overlay.setAttribute('aria-hidden', 'true');
+      modal.innerHTML = '';
+      if (window.Reveal) {
+        window.Reveal.configure({ keyboard: true });
+      }
+    }
+
+    function bindCards() {
+      const selector = [
+        '.reveal .slides .card-box',
+        '.reveal .slides .committee-chair-card',
+        '.reveal .slides .committee-member-strip',
+        '.reveal .slides .takeaway-banner',
+        '.reveal .slides table.table-compact'
+      ].join(', ');
+
+      document.querySelectorAll(selector).forEach(el => {
+        if (el.dataset.cardBound === 'true') return;
+        // Skip Roadmap (Slide 3) high-level module cards (handled by initRoadmapCards)
+        if (el.closest('#sec-roadmap')) return;
+        // Skip tables that are already inside a .card-box (clicking the card-box handles them)
+        if (el.tagName === 'TABLE' && el.closest('.card-box')) return;
+
+        el.dataset.cardBound = 'true';
+        el.addEventListener('click', function(e) {
+          const popoutImg = el.getAttribute('data-popout-img') || el.dataset.popoutImg;
+          if (popoutImg) {
+            e.preventDefault();
+            e.stopPropagation();
+            const caption = el.getAttribute('data-popout-caption') || el.dataset.popoutCaption || 'Figure 1B - FAERS vs APCD ADE Events';
+            const fn = openImageLightboxFn || window.openImageLightbox;
+            if (fn) {
+              fn(popoutImg, caption);
+            }
+            return;
+          }
+          if (e.target.closest('a, button')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          openCardLightbox(el);
         });
       });
     }
 
-    document.querySelectorAll('.cohort-reset-btn').forEach(btn => {
-      if (btn.dataset.bound) return;
-      btn.dataset.bound = 'true';
-      btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        const prefix = btn.getAttribute('data-cohort-reset');
-        if (prefix) resetCohortFilter(prefix);
-      });
+    closeBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCardLightbox();
     });
 
-    document.querySelectorAll('.reveal .ig-strip, .reveal .ig-svg-frame').forEach(container => {
-      if (container.dataset.igSpotlightBound) return;
-      container.dataset.igSpotlightBound = 'true';
+    zoomInBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+      applyCardScale();
+    });
 
-      const steps = container.querySelectorAll('.ig-step');
-      steps.forEach(step => {
-        step.setAttribute('title', 'Click stage/gauge to spotlight & filter matching rows (Esc to reset)');
-        step.addEventListener('click', function(e) {
-          if (e.target.closest('a')) return;
-          e.stopPropagation();
-          const isAlreadyActive = step.classList.contains('ig-spotlight-active');
-          steps.forEach(s => s.classList.remove('ig-spotlight-active'));
+    zoomOutBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+      applyCardScale();
+    });
 
-          const cohortGauge = step.getAttribute('data-cohort-gauge');
-          const cohortTarget = container.getAttribute('data-cohort-target');
-          if (cohortGauge && cohortTarget) {
-            if (isAlreadyActive) {
-              resetCohortFilter(cohortTarget);
-            } else {
-              const gaugeLabel = step.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || cohortGauge;
-              applyCohortFilter(cohortTarget, cohortGauge, gaugeLabel);
-            }
-            return;
+    resetBtn?.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      cardScale = 1.0;
+      applyCardScale();
+    });
+
+    viewport.addEventListener('click', function(e) {
+      if (e.target.closest('a, button')) return;
+      const sel = window.getSelection ? window.getSelection().toString() : '';
+      if (sel && sel.length > 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeCardLightbox();
+    });
+
+    window.addEventListener('keydown', function(e) {
+      if (!overlay.classList.contains('active')) return;
+      if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeCardLightbox();
+      } else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+        applyCardScale();
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+        applyCardScale();
+      } else if (e.key === '0') {
+        e.preventDefault();
+        cardScale = 1.0;
+        applyCardScale();
+      }
+    }, true);
+
+    bindCards();
+    if (window.Reveal) {
+      window.Reveal.on('ready', bindCards);
+      window.Reveal.on('slidechanged', bindCards);
+    }
+  }
+
+  function initRoadmapCards() {
+    const roadmap = document.getElementById('sec-roadmap');
+    if (!roadmap || roadmap.dataset.roadmapBound === 'true') return;
+    roadmap.dataset.roadmapBound = 'true';
+
+    const cardTargets = [
+      { selector: '.card-danger', targetId: 'slide-1', title: 'Module I: Problem' },
+      { selector: '.card-primary', targetId: 'slide-2', title: 'Module II: Governance & Data' },
+      { selector: '.card-warning', targetId: 'slide-4', title: 'Module III: Cohorts' },
+      { selector: '.card-success', targetId: 'slide-5', title: 'Module IV: Modeling' },
+      { selector: '.card-slate', targetId: 'slide-8', title: 'Module V: Translation & Deployment' },
+      { selector: '.card-teal', targetId: 'slide-res-ch2', title: 'Module VI: Results (CH2–CH5)' },
+      { selector: '.card-indigo', targetId: 'slide-next-steps', title: 'Module VII: Next Steps (Pending 9NOV Feedback)' }
+    ];
+
+    cardTargets.forEach(({ selector, targetId, title }) => {
+      const card = roadmap.querySelector(selector);
+      if (!card) return;
+      card.style.cursor = 'pointer';
+      card.setAttribute('title', `Click to navigate to ${title}`);
+      card.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.Reveal) {
+          const targetSlide = document.getElementById(targetId);
+          if (targetSlide) {
+            const indices = window.Reveal.getIndices(targetSlide);
+            window.Reveal.slide(indices.h, indices.v, indices.f);
+            window.location.hash = `#/${targetId}`;
           }
-
-          const oodaStage = step.getAttribute('data-ooda-stage');
-          const oodaTable = document.getElementById('roadmap-ooda-table');
-          const oodaStatus = document.getElementById('ooda-filter-status');
-          const oodaLabel = document.getElementById('ooda-filter-label');
-
-          if (isAlreadyActive) {
-            container.classList.remove('has-ig-spotlight');
-            if (oodaStage && oodaTable) {
-              oodaTable.classList.remove('ooda-filtered');
-              oodaTable.querySelectorAll('tbody tr').forEach(r => r.classList.remove('ooda-row-match'));
-              if (oodaStatus) oodaStatus.classList.remove('active');
-            }
-          } else {
-            step.classList.add('ig-spotlight-active');
-            container.classList.add('has-ig-spotlight');
-            if (oodaStage && oodaTable) {
-              oodaTable.classList.remove('has-row-spotlight');
-              oodaTable.querySelectorAll('tbody tr').forEach(r => {
-                r.classList.remove('row-spotlight-active');
-                if (r.getAttribute('data-ooda-stage') === oodaStage) {
-                  r.classList.add('ooda-row-match');
-                } else {
-                  r.classList.remove('ooda-row-match');
-                }
-              });
-              oodaTable.classList.add('ooda-filtered');
-              if (oodaStatus && oodaLabel) {
-                const stageTitle = step.querySelector('.ig-kicker')?.innerText.replace(/\s+/g, ' · ') || oodaStage;
-                oodaLabel.textContent = `Focused View: ${stageTitle} — Expanded Chapter Highlights`;
-                oodaStatus.classList.add('active');
-              }
-            }
-          }
-        });
+        }
       });
     });
   }
 
+  function initInternalLinks() {
+    if (document.body && document.body.dataset.internalLinksBound === 'true') return;
+    if (document.body) document.body.dataset.internalLinksBound = 'true';
+
+    document.addEventListener('click', function(e) {
+      const link = e.target.closest('a[href^="#/"]');
+      if (!link) return;
+      // Skip if it's already a footer nav pill (handled by initModuleNavBar)
+      if (link.closest('.footer-nav')) return;
+
+      const targetHash = link.getAttribute('href');
+      if (window.Reveal && targetHash && targetHash.startsWith('#/')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const slideId = targetHash.replace('#/', '');
+        const targetSlide = document.getElementById(slideId);
+        if (targetSlide) {
+          if (window.closeImageLightbox) window.closeImageLightbox();
+          if (window.closeCardLightbox) window.closeCardLightbox();
+          const indices = window.Reveal.getIndices(targetSlide);
+          window.Reveal.slide(indices.h, indices.v, indices.f);
+          window.location.hash = targetHash;
+        }
+      }
+    }, true);
+  }
+
+  function initInfographicSwap() {
+    document.querySelectorAll('.infographic-swap-container').forEach(container => {
+      const infographicView = container.querySelector('.swap-view-infographic');
+      const bulletsView = container.querySelector('.swap-view-bullets');
+      const returnPill = container.querySelector('.swap-return-pill');
+
+      // Inject Zoom Visual button into infographicView if not already present
+      if (infographicView && !infographicView.querySelector('.swap-zoom-btn')) {
+        const zoomBtn = document.createElement('span');
+        zoomBtn.className = 'swap-zoom-btn print-hide';
+        zoomBtn.innerHTML = '🔍 Zoom Visual';
+        zoomBtn.setAttribute('title', 'Expand high-resolution visual full screen');
+        infographicView.appendChild(zoomBtn);
+
+        zoomBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          const img = infographicView.querySelector('img');
+          const capEl = infographicView.querySelector('.swap-caption');
+          const capText = capEl ? capEl.innerText.replace(/Click\s+infographic.*$/i, '').replace(/Click\s+visual.*$/i, '').trim() : (img?.getAttribute('alt') || '');
+          const src = img?.getAttribute('data-popout') || img?.getAttribute('src');
+          if (src && window.openImageLightbox) {
+            window.openImageLightbox(src, capText);
+          }
+        });
+      }
+
+      if (container.dataset.swapBound === 'true') return;
+      container.dataset.swapBound = 'true';
+
+      // 1. Swapping TO bullets: Clicking on infographicView (image, caption, or hint pill)
+      if (infographicView) {
+        infographicView.addEventListener('click', function(e) {
+          if (e.target.closest('a, button, .swap-zoom-btn')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          container.classList.add('swapped');
+        });
+      }
+
+      // 2. Swapping BACK to infographic: Clicking return pill or return header bar
+      if (returnPill) {
+        returnPill.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          container.classList.remove('swapped');
+        });
+      }
+
+      const returnHeader = container.querySelector('.swap-bullets-header');
+      if (returnHeader) {
+        returnHeader.addEventListener('click', function(e) {
+          if (e.target.closest('a, button, .card-box')) return;
+          e.preventDefault();
+          e.stopPropagation();
+          container.classList.remove('swapped');
+        });
+      }
+
+      // 3. Bullets view: prevent uncaught clicks from bubbling to any parent
+      if (bulletsView) {
+        bulletsView.addEventListener('click', function(e) {
+          if (e.target.closest('.swap-return-pill, .swap-bullets-header')) return;
+          e.stopPropagation();
+        });
+      }
+    });
+  }
+
   function onInit() {
+    initInfographicSwap();
     initLightbox();
+    initCardLightbox();
+    initRoadmapCards();
+    initInternalLinks();
     initTitleSlideLogos();
     initModuleNavBar();
-    initTableRowSpotlight();
-    initInfographicSpotlight();
   }
 
   if (document.readyState === 'loading') {
@@ -640,10 +884,16 @@
 
   if (window.Reveal) {
     window.Reveal.on('ready', () => {
+      initInfographicSwap();
+      initCardLightbox();
+      initRoadmapCards();
+      initInternalLinks();
       initTitleSlideLogos();
       initModuleNavBar();
-      initTableRowSpotlight();
-      initInfographicSpotlight();
+    });
+    window.Reveal.on('slidechanged', () => {
+      initInfographicSwap();
+      initRoadmapCards();
     });
   }
 })();
