@@ -1,0 +1,3386 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<script src="final_defense_appendix_slides_files/libs/clipboard/clipboard.min.js"></script>
+<script src="final_defense_appendix_slides_files/libs/quarto-html/tabby.min.js"></script>
+<script src="final_defense_appendix_slides_files/libs/quarto-html/popper.min.js"></script>
+<script src="final_defense_appendix_slides_files/libs/quarto-html/tippy.umd.min.js"></script>
+<link href="final_defense_appendix_slides_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="final_defense_appendix_slides_files/libs/quarto-html/light-border.css" rel="stylesheet">
+<link href="final_defense_appendix_slides_files/libs/quarto-html/quarto-syntax-highlighting-6fbc3b7d0ac83ab8a043646d6c6d94a5.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.6.33">
+
+  <title>Appendix Deck (A1–A8) | Gradient-Boosted Trees and Consensus-Risk — R. Jerome Dixon (Nov 23, 2026)</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
+  <link rel="stylesheet" href="final_defense_appendix_slides_files/libs/revealjs/dist/reset.css">
+  <link rel="stylesheet" href="final_defense_appendix_slides_files/libs/revealjs/dist/reveal.css">
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+      vertical-align: middle;
+    }
+  </style>
+  <link rel="stylesheet" href="final_defense_appendix_slides_files/libs/revealjs/dist/theme/quarto-8add3297af0e9f3d8529609697ff91f6.css">
+  <link href="final_defense_appendix_slides_files/libs/revealjs/plugin/quarto-line-highlight/line-highlight.css" rel="stylesheet">
+  <link href="final_defense_appendix_slides_files/libs/revealjs/plugin/reveal-menu/menu.css" rel="stylesheet">
+  <link href="final_defense_appendix_slides_files/libs/revealjs/plugin/reveal-menu/quarto-menu.css" rel="stylesheet">
+  <link href="final_defense_appendix_slides_files/libs/revealjs/plugin/quarto-support/footer.css" rel="stylesheet">
+  <style type="text/css">
+    .reveal div.sourceCode {
+      margin: 0;
+      overflow: auto;
+    }
+    .reveal div.hanging-indent {
+      margin-left: 1em;
+      text-indent: -1em;
+    }
+    .reveal .slide:not(.center) {
+      height: 100%;
+    }
+    .reveal .slide.scrollable {
+      overflow-y: auto;
+    }
+    .reveal .footnotes {
+      height: 100%;
+      overflow-y: auto;
+    }
+    .reveal .slide .absolute {
+      position: absolute;
+      display: block;
+    }
+    .reveal .footnotes ol {
+      counter-reset: ol;
+      list-style-type: none; 
+      margin-left: 0;
+    }
+    .reveal .footnotes ol li:before {
+      counter-increment: ol;
+      content: counter(ol) ". "; 
+    }
+    .reveal .footnotes ol li > p:first-child {
+      display: inline-block;
+    }
+    .reveal .slide ul,
+    .reveal .slide ol {
+      margin-bottom: 0.5em;
+    }
+    .reveal .slide ul li,
+    .reveal .slide ol li {
+      margin-top: 0.4em;
+      margin-bottom: 0.2em;
+    }
+    .reveal .slide ul[role="tablist"] li {
+      margin-bottom: 0;
+    }
+    .reveal .slide ul li > *:first-child,
+    .reveal .slide ol li > *:first-child {
+      margin-block-start: 0;
+    }
+    .reveal .slide ul li > *:last-child,
+    .reveal .slide ol li > *:last-child {
+      margin-block-end: 0;
+    }
+    .reveal .slide .columns:nth-child(3) {
+      margin-block-start: 0.8em;
+    }
+    .reveal blockquote {
+      box-shadow: none;
+    }
+    .reveal .tippy-content>* {
+      margin-top: 0.2em;
+      margin-bottom: 0.7em;
+    }
+    .reveal .tippy-content>*:last-child {
+      margin-bottom: 0.2em;
+    }
+    .reveal .slide > img.stretch.quarto-figure-center,
+    .reveal .slide > img.r-stretch.quarto-figure-center {
+      display: block;
+      margin-left: auto;
+      margin-right: auto; 
+    }
+    .reveal .slide > img.stretch.quarto-figure-left,
+    .reveal .slide > img.r-stretch.quarto-figure-left  {
+      display: block;
+      margin-left: 0;
+      margin-right: auto; 
+    }
+    .reveal .slide > img.stretch.quarto-figure-right,
+    .reveal .slide > img.r-stretch.quarto-figure-right  {
+      display: block;
+      margin-left: auto;
+      margin-right: 0; 
+    }
+  </style>
+</head>
+<body class="quarto-light">
+  <div class="reveal">
+    <div class="slides">
+
+
+<section id="sec-appendix" class="slide level2 section-slide unnumbered">
+<h2>Appendix: Technical Defenses &amp; Supplemental Evidence</h2>
+<div class="section-tag">
+Committee Q&amp;A Backup Bank
+</div>
+<div class="section-main-heading">
+Supplemental Technical Evidence
+</div>
+<div class="section-desc">
+<p>Mathematical derivations, feature audit catalogs, pharmacogenomic scoring matrices, regulatory/HIPAA frameworks, cohort gene networks (A8), and reproducible notebook pipelines supporting defense inquiries.</p>
+</div>
+<p style="margin-top: 18px;">
+<a href="final_defense_slides.html" class="appendix-return-btn print-hide" style="font-size: 0.84rem; padding: 6px 14px; margin-right: 8px;">↩︎ Main Defense Deck (Slides 1–35)</a><a href="final_defense_slides.pdf" target="_blank" class="appendix-jump-btn print-hide" style="font-size: 0.84rem; padding: 6px 16px;">📄 Complete Deck (16:9 PDF) ↗</a><a href="final_defense_appendix_slides.pdf" target="_blank" class="appendix-jump-btn print-hide" style="font-size: 0.84rem; padding: 6px 16px; margin-left: 8px;">📎 Download Appendix Deck Only (A1–A8 PDF) ↗</a><a href="https://pgx.jerome-dixon.io/23NOV_defense/" target="_blank" class="appendix-jump-btn print-only" style="font-size: 0.82rem; padding: 5px 14px;">🌐 Open Interactive Web Presentation (pgx.jerome-dixon.io/23NOV_defense) ↗</a>
+</p>
+</section>
+<section id="sec-appendix-ffa" class="slide level2 unnumbered">
+<h2>Appendix A1: Formal Feature Attribution (FFA) — Best-Model CNF &amp; AXP Bounds</h2>
+<p><span class="slide-badge badge-aim2">Specific Aim 2 · Steps 6–8 &amp; 10</span> <span class="slide-badge badge-governance">Mathematical Verification &amp; PySAT AXP</span></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="card-box card-primary card-compact">
+<div class="card-title">
+<p>Step 7 Dual-Model Gate &amp; Step 8 CNF Compilation</p>
+</div>
+<ul>
+<li><strong>Step 7 Dual-Model <code>TreeSHAP</code> Gate:</strong> <span class="math display">\[\mathcal{F}_{\text{SHAP}} = \text{supp}(\text{SHAP}_{\text{CatBoost}}) \cap \text{supp}(\text{SHAP}_{\text{BestXGB}})\]</span> <em>Requires cross-architecture agreement before symbolic extraction (since CatBoost CTR hashing precludes direct symbolic path parsing).</em></li>
+<li><strong>Step 8 CNF Compilation on <code>best_xgb_variant</code>:</strong>
+<ul>
+<li>Parses JSON tree dumps of <code>best_xgb_variant</code> (<code>xgb</code> vs.&nbsp;<code>xgb_rf</code> winner by <strong>PR-AUC</strong> then <strong>Recall</strong>).</li>
+<li>Explodes root-to-leaf paths into tabular intervals (<code>_explode_tree_to_dataframe</code>) and compiles Conjunctive Normal Form (CNF) clauses (<code>rule_clauses</code>).</li>
+</ul></li>
+</ul>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="card-box card-success card-compact">
+<div class="card-title">
+<p>SHAP-Guided Minimal Hitting-Set AXP &amp; Complexity</p>
+</div>
+<ul>
+<li><strong>SHAP-Guided Rule Filter <span class="math inline">\(\rightarrow\)</span> PySAT <code>Hitman</code>:</strong>
+<ul>
+<li>Rather than brute-forcing <span class="math inline">\(&gt;10,000\)</span> matched tree rules per patient, prioritizes top SHAP-supported matched rules (with stratified rare-population coverage safeguards) into the PySAT <code>Hitman</code> minimal hitting-set solver to extract minimal <strong>Abductive Explanations (AXPs / Horn clauses)</strong> with <span class="math inline">\(\text{Supp}(R) \ge 0.05\)</span> and <span class="math inline">\(\text{Conf}(R) \ge 0.70\)</span>.</li>
+</ul></li>
+<li><strong>Step 8 Attribution Responsibility &amp; Step 10 Combined Synthesis:</strong> <span class="math display">\[\text{AttrResp}(f) = \frac{\text{RuleFreq}(f)}{\sum_k \text{RuleFreq}(f_k)} \times \text{SHAP}_{\text{consensus}}(f)\]</span> <span class="math display">\[\text{Score}_{\text{combined}}(f) = 0.5 \cdot \text{SHAP}_{\text{norm}}(f) + 0.5 \cdot \text{FFA}_{\text{norm}}(f)\]</span></li>
+<li><strong>Complexity vs.&nbsp;Neural Nets:</strong> Tree CNF extraction is polynomial <span class="math inline">\(\mathcal{O}(T \cdot L)\)</span>, whereas ReLU neural network minimal explanation is <strong>co-NP-complete</strong> (Katz et al., 2017).</li>
+</ul>
+</div>
+<div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+<p><a href="final_defense_slides.html#/slide-6a" class="appendix-return-btn" style="font-size: 0.64rem; padding: 3px 8px;">↩︎ Consensus XAI (Slide 18)</a> <a href="final_defense_slides.html#/slide-res-ch3-holdout" class="appendix-jump-btn" style="font-size: 0.64rem; padding: 3px 8px;">📊 CH3 Ablation (Slide 26) →</a> <a href="final_defense_slides.html#/slide-res-ch4-holdout" class="appendix-jump-btn" style="font-size: 0.64rem; padding: 3px 8px;">📊 CH4 Stress Test (Slide 28) →</a></p>
+</div>
+</div></div>
+<div class="takeaway-banner" style="margin-top: 6px; padding: 6px 12px; font-size: 0.76rem;">
+<p><strong>Empirical Threshold Validation (<code>SHAP &gt;= P75</code> <span class="math inline">\(\cap\)</span> <code>Supp &gt;= 0.05, Conf &gt;= 0.70</code>):</strong> Validated as a clinical <em>precision–volume dial</em> across two Module VI experiments: (1) <strong>Two-Gate Mirror Ablation (Slide 26)</strong> — retains <strong><code>20/20</code> (<code>100%</code>)</strong> primary clinical drivers while compressing review load <strong><code>-61%</code> (<code>112 → 44</code>)</strong> and rejecting <code>252</code> routine E/M billing artifacts; and (2) <strong>Table S5 Utilization-Free Stress Test (Slide 28)</strong> — proves <strong><code>60%</code> symbolic <code>FFA</code> pair invariance</strong> despite univariate <code>SHAP Jaccard = 0.00</code> collapse.</p>
+</div>
+<aside class="notes">
+<p>Slide A1 provides the mathematical and empirical defense for our Consensus-Risk architecture across Steps 6 through 8 and Step 10. Because CatBoost uses internal target-statistic hashing on categorical variables, Step 7 first computes exact TreeSHAP on both the best CatBoost model and the best XGBoost variant, enforcing their strict feature intersection as a cross-architecture gate. Step 8 then explodes the decision trees of the best XGBoost variant into CNF clauses and prioritizes the top SHAP-supported matched rules into the PySAT Hitman minimal hitting-set solver to extract exact Abductive Explanations in polynomial O(T times L) time. Importantly, our Consensus-Risk thresholds—75th percentile SHAP, support of 0.05, and confidence of 0.70—operate as a validated precision-volume dial for clinical review capacity, proven empirically in Module VI: first, our Two-Gate Mirror Ablation on Slide 26 retained 20 out of 20 core clinical risk drivers while compressing alert volume by 61 percent and rejecting 252 routine billing codes; and second, our Table S5 utilization-free stress test on Slide 28 demonstrated 60 percent symbolic FFA drug-pair retention even when univariate SHAP Jaccard similarity collapsed to 0.00.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-leakage" class="slide level2 unnumbered">
+<h2>Appendix A2: Step 3b Target Leakage — Temporal Event-Partitioning Protocol</h2>
+<p><span class="slide-badge badge-aim1">Specific Aim 1 · Step 3b</span> <span class="slide-badge badge-alert">Temporal Process Audit</span></p>
+<div class="columns">
+<div class="column" style="width:58%;">
+<table class="table-compact">
+<thead>
+<tr>
+<th>
+Leakage Vector Category
+</th>
+<th>
+Representative Claims Signals
+</th>
+<th>
+Temporal Timing
+</th>
+<th>
+Clinical Mechanism
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<strong>Post-Event OUD Rescue &amp; MAT Induction</strong>
+</td>
+<td>
+Buprenorphine, Suboxone, Naloxone, Methadone, Extended-Release MAT
+</td>
+<td>
+<span class="math inline">\(t \ge t_0\)</span> (Post-Index)
+</td>
+<td>
+Initiated in ED or bridge clinic <em>as a consequence following</em> acute overdose
+</td>
+</tr>
+<tr>
+<td>
+<strong>Confirmatory Toxicology &amp; Monitoring</strong>
+</td>
+<td>
+Presumptive &amp; definitive urine drug screens (e.g., CPT 80307, 80305, G0480)
+</td>
+<td>
+<span class="math inline">\(t \ge t_0\)</span> (Post-Index)
+</td>
+<td>
+Ordered during acute ED triage or post-discharge MAT compliance monitoring
+</td>
+</tr>
+<tr>
+<td>
+<strong>Secondary Administrative Follow-Up</strong>
+</td>
+<td>
+Long-term drug therapy status, rehabilitation &amp; subsequent encounter billing
+</td>
+<td>
+<span class="math inline">\(t \ge t_0\)</span> (Post-Index)
+</td>
+<td>
+Downstream administrative claims generated directly by the index visit
+</td>
+</tr>
+</tbody>
+</table>
+<div class="card-box card-primary card-compact" style="margin-top: 8px;">
+<div class="card-title">
+<p>Step 3b Formal Event-Partitioning Rule &amp; Symmetric Whitelist</p>
+</div>
+<ul>
+<li><strong>Post-Target Ratio Filter:</strong> <span class="math inline">\(\tau_{\text{post}}(f) = \frac{N(t_{\text{claim}} \ge t_0)}{N(t_{\text{claim}} &lt; t_0) + N(t_{\text{claim}} \ge t_0)} \ge 0.80 \implies \text{Purge from}\)</span> <code>safe_feature_filter.json</code>.</li>
+<li><strong>Symmetric Pre-Index Enforcement:</strong> All retained features satisfy <span class="math inline">\(t_{\text{claim}} &lt; t_0\)</span> on <span class="math inline">\([t_0 - 365, t_0 - 1]\)</span> (Opioid) or <span class="math inline">\([t_0 - 21, t_0 - 1]\)</span> (Polypharmacy) across cases and 1:5 matched controls.</li>
+</ul>
+</div>
+</div><div class="column" style="width:42%;">
+<div class="card-box card-warning card-compact">
+<div class="card-title">
+<p>Why Unmonitored Gain Rankings Fail (<code>Step 3a</code> vs.&nbsp;<code>Step 3b</code>)</p>
+</div>
+<ul>
+<li><strong>The Literature Failure (30% of PROBAST Models):</strong>
+<ul>
+<li>Unfiltered feature selection loads top tree splits onto post-overdose MAT induction and ED toxicology screens, inflating apparent discrimination by 5–20 AUROC points.</li>
+</ul></li>
+<li><strong>Methodological vs.&nbsp;Empirical Integration:</strong>
+<ul>
+<li>Architecture (<code>Module IV</code>): Locks the <strong>Step 3b temporal event-partitioning methodology</strong> and antecedent whitelist.</li>
+<li>Empirical Results (<code>Module VI</code>): Purges <strong>348 / 1,029 (<code>33.8%</code>)</strong> post-index codes (<code>safe_feature_filter.json</code>), restoring honest <strong>2019 holdout discrimination</strong> (<a href="final_defense_slides.html#/slide-res-ch2-leakage">CH2 Results ↗</a>).</li>
+</ul></li>
+</ul>
+</div>
+<div style="margin-top: 14px;">
+<p><a href="final_defense_slides.html#/slide-7" class="appendix-return-btn">↩︎ Target Leakage (Slide 19)</a> <a href="final_defense_slides.html#/slide-res-ch2-leakage" class="appendix-jump-btn" style="margin-left: 6px;">📊 CH2 Empirical Audit (Slide 25) →</a></p>
+</div>
+</div></div>
+<aside class="notes">
+<p>Slide A2 details our Step 3b temporal event-partitioning protocol. We classify post-index contamination into three clinical vectors: post-overdose OUD rescue and MAT induction, confirmatory ED and follow-up toxicology screens, and downstream administrative follow-up codes. Any candidate feature whose claims events occur 80% or more on or after the index timestamp t0 is automatically purged, locking an immutable pre-index antecedent whitelist in safe_feature_filter.json. As demonstrated empirically in Module VI on Slide 25, this Step 3b audit purged 348 post-index confounders out of 1,029 candidate features and locked 682 verified pre-index antecedents—replacing artificially leaked 0.99 AUROC scores with honest 0.800 to 0.890 out-of-time 2019 holdout generalization.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-pgx" class="slide level2 unnumbered">
+<h2>Appendix A3: Step 5 CPIC Drug Mapping &amp; Patient-Level Count Features</h2>
+<p><span class="slide-badge badge-aim1">Specific Aim 1 · Step 5 (<code>5_pgx_analysis</code>)</span> <span class="slide-badge badge-governance">Claims Exposure vs.&nbsp;Genotype Defense</span></p>
+<div class="columns">
+<div class="column" style="width:52%;">
+<div class="card-box card-primary card-compact">
+<div class="card-title">
+<ol type="1">
+<li>Global APCD Drug <span class="math inline">\(\to\)</span> CPIC Guideline Mapping (<code>build_global_drug_cpic_mapping.py</code>)</li>
+</ol>
+</div>
+<ul>
+<li><strong>Official CPIC Reference Corpus:</strong> Ingests <code>cpic_gene-drug_pairs.xlsx</code> / <code>cpic_drug_list.json</code> (<code>573</code> gene–drug pairs, <code>300</code> unique drugs, <code>121</code> pharmacogenes across CPIC Levels A–D).</li>
+<li><strong>Automated Drug Vocabulary Matching:</strong> Extracts unique APCD drug features (<code>DRUG:</code>, <code>item_drug_*</code>) from Step 3 feature importance outputs and matches them against CPIC drug names (<span class="math inline">\(\ge 95\%\)</span> fuzzy threshold) to build <code>drug_cpic_mapping_global.csv</code> (<code>s3://pgxdatalake/gold/pgx_features/global/</code>).</li>
+<li><strong>Binary Guideline Indicator:</strong> Determines whether or not each dispensed APCD generic medication has an official CPIC pharmacogenomic guideline (<span class="math inline">\(d \in \mathcal{C}_{\text{CPIC}}\)</span>).</li>
+</ul>
+</div>
+<div class="card-box card-success card-compact" style="margin-top: 8px;">
+<div class="card-title">
+<ol start="2" type="1">
+<li>DuckDB Patient-Level Drug &amp; CPIC Counts (<code>create_pgx_features_patient_level.py</code>)</li>
+</ol>
+</div>
+<ul>
+<li><strong>Per-Patient Count Features (<code>mi_person_key</code>):</strong> <code>pgx_num_drugs</code><span class="math inline">\(_i = \left|D_i\right|\)</span> (total distinct pre-index drugs) <span class="math inline">\(\quad\text{and}\quad\)</span> <code>pgx_num_cpic_drugs</code><span class="math inline">\(_i = \left|\left\{d \in D_i : d \in \mathcal{C}_{\text{CPIC}}\right\}\right|\)</span> (distinct CPIC-guideline drugs).</li>
+<li><strong>Cohort Exposure Counts:</strong> Aggregates distinct pre-index drugs (<span class="math inline">\(D_i\)</span>) per patient in DuckDB and records cohort-level counts of patients with any drug (<code>pgx_num_drugs</code><span class="math inline">\(_i &gt; 0\)</span>) vs.&nbsp;patients carrying CPIC-guideline drugs (<code>pgx_num_cpic_drugs</code><span class="math inline">\(_i &gt; 0\)</span>).</li>
+</ul>
+</div>
+</div><div class="column" style="width:48%;">
+<div class="card-box card-slate">
+<div class="card-title">
+<ol start="3" type="1">
+<li>Claims-Derived Exposure vs.&nbsp;Genotype Imputation Defense</li>
+</ol>
+</div>
+<ul>
+<li><strong>Step 5 Supervised Model Pipeline (<code>5_pgx_analysis</code>):</strong>
+<ul>
+<li>Uses <strong>observable CPIC drug counts only</strong> (<code>pgx_num_drugs</code>, <code>pgx_num_cpic_drugs</code>) merged via <code>add_pgx_features_to_model_data.py</code>.</li>
+<li><strong>Claims Boundary:</strong> Administrative claims quantify dispensed drug exposure, not molecular genotypes or germline DNA sequences.</li>
+</ul></li>
+<li><strong>Strict Exclusion of Race-as-Proxy Imputation:</strong>
+<ul>
+<li>Administrative race codes are strictly excluded as an unscientific, inaccurate proxy for genetic ancestry or metabolizer status.</li>
+<li>Preserves methodological integrity: models test whether actionable medication burden predicts ED risk without asserting unmeasured biology.</li>
+</ul></li>
+<li><strong>Translational Continuity (Aim 1 <span class="math inline">\(\to\)</span> Aim 3):</strong>
+<ul>
+<li>Supervised models (<code>Steps 5–6</code>) evaluate observable claims CPIC exposure directly, while downstream point-of-care patient genotype &amp; diplotype actionability cards execute in <strong><code>60 ms</code></strong> within our stateless Aim 3 microservice (<a href="final_defense_slides.html#/slide-res-ch5-arch">Module VI · CH5 Results ↗</a>).</li>
+</ul></li>
+</ul>
+</div>
+<div style="margin-top: 12px;">
+<p><a href="final_defense_slides.html#/slide-4" class="appendix-return-btn">↩︎ Claims Schema (Slide 14)</a> <a href="final_defense_slides.html#/slide-5" class="appendix-return-btn">↩︎ Model Selection (Slide 17)</a> <a href="#/sec-appendix-gene-markers" class="appendix-jump-btn" style="margin-left: 6px;">📎 Appendix A8: Gene Networks →</a></p>
+</div>
+</div></div>
+<aside class="notes">
+<p>Slide A3 details our exact Step 5 pharmacogenomic feature engineering pipeline in 5_pgx_analysis. First, build_global_drug_cpic_mapping.py scans our APCD drug vocabulary against the official CPIC gene-drug directory using a 95 percent fuzzy-matching threshold to determine whether or not each dispensed medication carries an official CPIC guideline, persisting the global lookup table drug_cpic_mapping_global.csv. Second, create_pgx_features_patient_level.py executes a single DuckDB aggregation over pre-index claims to compute two integer features per patient—pgx_num_drugs (total distinct drugs) and pgx_num_cpic_drugs (distinct CPIC-guideline drugs)—as well as cohort-level counts of how many patients carry CPIC drugs. Crucially, no allele or race-based genotype imputation is performed in the modeling pipeline; our models strictly evaluate observable CPIC medication exposure burden directly from claims data, while interactive patient-level genotype decision-support cards execute in 60 milliseconds at the point of care in Tab 5 of our serverless dashboard (Slide 30).</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-notebooks" class="slide level2 unnumbered">
+<h2>Appendix A4: Computational Pipeline &amp; Notebook Architecture</h2>
+<p><span class="slide-badge badge-aim1">Aim 1</span> <span class="slide-badge badge-aim2">Aim 2</span> <span class="slide-badge badge-aim3">Aim 3</span> <span class="slide-badge badge-governance">Full Traceability</span></p>
+<div class="columns">
+<div class="column" style="width:56%;">
+<div class="card-box card-primary card-compact">
+<div class="card-title">
+<p>Jupyter Notebook Pipeline Directory (<code>pgx-analysis</code>)</p>
+</div>
+<table class="table-compact" style="font-size: 0.72rem;">
+<thead>
+<tr>
+<th>
+Notebook
+</th>
+<th>
+Steps
+</th>
+<th>
+Core Functions &amp; Deliverables
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/0_config_and_pipeline.ipynb" target="_blank"><code>0_config_and_pipeline.ipynb</code></a>
+</td>
+<td>
+Setup
+</td>
+<td>
+Environment config, S3-to-NVMe sync, DuckDB data dictionary
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/1_cohort_workflow.ipynb" target="_blank"><code>1_cohort_workflow.ipynb</code></a>
+</td>
+<td>
+1a, 1b, 2
+</td>
+<td>
+FAERS &amp; APCD 21-day ADE window calibration, dual cohort extraction, 1:5 incidence-density matching, 0-day guard
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/2_feature_importance.ipynb" target="_blank"><code>2_feature_importance.ipynb</code></a>
+</td>
+<td>
+3a, 3b, 3c
+</td>
+<td>
+Feature screening, Step 3b BupaR event-partitioning audit, safe antecedent whitelist
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/3_model_train_shap_ffa.ipynb" target="_blank"><code>3_model_train_shap_ffa.ipynb</code></a>
+</td>
+<td>
+4, 5, 6, 7, 8
+</td>
+<td>
+Density tiers, CPIC drug mapping &amp; counts (<code>pgx_num_cpic_drugs</code>), Step 6 best-model selection, TreeSHAP &amp; FFA rules
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/3_model_sensitivity.ipynb" target="_blank"><code>3_model_sensitivity.ipynb</code></a>
+</td>
+<td>
+CH4 Supp
+</td>
+<td>
+Utilization-free sensitivity &amp; claims-density stratification checks
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/4_dashboard_visuals.ipynb" target="_blank"><code>4_dashboard_visuals.ipynb</code></a>
+</td>
+<td>
+9
+</td>
+<td>
+BupaR clinical pathways, DTW trajectory clusters, FP-Growth itemsets
+</td>
+</tr>
+<tr>
+<td>
+<a href="https://github.com/Jerome3590/pgx-analysis/blob/main/5_build_and_deploy.ipynb" target="_blank"><code>5_build_and_deploy.ipynb</code></a>
+</td>
+<td>
+10
+</td>
+<td>
+Multi-stage Docker packaging, AWS Lambda deployment, API Gateway
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div><div class="column" style="width:44%;">
+<div class="card-box card-slate">
+<div class="card-title">
+<p>Execution Model, Checkpoints &amp; Reproducibility</p>
+</div>
+<ul>
+<li><strong>S3 Checkpoint Idempotency:</strong>
+<ul>
+<li>Each stage syncs inputs from <code>s3://pgx-analysis-data/</code> to local NVMe.</li>
+<li>SHA-256 state markers prevent redundant compute on completed steps.</li>
+</ul></li>
+<li><strong>Dual Compute Environments:</strong>
+<ul>
+<li><strong>Local Workstation:</strong> Windows 11, DuckDB 1.4+, Python 3.11, R 4.3 (bupaR).</li>
+<li><strong>Batch Compute:</strong> Amazon Linux 2023 Fat-Spot EC2 (<code>x2iedn.8xlarge</code>; <code>15.1×</code> DuckDB speedup, <code>0/189</code> OOMs, <code>mushin</code> account <code>535362115856</code>).</li>
+</ul></li>
+<li><strong>Source Control &amp; Public Artifacts:</strong>
+<ul>
+<li>Monorepo: <a href="https://github.com/Jerome3590/pgx-analysis"><code>github.com/Jerome3590/pgx-analysis</code></a></li>
+</ul></li>
+</ul>
+</div>
+<div style="margin-top: 14px;">
+<p><a href="final_defense_slides.html#/slide-9" class="appendix-return-btn">↩︎ Portfolio (Slide 21)</a> <a href="final_defense_slides.html#/slide-res-ch2" class="appendix-jump-btn" style="margin-left: 6px;">📊 CH2 Cloud Economics (Slide 24) →</a></p>
+</div>
+</div></div>
+<aside class="notes">
+<p>Slide A4 details the computational reproducibility of the dissertation. All ten analytical steps across our three specific aims are operationalized into seven sequential Jupyter notebooks in our public GitHub repository. The workflow uses S3-backed state checkpoints for idempotency and runs seamlessly on both local workstations and AWS EC2 spot instances. Every dataset transformation, hyperparameter search, and model artifact is fully versioned and traceable back to the raw APCD extracts.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-metrics" class="slide level2 unnumbered">
+<h2>Appendix A5: Specific Aims, Methodological Estimators &amp; Evaluation Metrics</h2>
+<p><span class="slide-badge badge-aim1">Specific Aim 1</span> <span class="slide-badge badge-aim2">Specific Aim 2</span> <span class="slide-badge badge-aim3">Specific Aim 3</span> <span class="slide-badge badge-governance">Formal Methodological &amp; Mathematical Specification</span></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<table class="table-compact" style="font-size: 0.58rem; line-height: 1.22;">
+<thead>
+<tr>
+<th style="width: 26%;">
+Specific Aim &amp; Pipeline Stage
+</th>
+<th style="width: 32%;">
+Pre-Specified Design &amp; Transformation
+</th>
+<th style="width: 42%;">
+Mathematical Estimator &amp; Governance Gate
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<strong>Aim 1 · Steps 1–2: Matching &amp; <code>0-Day</code> Guard</strong>
+</td>
+<td>
+<code>1:5</code> incidence-density control sampling on <code>(age_band, sex, year)</code>; lookback <span class="math inline">\([t_0 - W,\; t_0 - 1]\)</span>
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(t_{\text{claim}} \;&lt;\; t_0 \quad (W = 365\text{d}\)</span> <code>opioid_ed</code>, <span class="math inline">\(W = 21\text{d}\)</span> <code>ed_non_opioid</code><span class="math inline">\()\)</span>
+</div>
+<div class="eq-line">
+(purges <span class="math inline">\(t = t_0\)</span> discharge fills)
+</div>
+</td>
+</tr>
+<tr>
+<td>
+<strong>Aim 1 · Step 3b: Leakage Ratio <span class="math inline">\(\tau_{\text{post}}(c)\)</span></strong>
+</td>
+<td>
+Event-level <code>bupaR</code> pre/post index (<span class="math inline">\(t_0\)</span>) timing partition across candidate claims
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(\tau_{\text{post}}(c) \;=\; \frac{N_{t \ge t_0}(c)}{N_{t &lt; t_0}(c) \;+\; N_{t \ge t_0}(c)} \;&lt;\; 0.80\)</span>
+</div>
+<div class="eq-line">
+(locks symmetric <code>safe_feature_filter.json</code>)
+</div>
+</td>
+</tr>
+<tr>
+<td>
+<strong>Aim 1 · Step 4: Density Strata &amp; Burstiness <span class="math inline">\(B\)</span></strong>
+</td>
+<td>
+Training (<code>2016–2018</code>) pre-index claim quantiles (<span class="math inline">\(P_{25},\; P_{50},\; P_{95}\)</span>); inter-claim gaps <span class="math inline">\(\Delta t\)</span>
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(b(n_{\text{ev}}) \;\in\; \{0,\; 1,\; 2,\; 3\}\)</span> (<code>low</code>–<code>extreme</code>);
+</div>
+<div class="eq-line">
+<span class="math inline">\(B \;=\; \frac{\sigma_{\Delta t} \;-\; \mu_{\Delta t}}{\sigma_{\Delta t} \;+\; \mu_{\Delta t}} \;\in\; [-1,\; 1]\)</span>
+</div>
+</td>
+</tr>
+<tr>
+<td>
+<strong>Aim 1 · Step 5: CPIC Drug Mapping &amp; Counts</strong>
+</td>
+<td>
+Global APCD drug <span class="math inline">\(\to\)</span> CPIC guideline mapping (<code>drug_cpic_mapping_global.csv</code>) &amp; patient CPIC drug counts
+</td>
+<td>
+<div class="eq-line">
+<code>pgx_num_drugs</code><span class="math inline">\(_k \;=\; |D_k|\)</span>;
+</div>
+<div class="eq-line">
+<code>pgx_num_cpic_drugs</code><span class="math inline">\(_k \;=\; |\{d \in D_k : d \in \mathcal{C}_{\text{CPIC}}\}|\)</span>
+</div>
+</td>
+</tr>
+<tr>
+<td>
+<strong>Aim 1 · Step 6: MCCV Ensemble &amp; Holdout</strong>
+</td>
+<td>
+25-split stratified MCCV (<code>CatBoost</code>, <code>XGB</code>, <code>XGB-RF</code>) + Platt scaling on untouched <code>2019</code> holdout
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(\hat{p}_{\text{ens}}(\mathbf{x}) \;=\; \sum_{m=1}^3 w_m\,\hat{p}_m(\mathbf{x}), \quad w_m \;=\; \frac{\text{PR-AUC}_m}{\sum_j \text{PR-AUC}_j}\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{Lift} \;=\; \frac{\text{AUPRC}}{\pi}, \quad \text{BS} \;=\; \frac{1}{N}\sum\left(\hat{p}_k \;-\; y_k\right)^2, \quad \text{ICI}\)</span>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div><div class="column" style="width:50%;">
+<table class="table-compact" style="font-size: 0.58rem; line-height: 1.22;">
+<thead>
+<tr>
+<th style="width: 26%;">
+Specific Aim &amp; Attribution Stage
+</th>
+<th style="width: 32%;">
+Pre-Specified Design &amp; Demarcation
+</th>
+<th style="width: 42%;">
+Mathematical Estimator &amp; Governance Gate
+</th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-focal-success">
+<td>
+<strong>Aim 2 · Steps 7–8: Consensus Gate <span class="math inline">\(\mathcal{C}\)</span> ★</strong>
+</td>
+<td>
+Dual-model <code>TreeSHAP</code> (<code>Cat ∩ Best XGB</code>) + PySAT <code>Hitman(m22)</code> minimal hitting-set <code>AXP</code>
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(\overline{|\phi_j|} \;\ge\; Q_{75} \quad\cap\quad \text{Supp}_{\text{AXP}}(f_j) \;\ge\; 0.05\)</span>
+</div>
+<div class="eq-line">
+<span class="math inline">\(\cap\quad \text{Conf}(r) \;=\; \frac{N(r \;\land\; \hat{y} = 1)}{N(r)} \;\ge\; 0.70\)</span>
+</div>
+</td>
+</tr>
+<tr class="row-focal">
+<td>
+<strong>Aim 2 · Step 8: Intervention Rate (<code>IR</code>) ★</strong>
+</td>
+<td>
+In-model consensus risk sensitivity contrast (<span class="math inline">\(f_i \;\to\; x_{\text{med}}\)</span>, non-causal); <strong>never from FP-Growth</strong>
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(\text{IR}_{\Delta\hat{p}}(f_i) \;=\; \frac{1}{n}\sum_{k=1}^n\left(\hat{p}^{(k)} \;-\; \hat{p}^{(k)}_{f_i \to \text{med}}\right)\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{IR}_{\text{AXP}}(f_i) \;=\; \frac{1}{|E_1|}\sum_{k \in E_1}\mathbb{I}\!\left(\hat{y}_{f_i \to \text{med}} \;=\; 0\right)\)</span>
+</div>
+</td>
+</tr>
+<tr class="row-focal-danger">
+<td>
+<strong>Aim 2 · Step 8: Interaction Effect (<code>IE</code>) ★</strong>
+</td>
+<td>
+In-model consensus risk contrast <span class="math inline">\(\Delta_{11}\)</span> &amp; Class-1 <code>AXP</code> co-occurrence lift (non-causal; 1,000 bootstrap CIs)
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(\Delta_{11} \;=\; \mathbb{E}[\hat{p}_{11}] \;-\; \mathbb{E}[\hat{p}_{10}] \;-\; \mathbb{E}[\hat{p}_{01}] \;+\; \mathbb{E}[\hat{p}_{00}]\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{IE}(f_i,\,f_j) \;=\; \frac{P(f_i \;\land\; f_j \;\mid\; \text{AXP}_1)}{P(f_i \;\mid\; \text{AXP}_1)\,P(f_j \;\mid\; \text{AXP}_1)} \;&gt;\; 1.0\)</span>
+</div>
+</td>
+</tr>
+<tr>
+<td>
+<strong>Aim 3 · Step 9: Visual Analytics Demarcation</strong>
+</td>
+<td>
+Training-cohort <code>bupaR</code>, <code>DTW</code>, &amp; <code>FP-Growth</code>; <strong>strictly excluded from predictor matrix</strong>
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(D_{\text{DTW}} \;=\; \min_{\pi \in \mathcal{A}_w}\sqrt{\sum \left\|\mathbf{x}_{i,t_1} \;-\; \mathbf{x}_{j,t_2}\right\|_2^2}\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{Lift}_{\text{FPG}}(A \;\to\; B) \;=\; \frac{\text{Supp}(A \;\cup\; B)}{\text{Supp}(A)\,\text{Supp}(B)}\)</span>
+</div>
+</td>
+</tr>
+<tr>
+<td>
+<strong>Aim 3 · Step 10: OODA Scenario Delta <span class="math inline">\(\Delta\hat{p}\)</span></strong>
+</td>
+<td>
+Stateless consensus risk scenario delta (<span class="math inline">\(\mathbf{x} \;\to\; \mathbf{x}'\)</span>); Imputation of Normality (<span class="math inline">\(x_{\text{unobs}} = 0\)</span>)
+</td>
+<td>
+<div class="eq-line">
+<span class="math inline">\(\Delta\hat{p} \;=\; \hat{p}_{\text{ens}}(\mathbf{x}') \;-\; \hat{p}_{\text{ens}}(\mathbf{x})\)</span>;
+</div>
+<div class="eq-line">
+<span class="math inline">\(\text{Score}_{\text{comb}}(f) \;=\; 0.5\cdot\text{SHAP}_{\text{norm}}(f) \;+\; 0.5\cdot\text{FFA}_{\text{norm}}(f)\)</span>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div></div>
+<div class="takeaway-banner" style="margin-top: 4px; padding: 4px 10px; font-size: 0.72rem;">
+<p><strong>Methodological-to-Empirical Traceability:</strong> Locks pre-specified study designs, mathematical estimators, and strict predictive-vs.-visual demarcation across Specific Aims 1–3, directly governing the 2019 temporal holdout outcomes, <code>IR</code>/<code>IE</code> rankings, and sensitivity stress tests presented in <a href="final_defense_slides.html#/slide-res-ch2"><strong>Module VI (Results)</strong></a>.</p>
+</div>
+<div style="margin-top: 4px;">
+<p><a href="final_defense_slides.html#/slide-6a" class="appendix-return-btn">↩︎ Consensus Attribution (Slide 18)</a> <a href="final_defense_slides.html#/slide-10" class="appendix-return-btn">↩︎ Study Boundaries (Slide 22)</a> <a href="#/sec-appendix-acronyms" class="appendix-jump-btn" style="margin-left: 6px;">📎 Appendix A6: Acronym Reference →</a></p>
+</div>
+<aside class="notes">
+<p>Slide A5 provides a single-slide formal mathematical specification across Specific Aims 1 through 3, documenting the pre-specified study design, data transformation, and formal estimator for every pipeline metric—and explicitly distinguishing supervised predictive and explanatory estimators (TreeSHAP, AXP, IR, IE) from exploratory visual analytics (DTW, FP-Growth, bupaR). All pre-specified estimators and post-execution sensitivity discoveries are evaluated empirically on the untouched 2019 calendar holdout in Module VI (Slides 24 through 32).</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-acronyms" class="slide level2 unnumbered">
+<h2>Appendix A6: Master Acronym &amp; Technical Nomenclature Reference</h2>
+<p><span class="slide-badge badge-governance">Governance: CRISP-DM · TRIPOD+AI · OODA</span> <span class="slide-badge badge-aim1">APCD · HCG (Milliman) · CPIC PGx</span> <span class="slide-badge badge-aim2">GBDT · TreeSHAP · PySAT FFA/AXP</span> <span class="slide-badge badge-aim3">Serverless CDS &amp; MTM</span></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<table class="table-compact" style="font-size: 0.56rem; line-height: 1.20;">
+<thead>
+<tr>
+<th style="width: 22%;">
+Acronym
+</th>
+<th style="width: 34%;">
+Full Expansion
+</th>
+<th style="width: 44%;">
+Operational Role in Dissertation
+</th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-focal">
+<td>
+<strong><code>CRISP-DM</code></strong>
+</td>
+<td>
+Cross-Industry Standard Process for Data Mining
+</td>
+<td>
+6-phase systems engineering lifecycle governing Steps 1a–10 (Business Understanding <span class="math inline">\(\to\)</span> Data Prep <span class="math inline">\(\to\)</span> GBDT Modeling <span class="math inline">\(\to\)</span> Lambda Deployment).
+</td>
+</tr>
+<tr class="row-focal-success">
+<td>
+<strong><code>TRIPOD+AI</code></strong>
+</td>
+<td>
+Transparent Reporting of a Multivariable Prediction Model (+ AI)
+</td>
+<td>
+27-item biomedical validation standard enforcing Type 2b/3 temporal split (<code>2016–2018</code> train <span class="math inline">\(\to\)</span> untouched <code>2019</code> holdout; zero recalibration).
+</td>
+</tr>
+<tr class="row-focal">
+<td>
+<strong><code>OODA</code> Loop</strong>
+</td>
+<td>
+Observe–Orient–Decide–Act Loop
+</td>
+<td>
+Clinical workflow boundary: GBDT &amp; Horn rules <em>Observe/Orient</em>; human pharmacists retain 100% authority to <em>Decide/Act</em>.
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>PROBAST</code> / <code>SQLR</code></strong>
+</td>
+<td>
+Prediction Model Risk of Bias Assessment Tool / Systematic Quant. Lit. Review
+</td>
+<td>
+Chapter 1 PRISMA 2020 review (<span class="math inline">\(n=94\)</span> ML studies; <span class="math inline">\(n=73\)</span> PROBAST models) exposing the <strong>“Empty Intersection”</strong> (<span class="math inline">\(n=0/73\)</span>).
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>APCD</code> / <code>VHI</code></strong>
+</td>
+<td>
+All-Payer Claims Database / Virginia Health Information
+</td>
+<td>
+Statewide longitudinal medical &amp; adjudicated pharmacy claims lake (<code>2016–2019</code>, 4.2M patients, 380M claims, deterministic <code>mi_person_key</code>).
+</td>
+</tr>
+<tr class="row-focal">
+<td>
+<strong><code>HCG</code> (Milliman)</strong>
+</td>
+<td>
+Milliman Health Cost Guidelines (HCG Grouper)
+</td>
+<td>
+Standardized APCD encounter acuity taxonomy (<code>hcg_setting</code>, <code>hcg_line</code>, <code>hcg_detail</code>) anchoring ED visits: <code>P51</code>/<code>P51b</code> (PHY ED), <code>O11</code> (ER), <code>P33</code> (Urgent Care).
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>CPIC</code> / <code>PGx</code></strong>
+</td>
+<td>
+Clinical Pharmacogenetics Implementation Consortium / Pharmacogenomics
+</td>
+<td>
+Step 5 maps APCD drugs to CPIC guideline status (<code>drug_cpic_mapping_global.csv</code>) to quantify patient-level CPIC medication exposure burden (<code>pgx_num_drugs</code>, <code>pgx_num_cpic_drugs</code>).
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>ADE</code> / <code>DDI</code> / <code>FAERS</code></strong>
+</td>
+<td>
+Adverse Drug Event / Drug–Drug Interaction / FDA Adverse Event Reporting System
+</td>
+<td>
+Geriatric <strong>“Silent ADEs”</strong> (<code>R29.6</code> falls, <code>S72</code> hip fx, <code>R55</code> syncope, <code>N17</code> AKI) &amp; FDA FAERS 21-day onset kinetics (<span class="math inline">\(&gt;90\%\)</span> acute ADEs).
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>OUD</code> / <code>MME</code> / <code>MAT</code></strong>
+</td>
+<td>
+Opioid Use Disorder / Morphine Milligram Equivalents / Meds for Addiction Tx
+</td>
+<td>
+12-month chronic opioid trajectory anchors (<code>F11.20</code>, <code>T40.0X–T40.4X</code>) vs.&nbsp;post-index rescue drugs purged by Step 3b (buprenorphine, naloxone).
+</td>
+</tr>
+</tbody>
+</table>
+</div><div class="column" style="width:50%;">
+<table class="table-compact" style="font-size: 0.56rem; line-height: 1.20;">
+<thead>
+<tr>
+<th style="width: 22%;">
+Acronym
+</th>
+<th style="width: 34%;">
+Full Expansion
+</th>
+<th style="width: 44%;">
+Operational Role in Dissertation
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<strong><code>GBDT</code> / <code>XGB-RF</code></strong>
+</td>
+<td>
+Gradient-Boosted Decision Trees / XGBoost Random Forest
+</td>
+<td>
+Piecewise-constant ensembles comparing oblivious trees (<code>CatBoost</code>), depth-wise trees (<code>XGBoost</code>), and bagged trees (<code>XGBoost-RF</code>).
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>MCCV</code> / <code>TPE</code></strong>
+</td>
+<td>
+Monte Carlo Cross-Validation / Tree-structured Parzen Estimator
+</td>
+<td>
+25-split stratified development CV &amp; Bayesian hyperparameter optimization (<code>Optuna</code>, 50 trials) with Platt probability calibration.
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>AUROC</code> / <code>PR-AUC</code> / <code>ICI</code></strong>
+</td>
+<td>
+Area Under ROC / Precision–Recall AUC / Integrated Calibration Index
+</td>
+<td>
+Discrimination, imbalanced minority-class precision–recall lift, Brier Score, ICI calibration, and Decision Curve Analysis (<code>DCA</code>).
+</td>
+</tr>
+<tr class="row-focal-success">
+<td>
+<strong><code>XAI</code> / <code>TreeSHAP</code></strong>
+</td>
+<td>
+Explainable AI / Tree SHapley Additive exPlanations
+</td>
+<td>
+Exact game-theoretic feature attribution (<span class="math inline">\(\phi_j\)</span>) intersected across <code>CatBoost</code> <span class="math inline">\(\cap\)</span> <code>Best XGBoost</code> (<span class="math inline">\(\overline{|\phi_j|} \ge Q_{75}\)</span>) in Step 7.
+</td>
+</tr>
+<tr class="row-focal">
+<td>
+<strong><code>FFA</code> / <code>CNF</code> / <code>PySAT</code></strong>
+</td>
+<td>
+Formal Feature Attribution / Conjunctive Normal Form / Python SAT Solver
+</td>
+<td>
+Step 8 compilation of tree paths into CNF clauses solved via PySAT <code>Hitman</code> minimal hitting sets in polynomial <span class="math inline">\(\mathcal{O}(T \cdot L)\)</span> time.
+</td>
+</tr>
+<tr class="row-focal">
+<td>
+<strong><code>AXP</code> &amp; Horn Rules</strong>
+</td>
+<td>
+Abductive Explanation &amp; Boolean Horn Logic Clauses
+</td>
+<td>
+Minimal irreducible <code>IF–THEN</code> conditions (<span class="math inline">\(P_1 \land P_2 \implies \hat{y}=1\)</span>) guaranteeing Class-1 risk (<span class="math inline">\(\text{Supp} \ge 0.05\)</span>, <span class="math inline">\(\text{Conf} \ge 0.70\)</span>).
+</td>
+</tr>
+<tr class="row-focal-danger">
+<td>
+<strong><code>IR</code> &amp; <code>IE</code> (<span class="math inline">\(\Delta_{11}\)</span>)</strong>
+</td>
+<td>
+Intervention Rate &amp; Interaction Effect (2nd-Order Risk Contrast)
+</td>
+<td>
+In-model consensus risk attenuation drop (<span class="math inline">\(\text{IR}_{\Delta\hat{p}}\)</span>, <span class="math inline">\(\text{IR}_{\text{AXP}}\)</span>) and cross-partial synergy lift (<span class="math inline">\(\Delta_{11}\)</span>, <span class="math inline">\(\text{IE} &gt; 1.0\)</span>) strictly from trees/AXPs.
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>bupaR</code> / <code>DTW</code> / <code>FPG</code></strong>
+</td>
+<td>
+Business Process Analysis in R / Dynamic Time Warping / FP-Growth
+</td>
+<td>
+Exploratory process flows, trajectory distance (<span class="math inline">\(D_{\text{DTW}}\)</span>), and itemset lift (<span class="math inline">\(\text{Lift}_{\text{FPG}}\)</span>) <strong>strictly excluded from supervised GBDT matrices</strong>.
+</td>
+</tr>
+<tr>
+<td>
+<strong><code>CDS</code> / <code>MTM</code> / <code>PHI</code></strong>
+</td>
+<td>
+Clinical Decision Support / Medication Therapy Mgmt / Protected Health Info
+</td>
+<td>
+Aim 3 stateless, zero-PHI AWS Lambda microservice (<span class="math inline">\(\mu_{\text{warm}}=6\text{ms}\)</span>, <span class="math inline">\(&lt;\$5/\text{mo}\)</span>) driving an asynchronous Tier 1–3 pharmacist review queue.
+</td>
+</tr>
+</tbody>
+</table>
+</div></div>
+<div style="margin-top: 4px;">
+<p><a href="final_defense_slides.html#/slide-2" class="appendix-return-btn">↩︎ Governance (Slide 12)</a> <a href="final_defense_slides.html#/slide-4b" class="appendix-return-btn">↩︎ Polypharmacy Pipeline (Slide 16)</a> <a href="final_defense_slides.html#/slide-10" class="appendix-return-btn">↩︎ Study Boundaries (Slide 22)</a> <a href="#/sec-appendix-hipaa" class="appendix-jump-btn" style="margin-left: 6px;">📎 Appendix A7: Regulatory &amp; HIPAA Scope →</a></p>
+</div>
+<aside class="notes">
+<p>Appendix A6 provides a comprehensive quick-reference glossary of all governance, clinical, biostatistical, machine learning, formal logic, and cloud engineering acronyms used across the seven scientific modules of the dissertation—including CRISP-DM, TRIPOD+AI, the Clinical OODA Loop, PROBAST, Virginia APCD, Milliman Health Cost Guidelines (<code>HCG</code>: <code>hcg_setting</code>, <code>hcg_line</code>, <code>hcg_detail</code> emergency acuity codes <code>P51b</code>, <code>O11</code>, <code>P33</code>), CPIC pharmacogenomics, Silent ADEs, GBDT tree geometries, TreeSHAP, Formal Feature Attribution (FFA), Conjunctive Normal Form (CNF), Abductive Explanations (AXPs), Intervention Rate (IR), Interaction Effect (IE), and our zero-PHI Medication Therapy Management (MTM) Clinical Decision Support (CDS) prototype.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-hipaa" class="slide level2 unnumbered">
+<h2>Appendix A7: Regulatory Scope Demarcation &amp; HIPAA Cloud Architecture</h2>
+<p><span class="slide-badge badge-aim3">Specific Aim 3 · Clinical Deployment &amp; Translation</span> <span class="slide-badge badge-governance">Regulatory Scope: FTC Act vs.&nbsp;HIPAA BAA</span> <span class="slide-badge badge-aim1">AWS HIPAA-Eligible Enclave &amp; Shared Responsibility</span></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="card-box card-primary card-compact">
+<div class="card-title">
+<ol type="1">
+<li>Scope Demarcation: Direct Patient vs.&nbsp;Hospital Deployment</li>
+</ol>
+</div>
+<ul>
+<li><strong>Direct Patient Self-Use (FTC Consumer Scope):</strong>
+<ul>
+<li>Direct individual input of personal health or genetic data is governed by <strong>FTC Act Section 5</strong> and the <strong>FTC Health Breach Notification Rule (HBNR)</strong>.</li>
+<li>HIPAA applies <em>exclusively</em> to covered entities and business associates; when a consumer directly uses the tool, a BAA is <strong>neither required nor legally valid</strong>.</li>
+</ul></li>
+<li><strong>Hospital / Healthcare Organization Use (HIPAA Scope):</strong>
+<ul>
+<li>Clinical deployment processing patient records constitutes ePHI under <strong>45 CFR § 160.103</strong>.</li>
+<li><strong>Two-Tier Legal BAA Execution Chain:</strong>
+<div style="margin: 4px 0 6px 0; display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 0.64rem;">
+<div style="background: rgba(30, 58, 138, 0.05); border: 1px solid rgba(30, 58, 138, 0.2); border-radius: 4px; padding: 3px 6px; text-align: center; flex: 1;">
+<p><strong style="color: #1e3a8a;">Hospital</strong><br><span style="font-size: 0.56rem; color: #64748b;">(Covered Entity)</span></p>
+</div>
+<div style="font-size: 0.58rem; font-weight: 700; color: #1e3a8a; white-space: nowrap;">
+<p>→ <span style="background: #e0e7ff; padding: 1px 4px; border-radius: 3px;">BAA #1</span> →</p>
+</div>
+<div style="background: rgba(30, 58, 138, 0.05); border: 1px solid rgba(30, 58, 138, 0.2); border-radius: 4px; padding: 3px 6px; text-align: center; flex: 1;">
+<p><strong style="color: #1e3a8a;">Our Legal Entity</strong><br><span style="font-size: 0.56rem; color: #64748b;">(Business Assoc.)</span></p>
+</div>
+<div style="font-size: 0.58rem; font-weight: 700; color: #1e3a8a; white-space: nowrap;">
+<p>→ <span style="background: #e0e7ff; padding: 1px 4px; border-radius: 3px;">BAA #2</span> →</p>
+</div>
+<div style="background: rgba(30, 58, 138, 0.05); border: 1px solid rgba(30, 58, 138, 0.2); border-radius: 4px; padding: 3px 6px; text-align: center; flex: 1;">
+<p><strong style="color: #1e3a8a;">AWS Enclave</strong><br><span style="font-size: 0.56rem; color: #64748b;">(via Artifact)</span></p>
+</div>
+</div></li>
+<li>Entity executes BAA with hospital; entity executes BAA with AWS via AWS Artifact.</li>
+</ul></li>
+<li><strong>VCU CCTR Pilot Grant Integration:</strong>
+<ul>
+<li>VCU Wright Center CCTR $25,000 Grant formally funds Aim 2 Compliance &amp; Legal Review ($4,500) to partner with VCU Health Compliance and Counsel to execute institutional DUAs and BAAs prior to prospective clinical pilot testing.</li>
+</ul></li>
+</ul>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="card-box card-success card-compact">
+<div class="card-title">
+<ol start="2" type="1">
+<li>AWS Technical Reality: “HIPAA-Eligible” vs.&nbsp;“HIPAA-Compliant”</li>
+</ol>
+</div>
+<ul>
+<li><strong>AWS Shared Responsibility Model:</strong>
+<ul>
+<li>AWS services are <em>HIPAA-eligible</em>; application architecture must implement mandatory administrative, physical, and technical safeguards.</li>
+</ul></li>
+<li><strong>Mandatory Cloud Technical Configurations:</strong>
+<ul>
+<li><strong>S3 Buckets:</strong> Enforce AWS KMS encryption (<code>SSE-KMS</code>), block all public access, enforce TLS (<code>aws:SecureTransport</code>) in bucket policies.</li>
+<li><strong>AWS Lambda &amp; Memory Security:</strong> Environment variables KMS-encrypted; Firecracker microVM <code>/tmp</code> wiped post-invocation; zero ePHI persisted.</li>
+<li><strong>CloudWatch Log Scrubbing (Critical):</strong> Custom log sanitizers strictly prevent ePHI from leaking into log streams, stdout, or telemetry.</li>
+<li><strong>CloudTrail Auditing:</strong> Immutable management and data API event trails under <strong>45 CFR § 164.312(b)</strong>.</li>
+</ul></li>
+<li><strong>AI &amp; External API Boundaries:</strong>
+<ul>
+<li><strong>AWS-Native:</strong> Amazon Bedrock / SageMaker models hosted within VPC fall under AWS BAA.</li>
+<li><strong>External Third-Party APIs (OpenAI, Anthropic):</strong> Inbound/outbound calls require a separate signed BAA with each vendor, regardless of ephemeral processing.</li>
+</ul></li>
+</ul>
+</div>
+<div style="margin-top: 6px;">
+<p><a href="final_defense_slides.html#/slide-8" class="appendix-return-btn">↩︎ Return to Aim 3 Decision Support (Slide 20)</a> <a href="final_defense_slides.html#/slide-10" class="appendix-return-btn">↩︎ Return to Methodological Fences (Slide 22)</a> <a href="#/sec-appendix-gene-markers" class="appendix-jump-btn" style="margin-left: 6px;">📎 Appendix A8: Gene Markers &amp; Networks →</a> <a href="#/sec-appendix" class="appendix-jump-btn" style="margin-left: 6px;">📎 Technical Appendix Overview →</a></p>
+</div>
+</div></div>
+<div class="takeaway-banner" style="margin-top: 5px; padding: 4px 10px; font-size: 0.69rem; line-height: 1.25;">
+<p><strong>Architectural Synthesis:</strong> Ephemeral compute with zero persistent PHI is a sound engineering safeguard, but enterprise clinical deployment legally requires the <strong>two-tier BAA chain</strong> and AWS HIPAA hardening. VCU CCTR Pilot Grant funding guarantees institutional legal review and DUA execution before prospective clinical pilot deployment.</p>
+</div>
+<aside class="notes">
+<p>Slide A7 addresses the critical governance, regulatory, and legal questions regarding our clinical decision-support architecture.<br>
+First, we establish a strict statutory demarcation: when an individual patient directly enters their own personal health data or uploads consumer genetic files for personal use, federal statute dictates that HIPAA does not govern that relationship. It falls under Federal Trade Commission Section 5 and the FTC Health Breach Notification Rule, meaning a BAA is neither required nor legally recognized.<br>
+Second, when deployed within a healthcare provider or hospital system processing ePHI under 45 CFR Section 160.103, compliance is governed by a two-tier legal BAA execution chain: the covered entity signs BAA number 1 with our legal entity, and our legal entity executes BAA number 2 directly with AWS through AWS Artifact covering the underlying cloud infrastructure.<br>
+Third, on AWS, services are ‘HIPAA-eligible,’ not automatically compliant. We implement the full technical safeguard suite: mandatory KMS envelope encryption on S3, Firecracker microVM ephemeral compute with zero persistence in slash-tmp, strict CloudWatch log scrubbing to prevent ePHI from entering cloud telemetry, and CloudTrail audit logging under 45 CFR Section 164.312(b). Furthermore, any external AI APIs outside of AWS Bedrock would require their own signed BAA.<br>
+Finally, in response to Dr.&nbsp;Gal’s and Dr.&nbsp;Price’s guidance, our VCU Wright Center CCTR Pilot Grant formally funds institutional compliance and university legal review to vet our ephemeral compute posture and execute the required hospital BAA and DUA framework prior to prospective clinical pilot testing.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+</section>
+<section id="sec-appendix-gene-markers" class="slide level2 unnumbered">
+<h2>Appendix A8: Pharmacogenomic Gene Markers &amp; Mechanistic Networks by Cohort</h2>
+<p><span class="slide-badge badge-aim1">Specific Aim 1 · CPIC &amp; PharmGKB VIP Mechanistic Evidence</span> <span class="slide-badge badge-alert">Opioid Cohort: CYP2D6, OPRM1</span> <span class="slide-badge badge-success">Polypharmacy Cohort: CYP2C19, CYP2C9, SLCO1B1, VKORC1</span></p>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="card-box card-danger card-compact" style="padding: 4px 8px !important;">
+<div class="card-title" style="font-size: 0.84rem !important; margin-bottom: 2px !important;">
+<ol type="1">
+<li>Opioid Cohort: CYP2D6 (PK) &amp; OPRM1 (PD) Network</li>
+</ol>
+</div>
+<ul>
+<li><strong>Organs &amp; Pathways:</strong> <strong>Liver</strong> (hepatic phase I bioactivation of Codeine → Morphine, Tramadol → O-DSMT) &amp; <strong>Brain/CNS</strong> (<span class="math inline">\(\mu\)</span>-opioid receptor <span class="math inline">\(\text{G}_i/\text{G}_o\)</span> GPCR cascade in brainstem pre-Bötzinger respiratory pacemakers, PAG, and NAc reward circuits).</li>
+<li><strong>Supporting Network:</strong> <code>CYP3A4/5</code> (inactivation shunt), <code>UGT2B7</code> (glucuronidation clearance), <code>ABCB1</code> (BBB P-gp efflux), <code>ARRB2/ARR3</code> (<span class="math inline">\(\beta\)</span>-arrestin desensitization), <code>KCNJ6</code> (GIRK2 <span class="math inline">\(K^+\)</span> channels), <code>COMT</code> (pain/reward valence).</li>
+<li><strong>Driven Phenotypes:</strong> <strong>CYP2D6 UM</strong> causes toxic active surge → <em>Fatal Respiratory Depression</em>; <strong>CYP2D6 PM</strong> (<code>*3/*4/*5</code>) &amp; <strong>OPRM1 118G</strong> (<code>rs1799971</code>) cause non-activation/blunted binding → <em>Analgesic Failure &amp; Dose-Escalation Overdose</em>.</li>
+</ul>
+<pre style="margin: 2px 0; padding: 0; background: #0f172a; border-radius: 4px; border: 1px solid #334155; overflow: hidden;"><code style="font-size: 0.48rem !important; line-height: 1.14 !important; padding: 4px 6px !important; background-color: #0f172a !important; color: #f8fafc !important; display: block; font-family: Consolas, monospace;"> [Prodrug: Codeine/Tramadol]           [Liver CYP3A4/5 Inactivation]
+            │                                        ▲
+            ▼ (Phase I Bioactivation)                │ (Shunt)
+    ┌───────────────┐ (Active Metabolite)   ┌────────┴───────┐
+    │  CYP2D6 (PK)  │ ─────────────────────►│  Free Plasma   │──► [UGT2B7 / ABCB1]
+    │  Liver Hepato │ (Morphine / O-DSMT)   │     Drug       │    (Renal / BBB)
+    └───────────────┘                       └────────┬───────┘
+                                                     │ (Crosses BBB to Brain)
+                                                     ▼
+    ┌───────────────┐ ──► Gi/Go GPCR Cascade ──► KCNJ6 (K+ Hyperpolarization)
+    │  OPRM1  (PD)  │ ──► Beta-Arrestin Axis ──► ARRB2 (Desensitization)
+    │ CNS Brainstem │ ──► Pain / Reward Tone ──► COMT  (Dopaminergic Flux)
+    └───────────────┘
+ ======================= DRIVEN CLINICAL PHENOTYPES ========================
+ • CYP2D6 UM: Rapid surge in active mu-agonists -&gt; Fatal Respiratory Arrest
+ • CYP2D6 PM / OPRM1 118G: Zero analgesia -&gt; Dose Escalation -&gt; Accidental OD</code></pre>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="card-box card-success card-compact" style="padding: 4px 8px !important;">
+<div class="card-title" style="font-size: 0.84rem !important; margin-bottom: 2px !important;">
+<ol start="2" type="1">
+<li>Polypharmacy Cohort: CYP2C19, CYP2C9, SLCO1B1, VKORC1</li>
+</ol>
+</div>
+<ul>
+<li><strong>Organs &amp; Pathways:</strong> <strong>Liver</strong> (sinusoidal uptake, phase I clearance, ER coagulation synthesis), <strong>Vascular Endothelium</strong> (platelet <span class="math inline">\(P2Y_{12}\)</span> inhibition), &amp; <strong>Skeletal Muscle</strong> (statin exposure target).</li>
+<li><strong>Supporting Network:</strong> <code>CES1</code> (85% clopidogrel hydrolysis), <code>P2RY12</code> (platelet receptor), <code>CYP4F2</code> (vitamin <span class="math inline">\(K_1\)</span> clearance), <code>GGCX</code> (<span class="math inline">\(\gamma\)</span>-carboxylase), <code>HMGCR</code> (statin target), <code>ABCG2/ABCB1</code> (efflux transporters).</li>
+<li><strong>Driven Phenotypes:</strong> <strong>CYP2C9 (<code>*2/*3</code>) + VKORC1 (<code>-1639A/A</code>)</strong> → <em>Supratherapeutic INR &amp; Fatal Bleeding</em>; <strong>CYP2C19 PM (<code>*2/*3</code>)</strong> → <em>Clopidogrel Failure &amp; Stent Thrombosis/MACE</em>; <strong>SLCO1B1 (<code>*5</code> rs4149056)</strong> → <em>Severe Myopathy &amp; Rhabdomyolysis</em>.</li>
+</ul>
+<pre style="margin: 2px 0; padding: 0; background: #0f172a; border-radius: 4px; border: 1px solid #334155; overflow: hidden;"><code style="font-size: 0.48rem !important; line-height: 1.14 !important; padding: 4px 6px !important; background-color: #0f172a !important; color: #f8fafc !important; display: block; font-family: Consolas, monospace;"> [Clopidogrel]              [Warfarin / NSAIDs]          [Statins: Simva/Atorva]
+       │ (CES1 Shunt)                │                              │
+       ▼ (Bioactivation)             ▼ (Phase I Clearance)          ▼ (Sinusoidal Influx)
+ ┌───────────────┐           ┌───────────────┐              ┌───────────────┐
+ │ CYP2C19 (PK)  │           │  CYP2C9 (PK)  │              │ SLCO1B1 (PK)  │
+ │ Liver &amp; Gut   │           │ Liver (20%)   │              │ OATP1B1 Liver │
+ └───────┬───────┘           └───────┬───────┘              └───────┬───────┘
+         │ (Active Thiol)            │ (S-Warfarin)                 │ (Hepatocyte Influx)
+         ▼                           ▼ (Inhibits Target)            ▼
+    P2RY12 Target            ┌───────────────┐                 HMGCR Target
+   Platelet Inhibit          │  VKORC1 (PD)  │                 (Efflux: ABCG2/B1)
+                             │ Liver ER Coag │                      │
+                             └───────┬───────┘                      ▼ (Plasma Leak)
+                                     │ (GGCX / CYP4F2)              │
+ ======================= DRIVEN CLINICAL PHENOTYPES ================┴======
+ • CYP2C9 *2/*3 + VKORC1 -1639A: High INR -&gt; Fatal Bleeding / Hemorrhage
+ • CYP2C19 PM (*2/*3): Antiplatelet failure -&gt; Stent Thrombosis / MACE
+ • SLCO1B1 *5 (rs4149056): Muscle exposure -&gt; Severe Rhabdomyolysis / ADE</code></pre>
+</div>
+<div style="margin-top: 3px; display: flex; align-items: center; justify-content: flex-start; gap: 6px;">
+<p><a href="final_defense_slides.html#/slide-1-cpic-fi" class="appendix-return-btn" style="font-size: 0.58rem; padding: 2px 6px;">↩︎ Return to CPIC FI (Slide 9)</a> <a href="#/sec-appendix-pgx" class="appendix-return-btn" style="font-size: 0.58rem; padding: 2px 6px;">↩︎ Return to Step 5 (A3)</a> <a href="#/sec-appendix" class="appendix-jump-btn" style="font-size: 0.58rem; padding: 2px 6px;">📎 Appendix Bank →</a></p>
+</div>
+</div></div>
+<div class="takeaway-banner" style="margin-top: 3px; padding: 3px 8px; font-size: 0.65rem; line-height: 1.20;">
+<p><strong>Mechanistic Synthesis:</strong> Claims-derived CPIC exposure signals reflect profound pharmacogenomic biological vulnerabilities. In <code>opioid_ed</code>, divergent <code>CYP2D6</code> clearance and <code>OPRM1</code> signaling drive respiratory arrest versus undertreatment-induced overdose. In <code>ed_non_opioid</code>, high-acuity elderly ADEs stem from dual PK/PD coagulation failure (<code>CYP2C9</code>/<code>VKORC1</code>), antiplatelet resistance (<code>CYP2C19</code>), and statin transport failure (<code>SLCO1B1</code>).</p>
+</div>
+<aside class="notes">
+<p>Slide A8 provides the deep mechanistic and biological defense for the specific pharmacogenomic gene markers identified across our two clinical cohorts, directly synthesizing PharmGKB Very Important Pharmacogene (VIP) pathways and CPIC Level A guidelines. In the Opioid Cohort, we focus on the pharmacokinetic anchor CYP2D6 in hepatic microsomes and the pharmacodynamic anchor OPRM1 in the central nervous system. CYP2D6 controls the rate-limiting phase I bioactivation of prodrug opioids—specifically O-demethylating codeine to morphine and tramadol to O-desmethyltramadol, which possesses over one-hundred-fold higher affinity for the mu-opioid receptor. Downstream, OPRM1 governs the Gi/Go protein-coupled receptor cascade across brainstem respiratory pacemakers like the pre-Bötzinger complex and mesolimbic reward pathways. The clinical phenotype is bidirectionally lethal: Ultra-rapid Metabolizers convert prodrugs at accelerated rates, causing a sudden toxic surge in active mu-agonists and fatal respiratory depression at standard doses; conversely, Poor Metabolizers carrying null alleles or patients with the OPRM1 118G variant experience profound analgesic failure, driving dose escalation, accidental toxicity, and ED encounters. Supporting shunt enzymes like CYP3A4 and glucuronidation clearance via UGT2B7 modulate systemic exposure. In the Polypharmacy Cohort, adverse drug events in older adults are driven by a multi-target network across hepatic clearance, transport, and coagulation. First, CYP2C19 loss-of-function star alleles (<em>2 and </em>3) impair the bioactivation of clopidogrel into its active thiol metabolite, failing to inhibit platelet P2RY12 and precipitating stent thrombosis and major adverse cardiovascular events. Second, S-warfarin clearance is governed stereoselectively by hepatic CYP2C9, while its therapeutic target is VKORC1 in the endoplasmic reticulum; patients combining CYP2C9 reduced-function variants with the VKORC1 -1639A low-expression promoter variant experience severe clearance failure and extreme target sensitivity, driving supratherapeutic INR and catastrophic hemorrhage. Finally, SLCO1B1 encodes the OATP1B1 sinusoidal influx transporter; the star 5 variant halts hepatic statin uptake, trapping statins in systemic circulation where they reach toxic skeletal muscle concentrations, triggering severe statin-induced myopathy and rhabdomyolysis.</p>
+<style type="text/css">
+        span.MJX_Assistive_MathML {
+          position:absolute!important;
+          clip: rect(1px, 1px, 1px, 1px);
+          padding: 1px 0 0 0!important;
+          border: 0!important;
+          height: 1px!important;
+          width: 1px!important;
+          overflow: hidden!important;
+          display:block!important;
+      }</style></aside>
+
+</section>
+    </div>
+  <div class="quarto-auto-generated-content" style="display: none;">
+<div class="footer footer-default">
+<p>R. Jerome Dixon, MDA, MSc IT | Ph.D.&nbsp;Final Defense — Technical Appendix Deck (A1–A8) | Nov 23, 2026</p>
+</div>
+</div></div>
+
+  <script>window.backupDefine = window.define; window.define = undefined;</script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/dist/reveal.js"></script>
+  <!-- reveal.js plugins -->
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/quarto-line-highlight/line-highlight.js"></script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/pdf-export/pdfexport.js"></script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/reveal-menu/menu.js"></script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/reveal-menu/quarto-menu.js"></script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/quarto-support/support.js"></script>
+  
+
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/notes/notes.js"></script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/search/search.js"></script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/zoom/zoom.js"></script>
+  <script src="final_defense_appendix_slides_files/libs/revealjs/plugin/math/math.js"></script>
+  <script>window.define = window.backupDefine; window.backupDefine = undefined;</script>
+
+  <script>
+
+      // Full list of configuration options available at:
+      // https://revealjs.com/config/
+      Reveal.initialize({
+'controlsAuto': false,
+'previewLinksAuto': true,
+'pdfSeparateFragments': false,
+'autoAnimateEasing': "ease",
+'autoAnimateDuration': 1,
+'autoAnimateUnmatched': true,
+'jumpToSlide': true,
+'menu': {"side":"left","useTextContentForMissingTitles":true,"markers":false,"loadIcons":false,"custom":[{"title":"Tools","icon":"<i class=\"fas fa-gear\"></i>","content":"<ul class=\"slide-menu-items\">\n<li class=\"slide-tool-item active\" data-item=\"0\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.fullscreen(event)\"><kbd>f</kbd> Fullscreen</a></li>\n<li class=\"slide-tool-item\" data-item=\"1\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.speakerMode(event)\"><kbd>s</kbd> Speaker View</a></li>\n<li class=\"slide-tool-item\" data-item=\"2\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.overview(event)\"><kbd>o</kbd> Slide Overview</a></li>\n<li class=\"slide-tool-item\" data-item=\"3\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.togglePdfExport(event)\"><kbd>e</kbd> PDF Export Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"4\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.toggleScrollView(event)\"><kbd>r</kbd> Scroll View Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"5\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.keyboardHelp(event)\"><kbd>?</kbd> Keyboard Help</a></li>\n</ul>"}],"openButton":true},
+'smaller': false,
+ 
+        // Display controls in the bottom right corner
+        controls: true,
+
+        // Help the user learn the controls by providing hints, for example by
+        // bouncing the down arrow when they first encounter a vertical slide
+        controlsTutorial: false,
+
+        // Determines where controls appear, "edges" or "bottom-right"
+        controlsLayout: 'edges',
+
+        // Visibility rule for backwards navigation arrows; "faded", "hidden"
+        // or "visible"
+        controlsBackArrows: 'faded',
+
+        // Display a presentation progress bar
+        progress: true,
+
+        // Display the page number of the current slide
+        slideNumber: 'c/t',
+
+        // 'all', 'print', or 'speaker'
+        showSlideNumber: 'all',
+
+        // Add the current slide number to the URL hash so that reloading the
+        // page/copying the URL will return you to the same slide
+        hash: true,
+
+        // Start with 1 for the hash rather than 0
+        hashOneBasedIndex: false,
+
+        // Flags if we should monitor the hash and change slides accordingly
+        respondToHashChanges: true,
+
+        // Push each slide change to the browser history
+        history: true,
+
+        // Enable keyboard shortcuts for navigation
+        keyboard: true,
+
+        // Enable the slide overview mode
+        overview: true,
+
+        // Disables the default reveal.js slide layout (scaling and centering)
+        // so that you can use custom CSS layout
+        disableLayout: false,
+
+        // Vertical centering of slides
+        center: false,
+
+        // Enables touch navigation on devices with touch input
+        touch: true,
+
+        // Loop the presentation
+        loop: false,
+
+        // Change the presentation direction to be RTL
+        rtl: false,
+
+        // see https://revealjs.com/vertical-slides/#navigation-mode
+        navigationMode: 'linear',
+
+        // Randomizes the order of slides each time the presentation loads
+        shuffle: false,
+
+        // Turns fragments on and off globally
+        fragments: true,
+
+        // Flags whether to include the current fragment in the URL,
+        // so that reloading brings you to the same fragment position
+        fragmentInURL: false,
+
+        // Flags if the presentation is running in an embedded mode,
+        // i.e. contained within a limited portion of the screen
+        embedded: false,
+
+        // Flags if we should show a help overlay when the questionmark
+        // key is pressed
+        help: true,
+
+        // Flags if it should be possible to pause the presentation (blackout)
+        pause: true,
+
+        // Flags if speaker notes should be visible to all viewers
+        showNotes: false,
+
+        // Global override for autoplaying embedded media (null/true/false)
+        autoPlayMedia: null,
+
+        // Global override for preloading lazy-loaded iframes (null/true/false)
+        preloadIframes: null,
+
+        // Number of milliseconds between automatically proceeding to the
+        // next slide, disabled when set to 0, this value can be overwritten
+        // by using a data-autoslide attribute on your slides
+        autoSlide: 0,
+
+        // Stop auto-sliding after user input
+        autoSlideStoppable: true,
+
+        // Use this method for navigation when auto-sliding
+        autoSlideMethod: null,
+
+        // Specify the average time in seconds that you think you will spend
+        // presenting each slide. This is used to show a pacing timer in the
+        // speaker view
+        defaultTiming: null,
+
+        // Enable slide navigation via mouse wheel
+        mouseWheel: false,
+
+        // The display mode that will be used to show slides
+        display: 'block',
+
+        // Hide cursor if inactive
+        hideInactiveCursor: true,
+
+        // Time before the cursor is hidden (in ms)
+        hideCursorTime: 5000,
+
+        // Opens links in an iframe preview overlay
+        previewLinks: false,
+
+        // Transition style (none/fade/slide/convex/concave/zoom)
+        transition: 'fade',
+
+        // Transition speed (default/fast/slow)
+        transitionSpeed: 'default',
+
+        // Transition style for full page slide backgrounds
+        // (none/fade/slide/convex/concave/zoom)
+        backgroundTransition: 'none',
+
+        // Number of slides away from the current that are visible
+        viewDistance: 3,
+
+        // Number of slides away from the current that are visible on mobile
+        // devices. It is advisable to set this to a lower number than
+        // viewDistance in order to save resources.
+        mobileViewDistance: 2,
+
+        // The "normal" size of the presentation, aspect ratio will be preserved
+        // when the presentation is scaled to fit different resolutions. Can be
+        // specified using percentage units.
+        width: 1280,
+
+        height: 720,
+
+        // Factor of the display size that should remain empty around the content
+        margin: 6.0e-2,
+
+        math: {
+          mathjax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/MathJax.js',
+          config: 'TeX-AMS_HTML-full',
+          tex2jax: {
+            inlineMath: [['\\(','\\)']],
+            displayMath: [['\\[','\\]']],
+            balanceBraces: true,
+            processEscapes: false,
+            processRefs: true,
+            processEnvironments: true,
+            preview: 'TeX',
+            skipTags: ['script','noscript','style','textarea','pre','code'],
+            ignoreClass: 'tex2jax_ignore',
+            processClass: 'tex2jax_process'
+          },
+        },
+
+        // reveal.js plugins
+        plugins: [QuartoLineHighlight, PdfExport, RevealMenu, QuartoSupport,
+
+          RevealMath,
+          RevealNotes,
+          RevealSearch,
+          RevealZoom
+        ]
+      });
+    </script>
+    <div id="image-lightbox-overlay" class="image-lightbox-overlay" aria-hidden="true">
+
+      <!-- Top Navigation & Controls Header -->
+
+      <div class="lightbox-header">
+
+        <div class="lightbox-meta">
+
+          <span class="lightbox-tag">Full-Page View</span>
+
+          <span id="lightbox-caption" class="lightbox-caption"></span>
+
+        </div>
+
+        
+
+        <div class="lightbox-controls">
+
+          <div class="lightbox-btn-group">
+
+            <button id="lightbox-zoom-out" class="lightbox-btn" title="Zoom Out (−)" aria-label="Zoom Out">−</button>
+
+            <span id="lightbox-zoom-display" class="lightbox-zoom-display">Fit</span>
+
+            <button id="lightbox-zoom-in" class="lightbox-btn" title="Zoom In (+)" aria-label="Zoom In">+</button>
+
+          </div>
+
+    
+
+          <button id="lightbox-mode-toggle" class="lightbox-btn lightbox-btn-accent" title="Toggle Full Width / Fit to Screen">
+
+            <span id="lightbox-mode-icon">↔</span>
+
+            <span id="lightbox-mode-text">Fill Width</span>
+
+          </button>
+
+    
+
+          <button id="lightbox-reset-btn" class="lightbox-btn" title="Reset View (0)">↺ Reset</button>
+
+          <button id="lightbox-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+
+        </div>
+
+      </div>
+
+    
+
+      <!-- Main Viewport / Scroll & Pan Canvas -->
+
+      <div id="lightbox-viewport" class="lightbox-viewport mode-fit">
+
+        <div id="lightbox-canvas" class="lightbox-canvas">
+
+          <img id="lightbox-expanded-img" src="" alt="Expanded diagram" draggable="false">
+
+        </div>
+
+      </div>
+
+    
+
+      <!-- Bottom Interaction Hint -->
+
+      <div class="lightbox-footer">
+
+        <span class="lightbox-hint">
+
+          <strong>Navigation:</strong> <strong>Single-click anywhere on image</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Mousewheel or <strong>+/−</strong> to zoom • Drag to pan
+
+        </span>
+
+      </div>
+
+    </div>
+
+    
+
+    <div id="card-lightbox-overlay" class="card-lightbox-overlay" aria-hidden="true">
+
+      <div class="lightbox-header">
+
+        <div class="lightbox-meta">
+
+          <span class="lightbox-tag">Card Focus View</span>
+
+          <span id="card-lightbox-caption" class="lightbox-caption"></span>
+
+        </div>
+
+        <div class="lightbox-controls">
+
+          <div class="lightbox-btn-group">
+
+            <button id="card-zoom-out" class="lightbox-btn" title="Decrease Font Size (−)" aria-label="Decrease Font Size">A−</button>
+
+            <span id="card-zoom-display" class="lightbox-zoom-display">100%</span>
+
+            <button id="card-zoom-in" class="lightbox-btn" title="Increase Font Size (+)" aria-label="Increase Font Size">A+</button>
+
+          </div>
+
+          <button id="card-reset-btn" class="lightbox-btn" title="Reset Font Size (0)">↺ Reset</button>
+
+          <button id="card-close-btn" class="lightbox-btn lightbox-btn-close" title="Close (Esc)">✕</button>
+
+        </div>
+
+      </div>
+
+      <div id="card-lightbox-viewport" class="card-lightbox-viewport">
+
+        <div id="card-lightbox-modal" class="card-lightbox-modal"></div>
+
+      </div>
+
+      <div class="lightbox-footer">
+
+        <span class="lightbox-hint">
+
+          <strong>Card Focus View:</strong> <strong>Single-click anywhere on card</strong> (or press <kbd>Space</kbd> / <kbd>Esc</kbd>) to close • Use <strong>A+/A−</strong> or <strong>+/−</strong> keys to scale font
+
+        </span>
+
+      </div>
+
+    </div>
+
+    
+
+    <script>
+
+    (function() {
+
+      let openImageLightboxFn = null;
+
+    
+
+      function sanitizeMathText(container) {
+
+        if (!container) return '';
+
+        const clone = container.cloneNode(true);
+
+    
+
+        const scripts = Array.from(clone.querySelectorAll('script[type*="math"]'));
+
+        scripts.forEach(script => {
+
+          let tex = script.textContent || '';
+
+          tex = tex
+
+            .replace(/\\text\{([^}]+)\}/g, '$1')
+
+            .replace(/_\{([^}]+)\}/g, '_$1')
+
+            .replace(/\\cap/g, '∩')
+
+            .replace(/\\ge/g, '≥')
+
+            .replace(/\\le/g, '≤')
+
+            .replace(/\\to/g, '→')
+
+            .replace(/\\sum/g, 'Σ')
+
+            .replace(/\\mathbb\{I\}/g, '𝕀')
+
+            .replace(/\\in/g, '∈')
+
+            .replace(/\\tau/g, 'τ')
+
+            .replace(/\\Delta/g, 'Δ')
+
+            .replace(/\\times/g, '×')
+
+            .replace(/[\$\{\}\\]/g, '')
+
+            .replace(/\s+/g, ' ')
+
+            .trim();
+
+          
+
+          const parentMath = script.closest('span.math, .math');
+
+          if (parentMath) {
+
+            parentMath.replaceWith(document.createTextNode(' ' + tex + ' '));
+
+          } else {
+
+            script.replaceWith(document.createTextNode(' ' + tex + ' '));
+
+          }
+
+        });
+
+    
+
+        clone.querySelectorAll('.MJX_Assistive_MathML, .MathJax_Preview, .MathJax, annotation, .print-hide, script').forEach(el => el.remove());
+
+        return (clone.textContent || '').replace(/\s+/g, ' ').trim();
+
+      }
+
+    
+
+      function initLightbox() {
+
+        const overlay = document.getElementById('image-lightbox-overlay');
+
+        const viewport = document.getElementById('lightbox-viewport');
+
+        const canvas = document.getElementById('lightbox-canvas');
+
+        const expandedImg = document.getElementById('lightbox-expanded-img');
+
+        const captionEl = document.getElementById('lightbox-caption');
+
+        const closeBtn = document.getElementById('lightbox-close-btn');
+
+        const zoomInBtn = document.getElementById('lightbox-zoom-in');
+
+        const zoomOutBtn = document.getElementById('lightbox-zoom-out');
+
+        const zoomDisplay = document.getElementById('lightbox-zoom-display');
+
+        const modeToggleBtn = document.getElementById('lightbox-mode-toggle');
+
+        const modeText = document.getElementById('lightbox-mode-text');
+
+        const modeIcon = document.getElementById('lightbox-mode-icon');
+
+        const resetBtn = document.getElementById('lightbox-reset-btn');
+
+    
+
+        if (!overlay || !expandedImg || !viewport) return;
+
+    
+
+        // View state
+
+        let currentMode = 'fit'; // 'fit' | 'fill-width' | 'custom-zoom'
+
+        let currentScale = 1.0;
+
+        let panX = 0;
+
+        let panY = 0;
+
+        let isDragging = false;
+
+        let dragStartX = 0;
+
+        let dragStartY = 0;
+
+        let hasDragged = false;
+
+    
+
+        function applyTransform() {
+
+          if (currentMode === 'fit') {
+
+            viewport.className = 'lightbox-viewport mode-fit';
+
+            canvas.style.transform = '';
+
+            expandedImg.style.transform = '';
+
+            zoomDisplay.textContent = 'Fit';
+
+            modeText.textContent = 'Fill Width';
+
+            modeIcon.textContent = '↔';
+
+          } else if (currentMode === 'fill-width') {
+
+            viewport.className = 'lightbox-viewport mode-fill-width';
+
+            canvas.style.transform = '';
+
+            expandedImg.style.transform = '';
+
+            zoomDisplay.textContent = 'Width';
+
+            modeText.textContent = 'Fit Screen';
+
+            modeIcon.textContent = '↕';
+
+          } else {
+
+            viewport.className = 'lightbox-viewport mode-custom';
+
+            canvas.style.transform = `translate(${panX}px, ${panY}px)`;
+
+            expandedImg.style.transform = `scale(${currentScale})`;
+
+            zoomDisplay.textContent = `${Math.round(currentScale * 100)}%`;
+
+            modeText.textContent = 'Fit Screen';
+
+            modeIcon.textContent = '↕';
+
+          }
+
+        }
+
+    
+
+        function setMode(mode) {
+
+          currentMode = mode;
+
+          if (mode === 'fit') {
+
+            currentScale = 1.0;
+
+            panX = 0;
+
+            panY = 0;
+
+            viewport.scrollTop = 0;
+
+            viewport.scrollLeft = 0;
+
+          } else if (mode === 'fill-width') {
+
+            currentScale = 1.0;
+
+            panX = 0;
+
+            panY = 0;
+
+            viewport.scrollTop = 0;
+
+            viewport.scrollLeft = 0;
+
+          } else if (mode === 'custom-zoom') {
+
+            // keep current scale and pan
+
+          }
+
+          applyTransform();
+
+        }
+
+    
+
+        function zoomBy(delta) {
+
+          if (currentMode === 'fit' || currentMode === 'fill-width') {
+
+            currentScale = currentMode === 'fit' ? 1.0 : 1.5;
+
+            currentMode = 'custom-zoom';
+
+          }
+
+          currentScale = Math.min(Math.max(currentScale + delta, 0.4), 4.0);
+
+          currentMode = 'custom-zoom';
+
+          applyTransform();
+
+        }
+
+    
+
+        function toggleMode() {
+
+          if (currentMode === 'fit') {
+
+            setMode('fill-width');
+
+          } else {
+
+            setMode('fit');
+
+          }
+
+        }
+
+    
+
+        function openLightbox(imgSrc, captionText) {
+
+          expandedImg.src = imgSrc;
+
+          captionEl.innerText = captionText || '';
+
+          overlay.classList.add('active');
+
+          overlay.setAttribute('aria-hidden', 'false');
+
+    
+
+          // Standardize pop-out logic across all diagrams:
+
+          // Default to Fill Width mode (up to 94vw / 1500px) so every diagram pops out bold, scaled, and instantly legible!
+
+          function applyDefaultMode() {
+
+            setMode('fill-width');
+
+          }
+
+    
+
+          if (expandedImg.complete && expandedImg.naturalWidth > 0) {
+
+            applyDefaultMode();
+
+          } else {
+
+            expandedImg.onload = applyDefaultMode;
+
+          }
+
+    
+
+    
+
+          // Temporarily disable Reveal keyboard navigation while lightbox is active
+
+          if (window.Reveal) {
+
+            window.Reveal.configure({ keyboard: false });
+
+          }
+
+        }
+
+    
+
+        openImageLightboxFn = openLightbox;
+
+        window.openImageLightbox = openLightbox;
+
+        window.closeImageLightbox = closeLightbox;
+
+    
+
+        function closeLightbox() {
+
+          overlay.classList.remove('active');
+
+          overlay.setAttribute('aria-hidden', 'true');
+
+          expandedImg.src = '';
+
+          captionEl.innerText = '';
+
+          setMode('fit');
+
+    
+
+          // Re-enable Reveal keyboard navigation
+
+          if (window.Reveal) {
+
+            window.Reveal.configure({ keyboard: true });
+
+          }
+
+        }
+
+    
+
+        function getCleanCaption(frame, img) {
+
+          const cap = frame ? frame.querySelector('.caption') : null;
+
+          if (!cap) return img.getAttribute('alt') || '';
+
+          return sanitizeMathText(cap) || img.getAttribute('alt') || '';
+
+        }
+
+    
+
+        function bindImages() {
+
+          const zoomableImages = document.querySelectorAll('.figure-frame img, img.zoomable, .reveal .slides img');
+
+          zoomableImages.forEach(img => {
+
+            if (img.classList.contains('no-zoom')) return;
+
+            if (img.closest('.infographic-swap-container')) return;
+
+    
+
+            img.style.cursor = 'zoom-in';
+
+    
+
+            img.onclick = function(e) {
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+    
+
+              const frame = img.closest('.figure-frame') || img.parentElement;
+
+              const caption = getCleanCaption(frame, img);
+
+              const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
+
+    
+
+              if (src) {
+
+                openLightbox(src, caption);
+
+              }
+
+            };
+
+          });
+
+    
+
+          document.querySelectorAll('.figure-frame').forEach(frame => {
+
+            if (frame.dataset.frameBound === 'true') return;
+
+            frame.dataset.frameBound = 'true';
+
+            frame.addEventListener('click', function(e) {
+
+              if (e.target.closest('a, button')) return;
+
+              const img = frame.querySelector('img:not(.no-zoom)');
+
+              if (!img) return;
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              const caption = getCleanCaption(frame, img);
+
+              const src = img.getAttribute('data-popout') || img.getAttribute('src') || img.getAttribute('data-src');
+
+              if (src) {
+
+                openLightbox(src, caption);
+
+              }
+
+            });
+
+          });
+
+        }
+
+    
+
+        // Event Listeners
+
+        closeBtn.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          closeLightbox();
+
+        });
+
+    
+
+        modeToggleBtn.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          toggleMode();
+
+        });
+
+    
+
+        resetBtn.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          setMode('fit');
+
+        });
+
+    
+
+        zoomInBtn.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          zoomBy(0.25);
+
+        });
+
+    
+
+        zoomOutBtn.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          zoomBy(-0.25);
+
+        });
+
+    
+
+        // Single-click on expanded image closes lightbox (if not dragged)
+
+        expandedImg.addEventListener('click', function(e) {
+
+          e.stopPropagation();
+
+          if (hasDragged) {
+
+            hasDragged = false;
+
+            return;
+
+          }
+
+          closeLightbox();
+
+        });
+
+    
+
+        // Mouse wheel zoom over viewport
+
+        viewport.addEventListener('wheel', function(e) {
+
+          if (e.ctrlKey || currentMode === 'custom-zoom') {
+
+            e.preventDefault();
+
+            const delta = e.deltaY < 0 ? 0.2 : -0.2;
+
+            zoomBy(delta);
+
+          }
+
+        }, { passive: false });
+
+    
+
+        // Drag to Pan functionality
+
+        viewport.addEventListener('mousedown', function(e) {
+
+          if (e.target === closeBtn || e.target.closest('.lightbox-header')) return;
+
+          isDragging = true;
+
+          hasDragged = false;
+
+          dragStartX = e.clientX - panX;
+
+          dragStartY = e.clientY - panY;
+
+          viewport.style.cursor = 'grabbing';
+
+        });
+
+    
+
+        window.addEventListener('mousemove', function(e) {
+
+          if (!isDragging) return;
+
+          hasDragged = true;
+
+          if (currentMode !== 'custom-zoom') {
+
+            currentMode = 'custom-zoom';
+
+          }
+
+          panX = e.clientX - dragStartX;
+
+          panY = e.clientY - dragStartY;
+
+          applyTransform();
+
+        });
+
+    
+
+        window.addEventListener('mouseup', function() {
+
+          isDragging = false;
+
+          if (viewport) {
+
+            viewport.style.cursor = currentMode === 'custom-zoom' ? 'grab' : '';
+
+          }
+
+        });
+
+    
+
+        // Background click (outside image) closes lightbox
+
+        viewport.addEventListener('click', function(e) {
+
+          if (e.target === viewport || e.target === canvas) {
+
+            if (!hasDragged) {
+
+              closeLightbox();
+
+            }
+
+            hasDragged = false;
+
+          }
+
+        });
+
+    
+
+        // Keyboard controls
+
+        window.addEventListener('keydown', function(e) {
+
+          if (overlay.classList.contains('active')) {
+
+            if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              closeLightbox();
+
+            } else if (e.key === '+' || e.key === '=') {
+
+              e.preventDefault();
+
+              zoomBy(0.25);
+
+            } else if (e.key === '-' || e.key === '_') {
+
+              e.preventDefault();
+
+              zoomBy(-0.25);
+
+            } else if (e.key === '0') {
+
+              e.preventDefault();
+
+              setMode('fit');
+
+            } else if (e.key === 'w' || e.key === 'W' || e.key === 'f' || e.key === 'F') {
+
+              e.preventDefault();
+
+              toggleMode();
+
+            }
+
+          }
+
+        }, true);
+
+    
+
+        bindImages();
+
+    
+
+        if (window.Reveal) {
+
+          window.Reveal.on('ready', bindImages);
+
+          window.Reveal.on('slidechanged', bindImages);
+
+        }
+
+      }
+
+    
+
+      function initTitleSlideLogos() {
+
+        const titleSlide = document.querySelector('#title-slide');
+
+        if (!titleSlide || titleSlide.querySelector('.dual-logo-bar')) return;
+
+    
+
+        const usesParentDiagrams = !!document.querySelector('img[src^="../diagrams/"], img[data-src^="../diagrams/"]');
+
+        const diagPrefix = usesParentDiagrams ? '../diagrams' : 'diagrams';
+
+    
+
+        const logoBar = document.createElement('div');
+
+        logoBar.className = 'dual-logo-bar';
+
+        logoBar.innerHTML = `
+
+          <img src="${diagPrefix}/vcu_life_sciences_stacked.png" class="no-zoom logo-ls" alt="VCU School of Life Sciences and Sustainability" />
+
+          <div class="logo-divider"></div>
+
+          <img src="${diagPrefix}/vcu_pharmacy_logo.png" class="no-zoom logo-pharm" alt="VCU School of Pharmacy" />
+
+        `;
+
+        titleSlide.appendChild(logoBar);
+
+    
+
+        const pdfBar = document.createElement('div');
+
+        pdfBar.className = 'title-pdf-bar print-hide';
+
+        pdfBar.innerHTML = `
+
+          <a href="final_defense_slides.pdf" target="_blank" rel="noopener" class="title-pdf-pill" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 Presentation Slides (PDF) ↗</a>
+
+        `;
+
+        titleSlide.appendChild(pdfBar);
+
+      }
+
+    
+
+      function initModuleNavBar() {
+
+        const footer = document.querySelector('.reveal .footer');
+
+        if (!footer) return;
+
+        if (footer.querySelector('.footer-nav')) return;
+
+    
+
+        footer.innerHTML = `
+
+          <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Defense</span>
+
+          <nav class="footer-nav" aria-label="Presentation Module Navigation">
+
+            <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: 7 Core Modules (Slide 3)">Roadmap</a>
+
+            <a href="#/slide-1" class="nav-pill pill-p1" id="nav-pill-p1" title="Module I: Problem">I. Problem</a>
+
+            <a href="#/slide-2" class="nav-pill pill-p2" id="nav-pill-p2" title="Module II: Governance & Data">II. Governance</a>
+
+            <a href="#/slide-4" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts">III. Cohorts</a>
+
+            <a href="#/slide-5" class="nav-pill pill-p4" id="nav-pill-p4" title="Module IV: Modeling">IV. Modeling</a>
+
+            <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Deployment">V. Translation</a>
+
+            <a href="#/slide-res-ch2" class="nav-pill pill-p6" id="nav-pill-p6" title="Module VI: Empirical Results (CH2–CH5)">VI. Results</a>
+
+            <a href="#/slide-next-steps" class="nav-pill pill-p7" id="nav-pill-p7" title="Module VII: Next Steps (Pending 9NOV Feedback)">VII. Next Steps</a>
+
+            <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (A1–A8)">Appendix</a>
+
+            <a href="final_defense_slides.pdf" target="_blank" rel="noopener" class="nav-pill pill-pdf print-hide" id="nav-pill-pdf" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 PDF ↗</a>
+
+          </nav>
+
+          <span class="footer-spacer"></span>
+
+        `;
+
+    
+
+        footer.querySelectorAll('.nav-pill:not(.pill-pdf)').forEach(link => {
+
+          link.addEventListener('click', function(e) {
+
+            e.preventDefault();
+
+            e.stopPropagation();
+
+            const targetHash = link.getAttribute('href');
+
+            if (window.Reveal) {
+
+              if (targetHash.startsWith('#/')) {
+
+                const slideId = targetHash.replace('#/', '');
+
+                const targetSlide = document.getElementById(slideId);
+
+                if (targetSlide) {
+
+                  const indices = window.Reveal.getIndices(targetSlide);
+
+                  window.Reveal.slide(indices.h, indices.v, indices.f);
+
+                  return;
+
+                }
+
+              }
+
+              window.location.hash = targetHash;
+
+            }
+
+          });
+
+        });
+
+    
+
+        function getSlideH(id, fallback) {
+
+          const el = document.getElementById(id);
+
+          if (el && window.Reveal) {
+
+            const ind = window.Reveal.getIndices(el);
+
+            if (ind && typeof ind.h === 'number') return ind.h;
+
+          }
+
+          return fallback;
+
+        }
+
+    
+
+        function updateActiveNav() {
+
+          if (!window.Reveal) return;
+
+          const indices = window.Reveal.getIndices();
+
+          const h = indices ? indices.h : 0;
+
+          const currentSlide = window.Reveal.getCurrentSlide();
+
+    
+
+          // Title Slide (Index 0) -> hide footer completely
+
+          if (h === 0 || (currentSlide && currentSlide.id === 'title-slide')) {
+
+            footer.style.setProperty('display', 'none', 'important');
+
+            return;
+
+          } else {
+
+            footer.style.setProperty('display', 'flex', 'important');
+
+          }
+
+    
+
+          footer.querySelectorAll('.nav-pill').forEach(pill => pill.classList.remove('active'));
+
+    
+
+          const hRoad = getSlideH('sec-roadmap', 2);
+
+          const hP1 = getSlideH('slide-1', 3);
+
+          const hP2 = getSlideH('slide-2', 11);
+
+          const hP3 = getSlideH('slide-4', 13);
+
+          const hP4 = getSlideH('slide-5', 16);
+
+          const hP5 = getSlideH('slide-8', 19);
+
+          const hP6 = getSlideH('slide-res-ch2', 23);
+
+          const hP7 = getSlideH('slide-next-steps', 32);
+
+          const hQA = getSlideH('slide-qa', 33);
+
+          const hApp = getSlideH('sec-appendix', 35);
+
+    
+
+          if (h === hRoad) {
+
+            footer.querySelector('#nav-pill-road')?.classList.add('active');
+
+          } else if (h >= hP1 && h < hP2) {
+
+            footer.querySelector('#nav-pill-p1')?.classList.add('active');
+
+          } else if (h >= hP2 && h < hP3) {
+
+            footer.querySelector('#nav-pill-p2')?.classList.add('active');
+
+          } else if (h >= hP3 && h < hP4) {
+
+            footer.querySelector('#nav-pill-p3')?.classList.add('active');
+
+          } else if (h >= hP4 && h < hP5) {
+
+            footer.querySelector('#nav-pill-p4')?.classList.add('active');
+
+          } else if (h >= hP5 && h < hP6) {
+
+            footer.querySelector('#nav-pill-p5')?.classList.add('active');
+
+          } else if (h >= hP6 && h < hP7) {
+
+            footer.querySelector('#nav-pill-p6')?.classList.add('active');
+
+          } else if (h >= hP7 && h < hQA) {
+
+            footer.querySelector('#nav-pill-p7')?.classList.add('active');
+
+          } else if (h >= hApp) {
+
+            footer.querySelector('#nav-pill-app')?.classList.add('active');
+
+          }
+
+        }
+
+    
+
+        updateActiveNav();
+
+        if (window.Reveal) {
+
+          window.Reveal.on('slidechanged', updateActiveNav);
+
+        }
+
+      }
+
+    
+
+      function initCardLightbox() {
+
+        const overlay = document.getElementById('card-lightbox-overlay');
+
+        const viewport = document.getElementById('card-lightbox-viewport');
+
+        const modal = document.getElementById('card-lightbox-modal');
+
+        const captionEl = document.getElementById('card-lightbox-caption');
+
+        const closeBtn = document.getElementById('card-close-btn');
+
+        const zoomInBtn = document.getElementById('card-zoom-in');
+
+        const zoomOutBtn = document.getElementById('card-zoom-out');
+
+        const zoomDisplay = document.getElementById('card-zoom-display');
+
+        const resetBtn = document.getElementById('card-reset-btn');
+
+    
+
+        if (!overlay || !viewport || !modal) return;
+
+    
+
+        let cardScale = 1.0;
+
+    
+
+        function applyCardScale() {
+
+          modal.style.setProperty('--card-scale', String(cardScale));
+
+          if (zoomDisplay) {
+
+            zoomDisplay.textContent = `${Math.round(cardScale * 100)}%`;
+
+          }
+
+        }
+
+    
+
+        function openCardLightbox(cardEl) {
+
+          const slide = cardEl.closest('section');
+
+          const slideTitle = slide?.querySelector('h2, h1')?.innerText?.trim() || '';
+
+          const titleEl = cardEl.querySelector('.card-title, h3, h4, .chair-name, .member-name');
+
+          const cardTitle = sanitizeMathText(titleEl);
+
+          if (captionEl) {
+
+            captionEl.textContent = cardTitle && slideTitle ? `${slideTitle} — ${cardTitle}` : (cardTitle || slideTitle);
+
+          }
+
+    
+
+          modal.className = 'card-lightbox-modal';
+
+          ['card-primary', 'card-warning', 'card-danger', 'card-success', 'card-slate', 'card-teal', 'card-indigo'].forEach(cls => {
+
+            if (cardEl.classList.contains(cls)) {
+
+              modal.classList.add(cls);
+
+            }
+
+          });
+
+    
+
+          if (cardEl.tagName === 'TABLE' || cardEl.querySelector('table')) {
+
+            modal.classList.add('card-modal-table');
+
+          }
+
+    
+
+          if (cardEl.tagName === 'TABLE') {
+
+            modal.innerHTML = cardEl.outerHTML;
+
+            const clonedTable = modal.querySelector('table');
+
+            if (clonedTable) {
+
+              clonedTable.style.fontSize = '';
+
+              clonedTable.style.lineHeight = '';
+
+            }
+
+          } else {
+
+            modal.innerHTML = cardEl.innerHTML;
+
+            modal.querySelectorAll('table').forEach(tbl => {
+
+              tbl.style.fontSize = '';
+
+              tbl.style.lineHeight = '';
+
+            });
+
+          }
+
+    
+
+          // Remove inline font-size overrides that MathJax v2 bakes onto .MathJax / .mjx-chtml based on tiny slide table font sizes
+
+          modal.querySelectorAll('.MathJax, .mjx-chtml, .MathJax_CHTML').forEach(mj => {
+
+            mj.style.fontSize = '';
+
+          });
+
+    
+
+          // Wire internal appendix jump/return links inside the modal so clicking them closes the modal and navigates
+
+          modal.querySelectorAll('a[href^="#/"]').forEach(link => {
+
+            link.addEventListener('click', function(e) {
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              const targetHash = link.getAttribute('href');
+
+              closeCardLightbox();
+
+              if (window.Reveal && targetHash.startsWith('#/')) {
+
+                const slideId = targetHash.replace('#/', '');
+
+                const targetSlide = document.getElementById(slideId);
+
+                if (targetSlide) {
+
+                  const ind = window.Reveal.getIndices(targetSlide);
+
+                  window.Reveal.slide(ind.h, ind.v, ind.f);
+
+                  return;
+
+                }
+
+              }
+
+              window.location.hash = targetHash;
+
+            });
+
+          });
+
+    
+
+          cardScale = 1.0;
+
+          applyCardScale();
+
+          overlay.classList.add('active');
+
+          overlay.setAttribute('aria-hidden', 'false');
+
+    
+
+          if (window.Reveal) {
+
+            window.Reveal.configure({ keyboard: false });
+
+          }
+
+        }
+
+    
+
+        window.openCardLightbox = openCardLightbox;
+
+        window.closeCardLightbox = closeCardLightbox;
+
+    
+
+        function closeCardLightbox() {
+
+          overlay.classList.remove('active');
+
+          overlay.setAttribute('aria-hidden', 'true');
+
+          modal.innerHTML = '';
+
+          if (window.Reveal) {
+
+            window.Reveal.configure({ keyboard: true });
+
+          }
+
+        }
+
+    
+
+        function bindCards() {
+
+          const selector = [
+
+            '.reveal .slides .card-box',
+
+            '.reveal .slides .committee-chair-card',
+
+            '.reveal .slides .committee-member-strip',
+
+            '.reveal .slides .takeaway-banner',
+
+            '.reveal .slides table.table-compact'
+
+          ].join(', ');
+
+    
+
+          document.querySelectorAll(selector).forEach(el => {
+
+            if (el.dataset.cardBound === 'true') return;
+
+            // Skip Roadmap (Slide 3) high-level module cards (handled by initRoadmapCards)
+
+            if (el.closest('#sec-roadmap')) return;
+
+            // Skip tables that are already inside a .card-box (clicking the card-box handles them)
+
+            if (el.tagName === 'TABLE' && el.closest('.card-box')) return;
+
+    
+
+            el.dataset.cardBound = 'true';
+
+            el.addEventListener('click', function(e) {
+
+              const popoutImg = el.getAttribute('data-popout-img') || el.dataset.popoutImg;
+
+              if (popoutImg) {
+
+                e.preventDefault();
+
+                e.stopPropagation();
+
+                const caption = el.getAttribute('data-popout-caption') || el.dataset.popoutCaption || 'Figure 1B - FAERS vs APCD ADE Events';
+
+                const fn = openImageLightboxFn || window.openImageLightbox;
+
+                if (fn) {
+
+                  fn(popoutImg, caption);
+
+                }
+
+                return;
+
+              }
+
+              if (e.target.closest('a, button')) return;
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              openCardLightbox(el);
+
+            });
+
+          });
+
+        }
+
+    
+
+        closeBtn?.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          closeCardLightbox();
+
+        });
+
+    
+
+        zoomInBtn?.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+
+          applyCardScale();
+
+        });
+
+    
+
+        zoomOutBtn?.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+
+          applyCardScale();
+
+        });
+
+    
+
+        resetBtn?.addEventListener('click', function(e) {
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          cardScale = 1.0;
+
+          applyCardScale();
+
+        });
+
+    
+
+        viewport.addEventListener('click', function(e) {
+
+          if (e.target.closest('a, button')) return;
+
+          const sel = window.getSelection ? window.getSelection().toString() : '';
+
+          if (sel && sel.length > 0) return;
+
+          e.preventDefault();
+
+          e.stopPropagation();
+
+          closeCardLightbox();
+
+        });
+
+    
+
+        window.addEventListener('keydown', function(e) {
+
+          if (!overlay.classList.contains('active')) return;
+
+          if (e.key === 'Escape' || e.keyCode === 27 || e.key === ' ' || e.key === 'Enter') {
+
+            e.preventDefault();
+
+            e.stopPropagation();
+
+            closeCardLightbox();
+
+          } else if (e.key === '+' || e.key === '=') {
+
+            e.preventDefault();
+
+            cardScale = Math.min(1.8, Math.round((cardScale + 0.15) * 100) / 100);
+
+            applyCardScale();
+
+          } else if (e.key === '-' || e.key === '_') {
+
+            e.preventDefault();
+
+            cardScale = Math.max(0.75, Math.round((cardScale - 0.15) * 100) / 100);
+
+            applyCardScale();
+
+          } else if (e.key === '0') {
+
+            e.preventDefault();
+
+            cardScale = 1.0;
+
+            applyCardScale();
+
+          }
+
+        }, true);
+
+    
+
+        bindCards();
+
+        if (window.Reveal) {
+
+          window.Reveal.on('ready', bindCards);
+
+          window.Reveal.on('slidechanged', bindCards);
+
+        }
+
+      }
+
+    
+
+      function initRoadmapCards() {
+
+        const roadmap = document.getElementById('sec-roadmap');
+
+        if (!roadmap || roadmap.dataset.roadmapBound === 'true') return;
+
+        roadmap.dataset.roadmapBound = 'true';
+
+    
+
+        const cardTargets = [
+
+          { selector: '.card-danger', targetId: 'slide-1', title: 'Module I: Problem' },
+
+          { selector: '.card-primary', targetId: 'slide-2', title: 'Module II: Governance & Data' },
+
+          { selector: '.card-warning', targetId: 'slide-4', title: 'Module III: Cohorts' },
+
+          { selector: '.card-success', targetId: 'slide-5', title: 'Module IV: Modeling' },
+
+          { selector: '.card-slate', targetId: 'slide-8', title: 'Module V: Translation & Deployment' },
+
+          { selector: '.card-teal', targetId: 'slide-res-ch2', title: 'Module VI: Results (CH2–CH5)' },
+
+          { selector: '.card-indigo', targetId: 'slide-next-steps', title: 'Module VII: Next Steps (Pending 9NOV Feedback)' }
+
+        ];
+
+    
+
+        cardTargets.forEach(({ selector, targetId, title }) => {
+
+          const card = roadmap.querySelector(selector);
+
+          if (!card) return;
+
+          card.style.cursor = 'pointer';
+
+          card.setAttribute('title', `Click to navigate to ${title}`);
+
+          card.addEventListener('click', function(e) {
+
+            e.preventDefault();
+
+            e.stopPropagation();
+
+            if (window.Reveal) {
+
+              const targetSlide = document.getElementById(targetId);
+
+              if (targetSlide) {
+
+                const indices = window.Reveal.getIndices(targetSlide);
+
+                window.Reveal.slide(indices.h, indices.v, indices.f);
+
+                window.location.hash = `#/${targetId}`;
+
+              }
+
+            }
+
+          });
+
+        });
+
+      }
+
+    
+
+      function initInternalLinks() {
+
+        if (document.body && document.body.dataset.internalLinksBound === 'true') return;
+
+        if (document.body) document.body.dataset.internalLinksBound = 'true';
+
+    
+
+        document.addEventListener('click', function(e) {
+
+          const link = e.target.closest('a[href^="#/"]');
+
+          if (!link) return;
+
+          // Skip if it's already a footer nav pill (handled by initModuleNavBar)
+
+          if (link.closest('.footer-nav')) return;
+
+    
+
+          const targetHash = link.getAttribute('href');
+
+          if (window.Reveal && targetHash && targetHash.startsWith('#/')) {
+
+            e.preventDefault();
+
+            e.stopPropagation();
+
+            const slideId = targetHash.replace('#/', '');
+
+            const targetSlide = document.getElementById(slideId);
+
+            if (targetSlide) {
+
+              if (window.closeImageLightbox) window.closeImageLightbox();
+
+              if (window.closeCardLightbox) window.closeCardLightbox();
+
+              const indices = window.Reveal.getIndices(targetSlide);
+
+              window.Reveal.slide(indices.h, indices.v, indices.f);
+
+              window.location.hash = targetHash;
+
+            }
+
+          }
+
+        }, true);
+
+      }
+
+    
+
+      function initInfographicSwap() {
+
+        document.querySelectorAll('.infographic-swap-container').forEach(container => {
+
+          const infographicView = container.querySelector('.swap-view-infographic');
+
+          const bulletsView = container.querySelector('.swap-view-bullets');
+
+          const returnPill = container.querySelector('.swap-return-pill');
+
+    
+
+          // Inject Zoom Visual button into infographicView if not already present
+
+          if (infographicView && !infographicView.querySelector('.swap-zoom-btn')) {
+
+            const zoomBtn = document.createElement('span');
+
+            zoomBtn.className = 'swap-zoom-btn print-hide';
+
+            zoomBtn.innerHTML = '🔍 Zoom Visual';
+
+            zoomBtn.setAttribute('title', 'Expand high-resolution visual full screen');
+
+            infographicView.appendChild(zoomBtn);
+
+    
+
+            zoomBtn.addEventListener('click', function(e) {
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              const img = infographicView.querySelector('img');
+
+              const capEl = infographicView.querySelector('.swap-caption');
+
+              const capText = capEl ? capEl.innerText.replace(/Click\s+infographic.*$/i, '').replace(/Click\s+visual.*$/i, '').trim() : (img?.getAttribute('alt') || '');
+
+              const src = img?.getAttribute('data-popout') || img?.getAttribute('src');
+
+              if (src && window.openImageLightbox) {
+
+                window.openImageLightbox(src, capText);
+
+              }
+
+            });
+
+          }
+
+    
+
+          if (container.dataset.swapBound === 'true') return;
+
+          container.dataset.swapBound = 'true';
+
+    
+
+          // 1. Swapping TO bullets: Clicking on infographicView (image, caption, or hint pill)
+
+          if (infographicView) {
+
+            infographicView.addEventListener('click', function(e) {
+
+              if (e.target.closest('a, button, .swap-zoom-btn')) return;
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              container.classList.add('swapped');
+
+            });
+
+          }
+
+    
+
+          // 2. Swapping BACK to infographic: Clicking return pill or return header bar
+
+          if (returnPill) {
+
+            returnPill.addEventListener('click', function(e) {
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              container.classList.remove('swapped');
+
+            });
+
+          }
+
+    
+
+          const returnHeader = container.querySelector('.swap-bullets-header');
+
+          if (returnHeader) {
+
+            returnHeader.addEventListener('click', function(e) {
+
+              if (e.target.closest('a, button, .card-box')) return;
+
+              e.preventDefault();
+
+              e.stopPropagation();
+
+              container.classList.remove('swapped');
+
+            });
+
+          }
+
+    
+
+          // 3. Bullets view: prevent uncaught clicks from bubbling to any parent
+
+          if (bulletsView) {
+
+            bulletsView.addEventListener('click', function(e) {
+
+              if (e.target.closest('.swap-return-pill, .swap-bullets-header')) return;
+
+              e.stopPropagation();
+
+            });
+
+          }
+
+        });
+
+      }
+
+    
+
+      function onInit() {
+
+        initInfographicSwap();
+
+        initLightbox();
+
+        initCardLightbox();
+
+        initRoadmapCards();
+
+        initInternalLinks();
+
+        initTitleSlideLogos();
+
+        initModuleNavBar();
+
+      }
+
+    
+
+      if (document.readyState === 'loading') {
+
+        document.addEventListener('DOMContentLoaded', onInit);
+
+      } else {
+
+        onInit();
+
+      }
+
+    
+
+      if (window.Reveal) {
+
+        window.Reveal.on('ready', () => {
+
+          initInfographicSwap();
+
+          initCardLightbox();
+
+          initRoadmapCards();
+
+          initInternalLinks();
+
+          initTitleSlideLogos();
+
+          initModuleNavBar();
+
+        });
+
+        window.Reveal.on('slidechanged', () => {
+
+          initInfographicSwap();
+
+          initRoadmapCards();
+
+        });
+
+      }
+
+    })();
+
+    </script>
+
+    <script id="quarto-html-after-body" type="application/javascript">
+    window.document.addEventListener("DOMContentLoaded", function (event) {
+      const toggleBodyColorMode = (bsSheetEl) => {
+        const mode = bsSheetEl.getAttribute("data-mode");
+        const bodyEl = window.document.querySelector("body");
+        if (mode === "dark") {
+          bodyEl.classList.add("quarto-dark");
+          bodyEl.classList.remove("quarto-light");
+        } else {
+          bodyEl.classList.add("quarto-light");
+          bodyEl.classList.remove("quarto-dark");
+        }
+      }
+      const toggleBodyColorPrimary = () => {
+        const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+        if (bsSheetEl) {
+          toggleBodyColorMode(bsSheetEl);
+        }
+      }
+      toggleBodyColorPrimary();  
+      const tabsets =  window.document.querySelectorAll(".panel-tabset-tabby")
+      tabsets.forEach(function(tabset) {
+        const tabby = new Tabby('#' + tabset.id);
+      });
+      const isCodeAnnotation = (el) => {
+        for (const clz of el.classList) {
+          if (clz.startsWith('code-annotation-')) {                     
+            return true;
+          }
+        }
+        return false;
+      }
+      const onCopySuccess = function(e) {
+        // button target
+        const button = e.trigger;
+        // don't keep focus
+        button.blur();
+        // flash "checked"
+        button.classList.add('code-copy-button-checked');
+        var currentTitle = button.getAttribute("title");
+        button.setAttribute("title", "Copied!");
+        let tooltip;
+        if (window.bootstrap) {
+          button.setAttribute("data-bs-toggle", "tooltip");
+          button.setAttribute("data-bs-placement", "left");
+          button.setAttribute("data-bs-title", "Copied!");
+          tooltip = new bootstrap.Tooltip(button, 
+            { trigger: "manual", 
+              customClass: "code-copy-button-tooltip",
+              offset: [0, -8]});
+          tooltip.show();    
+        }
+        setTimeout(function() {
+          if (tooltip) {
+            tooltip.hide();
+            button.removeAttribute("data-bs-title");
+            button.removeAttribute("data-bs-toggle");
+            button.removeAttribute("data-bs-placement");
+          }
+          button.setAttribute("title", currentTitle);
+          button.classList.remove('code-copy-button-checked');
+        }, 1000);
+        // clear code selection
+        e.clearSelection();
+      }
+      const getTextToCopy = function(trigger) {
+          const codeEl = trigger.previousElementSibling.cloneNode(true);
+          for (const childEl of codeEl.children) {
+            if (isCodeAnnotation(childEl)) {
+              childEl.remove();
+            }
+          }
+          return codeEl.innerText;
+      }
+      const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+        text: getTextToCopy
+      });
+      clipboard.on('success', onCopySuccess);
+      if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+        // For code content inside modals, clipBoardJS needs to be initialized with a container option
+        // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+        const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+          text: getTextToCopy,
+          container: window.document.getElementById('quarto-embedded-source-code-modal')
+        });
+        clipboardModal.on('success', onCopySuccess);
+      }
+        var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+        var mailtoRegex = new RegExp(/^mailto:/);
+          var filterRegex = new RegExp('/' + window.location.host + '/');
+        var isInternal = (href) => {
+            return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+        }
+        // Inspect non-navigation links and adorn them if external
+     	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+        for (var i=0; i<links.length; i++) {
+          const link = links[i];
+          if (!isInternal(link.href)) {
+            // undo the damage that might have been done by quarto-nav.js in the case of
+            // links that we want to consider external
+            if (link.dataset.originalHref !== undefined) {
+              link.href = link.dataset.originalHref;
+            }
+          }
+        }
+      function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+        const config = {
+          allowHTML: true,
+          maxWidth: 500,
+          delay: 100,
+          arrow: false,
+          appendTo: function(el) {
+              return el.closest('section.slide') || el.parentElement;
+          },
+          interactive: true,
+          interactiveBorder: 10,
+          theme: 'light-border',
+          placement: 'bottom-start',
+        };
+        if (contentFn) {
+          config.content = contentFn;
+        }
+        if (onTriggerFn) {
+          config.onTrigger = onTriggerFn;
+        }
+        if (onUntriggerFn) {
+          config.onUntrigger = onUntriggerFn;
+        }
+          config['offset'] = [0,0];
+          config['maxWidth'] = 700;
+        window.tippy(el, config); 
+      }
+      const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+      for (var i=0; i<noterefs.length; i++) {
+        const ref = noterefs[i];
+        tippyHover(ref, function() {
+          // use id or data attribute instead here
+          let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+          try { href = new URL(href).hash; } catch {}
+          const id = href.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note) {
+            return note.innerHTML;
+          } else {
+            return "";
+          }
+        });
+      }
+      const findCites = (el) => {
+        const parentEl = el.parentElement;
+        if (parentEl) {
+          const cites = parentEl.dataset.cites;
+          if (cites) {
+            return {
+              el,
+              cites: cites.split(' ')
+            };
+          } else {
+            return findCites(el.parentElement)
+          }
+        } else {
+          return undefined;
+        }
+      };
+      var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+      for (var i=0; i<bibliorefs.length; i++) {
+        const ref = bibliorefs[i];
+        const citeInfo = findCites(ref);
+        if (citeInfo) {
+          tippyHover(citeInfo.el, function() {
+            var popup = window.document.createElement('div');
+            citeInfo.cites.forEach(function(cite) {
+              var citeDiv = window.document.createElement('div');
+              citeDiv.classList.add('hanging-indent');
+              citeDiv.classList.add('csl-entry');
+              var biblioDiv = window.document.getElementById('ref-' + cite);
+              if (biblioDiv) {
+                citeDiv.innerHTML = biblioDiv.innerHTML;
+              }
+              popup.appendChild(citeDiv);
+            });
+            return popup.innerHTML;
+          });
+        }
+      }
+    });
+    </script>
+    
+
+</body></html>
