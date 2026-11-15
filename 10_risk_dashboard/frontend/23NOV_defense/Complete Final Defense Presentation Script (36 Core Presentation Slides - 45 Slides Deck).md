@@ -1,11 +1,11 @@
-### Complete Final Defense Presentation Script (35 Core Presentation Slides / 44 Slides Deck) & Strategic Defense Guide: Gradient-Boosted Trees and Consensus-Risk For Opioid and Polypharmacy Emergency Department Visits in Virginia’s APCD
+### Complete Final Defense Presentation Script (36 Core Presentation Slides / 45 Slides Deck) & Strategic Defense Guide: Gradient-Boosted Trees and Consensus-Risk For Opioid and Polypharmacy Emergency Department Visits in Virginia’s APCD
 
-> **Duplex Podium Print Layout (November 23, 2026 Final Defense Edition):** 3 Slide Cards + 1 Notes Footer Per Page • **Print on Both Sides (Flip on Long Edge)** • **16 Pages Total = 8 Physical Sheets** (*Sheets 1–6 = 35 Core Presentation Slides + Pacing & Routing Card; Sheets 7–8 = Appendix Slides A1–A8 + Master Committee Q&A Playbook*)
+> **Duplex Podium Print Layout (November 23, 2026 Final Defense Edition):** 3 Slide Cards + 1 Notes Footer Per Page • **Print on Both Sides (Flip on Long Edge)** • **16 Pages Total = 8 Physical Sheets** (*Sheets 1–6 = 36 Core Presentation Slides; Sheets 7–8 = Appendix Slides A1–A8 + Master Committee Q&A Playbook*)
 
 #### Master Final Defense Execution Strategy & Pacing Architecture
 
-* **Final Dissertation Defense Scope (November 23, 2026):** Presents the complete end-to-end 6-chapter dissertation across **7 Scientific Modules (`Slides 1–35`, ~42 minutes paced delivery)**—uniting clinical problem formulation & PRISMA/PROBAST literature synthesis (`Module I`), 3-ring governance & Virginia APCD architecture (`Module II`), dual-cohort engineering (`Module III`), tri-model GBDT & `TreeSHAP ∩ FFA` attribution with Step 3b leakage protection (`Module IV`), Clinical OODA Loop workflow & 8 study safeguards (`Module V`), **complete 2019 prospective holdout empirical results across Chapters 2–5 (`Module VI`, Slides 24–32)**, and **post-November 9 committee feedback integration, VCU CCTR pilot trial, 4-state APCD federation, and FDA SaMD governance (`Module VII`, Slides 33–35)**.
-* **Technical Backup Bank (`Slides 36–44` / `Appendices A1–A8`):** Pre-staged on-demand mathematical, computational, regulatory/HIPAA, and molecular pharmacogenomic proofs linked directly via interactive buttons.
+* **Final Dissertation Defense Scope (November 23, 2026):** Presents the complete end-to-end 6-chapter dissertation across **7 Scientific Modules (`Slides 1–36`, ~42 minutes paced delivery)**—uniting clinical problem formulation & PRISMA/PROBAST literature synthesis (`Module I`), 3-ring governance & Virginia APCD architecture (`Module II`), dual-cohort engineering (`Module III`), tri-model GBDT & `TreeSHAP ∩ FFA` attribution with Step 3b leakage protection (`Module IV`), Clinical OODA Loop workflow & 8 study safeguards (`Module V`), **complete 2019 prospective holdout empirical results & sensitivity analyses across Chapters 2–5 (`Module VI`, Slides 24–33)**, and **Chapter 6 translational Next Steps across 2020–2024 APCD & Virginia PDMP/SUDA linkage, VCU CCTR Epic/HIPAA enclave pilot, biogeographical ancestry & federated APCDs, and FDA SaMD governance (`Module VII`, Slides 34–36)**.
+* **Technical Backup Bank (`Slides 37–45` / `Appendices A1–A8`):** Pre-staged on-demand mathematical, computational, regulatory/HIPAA, and molecular pharmacogenomic proofs linked directly via interactive buttons.
 * **Single Source of Truth Synchronization:** Every spoken presenter script in this document is synchronized 1-to-1 with the `::: {.notes}` speaker blocks inside `final_defense_slides.qmd` and `final_defense_slides.html`.
 
 ---
@@ -78,15 +78,15 @@ Thank you all for being here today for this final dissertation defense."
 **Modules I through V** establish our scientific problem formulation, three-tier governance and Virginia APCD data architecture, dual cohort derivation pipelines, GBDT and `TreeSHAP ∩ FFA` consensus modeling with Step 3b leakage protection, and Clinical OODA Loop translation.  
 **Module VI: Results** presents the complete empirical findings across **Data Engineering (Chapter 2)**, the **Opioid Cohort (Chapter 3)**, the **Polypharmacy Cohort (Chapter 4)**, and the **PGx Risk Dashboard (Chapter 5)**.  
 *Lean in / Vocal emphasis*  
-**Module VII: Next Steps** synthesizes pending committee feedback from our November 9 Candidacy presentation alongside our prospective VCU CCTR pilot trial, multi-state APCD federation, and FDA Software as a Medical Device governance roadmap."
+**Module VII: Next Steps** synthesizes Chapter 6's near- and long-term translational horizon—spanning our 2020–2024 Wright Center APCD refresh with Virginia PDMP and SUDA surveillance linkage, our VCU CCTR pharmacist pilot with Epic SMART on FHIR and institutional HIPAA BAA governance, measured-genotype biobank linkage, and multi-state federated and FDA SaMD translation."
 
 ##### Podium Delivery & Visual Callout
 
-* Signpost the progression from architecture (Modules I–V) into empirical 2019 holdout results (Module VI) and post-9NOV synthesis (Module VII).
+* Signpost the progression from architecture (Modules I–V) into empirical 2019 holdout results (Module VI) and Chapter 6 translational Next Steps (Module VII).
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **45-Minute Time Budget:** Modules I–V (`~24 min`, Slides 1–23) &rarr; Module VI Empirical Results (`~16 min`, Slides 24–32) &rarr; Module VII Next Steps & Closeout (`~4 min`, Slides 33–35).
+* **45-Minute Time Budget:** Modules I–V (`~27.5 min`, Slides 1–23) &rarr; Module VI Empirical Results (`~12 min`, Slides 24–33) &rarr; Module VII Next Steps & Closeout (`~2.5 min`, Slides 34–36).
 
 ##### Transition
 
@@ -144,7 +144,7 @@ Preventable emergency department utilization in the United States is driven by t
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Chapter 1 Provenance:** Invited systematic review at *Journal of Personalized Medicine* screening `9,571` PubMed records (`2015–March 2026`).
+* **Chapter 1 Provenance:** Systematic review under review at *Journal of Personalized Medicine* (`jpm-4558734`; PROSPERO `CRD420261354089`) screening `9,454` records (`6,182` eligible).
 
 ##### Transition
 
@@ -253,7 +253,7 @@ Preventable emergency department utilization in the United States is driven by t
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Appendix Jump:** Pivot to **Appendix A3 (Slide 39)** for `build_global_drug_cpic_mapping.py` (95% fuzzy threshold) and **Appendix A8 (Slide 44)** for *CYP2D6 / OPRM1 / CYP2C19 / CYP2C9 / VKORC1 / SLCO1B1* mechanisms.
+* **Appendix Jump:** Pivot to **Appendix A3 (Slide 40)** for `build_global_drug_cpic_mapping.py` (95% fuzzy threshold) and **Appendix A8 (Slide 45)** for *CYP2D6 / OPRM1 / CYP2C19 / CYP2C9 / VKORC1 / SLCO1B1* mechanisms.
 
 ##### Transition
 
@@ -517,7 +517,7 @@ Standard impurity metrics like Gini gain fail under collinearity, and single exp
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Appendix Jump:** Jump to **Appendix A1 (Slide 37)** for CNF clause math & 5-Set rule filter, and **Appendix A5 (Slide 41)** for exact $\text{IR}_{\Delta\hat{p}}$, $\Delta_{11}$, and $\text{IE}$ equations.
+* **Appendix Jump:** Jump to **Slide 30** for side-by-side sensitivity validation, **Appendix A1 (Slide 38)** for CNF clause math & 5-Set rule filter, and **Appendix A5 (Slide 42)** for exact $\text{IR}_{\Delta\hat{p}}$, $\Delta_{11}$, and $\text{IE}$ equations.
 
 ##### Transition
 
@@ -553,7 +553,7 @@ Following an acute emergency overdose, patients receive immediate clinical rescu
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Clinical Alignment (Dr. Gal):** Confirms statewide in Virginia APCD what Dr. Gal's 2023 VCU ED OUD study demonstrated clinically regarding post-event administrative code contamination (**Appendix A2, Slide 38**).
+* **Clinical Alignment (Dr. Gal):** Confirms statewide in Virginia APCD what Dr. Gal's 2023 VCU ED OUD study demonstrated clinically regarding post-event administrative code contamination (**Appendix A2, Slide 39**).
 
 ##### Transition
 
@@ -561,26 +561,25 @@ Following an acute emergency overdose, patients receive immediate clinical rescu
 
 #### Slide 20: Module V — Actionable Intelligence & Workflow Integration (#slide-8)
 
-* **Module Context:** Module V (Aim 3 / Ch. 5) — OODA Interface, Lean Value Stream & HIPAA/FTC Scope  
+* **Module Context:** Module V (Aim 3 / Ch. 5–6) — Consultative Pharmacist Workflow, Epic FHIR & HIPAA/FTC Scope  
 * **Target Pacing:** `1:30 (24:00)`
 
 ##### Spoken Presenter Script
 
-"Slide 20 presents Specific Aim 3: translating our validated modeling and attribution insights into an actionable clinical decision-support prototype. *Brief pause*  
-Traditional EHR drug-interaction checkers fire synchronous pop-up interrupts during rapid clinical encounters, suffering 90% to 95% clinician override rates. Furthermore, because administrative claims carry billing latency, claims-based consensus models are designed to support proactive Medication Therapy Management rather than acute bedside emergency triage.  
-**First**, our interface operationalizes the Clinical OODA Loop—Observe, Orient, Decide, and Act—delivering information structured for rapid clinical review while preserving 100% human clinician authority.  
-**Second**, we implement a Lean value stream framework, ranking and laying out information from high to low and left to right by clinical value—pairing patient event-density tiers with verifiable Boolean Horn rules rather than unexplained probability scores.  
+"Slide 20 presents Specific Aim 3: translating our validated modeling and attribution insights into a structured regimen-triage prototype built specifically for consultative clinical pharmacists. *Brief pause*  
+Traditional EHR drug-interaction checkers fire synchronous pop-up interrupts during rapid prescribing encounters, suffering 90% to 95% clinician override rates. Rather than competing with the EHR, our microservice is architected for asynchronous pre-visit Medication Therapy Management, geriatric deprescribing consults, and emergency department post-overdose discharge handoffs via SMART on FHIR and CDS Hooks.  
+**First**, our interface operationalizes the Clinical OODA Loop and a Lean value-stream layout—pairing partition-routed risk tiers with verifiable Boolean Horn rules while strictly separating population visualizations from patient-level scoring.  
+**Second**, interactive 'What-If' profile comparisons display associational score shifts when candidate regimen features are toggled while preserving 100% human clinician authority, and our allele resolver enforces a hard prescribing lockout and CLIA/CAP laboratory referral whenever unphased direct-to-consumer genetic arrays lack chromosomal phase or structural variant resolution.  
 *Lean in / Vocal emphasis*  
-**Third**, an interactive 'What-If' scenario exploration view displays model-predicted risk shifts when candidate regimen features are toggled, supporting pharmacist medication review and evaluating explanation fidelity and clinical usability rather than claiming clinical outcomes effectiveness.  
-**Fourth [Preempting Committee — Patient vs. Hospital System Use]**: We establish a strict regulatory scope demarcation: when an individual patient directly inputs their own personal health data (e.g., consumer DNA files), HIPAA does not govern that relationship and no BAA is required (regulated by FTC Act / HBNR consumer privacy). Conversely, when a hospital system or healthcare organization deploys the tool for patient care, we execute the formal two-tier BAA chain—Hospital to our entity, and our entity to AWS via AWS Artifact—enforcing KMS encryption at rest, private VPC isolation, and CloudWatch log scrubbing."
+**Third**, we enforce a strict statutory demarcation between direct patient self-use under FTC consumer privacy—where no HIPAA BAA exists legally—and hospital clinical deployment under our two-tier BAA execution chain via AWS Artifact with KMS encryption, private VPC routing, and CloudWatch log scrubbing."
 
 ##### Podium Delivery & Visual Callout
 
-* Explicitly state the Fourth point preempting committee HIPAA/BAA questions: patient self-use (FTC) vs. hospital ePHI two-tier BAA.
+* Highlight consultative clinical pharmacists as the primary reader, Epic Willow/Compass Rose FHIR integration, DTC phasing lockouts, and FTC vs. Two-Tier BAA scope.
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Appendix Jump:** Pivot directly to **Appendix A7 (Slide 43)** for the full statutory matrix (`45 CFR § 160.103`, Two-Tier BAA #1/#2, Firecracker `/tmp` zero persistence, CloudWatch log scrubbing, CCTR legal review).
+* **Appendix Jump:** Pivot directly to **Appendix A7 (Slide 44)** for `45 CFR § 160.103` Two-Tier BAA #1/#2 + VCU CCTR Aim 2 governance, and **Appendix A3 (Slide 40)** for `2^(k-1)` DTC phasing lockouts.
 
 ##### Transition
 
@@ -593,11 +592,11 @@ Traditional EHR drug-interaction checkers fire synchronous pop-up interrupts dur
 
 ##### Spoken Presenter Script
 
-"Turning to Slide 21, this dissertation is structured as a cohesive six-chapter manuscript portfolio representing our complete published and peer-reviewed scientific contributions. *Brief pause*  
-**First**, on the left, our three core empirical chapters—representing Specific Aims 1, 2, and 3—are fully published in *Clinical and Translational Science*: Chapter 3 on temporal drivers of opioid emergencies, Chapter 4 on our dual-model SHAP and symbolic FFA consensus engine, and Chapter 5 on our serverless clinical decision support prototype.  
-**Second**, on the right, our foundational and synthesis chapters complete the dissertation: Chapter 1 is an invited systematic review at the *Journal of Personalized Medicine* establishing The Empty Intersection, Chapter 2 is under review at the *Journal of Big Data* formalizing our three-tier governance and out-of-core claims architecture, and Chapter 6 synthesizes all five chapters into our final dissertation manuscript.  
+"Turning to Slide 21, this dissertation is structured as a cohesive six-chapter manuscript portfolio bridging peer-reviewed publications with our complete dissertation synthesis. *Brief pause*  
+**First**, on the left, our three empirical chapters representing Specific Aims 1, 2, and 3 are published peer-reviewed articles in *Clinical and Translational Science*: Chapter 3 on prescription opioid ED prediction and trajectory mapping, Chapter 4 on our polypharmacy FFA interaction framework, and Chapter 5 on our serverless PGx Risk Dashboard prototype.  
+**Second**, on the right, Chapter 1 is under review at the *Journal of Personalized Medicine* (`PROSPERO CRD420261354089`), Chapter 2 is under consideration at the *Journal of Big Data* formalizing our DuckDB fat-node architecture and Consensus Attribution Filter, and Chapter 6 completes our dissertation synthesis—answering all ten research questions across three evidentiary tiers alongside Commonwealth surveillance alignment and regulatory governance.  
 *Lean in / Vocal emphasis*  
-**Third**, all six dissertation chapters, empirical holdout validations, and companion manuscripts are complete—and remain open to the committee's final guidance prior to VCU Scholars Compass ETD deposit."
+**Third**, all six dissertation chapters and empirical 2019 holdout validations are complete for today's final dissertation defense."
 
 ##### Podium Delivery & Visual Callout
 
@@ -605,7 +604,7 @@ Traditional EHR drug-interaction checkers fire synchronous pop-up interrupts dur
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Codebase Reproducibility:** All 10 pipeline steps across 7 sequential Jupyter notebooks are publicly versioned at `github.com/Jerome3590/pgx-analysis` (**Appendix A4, Slide 40**).
+* **Codebase Reproducibility:** All 10 pipeline steps across 7 sequential Jupyter notebooks are publicly versioned at `github.com/Jerome3590/pgx-analysis` (**Appendix A4, Slide 41**).
 
 ##### Transition
 
@@ -633,15 +632,13 @@ Traditional EHR drug-interaction checkers fire synchronous pop-up interrupts dur
 **First**, the Absolute Opioid Cleanse across all ten diagnostic positions in our geriatric cohort;  
 **Second**, High-Utilization Capping excluding patients with seven or more annual emergency visits;  
 **Third**, the 21-Day Proximal Pharmacy Window—where external FDA FAERS onset kinetics directly validate our cohort derivation logic; and  
-**Fourth**, the Zero-Day Discharge Guard systematically purging day-zero fills and post-index confounders to eliminate target leakage.  
+**Fourth**, the Zero-Day Discharge Guard systematically purging day-zero fills and post-index confounders to eliminate target leakage, while transparently noting claims limitations around cash-pay PDMP fills, VOAA community reversals, and undifferentiated `R41.82` Altered Mental Status coding.  
 *Brief pause*  
 **On the right**, our governance framework establishes:  
-**Fifth**, Aim 3 is decision-support triage evaluating explanation fidelity, not a patient outcomes trial—with a strict regulatory boundary separating direct patient self-use under FTC privacy from enterprise hospital deployment under our two-tier HIPAA BAA chain;  
-**Sixth**, Consensus Attribution quantifies predictive consensus risk for clinical review rather than causal treatment effects;  
-**Seventh**, the untouched 2019 temporal holdout evaluates real-world model transportability with zero recalibration; and  
-**Eighth**, our pharmacogenomic features evaluate claims-derived CPIC medication exposure rather than inferred germline genotypes.  
-*Lean in / Vocal emphasis*  
-By grounding our cohort logic in convergent FAERS surveillance kinetics and enforcing strict clinical governance, this dissertation advances both health data science methodology and public health pharmacovigilance."
+**Fifth**, Aim 3 is consultative pharmacist decision-support triage, not a patient outcomes trial—separating direct consumer self-use under FTC privacy from hospital deployment under our two-tier HIPAA BAA chain;  
+**Sixth**, Consensus Attribution quantifies observational risk priority rather than causal treatment effects;  
+**Seventh**, the untouched 2019 temporal holdout evaluates real-world model transportability while quarantining 2020 pandemic distortion; and  
+**Eighth**, our features measure observable CPIC medication burden rather than genotypes, deliberately omit administrative race as a proxy for biogeographical genetic ancestry, and enforce a hard `CLIA/CAP` referral lockout on unphased consumer DNA arrays."
 
 ##### Podium Delivery & Visual Callout
 
@@ -649,7 +646,7 @@ By grounding our cohort logic in convergent FAERS surveillance kinetics and enfo
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Causality Fence (#6):** Observational claims + `SHAP ∩ FFA` identify modifiable risk associations for pharmacist review; causal treatment effects require target-trial emulation or our proposed CCTR cluster RCT.
+* **Ancestry, DTC & Surveillance Fences (#6 & #8):** Excludes admin race in favor of biogeographical ancestry, locks out unphased DTC arrays (`CLIA/CAP` referral), and bounds claims blind spots (`PDMP` cash-pay, VOAA reversals, `R41.82`).
 
 ##### Transition
 
@@ -744,7 +741,7 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 #### Slide 26: Module VI Results (Ch. 3) — Opioid 2019 Holdout & Mirror Ablation (#slide-res-ch3-holdout)
 
 * **Module Context:** Module VI Empirical Results — Specific Aim 1 (`Clin Transl Sci` `10.1111/cts.70690`)  
-* **Target Pacing:** `1:30 (31:30)`
+* **Target Pacing:** `1:15 (31:15)`
 
 ##### Spoken Presenter Script
 
@@ -754,11 +751,11 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ##### Podium Delivery & Visual Callout
 
-* Direct eyes to primary `25–44` (`0.800 AUROC`, `3.3x lift`) and the `61%` clinician review-load compression in Reviewer #2's gate ablation.
+* Direct eyes to primary `25–44` (`0.800 AUROC`, `3.3x lift`) and preview the `61%` clinician review-load compression expanded on Slide 30.
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Why Mirror Ablation Matters:** Pure SHAP (`112` features) admits routine E/M billing noise, while pure FFA admits rare boundary buprenorphine rules; `SHAP ∩ FFA` (`44` rules) keeps 100% of core clinical signal.
+* **Why Mirror Ablation Matters:** Pure FFA (`112` features) admits high-support routine E/M billing noise, while pure SHAP admits sparse boundary buprenorphine rules; `SHAP ∩ FFA` (`44` rules) keeps 100% of core clinical signal (Slide 30).
 
 ##### Transition
 
@@ -767,7 +764,7 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 #### Slide 27: Module VI Results (Ch. 3) — Consensus Drivers & 6.8-Month Window (#slide-res-ch3-drivers)
 
 * **Module Context:** Module VI Empirical Results — Specific Aim 1 Actionable 'HOW' & 'WHEN' Horizon  
-* **Target Pacing:** `1:15 (32:45)`
+* **Target Pacing:** `1:15 (32:30)`
 
 ##### Spoken Presenter Script
 
@@ -800,7 +797,7 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 #### Slide 28: Module VI Results (Ch. 4) — Geriatric Holdout & Table S5 Stress Test (#slide-res-ch4-holdout)
 
 * **Module Context:** Module VI Empirical Results — Specific Aim 2 (`Clin Transl Sci` `10.1111/cts.70718`)  
-* **Target Pacing:** `1:30 (34:15)`
+* **Target Pacing:** `1:15 (33:45)`
 
 ##### Spoken Presenter Script
 
@@ -810,7 +807,7 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ##### Podium Delivery & Visual Callout
 
-* Lean in on Table S5 (Anchor #3): when 17 utilization features are removed, univariate SHAP collapses (`Jaccard = 0.00`), yet symbolic FFA preserves `60%` of drug pairs!
+* Highlight `0.877 / 0.858` geriatric holdout generalization and preview Table S5 (`SHAP Jaccard = 0.00` vs. `60%` FFA pair retention, detailed visually on Slide 30).
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
@@ -823,7 +820,7 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 #### Slide 29: Module VI Results (Ch. 4) — Multi-Drug Synergies & Z-Code Shield (#slide-res-ch4-synergies)
 
 * **Module Context:** Module VI Empirical Results — Specific Aim 2 Triplets, `IR` & Preventive Stewardship  
-* **Target Pacing:** `1:30 (35:45)`
+* **Target Pacing:** `1:15 (35:00)`
 
 ##### Spoken Presenter Script
 
@@ -842,30 +839,31 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ##### Transition
 
-*Turn to Slide 30 for our published Chapter 5 Serverless PGx Clinical Decision Support results.*
+*Turn to Slide 30 to compare our two peer-review SHAP ∩ FFA sensitivity analyses side-by-side.*
 
-#### Slide 30: Module VI Results (Ch. 5) — Serverless Zero-PHI Architecture & Latency (#slide-res-ch5-arch)
+#### Slide 30: Module VI Results — Consensus Attribution: SHAP ∩ FFA Sensitivity Analysis (#slide-res-sensitivity)
 
-* **Module Context:** Module VI Empirical Results — Specific Aim 3 (`Clin Transl Sci` `10.1111/cts.70697`)  
-* **Target Pacing:** `1:00 (36:45)`
+* **Module Context:** Module VI Empirical Results — Clinical Alert Compression (Ch. 3) & Table S5 Methodological Invariance (Ch. 4)  
+* **Target Pacing:** `1:15 (36:15)`
 
 ##### Spoken Presenter Script
 
-"Turning to Slide 30, we present our published Chapter 5 results (`10.1111/cts.70697`) operationalizing Specific Aim 3 into a live serverless clinical decision-support prototype at `pgx.jerome-dixon.io`. *Brief pause*  
-**First**, we packaged all 56 stratified ensembles—168 trained CatBoost, XGBoost, and XGBoost-RF models—alongside 573 official CPIC gene-drug pairs inside a single AWS Lambda container under 10 gigabytes, operating on a stateless `compute–respond–discard` lifecycle for under 5 dollars per month.  
-**Second**, empirical load testing confirmed `6 millisecond` warm risk inference (`SD 1 ms`) and `60 millisecond` CPIC pharmacogenomic card generation—well beneath the 100-millisecond threshold required for fluid interactive clinical workflows."
+"Slide 30 brings together our two peer-review sensitivity analyses side-by-side to evaluate both the clinical ergonomics and mathematical invariance of our `TreeSHAP ∩ FFA` Consensus-Risk gate. *Brief pause*  
+**First, on the left**, our Chapter 3 two-gate mirror ablation (`25–44 low` bin, `181` whitelisted features) addresses clinician alert fatigue: intersecting `TreeSHAP >= P75` with `PySAT` `FFA` (`Support >= 0.05, Confidence >= 0.70`) compresses review load by `61%`—from `112` down to `44` features—while preserving `100%` (`20/20`) of top clinical drivers (`pgx_num_drugs`, `gabapentin`, `clonazepam`, `pgx_num_cpic_drugs`), rejecting sparse boundary buprenorphine correlates (`BUNAVAIL`, `BUTRANS`), and tightening cross-partition holdout Brier dispersion by `0.008` to `0.013`.  
+*Lean in / Vocal emphasis*  
+**Second, on the right**, our Chapter 4 `Table S5` utilization-free stress test strips all `17` healthcare-utilization features and density strata in the `65–74` geriatric cohort: while univariate top-25 drug `SHAP` rankings collapse to a Jaccard similarity of `0.00`, symbolic `PySAT Hitman` Horn rules preserve `60%` (`3/5`) of published synergistic drug pairs (`gabapentin–levofloxacin`, `carvedilol–levofloxacin`, and `levofloxacin–lorazepam`)—proving that Boolean minimal hitting sets anchor clinical stability when marginal Shapley credits shift."
 
 ##### Podium Delivery & Visual Callout
 
-* Emphasize real-world engineering feasibility: 168 models + 573 CPIC rules running in 6 milliseconds for under $5/month.
+* Walk left-to-right across the two charts: Ch. 3 solves clinical alert fatigue (-61% load, 100% top drivers); Ch. 4 Table S5 proves symbolic invariance under SHAP rank collapse.
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Enterprise HIPAA Transition:** Native public demo uses stateless zero-storage RAM; hospital EHR deployment activates our Two-Tier AWS Artifact BAA + VPC/KMS/CloudTrail controls (**Appendix A7, Slide 43**).
+* **Dual-Gate Operational Dial (`App. A1, Slide 38`):** `TreeSHAP >= P75` prices marginal attribution while `PySAT Hitman` (`Supp >= 0.05, Conf >= 0.70`) anchors minimal hitting-set Horn pairs (`gabapentin–levofloxacin`, `carvedilol–levofloxacin`, `levofloxacin–lorazepam`).
 
 ##### Transition
 
-*Advance to Slide 31 to validate bedside accuracy under severe point-of-care input sparsity.*
+*Turn to Slide 31 for our published Chapter 5 Serverless PGx Clinical Decision Support results.*
 
 #### Notes Section (Slides 28–30 — Sheet 5 BACK / VERSO (Even Page))
 
@@ -877,37 +875,60 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ## PAGE 11 OF 16 — SHEET 6 OF 8 (FRONT / RECTO (Odd Page)) • SLIDES 31–33 + NOTES
 
-#### Slide 31: Module VI Results (Ch. 5) — Sparsity Shield & What-If Engine (#slide-res-ch5-sparsity)
+#### Slide 31: Module VI Results (Ch. 5) — Serverless Zero-PHI Architecture & Latency (#slide-res-ch5-arch)
 
-* **Module Context:** Module VI Empirical Results — Specific Aim 3 'Imputation of Normality' Validation  
-* **Target Pacing:** `1:00 (37:45)`
+* **Module Context:** Module VI Empirical Results — Specific Aim 3 (`Clin Transl Sci` `10.1111/cts.70697`)  
+* **Target Pacing:** `1:00 (37:15)`
 
 ##### Spoken Presenter Script
 
-"Slide 31 validates how our population claims models remain accurate when a bedside pharmacist enters only 3 to 5 active medications rather than 682 historical billing codes. *Brief pause*  
-**First**, under our 'Imputation of Normality' protocol, unentered historical covariates default to age-stratified training medians—maintaining a mean absolute probability drift under `0.06` across up to 70% feature masking and 87% risk-tier concordance at 50% sparsity.  
-**Second**, Tab 3's interactive What-If Scenario Engine computes real-time consensus risk deltas (`Δp̂`) as candidate medications are toggled, surfacing `IR > 0.10` synergy alerts alongside CPIC pharmacogene networks."
+"Turning to Slide 31, we present our published Chapter 5 results (`10.1111/cts.70697`) operationalizing Specific Aim 3 into a live serverless clinical decision-support prototype at `pgx.jerome-dixon.io`. *Brief pause*  
+**First**, we packaged all 56 stratified ensembles—168 trained CatBoost, XGBoost, and XGBoost-RF base learners—alongside our CPIC lookup engine inside a single AWS Lambda container under 10 gigabytes, operating on a stateless `compute–respond–discard` lifecycle for under 5 dollars per month.  
+**Second**, empirical benchmarking confirmed `6 millisecond` warm risk inference (`SD 1 ms`; `2,100 ms` cold start), `60 millisecond` Patient Card rendering with 100% rule-logic concordance across all 573 deterministic CPIC test cases, and bioinformatic safety lockouts on unphased consumer genetic arrays requiring CLIA/CAP clinical confirmation."
 
 ##### Podium Delivery & Visual Callout
 
-* Anchor #4: explain clearly why population claims models fail at the bedside without Imputation of Normality.
+* Emphasize real-world engineering feasibility: 168 models + 573 CPIC rules running in 6 milliseconds (`2.1 s` cold start) for under $5/month.
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Scientific Hypothesis of Ch. 5:** Proves Core Proposition 3—that cohort-median background anchoring resolves the point-of-care claims sparsity gap without miscalibrating risk tiers.
+* **Enterprise HIPAA & DTC Safety:** Public demo uses stateless RAM + `cpic-unphased-exploratory-v2` phasing lockouts; hospital deployment activates our Two-Tier AWS Artifact BAA + VPC/KMS (**Appendix A7, Slide 44**).
 
 ##### Transition
 
-*Turn to Slide 32 for the single-slide Executive Summary across Chapters 2 through 5.*
+*Advance to Slide 32 to validate bedside accuracy under severe point-of-care input sparsity.*
 
-#### Slide 32: Module VI Results — Executive Empirical Summary Matrix (#slide-res-summary)
+#### Slide 32: Module VI Results (Ch. 5) — Sparsity Shield & What-If Engine (#slide-res-ch5-sparsity)
 
-* **Module Context:** Module VI Synthesis — Complete Empirical Closure Across Chapters 2–5 & Aims 1–3  
-* **Target Pacing:** `1:30 (39:15)`
+* **Module Context:** Module VI Empirical Results — Specific Aim 3 'Imputation of Normality' Validation  
+* **Target Pacing:** `1:00 (38:15)`
 
 ##### Spoken Presenter Script
 
-"Slide 32 synthesizes our complete empirical results across Chapters 2 through 5 and Specific Aims 1 through 3 on a single executive matrix. *Brief pause*  
+"Slide 32 validates how our population claims models remain stable when a consultative pharmacist enters only 3 to 5 active medications rather than 682 historical billing codes. *Brief pause*  
+**First**, under our 'Imputation of Normality' protocol, unentered features default cleanly so mean absolute probability drift remains below `0.06` across up to 70% input sparsity, with stable risk-band assignment through 60% missingness and 87% tier concordance at 50% sparsity.  
+**Second**, our decoupled Scenario Analysis view computes associational score contrasts (`Δp̂`) across modified profiles—as illustrated in Chapter 6 where removing gabapentin and adding physical therapy shifts a high-density 25–44 profile from `0.87` to `0.68` (`-19` percentage points)—surfacing `IR > 0.10` review priorities alongside CPIC pharmacogene networks."
+
+##### Podium Delivery & Visual Callout
+
+* Anchor #4: explain clearly why population claims models fail at the bedside without Imputation of Normality, then spotlight the Ch. 6 38yo female contrast.
+
+##### Strategic Defense Tips & Committee Q&A Pivots
+
+* **Scientific Hypothesis of Ch. 5 & Ch. 6 Bridge:** Cohort-median background anchoring resolves the bedside sparsity gap while framing `Δp̂ = -0.19` strictly as an in-model associational contrast.
+
+##### Transition
+
+*Turn to Slide 33 for the single-slide Executive Summary across Chapters 2 through 5.*
+
+#### Slide 33: Module VI Results — Executive Empirical Summary Matrix (#slide-res-summary)
+
+* **Module Context:** Module VI Synthesis — Complete Empirical Closure Across Chapters 2–5 & Aims 1–3  
+* **Target Pacing:** `1:15 (39:30)`
+
+##### Spoken Presenter Script
+
+"Slide 33 synthesizes our complete empirical results across Chapters 2 through 5 and Specific Aims 1 through 3 on a single executive matrix. *Brief pause*  
 **First**, in Chapter 2 Data Engineering, vectorized DuckDB on a single fat EC2 instance beat distributed EMR clusters and Apache Spark—delivering a 15.1-fold speedup, zero shuffle-skew OOMs, and a 99% cloud cost reduction across 380 million claims—while purging 348 post-index leakage codes via Step 3b and bounding PySAT rule extraction via our 5-Set CNF filter.  
 **Second**, in Chapter 3 (Specific Aim 1), leakage-free GBDTs achieved 0.800 to 0.890 AUROC and up to 4.4-fold Precision-Recall lift on the untouched 2019 opioid holdout, compressing pharmacist alert load by 61% while identifying modifiable CNS and CPIC burden 6.8 months before emergency presentation.  
 **Third**, in Chapter 4 (Specific Aim 2), geriatric polypharmacy models achieved 0.877 and 0.858 AUROC in ages 65–84, proved 60% symbolic FFA pair invariance when univariate SHAP collapsed to zero Jaccard similarity, uncovered 312 higher-order drug triplets including the Triple Whammy, and quantified a 75% risk reduction under structured outpatient Z-code stewardship.  
@@ -924,33 +945,7 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ##### Transition
 
-*Enter Module VII on Slide 33 to review Next Steps, 9NOV committee feedback integration, and our translational horizon.*
-
-#### Slide 33: Module VII — Next Steps (9NOV Feedback, CCTR Pilot, Federation & SaMD) (#slide-next-steps)
-
-* **Module Context:** Module VII (Ch. 6) — Post-9NOV Synthesis, Prospective Trial & Regulatory Roadmap  
-* **Target Pacing:** `1:30 (40:45)`
-
-##### Spoken Presenter Script
-
-"Finally, Slide 33 outlines Module VII: Next Steps—explicitly structured to incorporate pending committee feedback from our November 9 presentation alongside our translational research horizon. *Brief pause*  
-**First**, immediately following our November 9 oral examination, all committee refinements and methodological recommendations are integrated directly into the final Chapters 1 through 6 manuscript, alongside our institutional VCU Health Compliance and Counsel review of our ephemeral cloud architecture and two-tier HIPAA BAA chain.  
-**Second**, through our VCU Wright Center CCTR 25,000-dollar Pilot Grant, Phase 1 conducts formative think-aloud usability testing with ambulatory MTM pharmacists (`SUS >= 75`), laying the groundwork for a Phase 2 `2×2` factorial cluster randomized trial measuring real-world deprescribing action and 90-day ED outcomes.  
-**Third**, we extend external validity via 4-state Appalachian APCD federation (`VA, MD, NC, WV`) and sequenced biobank linkage (`All of Us`, `BioVU`) to unite claims CPIC exposure with true germline star-allele diplotypes.  
-*Lean in / Vocal emphasis*  
-**Fourth**, long-term clinical translation aligns with HL7 FHIR R4 CDS Hooks and FDA Software as a Medical Device Predetermined Change Control Plans to govern post-2020 secular prescribing and fentanyl drift."
-
-##### Podium Delivery & Visual Callout
-
-* Acknowledge the committee's November 9 guidance directly first, then project the funded CCTR pilot, multi-state federation, and FDA SaMD PCCP.
-
-##### Strategic Defense Tips & Committee Q&A Pivots
-
-* **Secular Fentanyl / Post-2020 Drift Defense:** Our FDA SaMD Predetermined Change Control Plan (`PCCP`) triggers automated retraining whenever quarterly top-10 `|SHAP|` Spearman correlation drifts >15%.
-
-##### Transition
-
-*Advance to Slide 34 to open the floor for Questions & Discussion, with Slide 35 Acknowledgements ready.*
+*Enter Module VII on Slide 34 to review our Chapter 6 near- and long-term translational Next Steps.*
 
 #### Notes Section (Slides 31–33 — Sheet 6 FRONT / RECTO (Odd Page))
 
@@ -960,12 +955,38 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ---
 
-## PAGE 12 OF 16 — SHEET 6 OF 8 (BACK / VERSO (Even Page)) • SLIDES 34–35 + DEFENSE GUIDE + NOTES
+## PAGE 12 OF 16 — SHEET 6 OF 8 (BACK / VERSO (Even Page)) • SLIDES 34–36 + NOTES
 
-#### Slide 34: Module VII — Questions & Discussion (#slide-qa)
+#### Slide 34: Module VII — Next Steps: APCD Refresh, CCTR Epic/BAA, Federation & SaMD (#slide-next-steps)
+
+* **Module Context:** Module VII (Ch. 6) — 1–2 Yr Clinical Integration & 3–5 Yr Multi-State / FDA SaMD Roadmap  
+* **Target Pacing:** `1:30 (41:00)`
+
+##### Spoken Presenter Script
+
+"Finally, Slide 34 synthesizes Chapter 6's near-term and long-term translational roadmap across four pillars. *Brief pause*  
+**First**, in the near term, we refresh temporal validation on 2020 through 2024 Virginia APCD holdings curated at the VCU Wright Center—evaluating post-COVID telehealth, ED buprenorphine induction, and synthetic fentanyl/xylazine drift—while linking Virginia PDMP cash-pay fills, `SUDA.Virginia.gov` and VOAA regional Mobile MAT initiatives across Henrico, New Kent, and Charles City counties, ED triage NLP for Altered Mental Status, and dried-blood-spot toxicology.  
+**Second**, through our VCU Wright Center CCTR 25,000-dollar Pilot Grant, Aim 2 allocates 4,500 dollars to partner with VCU Health InfoSec, Massey Cancer Center Informatics Governance, and OVPRI Legal Counsel to execute our two-tier AWS Artifact BAA and private VPC enclave ahead of a 200-encounter pharmacist usability study and asynchronous SMART on FHIR and CDS Hooks deployment in Epic Willow Ambulatory and Compass Rose.  
+**Third**, we link claims CPIC exposure to sequenced cohorts carrying measured *CYP2D6*, *CYP2C19*, *SLCO1B1*, and *OPRM1* alleles across verified biogeographical genetic ancestry groups, and scale across external state APCDs via privacy-preserving federated learning.  
+*Lean in / Vocal emphasis*  
+**Fourth**, our 3-to-5-year pathway advances target-trial emulation, DTW-stratified randomized trials, and a 21 CFR Part 820 FDA SaMD framework supporting phased VCF v4.3 structural variants, FHIR R4 Genomics, cryptographic CPIC version-hashing, and live state PDMP integration."
+
+##### Podium Delivery & Visual Callout
+
+* Walk cleanly across Near-Term (Cards 1–2: 2020–24 APCD/SUDA linkage & CCTR Epic/BAA pilot) into Long-Term (Cards 3–4: ancestry genotypes, federation & FDA SaMD).
+
+##### Strategic Defense Tips & Committee Q&A Pivots
+
+* **Commonwealth & Drift Alignment:** Pairs `2020–2024` Wright Center APCD + `PDMP` + VOAA *Empower Henrico* surveillance with `21 CFR Part 820` SaMD drift monitoring (`>15%` SHAP shift), phased `VCF v4.3`, and cryptographic CPIC version-hashing.
+
+##### Transition
+
+*Advance to Slide 35 to open the floor for Questions & Discussion, with Slide 36 Acknowledgements ready.*
+
+#### Slide 35: Module VII — Questions & Discussion (#slide-qa)
 
 * **Module Context:** Module VII — Supervisory Committee Oral Defense Examination Floor  
-* **Target Pacing:** `0:15 (41:00)`
+* **Target Pacing:** `0:15 (41:15)`
 
 ##### Spoken Presenter Script
 
@@ -981,12 +1002,12 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ##### Transition
 
-*After or before opening Q&A (per Chair's preference), present Slide 35 Thank You & Acknowledgements.*
+*After or before opening Q&A (per Chair's preference), present Slide 36 Thank You & Acknowledgements.*
 
-#### Slide 35: Module VII — Thank You & Acknowledgements (#slide-acknowledgements)
+#### Slide 36: Module VII — Thank You & Acknowledgements (#slide-acknowledgements)
 
 * **Module Context:** Module VII — Mentors, Faculty, Data Partners & Family Gratitude  
-* **Target Pacing:** `1:00 (42:00)`
+* **Target Pacing:** `0:45 (42:00)`
 
 ##### Spoken Presenter Script
 
@@ -998,35 +1019,30 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Total Core Presentation Elapsed Time:** **~42 minutes** across Slides 1–35—leaving a comfortable 3–8 minute buffer inside the 45–50 minute defense window!
+* **Total Core Presentation Elapsed Time:** **~42 minutes** across Slides 1–36—leaving a comfortable 3–8 minute buffer inside the 45–50 minute defense window!
 
 ##### Transition
 
-*Transition to Committee Q&A using Slides 36–44 (Appendices A1–A8) as on-demand technical backup.*
+*Transition to Committee Q&A using Slides 37–45 (Appendices A1–A8) as on-demand technical backup.*
 
-#### Defense Guide (Slot 36): 45-Minute Module Pacing Checkpoints & Committee Routing
+#### Notes Section (Slides 34–36 — Sheet 6 BACK / VERSO (Even Page))
 
-* **Pacing Checkpoints:** Orientation (`S1–3`: `02:30`) • Module I (`S4–11`: `12:00`) • Module II (`S12–13`: `14:30`) • Module III (`S14–16`: `18:30`) • Module IV (`S17–19`: `22:30`) • Module V (`S20–23`: `27:30`) • Module VI Empirical Results (`S24–32`: `39:15`) • Module VII Next Steps & Acknowledgements (`S33–35`: `42:00`).
-* **4 Core Defense Anchors:** (1) `0/73` PROBAST Empty Intersection • (2) Step 3b Purge (`348` post-index codes removed -> honest `0.800–0.890` holdout AUROC) • (3) Table S5 `60%` (`3/5`) symbolic FFA pair retention under `SHAP Jaccard = 0.00` collapse • (4) `6 ms` Zero-PHI AWS Lambda + Imputation of Normality (`|Δp̂| < 0.06` at `70%` sparsity).
-
-#### Notes Section (Slides 34–35 + Defense Guide — Sheet 6 BACK / VERSO (Even Page))
-
-- [ ] **1. Pacing / Delivery Check (Slides 34–35 + Defense Guide):** _____________________________________________________________________
+- [ ] **1. Pacing / Delivery Check (Slides 34–36):** _____________________________________________________________________
 - [ ] **2. Committee Question / Feedback (Price / Gal / Bost / Wijesinghe / DeShazo):** ___________________________
 - [ ] **3. ETD Read-Copy Action Item:** ___________________________________________________________________________
 
 ---
 
-## PAGE 13 OF 16 — SHEET 7 OF 8 (FRONT / RECTO (Odd Page)) • APPENDIX SLIDES 36–38 + NOTES
+## PAGE 13 OF 16 — SHEET 7 OF 8 (FRONT / RECTO (Odd Page)) • APPENDIX SLIDES 37–39 + NOTES
 
-#### SLIDE 36 (APPX): Appendix Section Divider — Technical Defenses & Supplemental Evidence (#sec-appendix)
+#### SLIDE 37 (APPX): Appendix Section Divider — Technical Defenses & Supplemental Evidence (#sec-appendix)
 
 * **Module Context:** Technical Backup Bank — Interactive Jump Index to Appendices A1–A8  
 * **Target Pacing:** `On-Demand Q&A`
 
 ##### Spoken Presenter Script
 
-"Slide 36 serves as our interactive Technical Appendix index across Appendices A1 through A8—providing on-demand mathematical proofs for Conjunctive Normal Form and Abductive Explanations (A1), Step 3b event partitioning (A2), Step 5 CPIC drug mapping (A3), our seven reproducible Jupyter notebooks (A4), formal Aim 1–3 estimators (A5), master nomenclature (A6), two-tier HIPAA and FTC cloud governance (A7), and cohort-specific PharmGKB and CPIC Level A molecular pathways (A8)."
+"Slide 37 serves as our interactive Technical Appendix index across Appendices A1 through A8—providing on-demand mathematical proofs for Conjunctive Normal Form and Abductive Explanations (A1), Step 3b event partitioning (A2), Step 5 CPIC drug mapping (A3), our seven reproducible Jupyter notebooks (A4), formal Aim 1–3 estimators (A5), master nomenclature (A6), two-tier HIPAA and FTC cloud governance (A7), and cohort-specific PharmGKB and CPIC Level A molecular pathways (A8)."
 
 ##### Podium Delivery & Visual Callout
 
@@ -1040,7 +1056,7 @@ Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional dis
 
 *Select the specific Appendix slide (A1–A8) matching the committee member's question.*
 
-#### SLIDE 37 (A1): Appendix A1 — Formal Feature Attribution (FFA): CNF & AXP Bounds (#sec-appendix-ffa)
+#### SLIDE 38 (A1): Appendix A1 — Formal Feature Attribution (FFA): CNF & AXP Bounds (#sec-appendix-ffa)
 
 * **Module Context:** Appendix A1 — Steps 6–8 & 10 Mathematical Proof & Sensitivity Framework  
 * **Target Pacing:** `On-Demand Q&A`
@@ -1059,9 +1075,9 @@ Slide A1 provides the mathematical and empirical defense for our Consensus-Risk 
 
 ##### Return / Jump Navigation
 
-*Click 'Return to Consensus Attribution (Slide 18)' or jump to CH3/CH4 sensitivity results.*
+*Click 'Consensus Attribution (Slide 18)' or 'Sensitivity Analysis (Slide 30)'.*
 
-#### SLIDE 38 (A2): Appendix A2 — Step 3b Target Leakage: Event-Partitioning Protocol (#sec-appendix-leakage)
+#### SLIDE 39 (A2): Appendix A2 — Step 3b Target Leakage: Event-Partitioning Protocol (#sec-appendix-leakage)
 
 * **Module Context:** Appendix A2 — 3 Contamination Vectors & Symmetric Pre-Index Whitelist  
 * **Target Pacing:** `On-Demand Q&A`
@@ -1084,30 +1100,30 @@ Slide A2 details our Step 3b temporal event-partitioning protocol. We classify p
 
 ---
 
-## PAGE 14 OF 16 — SHEET 7 OF 8 (BACK / VERSO (Even Page)) • APPENDIX SLIDES 39–41 + NOTES
+## PAGE 14 OF 16 — SHEET 7 OF 8 (BACK / VERSO (Even Page)) • APPENDIX SLIDES 40–42 + NOTES
 
-#### SLIDE 39 (A3): Appendix A3 — Step 5 CPIC Drug Mapping & Patient Count Features (#sec-appendix-pgx)
+#### SLIDE 40 (A3): Appendix A3 — Step 5 CPIC Drug Mapping & Patient Count Features (#sec-appendix-pgx)
 
-* **Module Context:** Appendix A3 — `5_pgx_analysis` Fuzzy Matching & Claims-vs.-Genotype Boundary  
+* **Module Context:** Appendix A3 — `5_pgx_analysis` Fuzzy Matching, Ancestry & DTC Phasing Guard  
 * **Target Pacing:** `On-Demand Q&A`
 
 ##### Spoken Presenter Script
 
-Slide A3 details our exact Step 5 pharmacogenomic feature engineering pipeline in 5_pgx_analysis. First, build_global_drug_cpic_mapping.py scans our APCD drug vocabulary against the official CPIC gene-drug directory using a 95 percent fuzzy-matching threshold to determine whether or not each dispensed medication carries an official CPIC guideline, persisting the global lookup table drug_cpic_mapping_global.csv. Second, create_pgx_features_patient_level.py executes a single DuckDB aggregation over pre-index claims to compute two integer features per patient—pgx_num_drugs (total distinct drugs) and pgx_num_cpic_drugs (distinct CPIC-guideline drugs)—as well as cohort-level counts of how many patients carry CPIC drugs. Crucially, no allele or race-based genotype imputation is performed in the modeling pipeline; our models strictly evaluate observable CPIC medication exposure burden directly from claims data, while interactive patient-level genotype decision-support cards execute in 60 milliseconds at the point of care in Tab 5 of our serverless dashboard (Slide 30).
+Slide A3 details our Step 5 pharmacogenomic feature engineering pipeline in `5_pgx_analysis` alongside Chapter 6's bioinformatic phasing boundaries. First, `build_global_drug_cpic_mapping.py` maps our APCD drug vocabulary against the official CPIC directory (`573` gene-drug pairs) at a 95% threshold to build `drug_cpic_mapping_global.csv`. Second, `create_pgx_features_patient_level.py` computes two observable exposure counts per patient in DuckDB: `pgx_num_drugs` and `pgx_num_cpic_drugs`. Third, administrative race checkboxes are strictly excluded because pharmacogenomic allele prevalence tracks biogeographical genetic ancestry requiring direct genotyping. Finally, in our Aim 3 Patient Card, `cpic_allele_resolver.py` (`cpic-unphased-exploratory-v2`) never defaults unprobed loci to wild-type `*1/*1`: unphased consumer microarrays with compound heterozygotes ($2^{k-1}$ chromosomal phases) or unassessed `CYP2D6` structural variants trigger `INSUFFICIENT_GENOTYPE_RESOLUTION` and a mandatory CLIA/CAP laboratory test referral, whereas phased clinical alleles execute in 60 milliseconds with 100% concordance across 573 test cases.
 
 ##### Podium Delivery & Visual Callout
 
-* Highlight the scientific ethics of refusing race-based allele imputation in claims data.
+* Highlight refusing administrative race proxies AND locking out unphased compound-heterozygote DTC consumer arrays (`CLIA/CAP` referral).
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Point-of-Care Layering:** Population models score observable CPIC drug burden; when a patient has real genetic test results (`VCF` / star alleles), Tab 5 overlays CPIC guideline dosing cards in `60 ms`.
+* **Bioinformatic Phasing Safety:** Unprobed array loci never default to wild-type `*1/*1`; $k \ge 2$ heterozygous SNPs ($2^{k-1}$ phases) or unprobed `CYP2D6*5` CNVs return `INSUFFICIENT_GENOTYPE_RESOLUTION`.
 
 ##### Return / Jump Navigation
 
-*Click 'Return to Claims Schema (Slide 14)' or jump to Appendix A8 (Slide 44) for gene networks.*
+*Click 'Return to Claims Schema (Slide 14)' or jump to Appendix A8 (Slide 45) for gene networks.*
 
-#### SLIDE 40 (A4): Appendix A4 — Computational Pipeline & 7-Notebook Architecture (#sec-appendix-notebooks)
+#### SLIDE 41 (A4): Appendix A4 — Computational Pipeline & 7-Notebook Architecture (#sec-appendix-notebooks)
 
 * **Module Context:** Appendix A4 — Full Idempotent S3/NVMe Reproducibility (`pgx-analysis`)  
 * **Target Pacing:** `On-Demand Q&A`
@@ -1128,14 +1144,14 @@ Slide A4 details the computational reproducibility of the dissertation. All ten 
 
 *Click 'Return to Dissertation Portfolio (Slide 21)'.*
 
-#### SLIDE 41 (A5): Appendix A5 — Specific Aims, Estimators & Evaluation Metrics (#sec-appendix-metrics)
+#### SLIDE 42 (A5): Appendix A5 — Specific Aims, Estimators & Evaluation Metrics (#sec-appendix-metrics)
 
 * **Module Context:** Appendix A5 — Formal Mathematical Specification & Predictive-vs.-Visual Wall  
 * **Target Pacing:** `On-Demand Q&A`
 
 ##### Spoken Presenter Script
 
-Slide A5 provides a single-slide formal mathematical specification across Specific Aims 1 through 3, documenting the pre-specified study design, data transformation, and formal estimator for every pipeline metric—and explicitly distinguishing supervised predictive and explanatory estimators (TreeSHAP, AXP, IR, IE) from exploratory visual analytics (DTW, FP-Growth, bupaR). All pre-specified estimators and post-execution sensitivity discoveries are evaluated empirically on the untouched 2019 calendar holdout in Module VI (Slides 24 through 32).
+Slide A5 provides a single-slide formal mathematical specification across Specific Aims 1 through 3, documenting the pre-specified study design, data transformation, and formal estimator for every pipeline metric—and explicitly distinguishing supervised predictive and explanatory estimators (TreeSHAP, AXP, IR, IE) from exploratory visual analytics (DTW, FP-Growth, bupaR). All pre-specified estimators and post-execution sensitivity discoveries are evaluated empirically on the untouched 2019 calendar holdout in Module VI (Slides 24 through 33).
 
 ##### Podium Delivery & Visual Callout
 
@@ -1151,9 +1167,9 @@ Slide A5 provides a single-slide formal mathematical specification across Specif
 
 ---
 
-## PAGE 15 OF 16 — SHEET 8 OF 8 (FRONT / RECTO (Odd Page)) • APPENDIX SLIDES 42–44 + NOTES
+## PAGE 15 OF 16 — SHEET 8 OF 8 (FRONT / RECTO (Odd Page)) • APPENDIX SLIDES 43–45 + NOTES
 
-#### SLIDE 42 (A6): Appendix A6 — Master Acronym & Technical Nomenclature Reference (#sec-appendix-acronyms)
+#### SLIDE 43 (A6): Appendix A6 — Master Acronym & Technical Nomenclature Reference (#sec-appendix-acronyms)
 
 * **Module Context:** Appendix A6 — Multidisciplinary Glossary Across Modules I–VII  
 * **Target Pacing:** `On-Demand Q&A`
@@ -1174,32 +1190,32 @@ Appendix A6 provides a comprehensive quick-reference glossary of all governance,
 
 *Return to active discussion slide via Reveal.js hash navigation.*
 
-#### SLIDE 43 (A7): Appendix A7 — Regulatory Scope Demarcation & HIPAA Cloud Architecture (#sec-appendix-hipaa)
+#### SLIDE 44 (A7): Appendix A7 — Regulatory Scope Demarcation & HIPAA Cloud Architecture (#sec-appendix-hipaa)
 
-* **Module Context:** Appendix A7 — FTC Consumer Self-Use vs. Hospital Two-Tier HIPAA BAA & AWS Controls  
+* **Module Context:** Appendix A7 — FTC Consumer Self-Use vs. Hospital Two-Tier HIPAA BAA & CCTR Aim 2  
 * **Target Pacing:** `On-Demand Q&A`
 
 ##### Spoken Presenter Script
 
-Slide A7 addresses the critical governance, regulatory, and legal questions regarding our clinical decision-support architecture.  
-First, we establish a strict statutory demarcation: when an individual patient directly enters their own personal health data or uploads consumer genetic files for personal use, federal statute dictates that HIPAA does not govern that relationship. It falls under Federal Trade Commission Section 5 and the FTC Health Breach Notification Rule, meaning a BAA is neither required nor legally recognized.  
-Second, when deployed within a healthcare provider or hospital system processing ePHI under 45 CFR Section 160.103, compliance is governed by a two-tier legal BAA execution chain: the covered entity signs BAA number 1 with our legal entity, and our legal entity executes BAA number 2 directly with AWS through AWS Artifact covering the underlying cloud infrastructure.  
-Third, on AWS, services are 'HIPAA-eligible,' not automatically compliant. We implement the full technical safeguard suite: mandatory KMS envelope encryption on S3, Firecracker microVM ephemeral compute with zero persistence in slash-tmp, strict CloudWatch log scrubbing to prevent ePHI from entering cloud telemetry, and CloudTrail audit logging under 45 CFR Section 164.312(b). Furthermore, any external AI APIs outside of AWS Bedrock would require their own signed BAA.  
-Finally, in response to Dr. Gal's and Dr. Price's guidance, our VCU Wright Center CCTR Pilot Grant formally funds institutional compliance and university legal review to vet our ephemeral compute posture and execute the required hospital BAA and DUA framework prior to prospective clinical pilot testing.
+Slide A7 addresses the regulatory, legal, and cloud-security architecture formalized in Chapter 6.  
+First, we enforce a strict statutory demarcation: when an individual patient enters their own medication list or uploads consumer genetic files for personal health literacy, 45 CFR Section 160.103 dictates that HIPAA does not apply—that relationship falls under Federal Trade Commission Act Section 5 and the Health Breach Notification Rule, where a HIPAA BAA is neither required nor legally recognized.  
+Second, when deployed by a healthcare provider or hospital processing ePHI, compliance requires an unbroken two-tier legal BAA execution chain: the hospital signs BAA number 1 with our legal entity, and our legal entity executes BAA number 2 with AWS via AWS Artifact.  
+Third, under the AWS Shared Responsibility Model, we harden HIPAA-eligible primitives into a compliant enclave via KMS encryption, Firecracker microVM zero `/tmp` persistence inside private VPC and PrivateLink subnets, strict CloudWatch log scrubbing, and multi-region CloudTrail auditing—while requiring separate signed BAAs for any external third-party AI APIs outside AWS Bedrock or SageMaker.  
+Finally, Aim 2 of our VCU Wright Center CCTR 25,000-dollar Pilot Grant allocates 4,500 dollars to partner with VCU Health Information Security, Massey Cancer Center Informatics Governance, and OVPRI Legal Counsel to vet and execute all institutional BAA and DUA templates before clinical pilot testing.
 
 ##### Podium Delivery & Visual Callout
 
-* Deliver the 4-part legal & technical architecture crisply—this directly answers Dr. Gal's and Dr. Price's November 9 cloud compliance question!
+* Deliver the 4-part legal & technical architecture crisply—highlighting FTC vs. Two-Tier BAA and the 3 VCU CCTR Aim 2 governance bodies.
 
 ##### Strategic Defense Tips & Committee Q&A Pivots
 
-* **Institutional Next Step:** Our VCU Wright Center CCTR $25,000 Pilot Grant explicitly budgets VCU Health Compliance and university legal counsel review prior to any prospective clinical EHR integration.
+* **VCU CCTR Aim 2 ($4,500 Governance Gate):** Engages (1) VCU Health InfoSec & Compliance, (2) Massey Informatics Governance, and (3) VCU OVPRI Legal Counsel prior to `N >= 200` clinical encounters.
 
 ##### Return / Jump Navigation
 
 *Click 'Return to Aim 3 Decision Support (Slide 20)' or 'Study Boundaries (Slide 22)'.*
 
-#### SLIDE 44 (A8): Appendix A8 — PGx Gene Markers & Mechanistic Networks by Cohort (#sec-appendix-gene-markers)
+#### SLIDE 45 (A8): Appendix A8 — PGx Gene Markers & Mechanistic Networks by Cohort (#sec-appendix-gene-markers)
 
 * **Module Context:** Appendix A8 — PharmGKB VIP & CPIC Level A PK/PD Pathways  
 * **Target Pacing:** `On-Demand Q&A`
@@ -1220,15 +1236,15 @@ In the Polypharmacy Cohort, adverse drug events in older adults are driven by a 
 
 ##### Return / Jump Navigation
 
-*Click 'Return to CPIC FI (Slide 9)' or 'Appendix A3 (Slide 39)'.*
+*Click 'Return to CPIC FI (Slide 9)' or 'Appendix A3 (Slide 40)'.*
 
 ---
 
 ## PAGE 16 OF 16 — SHEET 8 OF 8 (BACK / VERSO (Even Page)) • MASTER COMMITTEE Q&A PLAYBOOK + ETD CHECKLIST
 
 * **Q1 (DuckDB vs. Spark/EMR):** Partition-first DuckDB across 63 `Age × Year` slices on Spot `x2iedn.8xlarge` eliminated geriatric shuffle `exit 137` OOMs, achieving `18.1M rec/min` (`15.1x`), `0/189` failures, and `$6–$10/pass` (`-99%` vs. `$23k/mo` EMR).
-* **Q2 (5-Set CNF Non-Circularity):** Sets 1–2 sample boosting/random rules independently of SHAP; Set 4 (`SHAP=0` fallback) implements *Huang & Marques-Silva (2024)*; Table S5 proves `60%` (`3/5`) FFA pair retention when drug SHAP drops to `Jaccard = 0.00`.
-* **Q3 (Claims PGx vs. Genotyping):** Claims quantify cumulative CPIC drug exposure (`pgx_num_drugs` #1, `pgx_num_cpic_drugs` #4) without race-based allele imputation; patient genotypes layer at the bedside in Tab 5 (`60 ms`).
+* **Q2 (5-Set CNF Non-Circularity & Slide 30 Sensitivity):** Sets 1–2 sample boosting/random rules independently of SHAP; Set 4 (`SHAP=0` fallback) implements *Huang & Marques-Silva (2024)*; Slide 30 proves `-61%` alert compression (`112 -> 44`, `20/20` kept) in Ch. 3 and `60%` (`3/5`) FFA pair retention under `SHAP Jaccard = 0.00` collapse in Ch. 4 (`Table S5`).
+* **Q3 (Claims PGx, Ancestry & DTC Phasing):** Claims quantify cumulative CPIC drug exposure (`pgx_num_drugs` #1, `pgx_num_cpic_drugs` #4) while excluding administrative race in favor of biogeographical genetic ancestry; Tab 5 (`60 ms`) enforces `cpic-unphased-exploratory-v2` phasing lockouts (`CLIA/CAP` referral).
 * **Q4 (Triple Whammy & U-Shaped Z-Code Shield):** `furosemide + HCTZ + lisinopril` (`12.3%` in `85–114`) collapses glomerular pressure; `Q2` Z-code wellness/med-rec stewardship cuts 21-day ADEs by `75%` (`OR = 0.25`, `3.0%` vs. `10.7%`).
-* **Q5 (Zero-PHI vs. Two-Tier HIPAA BAA):** Direct patient self-use falls under FTC Act § 5 / HBNR (no BAA); hospital ePHI deployment executes Two-Tier BAA (#1 Hospital↔Entity, #2 Entity↔AWS Artifact) + KMS, zero `/tmp` persistence, CloudWatch scrubbing, and VCU CCTR legal audit (`Appendix A7`).
-* **Q6 (2016–2019 Secular Drift & Sparsity):** 2020 quarantined per *Ochalek, Gal et al. (JAMA 2020)*; FDA SaMD PCCP triggers retraining on `>15%` quarterly SHAP rank drift; Imputation of Normality holds `|Δp̂| < 0.06` up to `70%` bedside missingness.
+* **Q5 (Zero-PHI vs. Two-Tier HIPAA BAA):** Direct patient self-use falls under FTC Act § 5 / HBNR (no BAA); hospital ePHI deployment executes Two-Tier BAA (#1 Hospital↔Entity, #2 Entity↔AWS Artifact) + PrivateLink VPC, KMS, zero `/tmp` persistence, and VCU CCTR Aim 2 review across InfoSec, Massey Informatics & OVPRI Counsel (`Appendix A7`).
+* **Q6 (2016–2019 Secular Drift & Sparsity):** 2020 quarantined per *Ochalek, Gal et al. (JAMA 2020)*; Next Steps pair a `2020–2024` Wright Center APCD + `Virginia PDMP / SUDA` refresh with `21 CFR Part 820` SaMD drift monitoring (`>15%` SHAP shift); Imputation of Normality holds `|Δp̂| < 0.06` up to `70%` bedside missingness.

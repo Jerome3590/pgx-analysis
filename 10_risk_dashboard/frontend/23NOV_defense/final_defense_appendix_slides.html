@@ -138,7 +138,7 @@ Supplemental Technical Evidence
 <p>Mathematical derivations, feature audit catalogs, pharmacogenomic scoring matrices, regulatory/HIPAA frameworks, cohort gene networks (A8), and reproducible notebook pipelines supporting defense inquiries.</p>
 </div>
 <p style="margin-top: 18px;">
-<a href="final_defense_slides.html" class="appendix-return-btn print-hide" style="font-size: 0.84rem; padding: 6px 14px; margin-right: 8px;">↩︎ Main Defense Deck (Slides 1–35)</a><a href="final_defense_slides.pdf" target="_blank" class="appendix-jump-btn print-hide" style="font-size: 0.84rem; padding: 6px 16px;">📄 Complete Deck (16:9 PDF) ↗</a><a href="final_defense_appendix_slides.pdf" target="_blank" class="appendix-jump-btn print-hide" style="font-size: 0.84rem; padding: 6px 16px; margin-left: 8px;">📎 Download Appendix Deck Only (A1–A8 PDF) ↗</a><a href="https://pgx.jerome-dixon.io/23NOV_defense/" target="_blank" class="appendix-jump-btn print-only" style="font-size: 0.82rem; padding: 5px 14px;">🌐 Open Interactive Web Presentation (pgx.jerome-dixon.io/23NOV_defense) ↗</a>
+<a href="final_defense_slides.html" class="appendix-return-btn print-hide" style="font-size: 0.84rem; padding: 6px 14px; margin-right: 8px;">↩︎ Main Defense Deck (Slides 1–36)</a><a href="final_defense_slides.pdf" target="_blank" class="appendix-jump-btn print-hide" style="font-size: 0.84rem; padding: 6px 16px;">📄 Complete Deck (16:9 PDF) ↗</a><a href="final_defense_appendix_slides.pdf" target="_blank" class="appendix-jump-btn print-hide" style="font-size: 0.84rem; padding: 6px 16px; margin-left: 8px;">📎 Download Appendix Deck Only (A1–A8 PDF) ↗</a><a href="https://pgx.jerome-dixon.io/23NOV_defense/" target="_blank" class="appendix-jump-btn print-only" style="font-size: 0.82rem; padding: 5px 14px;">🌐 Open Interactive Web Presentation (pgx.jerome-dixon.io/23NOV_defense) ↗</a>
 </p>
 </section>
 <section id="sec-appendix-ffa" class="slide level2 unnumbered">
@@ -174,11 +174,11 @@ Supplemental Technical Evidence
 </ul>
 </div>
 <div style="margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
-<p><a href="final_defense_slides.html#/slide-6a" class="appendix-return-btn" style="font-size: 0.64rem; padding: 3px 8px;">↩︎ Consensus XAI (Slide 18)</a> <a href="final_defense_slides.html#/slide-res-ch3-holdout" class="appendix-jump-btn" style="font-size: 0.64rem; padding: 3px 8px;">📊 CH3 Ablation (Slide 26) →</a> <a href="final_defense_slides.html#/slide-res-ch4-holdout" class="appendix-jump-btn" style="font-size: 0.64rem; padding: 3px 8px;">📊 CH4 Stress Test (Slide 28) →</a></p>
+<p><a href="final_defense_slides.html#/slide-6a" class="appendix-return-btn" style="font-size: 0.64rem; padding: 3px 8px;">↩︎ Consensus XAI (Slide 18)</a> <a href="final_defense_slides.html#/slide-res-sensitivity" class="appendix-return-btn" style="font-size: 0.64rem; padding: 3px 8px;">↩︎ Sensitivity Analysis (Slide 30)</a> <a href="final_defense_slides.html#/slide-res-ch3-holdout" class="appendix-jump-btn" style="font-size: 0.64rem; padding: 3px 8px;">📊 CH3 Ablation (Slide 26) →</a> <a href="final_defense_slides.html#/slide-res-ch4-holdout" class="appendix-jump-btn" style="font-size: 0.64rem; padding: 3px 8px;">📊 CH4 Stress Test (Slide 28) →</a></p>
 </div>
 </div></div>
 <div class="takeaway-banner" style="margin-top: 6px; padding: 6px 12px; font-size: 0.76rem;">
-<p><strong>Empirical Threshold Validation (<code>SHAP &gt;= P75</code> <span class="math inline">\(\cap\)</span> <code>Supp &gt;= 0.05, Conf &gt;= 0.70</code>):</strong> Validated as a clinical <em>precision–volume dial</em> across two Module VI experiments: (1) <strong>Two-Gate Mirror Ablation (Slide 26)</strong> — retains <strong><code>20/20</code> (<code>100%</code>)</strong> primary clinical drivers while compressing review load <strong><code>-61%</code> (<code>112 → 44</code>)</strong> and rejecting <code>252</code> routine E/M billing artifacts; and (2) <strong>Table S5 Utilization-Free Stress Test (Slide 28)</strong> — proves <strong><code>60%</code> symbolic <code>FFA</code> pair invariance</strong> despite univariate <code>SHAP Jaccard = 0.00</code> collapse.</p>
+<p><strong>Empirical Threshold Validation (<code>SHAP &gt;= P75</code> <span class="math inline">\(\cap\)</span> <code>Supp &gt;= 0.05, Conf &gt;= 0.70</code>):</strong> Validated as a clinical <em>precision–volume dial</em> across two Module VI experiments (<strong>Slide 30</strong>): (1) <strong>Two-Gate Mirror Ablation (Slides 26 &amp; 30)</strong> — retains <strong><code>20/20</code> (<code>100%</code>)</strong> primary clinical drivers while compressing review load <strong><code>-61%</code> (<code>112 → 44</code>)</strong> and rejecting <code>252</code> routine E/M billing artifacts; and (2) <strong>Table S5 Utilization-Free Stress Test (Slides 28 &amp; 30)</strong> — proves <strong><code>60%</code> symbolic <code>FFA</code> pair invariance</strong> despite univariate <code>SHAP Jaccard = 0.00</code> collapse.</p>
 </div>
 <aside class="notes">
 <p>Slide A1 provides the mathematical and empirical defense for our Consensus-Risk architecture across Steps 6 through 8 and Step 10. Because CatBoost uses internal target-statistic hashing on categorical variables, Step 7 first computes exact TreeSHAP on both the best CatBoost model and the best XGBoost variant, enforcing their strict feature intersection as a cross-architecture gate. Step 8 then explodes the decision trees of the best XGBoost variant into CNF clauses and prioritizes the top SHAP-supported matched rules into the PySAT Hitman minimal hitting-set solver to extract exact Abductive Explanations in polynomial O(T times L) time. Importantly, our Consensus-Risk thresholds—75th percentile SHAP, support of 0.05, and confidence of 0.70—operate as a validated precision-volume dial for clinical review capacity, proven empirically in Module VI: first, our Two-Gate Mirror Ablation on Slide 26 retained 20 out of 20 core clinical risk drivers while compressing alert volume by 61 percent and rejecting 252 routine billing codes; and second, our Table S5 utilization-free stress test on Slide 28 demonstrated 60 percent symbolic FFA drug-pair retention even when univariate SHAP Jaccard similarity collapsed to 0.00.</p>
@@ -348,12 +348,11 @@ Downstream administrative claims generated directly by the index visit
 </ul></li>
 <li><strong>Strict Exclusion of Race-as-Proxy Imputation:</strong>
 <ul>
-<li>Administrative race codes are strictly excluded as an unscientific, inaccurate proxy for genetic ancestry or metabolizer status.</li>
-<li>Preserves methodological integrity: models test whether actionable medication burden predicts ED risk without asserting unmeasured biology.</li>
+<li>Administrative race codes are excluded; true allele frequency tracks <strong>biogeographical genetic ancestry</strong> requiring laboratory genotyping.</li>
 </ul></li>
-<li><strong>Translational Continuity (Aim 1 <span class="math inline">\(\to\)</span> Aim 3):</strong>
+<li><strong>DTC Consumer-Array Safety Lockout (<code>cpic-unphased-exploratory-v2</code>):</strong>
 <ul>
-<li>Supervised models (<code>Steps 5–6</code>) evaluate observable claims CPIC exposure directly, while downstream point-of-care patient genotype &amp; diplotype actionability cards execute in <strong><code>60 ms</code></strong> within our stateless Aim 3 microservice (<a href="final_defense_slides.html#/slide-res-ch5-arch">Module VI · CH5 Results ↗</a>).</li>
+<li>Unphased microarray uploads (<span class="math inline">\(k \ge 2\)</span> compound heterozygotes <span class="math inline">\(\implies 2^{k-1}\)</span> phases; unprobed <code>CYP2D6*5</code> CNVs) never impute <code>*1/*1</code> and trigger <code>INSUFFICIENT_GENOTYPE_RESOLUTION</code> (<code>CLIA/CAP</code> referral), while phased clinical diplotypes render in <strong><code>60 ms</code></strong> (<a href="final_defense_slides.html#/slide-res-ch5-arch">CH5 Results ↗</a>).</li>
 </ul></li>
 </ul>
 </div>
@@ -362,7 +361,7 @@ Downstream administrative claims generated directly by the index visit
 </div>
 </div></div>
 <aside class="notes">
-<p>Slide A3 details our exact Step 5 pharmacogenomic feature engineering pipeline in 5_pgx_analysis. First, build_global_drug_cpic_mapping.py scans our APCD drug vocabulary against the official CPIC gene-drug directory using a 95 percent fuzzy-matching threshold to determine whether or not each dispensed medication carries an official CPIC guideline, persisting the global lookup table drug_cpic_mapping_global.csv. Second, create_pgx_features_patient_level.py executes a single DuckDB aggregation over pre-index claims to compute two integer features per patient—pgx_num_drugs (total distinct drugs) and pgx_num_cpic_drugs (distinct CPIC-guideline drugs)—as well as cohort-level counts of how many patients carry CPIC drugs. Crucially, no allele or race-based genotype imputation is performed in the modeling pipeline; our models strictly evaluate observable CPIC medication exposure burden directly from claims data, while interactive patient-level genotype decision-support cards execute in 60 milliseconds at the point of care in Tab 5 of our serverless dashboard (Slide 30).</p>
+<p>Slide A3 details our Step 5 pharmacogenomic feature engineering pipeline in <code>5_pgx_analysis</code> alongside Chapter 6’s bioinformatic phasing boundaries. First, <code>build_global_drug_cpic_mapping.py</code> maps our APCD drug vocabulary against the official CPIC directory (<code>573</code> gene-drug pairs) at a 95% threshold to build <code>drug_cpic_mapping_global.csv</code>. Second, <code>create_pgx_features_patient_level.py</code> computes two observable exposure counts per patient in DuckDB: <code>pgx_num_drugs</code> and <code>pgx_num_cpic_drugs</code>. Third, administrative race checkboxes are strictly excluded because pharmacogenomic allele prevalence tracks biogeographical genetic ancestry requiring direct genotyping. Finally, in our Aim 3 Patient Card, <code>cpic_allele_resolver.py</code> (<code>cpic-unphased-exploratory-v2</code>) never defaults unprobed loci to wild-type <code>*1/*1</code>: unphased consumer microarrays with compound heterozygotes (<span class="math inline">\(2^{k-1}\)</span> chromosomal phases) or unassessed <code>CYP2D6</code> structural variants trigger <code>INSUFFICIENT_GENOTYPE_RESOLUTION</code> and a mandatory CLIA/CAP laboratory test referral, whereas phased clinical alleles execute in 60 milliseconds with 100% concordance across 573 test cases.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -727,7 +726,7 @@ Stateless consensus risk scenario delta (<span class="math inline">\(\mathbf{x} 
 <p><a href="final_defense_slides.html#/slide-6a" class="appendix-return-btn">↩︎ Consensus Attribution (Slide 18)</a> <a href="final_defense_slides.html#/slide-10" class="appendix-return-btn">↩︎ Study Boundaries (Slide 22)</a> <a href="#/sec-appendix-acronyms" class="appendix-jump-btn" style="margin-left: 6px;">📎 Appendix A6: Acronym Reference →</a></p>
 </div>
 <aside class="notes">
-<p>Slide A5 provides a single-slide formal mathematical specification across Specific Aims 1 through 3, documenting the pre-specified study design, data transformation, and formal estimator for every pipeline metric—and explicitly distinguishing supervised predictive and explanatory estimators (TreeSHAP, AXP, IR, IE) from exploratory visual analytics (DTW, FP-Growth, bupaR). All pre-specified estimators and post-execution sensitivity discoveries are evaluated empirically on the untouched 2019 calendar holdout in Module VI (Slides 24 through 32).</p>
+<p>Slide A5 provides a single-slide formal mathematical specification across Specific Aims 1 through 3, documenting the pre-specified study design, data transformation, and formal estimator for every pipeline metric—and explicitly distinguishing supervised predictive and explanatory estimators (TreeSHAP, AXP, IR, IE) from exploratory visual analytics (DTW, FP-Growth, bupaR). All pre-specified estimators and post-execution sensitivity discoveries are evaluated empirically on the untouched 2019 calendar holdout in Module VI (Slides 24 through 33).</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -1036,9 +1035,9 @@ Aim 3 stateless, zero-PHI AWS Lambda microservice (<span class="math inline">\(\
 </div></li>
 <li>Entity executes BAA with hospital; entity executes BAA with AWS via AWS Artifact.</li>
 </ul></li>
-<li><strong>VCU CCTR Pilot Grant Integration:</strong>
+<li><strong>VCU CCTR Pilot Grant Governance (<code>Aim 2</code>, $4,500 of $25K):</strong>
 <ul>
-<li>VCU Wright Center CCTR $25,000 Grant formally funds Aim 2 Compliance &amp; Legal Review ($4,500) to partner with VCU Health Compliance and Counsel to execute institutional DUAs and BAAs prior to prospective clinical pilot testing.</li>
+<li>Partners with <strong>(1) VCU Health InfoSec &amp; Compliance</strong>, <strong>(2) Massey Cancer Center Informatics Governance</strong>, &amp; <strong>(3) VCU OVPRI Legal Counsel</strong> to execute institutional DUAs/BAAs before <code>N &gt;= 200</code> clinical piloting.</li>
 </ul></li>
 </ul>
 </div>
@@ -1057,7 +1056,7 @@ Aim 3 stateless, zero-PHI AWS Lambda microservice (<span class="math inline">\(\
 <li><strong>Mandatory Cloud Technical Configurations:</strong>
 <ul>
 <li><strong>S3 Buckets:</strong> Enforce AWS KMS encryption (<code>SSE-KMS</code>), block all public access, enforce TLS (<code>aws:SecureTransport</code>) in bucket policies.</li>
-<li><strong>AWS Lambda &amp; Memory Security:</strong> Environment variables KMS-encrypted; Firecracker microVM <code>/tmp</code> wiped post-invocation; zero ePHI persisted.</li>
+<li><strong>Lambda &amp; Private VPC:</strong> KMS env vars, Firecracker <code>/tmp</code> wiped post-invocation, &amp; <strong>AWS PrivateLink / private VPC</strong> endpoints.</li>
 <li><strong>CloudWatch Log Scrubbing (Critical):</strong> Custom log sanitizers strictly prevent ePHI from leaking into log streams, stdout, or telemetry.</li>
 <li><strong>CloudTrail Auditing:</strong> Immutable management and data API event trails under <strong>45 CFR § 164.312(b)</strong>.</li>
 </ul></li>
@@ -1073,14 +1072,14 @@ Aim 3 stateless, zero-PHI AWS Lambda microservice (<span class="math inline">\(\
 </div>
 </div></div>
 <div class="takeaway-banner" style="margin-top: 5px; padding: 4px 10px; font-size: 0.69rem; line-height: 1.25;">
-<p><strong>Architectural Synthesis:</strong> Ephemeral compute with zero persistent PHI is a sound engineering safeguard, but enterprise clinical deployment legally requires the <strong>two-tier BAA chain</strong> and AWS HIPAA hardening. VCU CCTR Pilot Grant funding guarantees institutional legal review and DUA execution before prospective clinical pilot deployment.</p>
+<p><strong>Architectural Synthesis:</strong> Ephemeral compute with zero persistent PHI is a sound engineering safeguard, but enterprise clinical deployment legally requires the <strong>two-tier BAA chain</strong> and AWS HIPAA hardening. VCU CCTR Pilot Grant funding guarantees VCU Health InfoSec, Massey Informatics, and OVPRI legal review before prospective clinical deployment.</p>
 </div>
 <aside class="notes">
-<p>Slide A7 addresses the critical governance, regulatory, and legal questions regarding our clinical decision-support architecture.<br>
-First, we establish a strict statutory demarcation: when an individual patient directly enters their own personal health data or uploads consumer genetic files for personal use, federal statute dictates that HIPAA does not govern that relationship. It falls under Federal Trade Commission Section 5 and the FTC Health Breach Notification Rule, meaning a BAA is neither required nor legally recognized.<br>
-Second, when deployed within a healthcare provider or hospital system processing ePHI under 45 CFR Section 160.103, compliance is governed by a two-tier legal BAA execution chain: the covered entity signs BAA number 1 with our legal entity, and our legal entity executes BAA number 2 directly with AWS through AWS Artifact covering the underlying cloud infrastructure.<br>
-Third, on AWS, services are ‘HIPAA-eligible,’ not automatically compliant. We implement the full technical safeguard suite: mandatory KMS envelope encryption on S3, Firecracker microVM ephemeral compute with zero persistence in slash-tmp, strict CloudWatch log scrubbing to prevent ePHI from entering cloud telemetry, and CloudTrail audit logging under 45 CFR Section 164.312(b). Furthermore, any external AI APIs outside of AWS Bedrock would require their own signed BAA.<br>
-Finally, in response to Dr.&nbsp;Gal’s and Dr.&nbsp;Price’s guidance, our VCU Wright Center CCTR Pilot Grant formally funds institutional compliance and university legal review to vet our ephemeral compute posture and execute the required hospital BAA and DUA framework prior to prospective clinical pilot testing.</p>
+<p>Slide A7 addresses the regulatory, legal, and cloud-security architecture formalized in Chapter 6.<br>
+First, we enforce a strict statutory demarcation: when an individual patient enters their own medication list or uploads consumer genetic files for personal health literacy, 45 CFR Section 160.103 dictates that HIPAA does not apply—that relationship falls under Federal Trade Commission Act Section 5 and the Health Breach Notification Rule, where a HIPAA BAA is neither required nor legally recognized.<br>
+Second, when deployed by a healthcare provider or hospital processing ePHI, compliance requires an unbroken two-tier legal BAA execution chain: the hospital signs BAA number 1 with our legal entity, and our legal entity executes BAA number 2 with AWS via AWS Artifact.<br>
+Third, under the AWS Shared Responsibility Model, we harden HIPAA-eligible primitives into a compliant enclave via KMS encryption, Firecracker microVM zero <code>/tmp</code> persistence inside private VPC and PrivateLink subnets, strict CloudWatch log scrubbing, and multi-region CloudTrail auditing—while requiring separate signed BAAs for any external third-party AI APIs outside AWS Bedrock or SageMaker.<br>
+Finally, Aim 2 of our VCU Wright Center CCTR 25,000-dollar Pilot Grant allocates 4,500 dollars to partner with VCU Health Information Security, Massey Cancer Center Informatics Governance, and OVPRI Legal Counsel to vet and execute all institutional BAA and DUA templates before clinical pilot testing.</p>
 <style type="text/css">
         span.MJX_Assistive_MathML {
           position:absolute!important;
@@ -2278,7 +2277,7 @@ Finally, in response to Dr.&nbsp;Gal’s and Dr.&nbsp;Price’s guidance, our VC
 
             <a href="#/slide-res-ch2" class="nav-pill pill-p6" id="nav-pill-p6" title="Module VI: Empirical Results (CH2–CH5)">VI. Results</a>
 
-            <a href="#/slide-next-steps" class="nav-pill pill-p7" id="nav-pill-p7" title="Module VII: Next Steps (Pending 9NOV Feedback)">VII. Next Steps</a>
+            <a href="#/slide-next-steps" class="nav-pill pill-p7" id="nav-pill-p7" title="Module VII: Next Steps (Chapter 6 Roadmap)">VII. Next Steps</a>
 
             <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (A1–A8)">Appendix</a>
 
@@ -2396,11 +2395,11 @@ Finally, in response to Dr.&nbsp;Gal’s and Dr.&nbsp;Price’s guidance, our VC
 
           const hP6 = getSlideH('slide-res-ch2', 23);
 
-          const hP7 = getSlideH('slide-next-steps', 32);
+          const hP7 = getSlideH('slide-next-steps', 33);
 
-          const hQA = getSlideH('slide-qa', 33);
+          const hQA = getSlideH('slide-qa', 34);
 
-          const hApp = getSlideH('sec-appendix', 35);
+          const hApp = getSlideH('sec-appendix', 36);
 
     
 
@@ -2892,7 +2891,7 @@ Finally, in response to Dr.&nbsp;Gal’s and Dr.&nbsp;Price’s guidance, our VC
 
           { selector: '.card-teal', targetId: 'slide-res-ch2', title: 'Module VI: Results (CH2–CH5)' },
 
-          { selector: '.card-indigo', targetId: 'slide-next-steps', title: 'Module VII: Next Steps (Pending 9NOV Feedback)' }
+          { selector: '.card-indigo', targetId: 'slide-next-steps', title: 'Module VII: Next Steps (Chapter 6 Roadmap)' }
 
         ];
 
