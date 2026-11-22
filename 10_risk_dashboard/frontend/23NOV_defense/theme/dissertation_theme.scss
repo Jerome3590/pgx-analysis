@@ -502,24 +502,24 @@ $presentation-heading-letter-spacing: -0.02em;
 }
 
 .card-compact {
-  padding: 8px 12px !important;
-  margin-bottom: 8px;
+  padding: 10px 14px !important;
+  margin-bottom: 9px;
 
   &:last-child {
     margin-bottom: 0;
   }
   h3, h4, .card-title {
-    font-size: 0.92rem !important;
-    margin-bottom: 3px !important;
+    font-size: 1.08rem !important;
+    margin-bottom: 4px !important;
   }
   ul, ol {
     margin-bottom: 0 !important;
     padding-left: 18px !important;
   }
   li {
-    font-size: 0.8rem !important;
-    line-height: 1.35 !important;
-    margin-bottom: 3px !important;
+    font-size: 0.88rem !important;
+    line-height: 1.38 !important;
+    margin-bottom: 4px !important;
   }
 }
 
@@ -1664,66 +1664,132 @@ html.print-pdf {
   @include print-pdf-styles;
 }
 
-//Tight vertical budget for Slide 11 (#slide-1a: Dual Crises + Methodological Demarcation + 3 Aims)
-.reveal #slide-1a {
+// Dedicated spacious typography for Specific Aims Slides 11-13 (#slide-1a, #slide-1b, #slide-1c) and Sensitivity Synthesis (#slide-res-sensitivity)
+.reveal #slide-1a,
+.reveal #slide-1b,
+.reveal #slide-1c,
+.reveal #slide-res-sensitivity {
   h2 {
-    margin-bottom: 0.35em !important;
-    padding-bottom: 0.15em !important;
-  }
-  .slide-badge {
-    margin-bottom: 4px !important;
-  }
-  .card-compact li {
-    font-size: 0.76rem !important;
-    line-height: 1.26 !important;
-    margin-bottom: 2px !important;
+    margin-bottom: 0.30em !important;
+    padding-bottom: 0.14em !important;
   }
 
-  // Right panel cohort cards: expanded spacing and padding
-  .column:last-child {
-    .card-box {
-      padding: 12px 16px !important;
-      margin-bottom: 14px !important;
+  .slide-badge {
+    margin-bottom: 8px !important;
+  }
+
+  .card-box {
+    padding: 18px 24px !important;
+    margin-bottom: 14px !important;
+
+    .card-title {
+      font-size: 1.48rem !important;
+      font-weight: 800 !important;
+      margin-bottom: 8px !important;
+      line-height: 1.25 !important;
+    }
+
+    > div, p {
+      font-size: 1.32rem !important;
+      line-height: 1.44 !important;
+    }
+
+    ul {
+      margin: 4px 0 0 0 !important;
+      padding-left: 26px !important;
+    }
+
+    li {
+      font-size: 1.24rem !important;
+      line-height: 1.40 !important;
+      margin-bottom: 9px !important;
 
       &:last-child {
         margin-bottom: 0 !important;
       }
 
-      .card-title {
-        font-size: 0.94rem !important;
-        font-weight: 700 !important;
-        margin-bottom: 8px !important;
-      }
-
-      ul {
-        padding-left: 20px !important;
-      }
-
-      li {
-        font-size: 0.78rem !important;
-        line-height: 1.40 !important;
-        margin-bottom: 7px !important;
-
-        &:last-child {
-          margin-bottom: 0 !important;
-        }
-
-        strong {
-          color: #0F172A !important;
-        }
-      }
-
-      ul ul {
-        margin-top: 3px !important;
-        padding-left: 16px !important;
-
-        li {
-          font-size: 0.74rem !important;
-          line-height: 1.32 !important;
-          margin-bottom: 2px !important;
-        }
+      strong {
+        color: #0F172A !important;
       }
     }
+
+    code {
+      font-size: 0.90em !important;
+    }
+  }
+
+  .takeaway-banner {
+    margin-top: 8px !important;
+    padding: 12px 20px !important;
+    font-size: 1.16rem !important;
+    line-height: 1.38 !important;
+    display: block !important;
+  }
+}
+
+// Slight vertical tuning for Slide 12 (#slide-1b: Cohort 2 has nested Silent ADE sub-bullets)
+.reveal #slide-1b {
+  .card-box {
+    padding: 14px 22px !important;
+    margin-bottom: 10px !important;
+
+    .card-title {
+      font-size: 1.34rem !important;
+      margin-bottom: 6px !important;
+    }
+
+    > div, p {
+      font-size: 1.16rem !important;
+      line-height: 1.36 !important;
+    }
+
+    li {
+      font-size: 1.10rem !important;
+      line-height: 1.32 !important;
+      margin-bottom: 5px !important;
+    }
+
+    ul ul {
+      margin-top: 3px !important;
+      padding-left: 22px !important;
+
+      li {
+        font-size: 1.04rem !important;
+        line-height: 1.28 !important;
+        margin-bottom: 3px !important;
+      }
+    }
+  }
+
+  .takeaway-banner {
+    margin-top: 6px !important;
+    padding: 10px 18px !important;
+    font-size: 1.06rem !important;
+    line-height: 1.34 !important;
+  }
+}
+
+// Clearer bullet-to-bullet vertical separation on Slide 35 (#slide-res-sensitivity)
+.reveal #slide-res-sensitivity {
+  .card-box {
+    padding: 20px 26px !important;
+
+    .card-title {
+      margin-bottom: 14px !important;
+    }
+
+    li {
+      line-height: 1.48 !important;
+      margin-bottom: 18px !important;
+
+      &:last-child {
+        margin-bottom: 0 !important;
+      }
+    }
+  }
+
+  .takeaway-banner {
+    margin-top: 12px !important;
   }
 }
 
@@ -2433,8 +2499,54 @@ body.print-pdf .reveal .slides {
 }
 
 // -----------------------------------------------------------------------------
-// 7-MODULE ROADMAP GRID & EMPIRICAL RESULTS FOCAL TABLE ROWS
+// 5-MODULE & 7-MODULE ROADMAP GRID & EMPIRICAL RESULTS FOCAL TABLE ROWS
 // -----------------------------------------------------------------------------
+.reveal .slides #sec-roadmap .roadmap-grid-5 {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: 1fr 24px 1fr;
+  min-block-size: 440px;
+  gap: 0 14px;
+  margin-block-start: 10px;
+  align-items: stretch;
+
+  .card-box {
+    grid-row: span 3;
+    margin-block-end: 0 !important;
+    padding-block: 24px;
+    padding-inline: 12px;
+    display: grid;
+    grid-template-rows: 1fr 24px 1fr;
+    grid-template-rows: subgrid;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .roadmap-num {
+    font-size: 2.55rem;
+    font-weight: 800;
+    line-height: 1;
+    align-self: end;
+    padding-block-end: 6px;
+  }
+
+  .roadmap-rule {
+    inline-size: 44px;
+    block-size: 3.5px;
+    border-radius: 2px;
+    align-self: center;
+  }
+
+  .roadmap-title {
+    font-size: 1.32rem;
+    font-weight: 800;
+    color: #0F172A;
+    line-height: 1.25;
+    padding-block-start: 8px;
+    align-self: start;
+  }
+}
+
 .reveal .slides #sec-roadmap .roadmap-grid-7 {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -2597,35 +2709,78 @@ body.print-pdf .reveal .slides {
 }
 
 .reveal .slides #slide-acknowledgements {
+  .ack-committee-strip {
+    margin-top: 6px !important;
+    margin-bottom: 14px !important;
+    padding: 11px 20px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-left: 5px solid #2563EB;
+    border-radius: 6px;
+    color: #1E293B;
+    font-size: 1.22rem !important;
+    line-height: 1.36 !important;
+
+    p {
+      font-size: 1.22rem !important;
+      line-height: 1.36 !important;
+      margin: 0 !important;
+    }
+  }
+
   .ack-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 0 !important;
     align-items: stretch;
 
     .card-box {
       min-inline-size: 0;
       margin-bottom: 0 !important;
-      padding: 10px 14px !important;
+      padding: 11px 16px !important;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
 
-      .card-title {
-        font-size: 0.94rem !important;
-        margin-bottom: 5px !important;
+      .card-title,
+      .card-title p {
+        font-size: 1.42rem !important;
+        line-height: 1.18 !important;
+        margin: 0 0 4px 0 !important;
       }
 
-      li {
-        font-size: 0.79rem !important;
-        line-height: 1.38 !important;
-        margin-bottom: 5px !important;
+      .ack-role {
+        font-size: 1.06rem !important;
+        font-weight: 600;
+        color: #1D4ED8;
+        line-height: 1.24 !important;
+        margin-bottom: 6px;
       }
 
-      li:last-child {
-        margin-bottom: 0 !important;
+      .ack-note {
+        font-size: 1.16rem !important;
+        color: #334155;
+        line-height: 1.34 !important;
       }
+    }
+  }
+
+  .ack-partners-strip {
+    margin-top: 14px !important;
+    padding: 9px 18px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-left: 4px solid #0D9488;
+    border-radius: 6px;
+    color: #334155;
+    font-size: 1.08rem !important;
+    line-height: 1.34 !important;
+
+    p {
+      font-size: 1.08rem !important;
+      line-height: 1.34 !important;
+      margin: 0 !important;
     }
   }
 
@@ -2646,5 +2801,173 @@ body.print-pdf .reveal .slides {
     }
   }
 }
+
+// Slide 31 (#slide-res-ch3-holdout): Maximized panoramic curves + larger table & card typography
+.reveal .slides #slide-res-ch3-holdout {
+  .columns {
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .ch3-holdout-table {
+    font-size: 0.80rem !important;
+    line-height: 1.32 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+
+    th, td {
+      padding: 6px 7px !important;
+    }
+  }
+
+  .card-box {
+    padding: 10px 14px !important;
+    margin-left: 6px !important;
+
+    .card-title {
+      font-size: 1.0rem !important;
+      margin-bottom: 6px !important;
+    }
+
+    li {
+      font-size: 0.90rem !important;
+      line-height: 1.40 !important;
+      margin-bottom: 6px !important;
+    }
+
+    li:last-child {
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// Slide 32 (#slide-res-ch3-drivers) & Slide 34 (#slide-res-ch4-synergies): Maximized panoramic figure + balanced bottom cards
+.reveal .slides #slide-res-ch3-drivers,
+.reveal .slides #slide-res-ch4-synergies {
+  .columns {
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .card-box {
+    padding: 9px 13px !important;
+    height: 100%;
+
+    .card-title {
+      font-size: 1.02rem !important;
+      margin-bottom: 5px !important;
+    }
+
+    li {
+      font-size: 0.86rem !important;
+      line-height: 1.35 !important;
+      margin-bottom: 5px !important;
+    }
+
+    li:last-child {
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// Slide 33 (#slide-res-ch4-holdout): Enlarged table & card typography to match right-column figure height
+.reveal .slides #slide-res-ch4-holdout {
+  .ch4-holdout-table {
+    font-size: 0.80rem !important;
+    line-height: 1.35 !important;
+    margin-top: 2px !important;
+
+    th, td {
+      padding: 7px 8px !important;
+    }
+  }
+
+  .card-box {
+    margin-top: 12px !important;
+    padding: 14px 18px !important;
+
+    .card-title {
+      font-size: 1.08rem !important;
+      margin-bottom: 8px !important;
+    }
+
+    li {
+      font-size: 0.96rem !important;
+      line-height: 1.48 !important;
+      margin-bottom: 10px !important;
+    }
+
+    li:last-child {
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// Slide 17 (#slide-2): Enlarged 3-card typography & vertical spacing to fill left column cleanly
+.reveal .slides #slide-2 {
+  .columns {
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .card-box {
+    padding: 14px 18px !important;
+    margin-bottom: 14px !important;
+
+    .card-title {
+      font-size: 1.22rem !important;
+      margin-bottom: 8px !important;
+    }
+
+    li {
+      font-size: 1.05rem !important;
+      line-height: 1.44 !important;
+      margin-bottom: 6px !important;
+    }
+
+    li:last-child {
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+// Slide 20 (#slide-4) & Slides 25-27 swap cards: Align to Slide 41 benchmark (1.08rem title / 0.88rem bullets)
+.reveal .slides #slide-4,
+.reveal .slides #slide-6a,
+.reveal .slides #slide-7,
+.reveal .slides #slide-8 {
+  .card-box {
+    .card-title {
+      font-size: 1.08rem !important;
+      margin-bottom: 5px !important;
+    }
+
+    li {
+      font-size: 0.88rem !important;
+      line-height: 1.38 !important;
+      margin-bottom: 4px !important;
+    }
+  }
+}
+
+// Slide 51 (#sec-appendix-hipaa): Keep 0px overflow with slightly tighter compact padding
+.reveal .slides #sec-appendix-hipaa {
+  .card-compact {
+    padding: 8px 12px !important;
+    margin-bottom: 6px !important;
+
+    .card-title {
+      font-size: 1.0rem !important;
+      margin-bottom: 3px !important;
+    }
+
+    li {
+      font-size: 0.83rem !important;
+      line-height: 1.34 !important;
+      margin-bottom: 3px !important;
+    }
+  }
+}
+
 
 

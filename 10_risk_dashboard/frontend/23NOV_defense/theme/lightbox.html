@@ -433,15 +433,13 @@
     footer.innerHTML = `
       <span class="footer-candidate">R. Jerome Dixon, MDA, MSc IT · Ph.D. Defense</span>
       <nav class="footer-nav" aria-label="Presentation Module Navigation">
-        <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: 7 Core Modules (Slide 3)">Roadmap</a>
+        <a href="#/sec-roadmap" class="nav-pill pill-road" id="nav-pill-road" title="Roadmap: 5 Core Modules (Slide 3)">Roadmap</a>
         <a href="#/slide-1" class="nav-pill pill-p1" id="nav-pill-p1" title="Module I: Problem">I. Problem</a>
         <a href="#/slide-2" class="nav-pill pill-p2" id="nav-pill-p2" title="Module II: Governance & Data">II. Governance</a>
-        <a href="#/slide-4" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts">III. Cohorts</a>
+        <a href="#/slide-3" class="nav-pill pill-p3" id="nav-pill-p3" title="Module III: Cohorts">III. Cohorts</a>
         <a href="#/slide-5" class="nav-pill pill-p4" id="nav-pill-p4" title="Module IV: Modeling">IV. Modeling</a>
-        <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Deployment">V. Translation</a>
-        <a href="#/slide-res-ch2" class="nav-pill pill-p6" id="nav-pill-p6" title="Module VI: Empirical Results (CH2–CH5)">VI. Results</a>
-        <a href="#/slide-next-steps" class="nav-pill pill-p7" id="nav-pill-p7" title="Module VII: Next Steps (Chapter 6 Roadmap)">VII. Next Steps</a>
-        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (A1–A8)">Appendix</a>
+        <a href="#/slide-8" class="nav-pill pill-p5" id="nav-pill-p5" title="Module V: Translation & Deployment (incl. Results & Next Steps)">V. Translation</a>
+        <a href="#/sec-appendix" class="nav-pill pill-app" id="nav-pill-app" title="Appendix: Technical Defenses (A1–A9)">Appendix</a>
         <a href="final_defense_slides.pdf" target="_blank" rel="noopener" class="nav-pill pill-pdf print-hide" id="nav-pill-pdf" title="Open / Download 16:9 Print-Ready PDF Slide Deck">📄 PDF ↗</a>
       </nav>
       <span class="footer-spacer"></span>
@@ -494,14 +492,12 @@
 
       const hRoad = getSlideH('sec-roadmap', 2);
       const hP1 = getSlideH('slide-1', 3);
-      const hP2 = getSlideH('slide-2', 11);
-      const hP3 = getSlideH('slide-4', 13);
-      const hP4 = getSlideH('slide-5', 16);
-      const hP5 = getSlideH('slide-8', 19);
-      const hP6 = getSlideH('slide-res-ch2', 23);
-      const hP7 = getSlideH('slide-next-steps', 33);
-      const hQA = getSlideH('slide-qa', 34);
-      const hApp = getSlideH('sec-appendix', 36);
+      const hP2 = getSlideH('slide-2', 16);
+      const hP3 = getSlideH('slide-3', 18);
+      const hP4 = getSlideH('slide-5', 22);
+      const hP5 = getSlideH('slide-8', 25);
+      const hQA = getSlideH('slide-acknowledgements', 39);
+      const hApp = getSlideH('sec-appendix', 41);
 
       if (h === hRoad) {
         footer.querySelector('#nav-pill-road')?.classList.add('active');
@@ -513,12 +509,8 @@
         footer.querySelector('#nav-pill-p3')?.classList.add('active');
       } else if (h >= hP4 && h < hP5) {
         footer.querySelector('#nav-pill-p4')?.classList.add('active');
-      } else if (h >= hP5 && h < hP6) {
+      } else if (h >= hP5 && h < hQA) {
         footer.querySelector('#nav-pill-p5')?.classList.add('active');
-      } else if (h >= hP6 && h < hP7) {
-        footer.querySelector('#nav-pill-p6')?.classList.add('active');
-      } else if (h >= hP7 && h < hQA) {
-        footer.querySelector('#nav-pill-p7')?.classList.add('active');
       } else if (h >= hApp) {
         footer.querySelector('#nav-pill-app')?.classList.add('active');
       }
@@ -743,11 +735,9 @@
     const cardTargets = [
       { selector: '.card-danger', targetId: 'slide-1', title: 'Module I: Problem' },
       { selector: '.card-primary', targetId: 'slide-2', title: 'Module II: Governance & Data' },
-      { selector: '.card-warning', targetId: 'slide-4', title: 'Module III: Cohorts' },
+      { selector: '.card-warning', targetId: 'slide-3', title: 'Module III: Cohorts' },
       { selector: '.card-success', targetId: 'slide-5', title: 'Module IV: Modeling' },
-      { selector: '.card-slate', targetId: 'slide-8', title: 'Module V: Translation & Deployment' },
-      { selector: '.card-teal', targetId: 'slide-res-ch2', title: 'Module VI: Results (CH2–CH5)' },
-      { selector: '.card-indigo', targetId: 'slide-next-steps', title: 'Module VII: Next Steps (Chapter 6 Roadmap)' }
+      { selector: '.card-slate', targetId: 'slide-8', title: 'Module V: Translation & Deployment' }
     ];
 
     cardTargets.forEach(({ selector, targetId, title }) => {

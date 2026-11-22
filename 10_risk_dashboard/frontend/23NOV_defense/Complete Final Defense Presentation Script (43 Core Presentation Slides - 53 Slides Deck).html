@@ -1,0 +1,679 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>Complete Final Defense Presentation Script (43 Core Presentation Slides - 53 Slides Deck)</title><style>
+@page { size: letter portrait; margin: 0.45in 0.5in; }
+* { box-sizing: border-box; }
+body { font-family: 'Segoe UI', Arial, sans-serif; color: #0F172A; margin: 0; padding: 0; font-size: 9.6pt; line-height: 1.42; }
+.doc-header {
+  border-bottom: 2.5px solid #0F172A;
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+}
+.doc-header h1 { font-size: 15pt; margin: 0 0 4px 0; }
+.doc-header .meta { font-size: 8.8pt; color: #475569; }
+.card {
+  border: 1px solid #CBD5E1;
+  border-left: 4px solid #2563EB;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  page-break-inside: avoid;
+}
+.card.appendix { border-left-color: #475569; background: #F8FAFC; }
+.card-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #E2E8F0;
+  padding-bottom: 4px;
+}
+.card-title { font-weight: 800; font-size: 10.6pt; color: #0F172A; }
+.card-meta { font-size: 8pt; color: #475569; font-weight: 600; }
+.card p { margin: 0 0 6px 0; }
+.card p:last-child { margin-bottom: 0; }
+.card code { font-family: Consolas, monospace; font-size: 8.5pt; background: #E2E8F0; padding: 1px 3px; border-radius: 3px; }
+</style></head><body><div class='doc-header'><h1>Complete Final Defense Presentation Script (43 Core Presentation Slides - 53 Slides Deck)</h1><div class='meta'>R. Jerome Dixon, MDA, MSc IT · Chair: Dr. Elvin T. Price · VCU ILS Ph.D. Defense (Nov 23, 2026) · 43 Core + 10 Appendix Slides</div></div>
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 01: Gradient-Boosted Trees and Consensus-Risk</span>
+            <span class="card-meta">Title Slide · VCU Integrative Life Sciences Ph.D. Defense · Nov 23, 2026</span>
+          </div>
+          <p>&quot;Good afternoon, members of the committee. <em>Brief pause</em></p>
+<p>My name is Jerome Dixon. I am a student in the Integrative Life Sciences Doctoral Program, conducting my dissertation research within the School of Pharmacy at Virginia Commonwealth University.</p>
+<p>Welcome to my final dissertation defense: <em>Gradient-Boosted Trees and Consensus-Risk For Opioid and Polypharmacy Emergency Department Visits in Virginia’s APCD</em>.</p>
+<p>Across emergency medicine and outpatient pharmacotherapy, clinicians face an escalating dual crisis: the ongoing mortality of the opioid epidemic and the surging, silent morbidity of geriatric polypharmacy adverse drug events - ADEs. Today, I will present our computational framework addressing this challenge.</p>
+<p>This research presents an end-to-end architecture that connects population-scale predictive analytics with explainable clinical decision support.</p>
+<p>Using longitudinal statewide claims from the Virginia All-Payer Claims Database, the architecture integrates gradient-boosted tree ensembles across multiple topologies, rigorous temporal leakage audits, and a dual-model consensus attribution framework combining SHAP values with formal symbolic logic.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Our ultimate aim is to support actionable insights at the point of care while minimizing unnecessary alerts and clinician alert fatigue.</p>
+<p>With that, let us proceed on our journey.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 02: Supervisory Committee</span>
+            <span class="card-meta">Integrative Life Sciences Doctoral Program · School of Pharmacy</span>
+          </div>
+          <p>&quot;Before we dive into the core modules, I want to express my sincere gratitude to:</p>
+<p>my chair and sponsor, Dr. Price, as well as Professor Bost, Dr. Gal, Dr. Wijesinghe, and Dr. DeShazo. <em>Brief pause</em></p>
+<p>Your time, example, and mentorship has been invaluable throughout this journey. Your combined expertise across pharmacotherapy, systems engineering, informatics, and real-world evidence is vital to this work.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Thank you all for being here today for this final dissertation defense.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 03: Roadmap</span>
+            <span class="card-meta">Final Defense Agenda · 5 Core Modules</span>
+          </div>
+          <p>&quot;Here on our Roadmap slide, we outline the final defense agenda across five core modules: <em>Brief pause</em></p>
+<p><strong>Modules I through IV</strong> establish our scientific problem formulation, three-tier governance and Virginia APCD data architecture, dual cohort derivation pipelines, and GBDT with <code>TreeSHAP ∩ FFA</code> consensus modeling and Step 3b leakage protection.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Module V: Translation &amp; Deployment</strong> bridges our architecture into practice—starting with the Clinical OODA Loop and study boundaries, presenting our complete empirical results across <strong>Data Engineering (Chapter 2)</strong>, the <strong>Opioid Cohort (Chapter 3)</strong>, the <strong>Polypharmacy Cohort (Chapter 4)</strong>, and the <strong>PGx Risk Dashboard (Chapter 5)</strong>, and closing with Chapter 6&#x27;s translational <strong>Next Steps</strong> spanning our 2020–2024 Wright Center APCD refresh, VCU CCTR Epic SMART on FHIR pilot, partner EHR linkage, and FDA SaMD governance.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 04: Initial Analysis of Problem</span>
+            <span class="card-meta">Module I · Infographic Part 1 of 4 · Downstream Public Health &amp; Economic Toll</span>
+          </div>
+          <p>&quot;Turning to Slide 4, we begin Module I by examining the downstream clinical and economic effects of medication-related morbidity. <em>Brief pause</em></p>
+<p>Preventable emergency department utilization in the United States is driven by two distinct medication-risk cohorts with verified national epidemiological benchmarks:</p>
+<p><strong>First</strong>, in Cohort 1, CDC WONDER epidemiological surveillance documents that since 1999, prescription and illicit opioid overdoses have claimed over 500,000 lives in the United States, with Florence and colleagues&#x27; landmark CDC health-economics evaluation in <em>Medical Care</em> establishing an annual societal burden exceeding 78.5 billion dollars across direct healthcare ($26.1B), lost workplace productivity ($41.8B), and criminal justice expenditures ($7.6B).</p>
+<p><strong>Second</strong>, in Cohort 2, Charlesworth et al. in the <em>Journals of Gerontology</em> and Kantor et al. in <em>JAMA</em> document that geriatric polypharmacy—defined as five or more concurrent prescription medications—affects over 40% of older adults aged 65 and older (with ~20% taking 10 or more), while CDC NEISS-CADES active surveillance published by Budnitz and Shehab in <em>JAMA</em> demonstrates that outpatient adverse drug events drive between 700,000 and 1.3 million emergency department visits and over 125,000 deaths annually.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 05: Literature Gap: Opioid vs. Polypharmacy Research</span>
+            <span class="card-meta">Module I · Infographic Part 2 of 4 · Systematic Review (n = 94 ML Studies)</span>
+          </div>
+          <p>&quot;Slide 5 presents the second panel of our systematic review infographic: opioid research heavily overshadows polypharmacy research across 94 supervised machine learning studies. <em>Brief pause</em></p>
+<p><strong>First</strong>, 95% of published machine learning research clusters into just two buckets—46% predicting opioid use disorder diagnosis or dependence, and 49% predicting general acute care or overdose utilization—leaving only 5%, or just five studies, addressing polypharmacy adverse drug events and drug-drug interactions.</p>
+<p><strong>Second</strong>, out of 1,473 published opioid use disorder literature records screened under PRISMA 2020, only 6 studies specifically evaluate machine learning models designed to predict opioid-related emergency department visits using administrative claims data.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 06: ML Modeling Gaps: PGx, XAI &amp; Target Leakage</span>
+            <span class="card-meta">Module I · Infographic Part 3 of 4 · PROBAST Appraisal (n = 73 Models)</span>
+          </div>
+          <p>&quot;Slide 6 examines the third panel of our infographic: the three methodological failures uncovered across 73 PROBAST-assessed prediction models. <em>Brief pause</em></p>
+<p><strong>First</strong>, in Failure 1, 30% of published models suffer from temporal data leakage—allowing post-index treatments such as buprenorphine or naloxone to leak into pre-outcome predictor windows, artificially inflating AUROC by 5 to 25 percentage points before collapsing in out-of-time deployment.</p>
+<p><strong>Second</strong>, in Failure 2, 81% completely omit pharmacogenomic modifiers despite mature CPIC guidelines for <em>CYP2D6</em> and <em>OPRM1</em>.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, in Failure 3, across all 73 PROBAST-assessed models, exactly zero combine structured pharmacogenomic features, explainable AI, and out-of-time temporal holdout validation.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 07: Preliminary Data: 90% of ADEs Occur Within 21 Days</span>
+            <span class="card-meta">Module I · FAERS</span>
+          </div>
+          <p>&quot;Before moving to the frontline clinical bottleneck, Slides 7 through 9 present our preliminary data that shaped our pipeline architecture. <em>Brief pause</em></p>
+<p><strong>First</strong>, on Slide 7, we asked a foundational pharmacoepidemiologic question using external FDA FAERS pharmacovigilance data: over what pre-visit lookback window do serious acute adverse drug events actually occur?</p>
+<p><strong>Second</strong>, across 468,298 deduplicated FDA FAERS hospitalization and death reports, nearly half—49.5%—occur within the first 7 days, and 87.7% occur within 21 days of drug initiation.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, this external FDA FAERS distribution establishes our empirical prior for a proximal 1-to-21-day acute polypharmacy window, which we will validate directly against Virginia APCD claims side-by-side in Module III (Cohorts).&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 08: Preliminary Data: Opioid Cohort Feature Analysis (opioid_ed)</span>
+            <span class="card-meta">Module I · Step 3a · Panel A (8 Age Bands)</span>
+          </div>
+          <p>&quot;Slide 8 begins our Step 3a preliminary multi-model feature analysis with Panel A: the <code>opioid_ed</code> cohort across all eight age bands. <em>Brief pause</em></p>
+<p>We pivoted event-level claims into patient-level numeric count matrices and aggregated Recall-scaled feature importances across CatBoost, XGBoost, and XGBoost-RF. Across adolescents and adults aged 13 to 64, true clinical drivers center on long-term opiate therapy (<code>Z79.891</code>), chronic pain (<code>G89.29</code>, <code>G89.4</code>), psychiatric care (<code>90837</code>), oxycodone, and gabapentin.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Critically, this raw heatmap also exposed a major methodological trap—marked with asterisks: unfiltered Step 3a models achieved an artificially inflated 0.99 AUROC because synchronous toxicology screens (<code>G0479</code>), ED evaluation CPTs (<code>99284</code>, <code>99285</code>), and post-event buprenorphine treatment leaked into the feature space, directly motivating our Step 3b leakage filter.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 09: Preliminary Data: Polypharmacy Feature Analysis (non_opioid_ed)</span>
+            <span class="card-meta">Module I · Step 3a · Panel B (8 Age Bands)</span>
+          </div>
+          <p>&quot;Slide 9 shows Panel B of our Step 3a preliminary feature analysis for our geriatric polypharmacy cohort, <code>non_opioid_ed</code>, across all eight age bands. <em>Brief pause</em></p>
+<p>Unlike <code>opioid_ed</code>, predictive importance concentrates sharply in older adults aged 65 to 84 around concurrent cardiometabolic, diuretic, beta-blocker, and statin regimens—including amlodipine, losartan, furosemide, metoprolol, metformin, gabapentin, omeprazole, and multiple statins.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Notably, many of these top geriatric predictors are CPIC-actionable pharmacogenomic substrates—directly motivating our Step 5 CPIC drug mapping on the following slides.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 10: Preliminary Data: Cohort Feature Target Split</span>
+            <span class="card-meta">Module I · Step 3a · Panel C (Cumulative Separation)</span>
+          </div>
+          <p>&quot;Slide 10 summarizes Panel C—the cumulative target split directly comparing <code>opioid_ed</code> on the left against <code>non_opioid_ed</code> on the right. <em>Brief pause</em></p>
+<p>Look at the sharp separation across the red dashed line: the top predictors bifurcate cleanly into two orthogonal clinical regimes, with gabapentin standing out as the key cross-cohort bridge.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>This cumulative split empirically proves why these two populations cannot be pooled into one generic risk model—justifying our dual-cohort architecture and mandatory Step 3b pre-index leakage purge.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 11: Preliminary Data: CPIC Drug Density by Cohort</span>
+            <span class="card-meta">Module I · Step 5 · Panel A (8 Age Bands)</span>
+          </div>
+          <p>&quot;Slide 11 presents Panel A of our Step 5 preliminary pharmacogenomic mapping: quantifying how many drug features surfaced in initial Feature Importance are CPIC-actionable medications across all eight age bands. <em>Brief pause</em></p>
+<p>Between 24% and 35% of all drug features selected in initial feature importance map directly to Clinical Pharmacogenetics Implementation Consortium guidelines—spanning 187 distinct generic CPIC drugs in <code>opioid_ed</code> and 224 distinct generic CPIC drugs in <code>non_opioid_ed</code>.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>At the patient level across 4.04 million Virginia APCD drug records, 76% to 92% of prescription-exposed <code>opioid_ed</code> patients and 61% to 78% of <code>non_opioid_ed</code> patients receive at least one CPIC-actionable medication—and our engineered exposure counts <code>pgx_num_drugs</code> and <code>pgx_num_cpic_drugs</code> rank among the top 3 predictors across nearly every final model.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 12: Preliminary Data: CPIC Gene–Drug Pairs by Cohort</span>
+            <span class="card-meta">Module I · Step 5 · Panel B (CPIC / PharmGKB Pathways)</span>
+          </div>
+          <p>&quot;Slide 12 shows Panel B: the dominant CPIC pharmacogene-drug pairs surfaced across each target cohort. <em>Brief pause</em></p>
+<p>The specific CPIC drug classes separate cleanly by clinical mechanism: <em>CYP2D6</em> opioids and psychotropics dominate <code>opioid_ed</code>, whereas <em>CYP2D6</em> beta-blockers, <em>SLCO1B1</em> statins, <em>CYP2C19</em> proton-pump inhibitors, and <em>CYP2C9</em> ARBs and anticoagulants dominate <code>non_opioid_ed</code>.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>We calibrate our scientific framing explicitly: administrative claims do not recover a patient&#x27;s genetic diplotype; rather, they quantify cumulative CPIC-actionable medication exposure burden—pinpointing patients whose regimens warrant pharmacogenomic review and motivating addressing the frontline clinical bottleneck on the next slide.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 13: Frontline Clinical Bottleneck</span>
+            <span class="card-meta">Module I · Infographic Part 4 of 4 · Point-of-Care Translation Gap</span>
+          </div>
+          <p>&quot;Slide 13 isolates the fourth component of our problem formulation: The Frontline Clinical Bottleneck. <em>Brief pause</em></p>
+<p><strong>First</strong>, frontline clinicians and pharmacists must navigate complex, multi-year medication and claims histories during rapid clinical visits, while traditional pairwise drug-interaction checkers trigger 90% to 95% alert override fatigue and miss higher-order multi-drug synergies.</p>
+<p><strong>Second</strong>, black-box machine learning models that output raw probability scores without verifiable clinical rules fail to earn clinician trust at the point of care.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, our dissertation bridges this bottleneck with a calibrated, defensible impact: identifying and prioritizing potentially modifiable medication-related risk factors via leakage-free gradient-boosted trees and Consensus-Risk Horn rules to establish a framework for pharmacist-led medication review.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 14: Specific Aim 1: Cohort 1 (opioid_ed)</span>
+            <span class="card-meta">Module I · Aim 1 · Cohort 1 (opioid_ed)</span>
+          </div>
+          <p>&quot;Slide 14 presents Specific Aim 1 alongside our Cohort 1 target definition. <em>Brief pause</em></p>
+<p>In Aim 1 (Chapter 3), we develop and temporally validate our tri-model gradient-boosted tree family—CatBoost, XGBoost, and XGBoost-RF—paired with <code>SHAP ∩ FFA</code> consensus attribution for Cohort 1 (<code>opioid_ed</code>, ages 13 to 64), evaluating pre-index leakage prevention, PR-AUC and AUROC discrimination, and calibration on an independent 2019 temporal holdout.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Below, Cohort 1 captures chronic opioid escalation over a 12-month pre-index lookback window, anchored directly to explicit ICD-10 <code>F11.20</code> opioid dependence and <code>T40.0X</code> through <code>T40.4X</code> poisoning codes scanned across all ten claim diagnostic positions.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 15: Specific Aim 2: Cohort 2 (ed_non_opioid)</span>
+            <span class="card-meta">Module I · Aim 2 · Cohort 2 (ed_non_opioid)</span>
+          </div>
+          <p>&quot;Slide 15 presents Specific Aim 2 alongside our Cohort 2 target definition. <em>Brief pause</em></p>
+<p>In Aim 2 (Chapter 4), we extend our tri-model gradient-boosted tree family and <code>SHAP ∩ FFA</code> symbolic Boolean Horn rules to Cohort 2 (<code>ed_non_opioid</code>, ages 65 to 114), quantifying candidate higher-order multi-drug interaction effects (<code>IE</code>) and consensus risk attenuation priorities (<code>IR</code>) on the untouched 2019 holdout.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Below, Cohort 2 addresses the &#x27;Silent ADE&#x27; coding reality: because fewer than 5% of drug-induced geriatric ED visits are billed with explicit poisoning codes, we anchor to Milliman HCG emergency lines <code>P51b</code>, <code>O11</code>, and <code>P33</code> within a 21-day proximal prescription window and zero opioid codes—capturing downstream falls, fractures, syncope, delirium, GI bleeds, and acute kidney injury.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 16: Specific Aim 3: Decision Support</span>
+            <span class="card-meta">Module I · Aim 3 · Decision Support</span>
+          </div>
+          <p>&quot;Slide 16 presents Specific Aim 3 alongside our core clinical decision-support design principles. <em>Brief pause</em></p>
+<p>At the top, Aim 3 (Chapter 5) translates our validated Aim 1 and Aim 2 risk estimates and interpretable Boolean rules into a usable prototype decision-support tool for pharmacist-led Medication Therapy Management review prioritization—explicitly scoped to evaluating explanation fidelity, clinical interpretability, and workflow usability rather than claiming prospective clinical effectiveness.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Below, the interface is governed by Lean Value Information Flow: organizing clinical evidence in a natural high-to-low, left-to-right visual hierarchy—from top-level risk score down and across to causal drivers and counterfactual levers—while maintaining low cognitive overhead through progressive disclosure to prevent pharmacist alert fatigue.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 17: Governance &amp; Analytical Frameworks, Study Boundaries</span>
+            <span class="card-meta">Module II · Phase 1 · CRISP-DM, TRIPOD+AI &amp; Clinical OODA Loop</span>
+          </div>
+          <p>&quot;Directing your attention to our governance architecture, our engineering and validation pipeline is governed by three concentric architectural rings. <em>Brief pause</em></p>
+<p><strong>First</strong>, the outer ring executes the six-phase CRISP-DM systems engineering lifecycle, enforcing strict reproducibility across our ten-step codebase—from clinical problem formulation and DuckDB ingestion through Step 3b leakage filtering, tri-model GBDT fitting, and containerized deployment.</p>
+<p><strong>Second</strong>, the middle ring enforces the 27-item TRIPOD+AI biomedical reporting standard for Type 2b and Type 3 independent temporal holdout validation. Models are trained and tuned exclusively on 2016 through 2018 Virginia APCD claims and evaluated once on an untouched 2019 calendar holdout. Crucially, we prohibit post-hoc recalibration on the 2019 holdout: adjusting probability curves after inspecting test-period outcomes is equivalent to grading your own exam after peeking at the answer key, which masks temporal calibration drift.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, the inner core operationalizes the Clinical OODA Loop—Observe, Orient, Decide, and Act. Our GBDT models and symbolic Horn rules execute Observe and Orient, while licensed clinical pharmacists retain 100% authority over Decide and Act within an asynchronous medication review queue.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 18: Study Boundaries</span>
+            <span class="card-meta">Module II · Phase 1 · 8 Interlocking Epidemiological &amp; Governance Safeguards</span>
+          </div>
+          <p>&quot;Within Module II Governance, our dissertation is bounded by eight interlocking safeguards—four epidemiological cohort constraints on the left, and four clinical governance principles on the right:</p>
+<p><strong>On the left</strong>, our epidemiological design enforces:</p>
+<p><strong>First</strong>, the Absolute Opioid Cleanse across all ten diagnostic positions in our geriatric cohort;</p>
+<p><strong>Second</strong>, High-Utilization Capping excluding patients with seven or more annual emergency visits;</p>
+<p><strong>Third</strong>, the 21-Day Proximal Pharmacy Window—where external FDA FAERS onset kinetics directly validate our cohort derivation logic; and</p>
+<p><strong>Fourth</strong>, the Zero-Day Discharge Guard systematically purging day-zero fills and post-index confounders to eliminate target leakage, while transparently noting claims limitations around cash-pay PDMP fills, VOAA community reversals, and undifferentiated <code>R41.82</code> Altered Mental Status coding.</p>
+<p><em>Brief pause</em></p>
+<p><strong>On the right</strong>, our governance framework establishes:</p>
+<p><strong>Fifth</strong>, Aim 3 is consultative pharmacist decision-support triage, not a patient outcomes trial—separating direct consumer self-use under FTC privacy from hospital deployment under our two-tier HIPAA BAA chain;</p>
+<p><strong>Sixth</strong>, Consensus Attribution quantifies observational risk priority rather than causal treatment effects;</p>
+<p><strong>Seventh</strong>, the untouched 2019 temporal holdout evaluates real-world model transportability while quarantining 2020 pandemic distortion; and</p>
+<p><strong>Eighth</strong>, our features measure observable CPIC medication burden rather than genotypes, deliberately omit administrative race as a proxy for biogeographical genetic ancestry, and enforce a hard <code>CLIA/CAP</code> referral lockout on unphased consumer DNA arrays.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 19: Virginia APCD vs. Single-Facility EHR</span>
+            <span class="card-meta">Module III · Phase 1 · Statewide Generalizability &amp; Data Architecture</span>
+          </div>
+          <p>&quot;Turning to Slide 19, we justify selecting the Virginia All-Payer Claims Database over Electronic Health Records or single-payer Medicare datasets. <em>Brief pause</em></p>
+<p>Single-system EHRs suffer from critical outcome blindness in emergency prediction: when an individual overdoses or an older adult suffers a syncopal fall, emergency medical services transport them to the nearest hospital, not necessarily their home academic center.</p>
+<p><strong>First</strong>, the Virginia APCD provides a multi-payer, statewide window encompassing commercial, Medicare Advantage, and Medicaid populations—eliminating out-of-network emergency blindness across competing health systems with zero linkage attrition via Virginia Health Information.</p>
+<p><strong>Second</strong>, whereas EHRs record written e-prescriptions—missing the roughly 30% primary non-adherence drop-off abandoned at the pharmacy counter—APCD pharmacy claims capture paid, adjudicated dispenses that verify physical drug possession.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, while administrative claims lack raw DNA swabs and bedside vitals, we methodologically compensate in Step 5 (<code>5_pgx_analysis</code>) by mapping all dispensed APCD medications against the official CPIC directory (<code>drug_cpic_mapping_global.csv</code>) to determine whether each drug carries a CPIC guideline, computing patient-level counts of total drugs (<code>pgx_num_drugs</code>), CPIC-guideline drugs (<code>pgx_num_cpic_drugs</code>), and how many patients carry CPIC drugs—quantifying observable medication exposure burden directly without unscientific genotype imputation.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 20: Medical &amp; Pharmacy Tables with Virginia APCD</span>
+            <span class="card-meta">Module III · Step 2</span>
+          </div>
+          <p>&quot;Before examining our two target cohorts on Slides 21 and 22, Slide 20 details how we validate, clean, and relationally join the Virginia APCD Gold medical and pharmacy tables into our 39-column unified event fact table. <em>Brief pause</em></p>
+<p>To ensure administrative claims integrity prior to modeling, automated preprocessing scripts filter voided or reversed claim lines and harmonize schema fields across years.</p>
+<p><strong>First</strong>, the Gold medical table contributes 25 standardized columns—capturing all ten ICD-10 diagnostic positions, nine ICD procedure and three CPT modifier fields, Milliman HCG emergency service lines <code>P51b</code>, <code>O11</code>, and <code>P33</code>, and imputed demographics—while the Gold pharmacy table captures paid prescription fills normalized from National Drug Codes to generic RxNorm <code>drug_name</code> and <code>therapeutic_class_1</code>.</p>
+<p><strong>Second</strong>, in Phase 2, DuckDB links and unions these medical and pharmacy records at the patient level on <code>mi_person_key</code>, <code>event_year</code>, and <code>age_band</code>, backfilling demographic covariates across pharmacy rows and computing a global chronological <code>event_sequence</code> ordered by claim date relative to index date zero.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, from this strictly pre-index timeline—where claim service date precedes index date—we engineer our four core feature families: multi-position diagnosis and procedure indicators (<code>item_icd_<em></code>, <code>item_cpt_</em></code>), active generic drug exposures (<code>item_drug_*</code>), our Step 5 CPIC drug counts (<code>pgx_num_drugs</code>, <code>pgx_num_cpic_drugs</code>), and claims-density utilization tiers.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 21: Aim 1: Opioid ED Cohort</span>
+            <span class="card-meta">Module III · Step 2</span>
+          </div>
+          <p>&quot;Slide 21 presents the architectural pipeline for Cohort 1, our 12-month chronic opioid emergency cohort, <code>opioid_ed</code>. <em>Brief pause</em></p>
+<p>To capture true acute opioid toxicity and dependence crises across adolescents and adults aged 13 to 64, we anchor index encounters using validated ICD-10 diagnostic criteria.</p>
+<p><strong>First</strong>, case inclusion requires an emergency claim carrying explicit ICD-10 <code>F11.20</code> opioid dependence or <code>T40.0X</code> through <code>T40.4X</code> acute opioid poisoning codes inspected across all ten diagnostic positions.</p>
+<p><strong>Second</strong>, because opioid tolerance and dose escalation evolve longitudinally, we extract a 12-month pre-index lookback window—from day minus 365 through day minus 1—paired with 1-to-5 incidence-density matched controls across eight age bands, sex, and calendar year, and screened via our Step 3b leakage purge.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, to process 1.8 Terabytes and 380 million claims without memory exhaustion, we engineered a partition-first out-of-core DuckDB pipeline on AWS Spot EC2 <code>x2iedn.8xlarge</code> workers. Partitioning by Age Band and Event Year eliminated shuffle skew—achieving a 15.1-fold speedup to 18.1 million records per minute, zero failures across 189 passes, and reducing compute cost from 23,000 dollars a month on EMR clusters to under 10 dollars per pass.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 22: Aim 2: Polypharmacy ADE Cohort</span>
+            <span class="card-meta">Module III · Step 2</span>
+          </div>
+          <p>&quot;Turning to Slide 22, we examine the parallel pipeline architecture for our geriatric polypharmacy cohort, <code>ed_non_opioid</code>.</p>
+<p><em>Brief pause</em></p>
+<p>Focusing on older adults aged 65 to 114, we anchor index encounters using Milliman HCG emergency service lines—specifically <code>P51b</code>, <code>O11</code>, and <code>P33</code>. To isolate pure medication-related adverse events from opioid toxicity, we apply an absolute opioid cleanse: excluding any patient with even a single opioid ICD-10 code across all ten diagnostic positions during the study year.</p>
+<p>Next, we pass candidate records through a three-stage epidemiological funnel:</p>
+<p><strong>First</strong>, a high-utilization cap excluding individuals with seven or more annual emergency visits, filtering out chronic crisis utilizers.</p>
+<p><strong>Second</strong>, a 21-day proximal pharmacy window—from day minus 21 through day minus 1. As established on Slide 7, this lookback is empirically validated by our FAERS-to-APCD time-to-onset convergence demonstrating that over 90% of acute ADEs occur within 3 weeks of medication initiation or modification, providing external cohort validation for our polypharmacy pipeline—detailed in the Cohort Validation card and Figure 1B.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, we enforce a strict Zero-Day Discharge Guard where claim date precedes index date. This systematically purges any prescription filled on the calendar day of the emergency visit, guaranteeing that post-discharge medications are never mistaken for pre-visit etiology.</p>
+<p><em>Brief pause</em></p>
+<p>Cohort cases are matched 1-to-5 with controls across age band, sex, and calendar year. Finally, our verification script—<code>qa_index_date_uniqueness.py</code>—validates that every patient retains exactly one unique index date per calendar year.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 23: Cohort Validation: FAERS &amp; Virginia APCD 21-Day Convergence</span>
+            <span class="card-meta">Module III · Cohort Validation · FAERS + Virginia APCD</span>
+          </div>
+          <p>&quot;Bringing both distributions side-by-side here in Module III provides direct external-to-internal construct validation for our Cohort 2 polypharmacy pipeline. <em>Brief pause</em></p>
+<p>On the left, external FDA FAERS pharmacovigilance across 468,298 serious acute ADE hospitalizations and deaths shows 87.7% occurring within 21 days.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>On the right, when calibrated internally on 189,411 Virginia APCD emergency claims after enforcing our Zero-Day Discharge Guard, 92.4% of pre-ED fills—and 90.5% of all qualifying drug–ED pairs—fall within Days 1 to 21, with a median gap of 6 days. This tight FAERS-to-APCD convergence scientifically validates our 1-to-21-day proximal window for acute geriatric polypharmacy versus our 12-month trajectory window for chronic opioid escalation.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 24: Gradient-Boosted Trees &amp; Model Selection</span>
+            <span class="card-meta">Module IV · Step 6</span>
+          </div>
+          <p>&quot;Turning to Slide 24, we present our Step 6 model selection protocol across three gradient-boosted tree architectures. <em>Brief pause</em></p>
+<p>Standard logistic regression assumes log-odds linearity, failing under non-linear drug interactions, while deep neural networks risk severe overfitting on tabular claims with sparse, bursty features.</p>
+<p><strong>First</strong>, we train three distinct tree geometries: CatBoost utilizes symmetric oblivious trees that evaluate identical feature splits across an entire depth level, providing mathematical immunity to target shift on high-cardinality NDC and ICD codes. XGBoost employs asymmetric depth-wise splits that isolate rare multi-drug interaction branches. And XGBoost Random Forest operates in parallel bagging mode to minimize prediction variance in sparse feature subsets.</p>
+<p><strong>Second</strong>, models are trained across 25-split stratified Monte Carlo cross-validation. In imbalanced clinical prediction, AUROC is misleading because large true-negative counts inflate performance; therefore, Step 6 evaluates models strictly on Area Under the Precision-Recall Curve—PR-AUC—as the primary metric, with Recall at a 0.5 threshold as the tiebreaker.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, the top-performing model is selected for risk scoring, while the winning XGBoost variant and CatBoost are locked for Step 7 dual-model consensus attribution.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 25: Consensus Risk Attribution</span>
+            <span class="card-meta">Module IV · Consensus Risk Architecture</span>
+          </div>
+          <p>&quot;Slide 25 details the core theoretical contribution of Aim 2: our Consensus-Risk attribution engine. <em>Brief pause</em></p>
+<p>Standard impurity metrics like Gini gain fail under collinearity, and single explainable AI algorithms can split credit arbitrarily across correlated prescriptions. We resolve this with a three-stage dual-key security lock.</p>
+<p><strong>First</strong>, we compute game-theoretic TreeSHAP attributions across both the winning CatBoost model and winning XGBoost variant, retaining only features that clear the 75th percentile in both architectures.</p>
+<p><strong>Second</strong>, we compile the root-to-leaf paths of the winning XGBoost model into Conjunctive Normal Form clauses and apply the PySAT <code>Hitman</code> minimal hitting-set solver to extract irreducible Abductive Explanations—or AXPs—requiring rule support of at least 5% and confidence of at least 70%, combined with equal 50-50 weighting in combined synthesis. Think of TreeSHAP as an economist measuring marginal risk shifts across coalitions, and Formal Feature Attribution as a structural engineer proving the exact Boolean circuit that trips the breaker.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, to address Specific Aim 2 strictly via in-model consensus risk sensitivity contrasts ($\Delta\hat{p}$) from tree and AXP perturbations—expressed as consensus risk shifts rather than causal treatment effects—Intervention Rate measures single-feature predicted risk shift when set to its baseline median, while Interaction Effect uses second-order finite differences and Class-1 AXP co-occurrence lift above one to quantify super-additive model synergy.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 26: Target Leakage</span>
+            <span class="card-meta">Module IV · Step 3b</span>
+          </div>
+          <p>&quot;Slide 26 details our Step 3b temporal leakage audit—the engineering firewall that eliminates reverse causality. <em>Brief pause</em></p>
+<p>Following an acute emergency overdose, patients receive immediate clinical rescue protocols—such as emergency naloxone administration, rapid buprenorphine induction, and point-of-care urine toxicology screens. In 30% of published studies, models inadvertently ingest these post-index treatments, inflating AUROC by 5 to 28 percentage points simply by detecting the emergency response after the patient arrives.</p>
+<p><strong>First</strong>, Step 3b partitions every candidate code&#x27;s timestamps around index date zero and computes its post-target ratio: the proportion of claims occurring on or after the emergency visit.</p>
+<p><strong>Second</strong>, any feature with a post-target ratio of 80% or higher is systematically purged. Across 1,029 candidate features, Step 3b purged 348 post-index confounders—or 33.8%—including 164 medications such as Suboxone at 100% post-index, 84 CPT codes such as urine toxicology <code>80307</code> at 100% post-index, and 100 secondary diagnostic codes.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, the remaining 682 verified pre-index antecedents—where claim date strictly precedes index date—are locked in <code>safe_feature_filter.json</code> and applied symmetrically across cases and controls, cutting the movie frame strictly before the emergency room doors open.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 27: Aim 3: Actionable Intelligence &amp; Workflow Integration</span>
+            <span class="card-meta">Module V · Step 10</span>
+          </div>
+          <p>&quot;Slide 27 presents Specific Aim 3: translating our validated modeling and attribution insights into a structured regimen-triage prototype built specifically for consultative clinical pharmacists. <em>Brief pause</em></p>
+<p>Traditional EHR drug-interaction checkers fire synchronous pop-up interrupts during rapid prescribing encounters, suffering 90% to 95% clinician override rates. Rather than competing with the EHR, our microservice is architected for asynchronous pre-visit Medication Therapy Management, geriatric deprescribing consults, and emergency department post-overdose discharge handoffs via SMART on FHIR and CDS Hooks.</p>
+<p><strong>First</strong>, our interface operationalizes the Clinical OODA Loop and a Lean value-stream layout—pairing partition-routed risk tiers with verifiable Boolean Horn rules while strictly separating population visualizations from patient-level scoring.</p>
+<p><strong>Second</strong>, interactive &#x27;What-If&#x27; profile comparisons display associational score shifts when candidate regimen features are toggled while preserving 100% human clinician authority, and our allele resolver enforces a hard prescribing lockout and CLIA/CAP laboratory referral whenever unphased direct-to-consumer genetic arrays lack chromosomal phase or structural variant resolution.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, we enforce a strict statutory demarcation between direct patient self-use under FTC consumer privacy—where no HIPAA BAA exists legally—and hospital clinical deployment under our two-tier BAA execution chain via AWS Artifact with KMS encryption, private VPC routing, and CloudWatch log scrubbing.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 28: Clinical OODA Loop</span>
+            <span class="card-meta">Module V · Translation &amp; Deployment · Clinical OODA Loop Architecture</span>
+          </div>
+          <p>&quot;Slide 28 synthesizes the entire dissertation architecture into the clinical OODA loop—Observe, Orient, Decide, and Act—emphasizing the iterative progression and feedback between phases. <em>Brief pause</em></p>
+<p><strong>First</strong>, under <strong>Observe</strong>, we bridge the triple gap in healthcare AI by scaling partition-first DuckDB ingestion across 1.8 terabytes of Virginia APCD claims—linking external CPIC pharmacogenomic reference data to quantify PGx burden and incorporating FDA FAERS safety kinetics to validate adverse event windows.</p>
+<p><strong>Second</strong>, under <strong>Orient</strong>, we build our <strong>Initial Model</strong>—performing Step 3a exploratory feature screening across all 16 cohort and age strata, applying our dual-gated TreeSHAP and symbolic FFA consensus filter to isolate robust feature attributions, and enforcing the B1 balancing constraint to evaluate baseline transportability.</p>
+<p><strong>Third</strong>, under <strong>Decide</strong>, we execute the critical iterative refinement step: confronting the initial model&#x27;s vulnerability to target leakage, our Step 3b pre-index firewall purges reverse-causality rescue codes to construct the <strong>Refined Model</strong>. Here, we evaluate three distinct gradient-boosted tree geometries—CatBoost symmetric oblivious trees for categorical shift immunity, XGBoost asymmetric depth-wise trees for deep multi-drug interaction discovery, and XGBoost-RF bagging for variance stabilization—translating vetted patterns into clinical risk allocation and deprescribing priorities.</p>
+<p><strong>Fourth</strong>, under <strong>Act</strong>, we deploy a stateless, HIPAA-compliant serverless decision-support dashboard delivering sub-100 millisecond inference to prioritize pharmacist medication therapy management reviews.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>Finally, clinical interventions, pharmacist reviews, and longitudinal follow-up claims feed directly back into our continuous learning loop, retraining initial screening baselines and refining decision rules over time.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 29: Data Engineering Results: DuckDB &amp; Cloud Economics</span>
+            <span class="card-meta">Module V · Results · Data Engineering (CH2)</span>
+          </div>
+          <p>&quot;Moving into our empirical results under Module V, we present findings across Chapters 2 through 5, beginning on Slide 29 with Chapter 2 Data Engineering. <em>Brief pause</em></p>
+<p>Processing 1.8 terabytes and 380 million Virginia APCD claims on traditional distributed EMR and Apache Spark clusters triggered repeated out-of-memory failures (<code>exit code 137</code>) at a run rate of 23,000 dollars per month due to severe patient-level skew.</p>
+<p><strong>First</strong>, our partition-first out-of-core DuckDB architecture on a single fat AWS <code>x2iedn.8xlarge</code> Spot EC2 instance achieved 18.1 million records per minute—a 15.1-fold speedup over monolithic execution—with zero partition failures across 189 consecutive passes.</p>
+<p><strong>Second</strong>, idempotent S3 SHA-256 checkpoint manifests enabled sub-60-second Spot interruption recovery while collapsing compute cost by 99% to between 6 and 10 dollars per full statewide pass.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Takeaway:</strong> For skewed statewide healthcare claims, vectorized DuckDB on a single fat EC2 instance decisively beats distributed EMR clusters and Apache Spark on throughput, reliability, and cost.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 30: Data Engineering Results: Step 3b Leakage Purge &amp; 5-Set CNF Filter</span>
+            <span class="card-meta">Module V · Results · Data Engineering (CH2) · Step 3b &amp; Step 8</span>
+          </div>
+          <p>&quot;Slide 30 reports the empirical validation of our two core engineering gates in Chapter 2. <em>Brief pause</em></p>
+<p><strong>First</strong>, across 1,029 Step 3a candidate features, our Step 3b BupaR event-partitioning audit identified and purged 348 post-index confounders—33.8% of the candidate pool—including 164 rescue medications like Suboxone and Narcan occurring 100% on or after the emergency visit, 84 toxicology CPTs like <code>80307</code>, and 100 follow-up diagnostic codes. Locking the 682 verified pre-index antecedents in <code>safe_feature_filter.json</code> replaced artificially leaked 0.99 AUROC scores with honest out-of-time generalization.</p>
+<p><strong>Second</strong>, our 5-Set candidate rule filter bounded the PySAT <code>Hitman</code> solver to achieve 100% patient explanation coverage across our matched opioid (<code>N = 207,350</code>) and polypharmacy (<code>N = 647,002</code>) cohorts.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 31: Opioid Cohort Results: 2019 Holdout &amp; Two-Gate Mirror Ablation</span>
+            <span class="card-meta">Module V · Results · Opioid Cohort (CH3 · N = 207,350)</span>
+          </div>
+          <p>&quot;Turning to our published Chapter 3 results in <em>Clinical and Translational Science</em> (<code>10.1111/cts.70690</code>) across 207,350 matched subjects in our chronic opioid cohort (<code>26,710</code> cases and <code>180,640</code> 1:5 controls). <em>Brief pause</em></p>
+<p><strong>First</strong>, evaluated strictly once on the untouched 2019 calendar holdout with zero post-hoc recalibration, our Step 6 winning architectures achieved out-of-time AUROCs from 0.800 in our primary <code>25–44</code> cohort up to 0.890 in <code>55–64</code>, with Precision-Recall lifts of 2.3-fold to 4.4-fold above baseline prevalence and Brier scores between 0.011 and 0.015.</p>
+<p><strong>Second</strong>, our two-gate mirror ablation proved the operational value of intersecting TreeSHAP with symbolic FFA: retaining 20 out of 20 top clinical drivers while compressing feature review load by 61%—from 112 down to 44 features—and filtering boundary buprenorphine noise.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 32: Opioid Cohort Results: Consensus Drivers &amp; 6.8-Month Window</span>
+            <span class="card-meta">Module V · Results · Opioid Cohort (CH3) · HOW &amp; WHEN to Intervene</span>
+          </div>
+          <p>&quot;This slide answers both HOW and WHEN clinical pharmacists can intervene in the opioid cohort. <em>Brief pause</em></p>
+<p><strong>First, HOW to intervene:</strong> across adult strata, total drug burden (<code>pgx_num_drugs</code>, <code>100%</code> AXP support), <code>gabapentin</code> (<code>87%</code> support), benzodiazepines (<code>clonazepam</code>, <code>alprazolam</code>), and CPIC-actionable drug burden (<code>pgx_num_cpic_drugs</code>, present in 74% to 86% of cases) dominate consensus Horn rules—pinpointing synergistic CNS respiratory depression.</p>
+<p><strong>Second, WHEN to intervene:</strong> exploratory Dynamic Time Warping across 59,813 patient trajectories uncovered a 6.8-month—or 27-week—escalation inflection window before emergency presentation, while <code>bupaR</code> process mining showed that initiating physical therapy prior to gabapentin escalation was associated with 58% lower progression to an opioid ED visit.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 33: Polypharmacy Cohort Results: Geriatric Holdout &amp; Stress Test</span>
+            <span class="card-meta">Module V · Results · Polypharmacy Cohort (CH4 · N = 647,002)</span>
+          </div>
+          <p>&quot;This slide presents our published Chapter 4 results (<code>10.1111/cts.70718</code>) evaluating acute 21-day geriatric polypharmacy ADEs across <code>N = 647,002</code> total patients, focusing on older adults aged 65 to 114. <em>Brief pause</em></p>
+<p><strong>First</strong>, on the untouched 2019 holdout, models achieved <code>0.877</code> AUROC (<code>3.9×</code> lift, Brier <code>0.008</code>, <code>89</code> consensus rules) in ages <code>65–74</code> and <code>0.858</code> AUROC (<code>4.2×</code> lift, <code>86</code> rules) in <code>75–84</code>, before attenuating to <code>0.686</code> (<code>1.6×</code> lift) in <code>85–114</code> due to unmeasured physiological frailty ceilings in claims data.</p>
+<p><strong>Second</strong>, our <code>Table S5</code> utilization-free stress test delivered a striking methodological proof: removing all 17 utilization features collapsed univariate top-25 drug SHAP rankings to a Jaccard similarity of <code>0.00</code> in <code>65–74</code>, yet symbolic FFA Horn clauses preserved 60% (<code>3/5</code>) of core synergistic drug pairs—proving that Boolean minimal hitting sets anchor clinical stability when marginal Shapley credits shift.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 34: Polypharmacy Cohort Results: Multi-Drug Synergies &amp; Z-Code Shield</span>
+            <span class="card-meta">Module V · Results · Polypharmacy Cohort (CH4) · IE, IR &amp; Preventive Shield</span>
+          </div>
+          <p>&quot;This slide highlights three translational discoveries from Chapter 4. <em>Brief pause</em></p>
+<p><strong>First</strong>, beyond pairwise checkers, second-order interaction screening validated 115 synergistic pairs—led by fluoroquinolone-CNS combinations like <code>levofloxacin + lorazepam</code> (<code>IE = 11.9</code>)—and 312 Bonferroni-significant triplets out of 5,021 candidates, independently recovering the STOPP D4 &#x27;Triple Whammy&#x27; (<code>furosemide + HCTZ + lisinopril</code>) in 12.3% of oldest-old cases.</p>
+<p><strong>Second</strong>, counterfactual in-model Intervention Rate ranked <code>simvastatin</code>, <code>furosemide</code>, and <code>alprazolam/lorazepam</code> as the top deprescribing review priorities—capturing high-prevalence metabolic and volume-depletion risks overlooked by static Beers anticholinergic lists.</p>
+<p><strong>Third</strong>, we discovered a U-shaped Preventive Z-Code Shield: older adults in <code>Q2</code> (<code>1%–12%</code> ICD-10 <code>Z00</code> routine wellness exams, <code>Z23</code> preventive immunizations, and <code>Z79</code> long-term drug therapy documentation) experienced a 3.0% vs. 10.7% ED rate—an odds ratio of <code>0.25</code>, or 75% lower odds, before risk rises again in fragmented high-acuity <code>Q4</code> crisis coding.</p>
+<p><strong>Clinical &amp; Q&amp;A Clarification:</strong> In claims data, <code>Z00/Z23/Z79</code> is not a billed patient navigator code itself—it is an observational proxy for <strong>managed vs. unmanaged polypharmacy</strong> (longitudinal PCP continuity and active medication reconciliation). Because observational engagement carries a healthy-user caveat (caregiver support, health literacy, care navigation), we frame this as an <em>association</em> rather than causal proof—where <strong>patient navigators, care coordinators, and clinical pharmacists (MTM/CMR)</strong> are the actionable translational workforce to move unengaged <code>Q0</code> patients into <code>Q2</code> structured stewardship.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 35: Consensus Attribution Results: SHAP ∩ FFA Sensitivity Analysis</span>
+            <span class="card-meta">Module V · Results · Clinical Alert Compression (CH3)</span>
+          </div>
+          <p>&quot;Slide 35 synthesizes our peer-review sensitivity analyses across both cohorts. <em>Brief pause</em></p>
+<p><strong>First</strong>, in Chapter 3 (<code>25–44 low</code> bin, <code>181</code> whitelisted features), our two-gate mirror ablation addresses clinician alert fatigue: intersecting <code>TreeSHAP &gt;= P75</code> with <code>PySAT</code> <code>FFA</code> (<code>Support &gt;= 0.05, Confidence &gt;= 0.70</code>) compresses review load by <code>61%</code>—from <code>112</code> down to <code>44</code> features—while preserving <code>100%</code> (<code>20/20</code>) of top clinical drivers (<code>pgx_num_drugs</code>, <code>gabapentin</code>, <code>clonazepam</code>, <code>pgx_num_cpic_drugs</code>), filtering <code>252</code> routine billing codes, rejecting sparse boundary buprenorphine correlates (<code>BUNAVAIL</code>, <code>BUTRANS</code>), and tightening cross-partition holdout Brier dispersion by <code>0.008</code> to <code>0.013</code>.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Second</strong>, in our Chapter 4 <code>Table S5</code> utilization-free stress test, stripping all <code>17</code> healthcare-utilization features and density strata in the <code>65–74</code> geriatric cohort collapses univariate top-25 drug <code>SHAP</code> rankings to <code>Jaccard = 0.00</code>, yet symbolic <code>PySAT Hitman</code> Horn rules preserve <code>60%</code> (<code>3/5</code>) of core synergistic drug pairs—visualized full-screen on the next slide.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 36: Consensus Attribution Results: Table S5 Stress Test Visual</span>
+            <span class="card-meta">Module V · Results · CH4 Table S5 · Utilization-Free Stress Test (2019 Holdout)</span>
+          </div>
+          <p>&quot;Here on Figure 15, you can see the Table S5 utilization-free stress test side-by-side: even when stripping all 17 healthcare-utilization features causes univariate SHAP rankings to reshuffle completely (<code>Jaccard = 0.00</code>), our symbolic PySAT Hitman FFA clauses retain 60% (<code>3/5</code>) of the published multi-drug synergistic pairs—proving that Boolean minimal hitting sets anchor clinical stability when marginal Shapley credits shift.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 37: PGx Dashboard Results: Serverless Zero-PHI Architecture &amp; Latency</span>
+            <span class="card-meta">Module V · Results · PGx Dashboard (CH5)</span>
+          </div>
+          <p>&quot;Turning to Slide 37, we present our published Chapter 5 results (<code>10.1111/cts.70697</code>) operationalizing Specific Aim 3 into a live serverless clinical decision-support prototype at <code>pgx.jerome-dixon.io</code>. <em>Brief pause</em></p>
+<p><strong>First</strong>, we packaged all 56 stratified ensembles—168 trained CatBoost, XGBoost, and XGBoost-RF base learners—alongside our CPIC lookup engine inside a single AWS Lambda container under 10 gigabytes, operating on a stateless <code>compute–respond–discard</code> lifecycle for under 5 dollars per month.</p>
+<p><strong>Second</strong>, empirical benchmarking confirmed <code>6 millisecond</code> warm risk inference (<code>SD 1 ms</code>; <code>2,100 ms</code> cold start), <code>60 millisecond</code> Patient Card rendering with 100% rule-logic concordance across all 573 deterministic CPIC test cases, and bioinformatic safety lockouts on unphased consumer genetic arrays requiring CLIA/CAP clinical confirmation.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 38: PGx Dashboard Results: Imputation of Normality Sparsity Shield</span>
+            <span class="card-meta">Module V · Results · PGx Dashboard (CH5) · Bedside Input Sparsity Resilience</span>
+          </div>
+          <p>&quot;Slide 38 validates how our population claims models remain stable when a consultative pharmacist enters only 3 to 5 active medications rather than 682 historical billing codes. <em>Brief pause</em></p>
+<p>Under our &#x27;Imputation of Normality&#x27; protocol, unentered features default cleanly so mean absolute probability drift remains below <code>0.06</code> across up to 70% input sparsity, with stable risk-band assignment through 60% missingness and 87% tier concordance at 50% sparsity—bridging population claims models directly to lean bedside entry.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 39: PGx Dashboard Results: Scenario Comparison &amp; What-If Engine</span>
+            <span class="card-meta">Module V · Results · PGx Dashboard (CH5) · Live Two-Tab Scenario Architecture</span>
+          </div>
+          <p>&quot;Slide 39 shows a live capture from our deployed PGx Risk Dashboard at <code>pgx.jerome-dixon.io</code>, highlighting our decoupled two-tab scenario architecture. <em>Brief pause</em></p>
+<p>On the left in Panel A—the <strong>Risk Assessment</strong> tab—pharmacists can swap codes directly via <code>Replace / swap a code</code>, save multiple candidate regimens including a one-click Care-Continuity What-If, and run side-by-side ensemble scoring via <code>POST /risk/comparison</code> alongside leave-one-out <code>Drug contributions</code>.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p>On the right in Panel B—the <strong>Scenario Analysis (FFA/SHAP)</strong> tab—we deliberately decouple attribution from risk recalculation: querying <code>GET /visualizations/scenario</code> renders three interactive Plotly views (<code>Top Interaction Factors (FFA)</code>, <code>SHAP Feature Importance</code>, and the per-feature <code>Effect on outcome</code> radar) with a second orange trace for any comma-separated What-If regimen—here comparing a 4-drug geriatric regimen (<code>furosemide</code>, <code>simvastatin</code>, <code>alprazolam</code>, <code>gabapentin</code>) against removing <code>alprazolam</code> and <code>gabapentin</code>—while preserving 100% human clinician authority over Decide and Act.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 40: Results: Executive Summary</span>
+            <span class="card-meta">Module V · Results · Synthesis Across Chapters 2–5 &amp; Specific Aims 1–3</span>
+          </div>
+          <p>&quot;Slide 40 synthesizes our complete empirical results across Chapters 2 through 5 and Specific Aims 1 through 3 on a single executive matrix. <em>Brief pause</em></p>
+<p><strong>First</strong>, in Chapter 2 Data Engineering, vectorized DuckDB on a single fat EC2 instance beat distributed EMR clusters and Apache Spark—delivering a 15.1-fold speedup, zero shuffle-skew OOMs, and a 99% cloud cost reduction across 380 million claims—while purging 348 post-index leakage codes via Step 3b and bounding PySAT rule extraction via our 5-Set CNF filter.</p>
+<p><strong>Second</strong>, in Chapter 3 (Specific Aim 1), leakage-free GBDTs achieved 0.800 to 0.890 AUROC and up to 4.4-fold Precision-Recall lift on the untouched 2019 opioid holdout, compressing pharmacist alert load by 61% while identifying modifiable CNS and CPIC burden 6.8 months before emergency presentation.</p>
+<p><strong>Third</strong>, in Chapter 4 (Specific Aim 2), geriatric polypharmacy models achieved 0.877 and 0.858 AUROC in ages 65–84, proved 60% symbolic FFA pair invariance when univariate SHAP collapsed to zero Jaccard similarity, uncovered 312 higher-order drug triplets including the Triple Whammy, and quantified a 75% risk reduction under structured outpatient Z-code stewardship.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Fourth</strong>, in Chapter 5 (Specific Aim 3), our stateless AWS Lambda microservice operationalized all 168 trained base learners and 573 CPIC guidelines in 6 milliseconds of warm compute for under 5 dollars a month with 87% bedside sparsity stability—directly closing the Empty Intersection across all three Specific Aims.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 41: Next Steps</span>
+            <span class="card-meta">Module V · Next Steps · VCU Wright Center CCTR Endowment Pilot Grant (\$25,000 Direct Costs)</span>
+          </div>
+          <p>&quot;Finally, Slide 41 outlines our immediate next steps through our VCU Wright Center CCTR Endowment Pilot Grant—25,000 dollars in direct costs—structured across three concrete aims. <em>Brief pause</em></p>
+<p><strong>First</strong>, in CCTR Aim 1, we extend prospective temporal validation onto updated 2020 through 2024 Virginia APCD holdings while partnering with VCU Health InfoSec, Massey Informatics, and OVPRI Counsel to complete a third-party AWS zero-PHI security audit and execute our two-tier AWS Artifact BAA and private VPC enclave.</p>
+<p><strong>Second</strong>, in CCTR Aim 2, we conduct a structured human-factors usability study with 12 licensed clinical pharmacists executing MTM triage on <code>pgx.jerome-dixon.io</code>—targeting a mean System Usability Scale score above 80 and under 30 seconds per prioritized alert while advancing our asynchronous SMART on FHIR and CDS Hooks integration path for Epic Willow Ambulatory.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, in CCTR Aim 3, we package Aim 1 temporal validation, third-party security certification, and Aim 2 pharmacist usability outcomes with VCU Innovation Gateway to submit competitive extramural applications to the VIPC Commonwealth Commercialization Fund, NSF SBIR Phase I (275,000 dollars), and MTEC by Q2 2027.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 42: Thank You &amp; Acknowledgements</span>
+            <span class="card-meta">Integrative Life Sciences Ph.D. Defense · Virginia Commonwealth University · November 23, 2026</span>
+          </div>
+          <p>&quot;Thank you to my Dissertation Chair Dr. Elvin Price, my supervisory committee members Professor Franklin Bost, Dr. Tamas Gal, Dr. Dayanjan Wijesinghe, and Dr. Jonathan DeShazo, special thanks to Dr. Michael Neale—for first introducing me to the Integrative Life Sciences Ph.D. program—along with Dr. Hermine Maes and Dr. Tim York in Human Genetics and VIPBG, Dr. Amy Olex at the VCU Wright Center, Dr. Stephen Fong and the ILS leadership, our colleagues in the VCU School of Pharmacy and Price Lab, our data partners at Virginia Health Information and the Virginia Center for Health Innovation, and above all, my family, friends, work colleagues, and mentors for making this work possible.&quot;</p>
+        </div>
+        
+
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-title">Slide 43: Questions &amp; Discussion</span>
+            <span class="card-meta"></span>
+          </div>
+          <p>&quot;I welcome the committee&#x27;s questions and discussion.&quot;</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 44: Appendix: Technical Defenses &amp; Supplemental Evidence</span>
+            <span class="card-meta"></span>
+          </div>
+          <p>&quot;This section serves as our interactive Technical Appendix index across Appendices A1 through A9—covering Formal Feature Attribution &amp; PySAT AXP bounds (A1), Step 3b temporal event partitioning (A2), Step 5 CPIC drug mapping (A3), our reproducible notebook pipeline (A4), formal Aim 1–3 estimators (A5), master nomenclature (A6), two-tier HIPAA &amp; FTC cloud architecture (A7), cohort-specific PharmGKB VIP gene networks (A8), and our 6-chapter Dissertation Portfolio &amp; Publication Status (A9).&quot;</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 45: Appendix A1: Formal Feature Attribution (FFA) &amp; PySAT AXP Bounds</span>
+            <span class="card-meta">Specific Aim 2 · Steps 6–8 &amp; 10 · Mathematical Verification &amp; PySAT AXP</span>
+          </div>
+          <p>Slide A1 provides the mathematical and empirical defense for our Consensus-Risk architecture across Steps 6 through 8 and Step 10. Because CatBoost uses internal target-statistic hashing on categorical variables, Step 7 first computes exact TreeSHAP on both the best CatBoost model and the best XGBoost variant, enforcing their strict feature intersection as a cross-architecture gate. Step 8 then explodes the decision trees of the best XGBoost variant into CNF clauses and prioritizes the top SHAP-supported matched rules into the PySAT Hitman minimal hitting-set solver to extract exact Abductive Explanations in polynomial O(T times L) time. Importantly, our Consensus-Risk thresholds—75th percentile SHAP, support of 0.05, and confidence of 0.70—operate as a validated precision-volume dial for clinical review capacity, proven empirically in Module V Results: first, our Two-Gate Mirror Ablation on Slide 31 retained 20 out of 20 core clinical risk drivers while compressing alert volume by 61 percent and rejecting 252 routine billing codes; and second, our Table S5 utilization-free stress test on Slide 33 demonstrated 60 percent symbolic FFA drug-pair retention even when univariate SHAP Jaccard similarity collapsed to 0.00.</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 46: Appendix A2: Step 3b Temporal Event Partitioning &amp; Leakage Audit</span>
+            <span class="card-meta">Specific Aim 1 · Step 3b · Temporal Process Audit</span>
+          </div>
+          <p>Slide A2 details our Step 3b temporal event-partitioning protocol. We classify post-index contamination into three clinical vectors: post-overdose OUD rescue and MAT induction, confirmatory ED and follow-up toxicology screens, and downstream administrative follow-up codes. Any candidate feature whose claims events occur 80% or more on or after the index timestamp t0 is automatically purged, locking an immutable pre-index antecedent whitelist in safe_feature_filter.json. As demonstrated empirically in Module V on Slide 25, this Step 3b audit purged 348 post-index confounders out of 1,029 candidate features and locked 682 verified pre-index antecedents—replacing artificially leaked 0.99 AUROC scores with honest 0.800 to 0.890 out-of-time 2019 holdout generalization.</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 47: Appendix A3: Step 5 CPIC Drug Mapping &amp; Patient-Level Count Features</span>
+            <span class="card-meta">Specific Aim 1 · Step 5 (5_pgx_analysis) · Claims Exposure vs. Genotype Defense</span>
+          </div>
+          <p>Slide A3 details our Step 5 pharmacogenomic feature engineering pipeline in <code>5_pgx_analysis</code> alongside Chapter 6&#x27;s bioinformatic phasing boundaries. First, <code>build_global_drug_cpic_mapping.py</code> maps our APCD drug vocabulary against the official CPIC directory (<code>573</code> gene-drug pairs) at a 95% threshold to build <code>drug_cpic_mapping_global.csv</code>. Second, <code>create_pgx_features_patient_level.py</code> computes two observable exposure counts per patient in DuckDB: <code>pgx_num_drugs</code> and <code>pgx_num_cpic_drugs</code>. Third, administrative race checkboxes are strictly excluded because pharmacogenomic allele prevalence tracks biogeographical genetic ancestry requiring direct genotyping. Finally, in our Aim 3 Patient Card, <code>cpic_allele_resolver.py</code> (<code>cpic-unphased-exploratory-v2</code>) never defaults unprobed loci to wild-type <code><em>1/</em>1</code>: unphased consumer microarrays with compound heterozygotes ($2^{k-1}$ chromosomal phases) or unassessed <code>CYP2D6</code> structural variants trigger <code>INSUFFICIENT_GENOTYPE_RESOLUTION</code> and a mandatory CLIA/CAP laboratory test referral, whereas phased clinical alleles execute in 60 milliseconds with 100% concordance across 573 test cases.</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 48: Appendix A4: Computational Pipeline &amp; Notebook Architecture</span>
+            <span class="card-meta">Aim 1 · Aim 2</span>
+          </div>
+          <p>Slide A4 details the computational reproducibility of the dissertation. All ten analytical steps across our three specific aims are operationalized into seven sequential Jupyter notebooks in our public GitHub repository. The workflow uses S3-backed state checkpoints for idempotency and runs seamlessly on both local workstations and AWS EC2 spot instances. Every dataset transformation, hyperparameter search, and model artifact is fully versioned and traceable back to the raw APCD extracts.</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 49: Appendix A5: Specific Aims, Methodological Estimators &amp; Evaluation Metrics</span>
+            <span class="card-meta">Specific Aim 1 · Specific Aim 2</span>
+          </div>
+          <p>Slide A5 provides a single-slide formal mathematical specification across Specific Aims 1 through 3, documenting the pre-specified study design, data transformation, and formal estimator for every pipeline metric—and explicitly distinguishing supervised predictive and explanatory estimators (TreeSHAP, AXP, IR, IE) from exploratory visual analytics (DTW, FP-Growth, bupaR). All pre-specified estimators and post-execution sensitivity discoveries are evaluated empirically on the untouched 2019 calendar holdout in Module V Results (Slides 24 through 33).</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 50: Appendix A6: Master Acronym &amp; Technical Nomenclature Reference</span>
+            <span class="card-meta">Governance: CRISP-DM · TRIPOD+AI · OODA · APCD · HCG (Milliman) · CPIC PGx</span>
+          </div>
+          <p>Appendix A6 provides a comprehensive quick-reference glossary of all governance, clinical, biostatistical, machine learning, formal logic, and cloud engineering acronyms used across the seven scientific modules of the dissertation—including CRISP-DM, TRIPOD+AI, the Clinical OODA Loop, PROBAST, Virginia APCD, Milliman Health Cost Guidelines (<code>HCG</code>: <code>hcg_setting</code>, <code>hcg_line</code>, <code>hcg_detail</code> emergency acuity codes <code>P51b</code>, <code>O11</code>, <code>P33</code>), CPIC pharmacogenomics, Silent ADEs, GBDT tree geometries, TreeSHAP, Formal Feature Attribution (FFA), Conjunctive Normal Form (CNF), Abductive Explanations (AXPs), Intervention Rate (IR), Interaction Effect (IE), and our zero-PHI Medication Therapy Management (MTM) Clinical Decision Support (CDS) prototype.</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 51: Appendix A7: Regulatory Scope Demarcation &amp; HIPAA Cloud Architecture</span>
+            <span class="card-meta">Specific Aim 3 · Clinical Deployment &amp; Translation · Regulatory Scope: FTC Act vs. HIPAA BAA</span>
+          </div>
+          <p>Slide A7 addresses the regulatory, legal, and cloud-security architecture formalized in Chapter 6.</p>
+<p>First, we enforce a strict statutory demarcation: when an individual patient enters their own medication list or uploads consumer genetic files for personal health literacy, 45 CFR Section 160.103 dictates that HIPAA does not apply—that relationship falls under Federal Trade Commission Act Section 5 and the Health Breach Notification Rule, where a HIPAA BAA is neither required nor legally recognized.</p>
+<p>Second, when deployed by a healthcare provider or hospital processing ePHI, compliance requires an unbroken two-tier legal BAA execution chain: the hospital signs BAA number 1 with our legal entity, and our legal entity executes BAA number 2 with AWS via AWS Artifact.</p>
+<p>Third, under the AWS Shared Responsibility Model, we harden HIPAA-eligible primitives into a compliant enclave via KMS encryption, Firecracker microVM zero <code>/tmp</code> persistence inside private VPC and PrivateLink subnets, strict CloudWatch log scrubbing, and multi-region CloudTrail auditing—while requiring separate signed BAAs for any external third-party AI APIs outside AWS Bedrock or SageMaker.</p>
+<p>Finally, Aim 2 of our VCU Wright Center CCTR 25,000-dollar Pilot Grant allocates 4,500 dollars to partner with VCU Health Information Security, Massey Cancer Center Informatics Governance, and OVPRI Legal Counsel to vet and execute all institutional BAA and DUA templates before clinical pilot testing.</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 52: Appendix A8: Pharmacogenomic Gene Markers &amp; Mechanistic Networks by Cohort</span>
+            <span class="card-meta">Specific Aim 1 · CPIC &amp; PharmGKB VIP Mechanistic Evidence · Opioid Cohort: CYP2D6, OPRM1</span>
+          </div>
+          <p>Slide A8 provides the deep mechanistic and biological defense for the specific pharmacogenomic gene markers identified across our two clinical cohorts, directly synthesizing PharmGKB Very Important Pharmacogene (VIP) pathways and CPIC Level A guidelines.</p>
+<p>In the Opioid Cohort, we focus on the pharmacokinetic anchor CYP2D6 in hepatic microsomes and the pharmacodynamic anchor OPRM1 in the central nervous system. CYP2D6 controls the rate-limiting phase I bioactivation of prodrug opioids—specifically O-demethylating codeine to morphine and tramadol to O-desmethyltramadol, which possesses over one-hundred-fold higher affinity for the mu-opioid receptor. Downstream, OPRM1 governs the Gi/Go protein-coupled receptor cascade across brainstem respiratory pacemakers like the pre-Bötzinger complex and mesolimbic reward pathways. The clinical phenotype is bidirectionally lethal: Ultra-rapid Metabolizers convert prodrugs at accelerated rates, causing a sudden toxic surge in active mu-agonists and fatal respiratory depression at standard doses; conversely, Poor Metabolizers carrying null alleles or patients with the OPRM1 118G variant experience profound analgesic failure, driving dose escalation, accidental toxicity, and ED encounters. Supporting shunt enzymes like CYP3A4 and glucuronidation clearance via UGT2B7 modulate systemic exposure.</p>
+<p>In the Polypharmacy Cohort, adverse drug events in older adults are driven by a multi-target network across hepatic clearance, transport, and coagulation. First, CYP2C19 loss-of-function star alleles (<em>2 and </em>3) impair the bioactivation of clopidogrel into its active thiol metabolite, failing to inhibit platelet P2RY12 and precipitating stent thrombosis and major adverse cardiovascular events. Second, S-warfarin clearance is governed stereoselectively by hepatic CYP2C9, while its therapeutic target is VKORC1 in the endoplasmic reticulum; patients combining CYP2C9 reduced-function variants with the VKORC1 -1639A low-expression promoter variant experience severe clearance failure and extreme target sensitivity, driving supratherapeutic INR and catastrophic hemorrhage. Finally, SLCO1B1 encodes the OATP1B1 sinusoidal influx transporter; the star 5 variant halts hepatic statin uptake, trapping statins in systemic circulation where they reach toxic skeletal muscle concentrations, triggering severe statin-induced myopathy and rhabdomyolysis.</p>
+        </div>
+        
+
+        <div class="card appendix">
+          <div class="card-hdr">
+            <span class="card-title">Slide 53: Appendix A9: Dissertation Portfolio &amp; Status</span>
+            <span class="card-meta">Appendix A9 · 6-Chapter Manuscript Portfolio &amp; Publication Status</span>
+          </div>
+          <p>&quot;Appendix A9 summarizes our cohesive six-chapter manuscript portfolio bridging peer-reviewed publications with our complete dissertation synthesis. <em>Brief pause</em></p>
+<p><strong>First</strong>, on the left, our three empirical chapters representing Specific Aims 1, 2, and 3 are published peer-reviewed articles in <em>Clinical and Translational Science</em>: Chapter 3 on prescription opioid ED prediction and trajectory mapping, Chapter 4 on our polypharmacy FFA interaction framework, and Chapter 5 on our serverless PGx Risk Dashboard prototype.</p>
+<p><strong>Second</strong>, on the right, Chapter 1 is complete and in preparation for an invited submission to <em>Pharmacogenomics</em> (<code>PROSPERO CRD420261354089</code>), Chapter 2 is under consideration at the <em>Journal of Big Data</em> formalizing our DuckDB fat-node architecture and Consensus Attribution Filter, and Chapter 6 completes our dissertation synthesis—answering all ten research questions across three evidentiary tiers alongside Commonwealth surveillance alignment and regulatory governance.</p>
+<p><em>Lean in / Vocal emphasis</em></p>
+<p><strong>Third</strong>, all six dissertation chapters and empirical 2019 holdout validations are complete for today&#x27;s final dissertation defense.&quot;</p>
+        </div>
+        </body></html>
