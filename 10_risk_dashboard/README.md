@@ -16,7 +16,7 @@ The dashboard provides multiple capabilities (live tab names):
 
 **Primary:** User Guide · Risk Assessment · Drugs · ICD Codes · CPT Codes · **PGx Card**
 
-**Visualizations:** Feature Importance · Scenario Analysis (FFA/SHAP) · BupaR Process Mining · DTW Trajectories · FP-Growth Patterns · Drug Networks · PGx Cohort
+**Visualizations & Testing:** Feature Importance · Scenario Analysis (FFA/SHAP) · BupaR Process Mining · DTW Trajectories · FP-Growth Patterns · Drug Networks · PGx Cohort · **Dashboard Testing**
 
 1. **User Guide** — Training table (video / slides / audio per use case) plus how to use, research-question coverage, model performance, and visual-artifact trust notes
 2. **Risk Assessment** — Predict risk for **Opioid ED** or **Polypharmacy** (select cohort via tabs); scoring requires age 13–114 (band 0–12 is excluded)
@@ -28,6 +28,7 @@ The dashboard provides multiple capabilities (live tab names):
 8. **Drug Networks** — Interactive FI-filtered drug association graph (Cytoscape HTML; tab name is Drug Networks)
 9. **PGx Cohort** — Population gene–drug–phenotype topology across the **ED** (`opioid_ed`) and **Polypharmacy** (`non_opioid_ed`) cohorts
 10. **PGx Card** — Claims radar (**Load Cohort PGx Profile**) plus a personalized clinical decision card from genetic variants (**Generate PGx results**). Features a 3-panel **Options Matrix**, interactive **Gene–Drug Actionability Matrix** with CPIC action filter pills, **Plotly Clustered Dendrogram Heatmaps** (Drug × Gene, Drug Profile, Gene Profile), and an **Aggregated Population Visuals Figure Pack** comparing the **ED** and **Polypharmacy** cohorts. AncestryDNA, 23andMe, MyHeritage, and unphased VCF stay in the browser. Lambda writes rows with DuckDB to ephemeral Snappy Parquet and joins CPIC gene intervals. Official lab alleles (e.g. `CYP2C19,*1,*2`) resolve via CPIC diplotype-to-phenotype tables. Full details: [docs/README_pgx_card.md](docs/README_pgx_card.md). See User Guide → **Unphased DNA files and star alleles**.
+11. **Dashboard Testing** — E616-style **Role (`RQ`) × Cohort Analyst Workspace** (`tabs/dashboard-testing.html` + `js/dashboard-testing.js`) testing **7 candidate System Dynamics (SD) and Multi-Variable Cockpit KPI cards** standardized on the **100% open-source biomedical `COMBINE SBML Level 3 + SBGN Process Description + PharmGKB BioPAX/GPML + Cytoscape.js + Tellurium/Antimony` framework** (replacing proprietary Stella Architect / Vensim) with zero Shiny server (`S3 Static JSON + Modern CSS @container/subgrid + <1 ms Client-Side JS rk4 ODE Solver + AWS Lambda Coupling`), including deterministic **Mission-Weighted Risk Prioritization & Escalation (`M_prio`)** routing.
 
 ## Actionable Intelligence Loop
 
@@ -245,6 +246,7 @@ This structure follows a **separation of concerns** approach:
   - **Drug Networks** - Interactive FI-filtered drug association graph (tab name is Drug Networks; renderer is Cytoscape HTML)
   - **BupaR Process Mining** - Process flows, activity frequencies, and sequence patterns
   - **PGx Cohort** - Population gene–drug–phenotype topology
+  - **Dashboard Testing** - E616 Role (`RQ-N1`–`N6`, `RQ1/RQ2`) × Cohort sandbox testing 7 System Dynamics (`LMHE-ED` 5-stock RK4 ODE) & Multi-Variable Cockpit KPI visual-compression cards (`tabs/dashboard-testing.html`, `js/dashboard-testing.js`)
 
 **Features**:
 - Interactive forms with searchable dropdowns
@@ -430,7 +432,7 @@ sequenceDiagram
 
     Note over User,S3: Visualization Tabs - on demand
     opt User clicks a visualization tab and Load button
-        JS->>APIGW: GET /visualizations/causal or bupar or dtw or fpgrowth
+        JS->>APIGW: GET /visualizations/scenario or bupar or dtw or fpgrowth
         APIGW->>Lambda: forward
         Lambda->>S3: resolve pre-computed asset paths
         S3-->>Lambda: asset URLs
@@ -444,7 +446,7 @@ sequenceDiagram
     opt User submits parsed rsids or lab alleles on PGx Card tab
         JS->>APIGW: POST /pgx/card
         APIGW->>Lambda: forward
-        Lambda->>Lambda: DuckDB Parquet join for array rows; phenotype table for lab alleles
+        Lambda->>Lambda: DuckDB Parquet join for array rows / phenotype table for lab alleles
         Lambda-->>JS: coverage and referral, or genes and action categories
         JS->>User: render pharmacogenomic card
     end
@@ -456,24 +458,24 @@ State machine for the risk calculation path inside the browser, including the `u
 
 ```mermaid
 flowchart TD
-    A([User clicks Calculate Risk Score]) --> B{age input\n13 – 114?}
-    B -->|No| C[setStatus error\nNo API call]
-    B -->|Yes| D{cohort\nselected?}
+    A(["User clicks Calculate Risk Score"]) --> B{"age input\n13 – 114?"}
+    B -->|No| C["setStatus error\nNo API call"]
+    B -->|Yes| D{"cohort\nselected?"}
     D -->|No| C
-    D -->|Yes| E{metadata\nloaded for cohort?}
-    E -->|No| F[GET /metadata\nloadMetadata]
-    F --> G[updateCodeLists\nrefresh selects]
+    D -->|Yes| E{"metadata\nloaded for cohort?"}
+    E -->|No| F["GET /metadata\nloadMetadata"]
+    F --> G["updateCodeLists\nrefresh selects"]
     E -->|Yes| G
-    G --> H{age_band in\navailable bands?}
-    H -->|Not available| I[setStatus warning\nNo API call]
-    H -->|Available| J[updateCodeLists\npreserves existing\nselections]
-    J --> K[getMultiSelectValues\ndrugs · icds · cpts]
-    K --> L[POST /risk\nAPI Gateway → Lambda]
-    L --> M{HTTP 200?}
-    M -->|400 / 500| N[setStatus error\nshow raw error]
-    M -->|200| O[displayRiskResults\nrisk_score · risk_band\nn_event_bin badge\nmodel breakdown]
-    O --> P[updateCodesSummary\nwhat-if comparison unlocked]
-    P --> Q([Result displayed])
+    G --> H{"age_band in\navailable bands?"}
+    H -->|Not available| I["setStatus warning\nNo API call"]
+    H -->|Available| J["updateCodeLists\npreserves existing\nselections"]
+    J --> K["getMultiSelectValues\ndrugs · icds · cpts"]
+    K --> L["POST /risk\nAPI Gateway → Lambda"]
+    L --> M{"HTTP 200?"}
+    M -->|"400 / 500"| N["setStatus error\nshow raw error"]
+    M -->|200| O["displayRiskResults\nrisk_score · risk_band\nn_event_bin badge\nmodel breakdown"]
+    O --> P["updateCodesSummary\nwhat-if comparison unlocked"]
+    P --> Q(["Result displayed"])
 
     style C fill:#fee2e2
     style I fill:#fef3c7
@@ -552,22 +554,22 @@ Numbered persona workflows with **live button and tab names** (including Drug Ne
 
 ```mermaid
 flowchart TD
-    A([Risk Assessment tab]) --> B[Enter age 13–114\nOptional overrides:\nn_drugs · n_cpic_drugs · n_events]
-    B --> C[codes-summary-group\nshows selected code count\nfrom Drugs / ICD / CPT tabs]
-    C --> D{Action}
-    D -->|Calculate Risk Score| E[calculateRisk\nsee flowchart above]
-    D -->|Compare Scenarios| F[compareScenarios\nPOST /risk/comparison\n2+ saved sets or baseline vs current]
-    D -->|Drug contributions| P[loadDrugContributions\nPOST /risk/drug_contributions]
-    D -->|Replace / swap| Q[replacePatientCode\nthen Calculate Risk Score]
-    D -->|Reset| G[resetForm\nclear all inputs and results]
-    E --> H{HTTP 200?}
-    H -->|Error| I[setStatus error\nshow API message]
-    H -->|200| J[risk-score · risk-band\nn-event-bin-badge\nmodel-info · calibration note\ncodes-used / unknown count]
-    J --> K[Plotly charts:\nmodel-breakdown · risk-dist-chart]
-    K --> L[density-table-wrap\nshows p25/p50/p95 thresholds]
-    L --> M{n_event_bin known?}
-    M -->|Yes| N[pgx-action-link shown\nView PGx Card →\nauto-loads cohort PGx profile]
-    M -->|No| O([Done])
+    A(["Risk Assessment tab"]) --> B["Enter age 13–114\nOptional overrides:\nn_drugs · n_cpic_drugs · n_events"]
+    B --> C["codes-summary-group\nshows selected code count\nfrom Drugs / ICD / CPT tabs"]
+    C --> D{"Action"}
+    D -->|Calculate Risk Score| E["calculateRisk\nsee flowchart above"]
+    D -->|Compare Scenarios| F["compareScenarios\nPOST /risk/comparison\n2+ saved sets or baseline vs current"]
+    D -->|Drug contributions| P["loadDrugContributions\nPOST /risk/drug_contributions"]
+    D -->|"Replace / swap"| Q["replacePatientCode\nthen Calculate Risk Score"]
+    D -->|Reset| G["resetForm\nclear all inputs and results"]
+    E --> H{"HTTP 200?"}
+    H -->|Error| I["setStatus error\nshow API message"]
+    H -->|200| J["risk-score · risk-band\nn-event-bin-badge\nmodel-info · calibration note\ncodes-used / unknown count"]
+    J --> K["Plotly charts:\nmodel-breakdown · risk-dist-chart"]
+    K --> L["density-table-wrap\nshows p25/p50/p95 thresholds"]
+    L --> M{"n_event_bin known?"}
+    M -->|Yes| N["pgx-action-link shown\nView PGx Card →\nauto-loads cohort PGx profile"]
+    M -->|No| O(["Done"])
     N --> O
 
     style I fill:#fee2e2
@@ -582,20 +584,20 @@ Same workflow for all three code-selection tabs. ICD and CPT tabs are **hidden f
 
 ```mermaid
 flowchart TD
-    A([Navigate to Drugs / ICD / CPT tab]) --> B{metadata\nloaded?}
-    B -->|No| C[loadMetadata\nGET /metadata?cohort=]
+    A(["Navigate to Drugs / ICD / CPT tab"]) --> B{"metadata\nloaded?"}
+    B -->|No| C["loadMetadata\nGET /metadata?cohort="]
     B -->|Yes| D
-    C --> D[updateCodeLists\npopulateSelect from\nmetadata.codes.age_band]
-    D --> E[User types in\n#drug-search / #icd-search / #cpt-search]
-    E --> F[input event\nfilterOptions\nhide non-matching options]
-    F --> G[User Ctrl+clicks\noptions in select]
-    G --> H[change event\nupdateDrugDisplay /\nupdateIcdDisplay /\nupdateCptDisplay\nrender code chips]
-    H --> I{More codes\nto add?}
+    C --> D["updateCodeLists\npopulateSelect from\nmetadata.codes.age_band"]
+    D --> E["User types in\n#drug-search / #icd-search / #cpt-search"]
+    E --> F["input event\nfilterOptions\nhide non-matching options"]
+    F --> G["User Ctrl+clicks\noptions in select"]
+    G --> H["change event\nupdateDrugDisplay /\nupdateIcdDisplay /\nupdateCptDisplay\nrender code chips"]
+    H --> I{"More codes\nto add?"}
     I -->|Yes| E
-    I -->|Done| J([Selections stored in\n#drugs / #icds / #cpts\nselectedOptions])
-    J --> K[populateSelect preserves\nselections on next\nupdateCodeLists call]
+    I -->|Done| J(["Selections stored in\n#drugs / #icds / #cpts\nselectedOptions"])
+    J --> K["populateSelect preserves\nselections on next\nupdateCodeLists call"]
 
-    note1[Non-opioid-ed: ICD + CPT\ntabs hidden — drugs only]:::note
+    note1["Non-opioid-ed: ICD + CPT\ntabs hidden — drugs only"]:::note
     classDef note fill:#fef9c3,stroke:#fbbf24,font-size:0.8em
 ```
 
@@ -607,24 +609,24 @@ Two-phase: load cohort-level profile first, then optionally refine with patient 
 
 ```mermaid
 flowchart TD
-    A([PGx Card tab]) --> B[Select cohort · age band\nEvent Density auto-set from Risk Assessment]
-    B --> C[Click Load Cohort PGx Profile\nbtnLoadPgxCardProfile]
-    C --> D[POST /pgx/card\nor GET /visualizations/cohort_pgx\ncohort + age_band + bin]
-    D --> E{HTTP 200?}
-    E -->|Error| F[pgx-card-status error]
-    E -->|200| G[Gene Actionability Profile radar\nIdentified PGx Genes]
-    G --> H[1. Gene data · 2. Virginia APCD medications]
-    H --> I{Personalize?}
-    I -->|No| J([Cohort-level card done])
-    I -->|Yes| K[Lab Gene,Allele lines\nor Ancestry / 23andMe / MyHeritage / VCF\nparsed in the browser]
-    K --> L[Drug scope: Active medications /\nSelected drugs / All matched drugs\nActionable only · Patient or Clinician / pharmacist]
-    L --> M[Click Generate PGx results\nbtnGenerateCard]
-    M --> N[POST /pgx/card\nrsid rows or lab alleles\nnot the raw genome file]
-    N --> O{HTTP 200?}
-    O -->|Error| P[pgx-status error]
-    O -->|200| Q[Array file: coverage + referral\nLab alleles: action queue and matrix\nTriplets stay separate]
-    Q --> R[Exports include physician summary PDF\nPrint · JSON · CSV · PNG · PDF]
-    R --> S([PGx Card])
+    A(["PGx Card tab"]) --> B["Select cohort · age band\nEvent Density auto-set from Risk Assessment"]
+    B --> C["Click Load Cohort PGx Profile\nbtnLoadPgxCardProfile"]
+    C --> D["POST /pgx/card\nor GET /visualizations/cohort_pgx\ncohort + age_band + bin"]
+    D --> E{"HTTP 200?"}
+    E -->|Error| F["pgx-card-status error"]
+    E -->|200| G["Gene Actionability Profile radar\nIdentified PGx Genes"]
+    G --> H["1. Gene data · 2. Virginia APCD medications"]
+    H --> I{"Personalize?"}
+    I -->|No| J(["Cohort-level card done"])
+    I -->|Yes| K["Lab Gene,Allele lines\nor Ancestry / 23andMe / MyHeritage / VCF\nparsed in the browser"]
+    K --> L["Drug scope: Active medications /\nSelected drugs / All matched drugs\nActionable only · Patient or Clinician / pharmacist"]
+    L --> M["Click Generate PGx results\nbtnGenerateCard"]
+    M --> N["POST /pgx/card\nrsid rows or lab alleles\nnot the raw genome file"]
+    N --> O{"HTTP 200?"}
+    O -->|Error| P["pgx-status error"]
+    O -->|200| Q["Array file: coverage + referral\nLab alleles: action queue and matrix\nTriplets stay separate"]
+    Q --> R["Exports include physician summary PDF\nPrint · JSON · CSV · PNG · PDF"]
+    R --> S(["PGx Card"])
 
     style F fill:#fee2e2
     style P fill:#fee2e2
@@ -640,16 +642,16 @@ Standalone — does not depend on Risk Assessment cohort/age context. Loads an a
 
 ```mermaid
 flowchart TD
-    A([Feature Importance tab]) --> B[Select view:\nopioid_ed · non_opioid_ed · combined]
-    B --> C[Select top-N features:\n10 · 20 · All]
-    C --> D[Click Load Feature Importance Heatmap\nbtnLoadFeatureImportance]
-    D --> E[GET /visualizations/feature_importance\n?cohort=fi-cohort&top_n=fi-top-n]
-    E --> F{HTTP 200?}
-    F -->|Error| G[fi-status error]
-    F -->|200| H{Response type?}
-    H -->|Plotly JSON| I[fi-heatmap-chart\nPlotly.newPlot heatmap\nrows=features · cols=age bands]
-    H -->|Image URL| J[fi-heatmap-image\n src=S3 URL\nmax-width 100%]
-    I --> K([Heatmap displayed])
+    A(["Feature Importance tab"]) --> B["Select view:\nopioid_ed · non_opioid_ed · combined"]
+    B --> C["Select top-N features:\n10 · 20 · All"]
+    C --> D["Click Load Feature Importance Heatmap\nbtnLoadFeatureImportance"]
+    D --> E["GET /visualizations/feature_importance\n?cohort=fi-cohort&top_n=fi-top-n"]
+    E --> F{"HTTP 200?"}
+    F -->|Error| G["fi-status error"]
+    F -->|200| H{"Response type?"}
+    H -->|Plotly JSON| I["fi-heatmap-chart\nPlotly.newPlot heatmap\nrows=features · cols=age bands"]
+    H -->|Image URL| J["fi-heatmap-image\n src=S3 URL\nmax-width 100%"]
+    I --> K(["Heatmap displayed"])
     J --> K
 
     style G fill:#fee2e2
@@ -664,25 +666,25 @@ Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional 
 
 ```mermaid
 flowchart TD
-    A([Scenario Analysis tab]) --> B[Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first]
-    B --> C[Optional: enter what-if codes\nscenario-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE]
-    C --> D[Optional: filter top-N features\n10 · 20 · All]
-    D --> E[Optional: filter by event density bin\nAll · low · medium · high · extreme\nAuto-synced from Risk n_event_bin on tab open]
-    E --> F[Click Load Scenario Analysis\nbtnLoadScenario]
-    F --> G{n_event_bin\nselected?}
-    G -->|Yes bin| H[GET static causal_data.json\nCloudFront: visualizations/causal/\ncohort/ageBand/bin/causal_data.json]
-    G -->|All bins| I[GET manifest entry OR\ndefault static path\nvisualization/causal/cohort/ageBand/]
-    H --> J{Static fetch\nHTTP 200?}
+    A(["Scenario Analysis tab"]) --> B["Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first"]
+    B --> C["Optional: enter what-if codes\nscenario-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE"]
+    C --> D["Optional: filter top-N features\n10 · 20 · All"]
+    D --> E["Optional: filter by event density bin\nAll · low · medium · high · extreme\nAuto-synced from Risk n_event_bin on tab open"]
+    E --> F["Click Load Scenario Analysis\nbtnLoadScenario"]
+    F --> G{"n_event_bin\nselected?"}
+    G -->|Yes bin| H["GET static causal_data.json\nCloudFront: visualizations/causal/\ncohort/ageBand/bin/causal_data.json"]
+    G -->|All bins| I["GET manifest entry OR\ndefault static path\nvisualization/causal/cohort/ageBand/"]
+    H --> J{"Static fetch\nHTTP 200?"}
     I --> J
-    J -->|200| K[Client-side filter:\nfilter top_causal_factors by\nselectedFeatureSet drugs/ICDs/CPTs]
-    J -->|4xx/5xx| L[Fallback: GET Lambda\n/visualizations/causal\n?cohort=&age_band=&n_event_bin=]
-    K --> M[scenario-factors-chart\nPlotly bar: Top Interaction Factors FFA]
+    J -->|200| K["Client-side filter:\nfilter top_causal_factors by\nselectedFeatureSet drugs/ICDs/CPTs"]
+    J -->|"4xx/5xx"| L["Fallback: GET Lambda\n/visualizations/causal\n?cohort=&age_band=&n_event_bin="]
+    K --> M["scenario-factors-chart\nPlotly bar: Top Interaction Factors FFA"]
     L --> M
-    M --> N[shap-importance-chart\nPlotly bar: SHAP Feature Importance]
-    N --> O[scenario-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect]
-    O --> P{What-if codes\nentered?}
-    P -->|Yes| Q[second trace overlaid\non each chart]
-    P -->|No| R([Three charts displayed])
+    M --> N["shap-importance-chart\nPlotly bar: SHAP Feature Importance"]
+    N --> O["scenario-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect"]
+    O --> P{"What-if codes\nentered?"}
+    P -->|Yes| Q["second trace overlaid\non each chart"]
+    P -->|No| R(["Three charts displayed"])
     Q --> R
 
     style J fill:#fef9c3
@@ -698,15 +700,15 @@ Drug-specific visuals (cohort + age band controlled) and event-to-target visuals
 
 ```mermaid
 flowchart TD
-    A([BupaR tab]) --> B[Select cohort · age band\nOptional: event density bin\nAll · low · medium · high · extreme]
-    B --> C[Select panels to show:\nSequences · Activity Frequency\nTrace Explorer · Drug×Drug Matrix]
-    C --> D[Click Load BupaR Visualizations\nbtnLoadBupaR]
-    D --> E[GET /visualizations/bupar\n?cohort=&age_band=&n_event_bin=]
-    E --> F{HTTP 200?}
-    F -->|Error| G[bupar-status error]
-    F -->|200| H[Drug-specific panels\nper checkbox selection:\nSequences to Target PNG\nActivity Frequency PNG·HTML\nTrace Explorer PNG·HTML\nDrug×Drug Process Matrix PNG]
-    H --> I[Event-to-target panels\nalways shown\nall activity types Drug+ICD+CPT:\nFrequency Map PNG\nActivity Frequency map HTML]
-    I --> J([BupaR visuals displayed])
+    A(["BupaR tab"]) --> B["Select cohort · age band\nOptional: event density bin\nAll · low · medium · high · extreme"]
+    B --> C["Select panels to show:\nSequences · Activity Frequency\nTrace Explorer · Drug×Drug Matrix"]
+    C --> D["Click Load BupaR Visualizations\nbtnLoadBupaR"]
+    D --> E["GET /visualizations/bupar\n?cohort=&age_band=&n_event_bin="]
+    E --> F{"HTTP 200?"}
+    F -->|Error| G["bupar-status error"]
+    F -->|200| H["Drug-specific panels\nper checkbox selection:\nSequences to Target PNG\nActivity Frequency PNG·HTML\nTrace Explorer PNG·HTML\nDrug×Drug Process Matrix PNG"]
+    H --> I["Event-to-target panels\nalways shown\nall activity types Drug+ICD+CPT:\nFrequency Map PNG\nActivity Frequency map HTML"]
+    I --> J(["BupaR visuals displayed"])
 
     style G fill:#fee2e2
     style J fill:#dcfce7
@@ -720,16 +722,16 @@ Drug / ICD / CPT trajectory clusters. Two sub-tabs: Overview & Trajectories and 
 
 ```mermaid
 flowchart TD
-    A([DTW tab]) --> B[Select cohort · age band\nOptional: event density bin]
-    B --> C[Select panels to show\nvia checkboxes]
-    C --> D[Click Load DTW Visualizations\nbtnLoadDTW]
-    D --> E[GET /visualizations/dtw\n?cohort=&age_band=&n_event_bin=]
-    E --> F{HTTP 200?}
-    F -->|Error| G[dtw-status error]
-    F -->|200| H{Sub-tab}
-    H -->|Overview and Trajectories| I[Trajectory Analysis PNG\ndtw_trajectory_analysis_COHORT_AGEBAND.png\nfrom S3 gold/feature_importance/]
-    H -->|Routine vs Utilization| J[Outcome rate + event counts\nby routine vs utilization activity]
-    I --> K([DTW visuals displayed])
+    A(["DTW tab"]) --> B["Select cohort · age band\nOptional: event density bin"]
+    B --> C["Select panels to show\nvia checkboxes"]
+    C --> D["Click Load DTW Visualizations\nbtnLoadDTW"]
+    D --> E["GET /visualizations/dtw\n?cohort=&age_band=&n_event_bin="]
+    E --> F{"HTTP 200?"}
+    F -->|Error| G["dtw-status error"]
+    F -->|200| H{"Sub-tab"}
+    H -->|Overview and Trajectories| I["Trajectory Analysis PNG\ndtw_trajectory_analysis_COHORT_AGEBAND.png\nfrom S3 gold/feature_importance/"]
+    H -->|Routine vs Utilization| J["Outcome rate + event counts\nby routine vs utilization activity"]
+    I --> K(["DTW visuals displayed"])
     J --> K
 
     style G fill:#fee2e2
@@ -744,15 +746,15 @@ Drug names only — itemset support distribution and interactive drug associatio
 
 ```mermaid
 flowchart TD
-    A([FP-Growth tab]) --> B[Select cohort · age band\nOptional: event density bin]
-    B --> C[Click Load FP-Growth Visualizations\nbtnLoadFPGrowth]
-    C --> D[GET /visualizations/fpgrowth\n?cohort=&age_band=&n_event_bin=]
-    D --> E{HTTP 200?}
-    E -->|Error| F[fpgrowth-status error]
-    E -->|200| G[fpgrowth-support-image\nItemset Support Distribution PNG\n*_drug_name_combined_top_itemsets.png]
-    G --> H[fpgrowth-network-iframe\nInteractive Drug Association Network\n*_drug_name_*_network*.html\nvia iframe from S3]
-    H --> I[fpgrowth-rules-iframe\nAssociation Rules Network\n*_combined_rules_network.html]
-    I --> J([FP-Growth visuals displayed])
+    A(["FP-Growth tab"]) --> B["Select cohort · age band\nOptional: event density bin"]
+    B --> C["Click Load FP-Growth Visualizations\nbtnLoadFPGrowth"]
+    C --> D["GET /visualizations/fpgrowth\n?cohort=&age_band=&n_event_bin="]
+    D --> E{"HTTP 200?"}
+    E -->|Error| F["fpgrowth-status error"]
+    E -->|200| G["fpgrowth-support-image\nItemset Support Distribution PNG\n*_drug_name_combined_top_itemsets.png"]
+    G --> H["fpgrowth-network-iframe\nInteractive Drug Association Network\n*_drug_name_*_network*.html\nvia iframe from S3"]
+    H --> I["fpgrowth-rules-iframe\nAssociation Rules Network\n*_combined_rules_network.html"]
+    I --> J(["FP-Growth visuals displayed"])
 
     style F fill:#fee2e2
     style J fill:#dcfce7
@@ -766,18 +768,18 @@ Gene–drug–phenotype topology network from SHAP/FFA top genes + PharmGKB VIP 
 
 ```mermaid
 flowchart TD
-    A([PGx Cohort tab]) --> B[Select cohort · age band\nOptional: event density bin]
-    B --> C[Click Load PGx Cohort Network\nbtnLoadCohortPgx]
-    C --> D[GET /visualizations/cohort_pgx\n?cohort=&age_band=&n_event_bin=]
-    D --> E{HTTP 200?}
-    E -->|Error| F[cohort-pgx-status error]
-    E -->|200| G[cohort-pgx-iframe\nGene–Drug–Phenotype Network HTML\ninteractive Cytoscape network\nvia iframe from S3]
-    G --> H{pgx_radar_data.json\nreturned?}
-    H -->|Yes| I[cohort-pgx-radar-section shown\nGene Actionability Profile\nPlotly radar: CPIC · dosing ·\nPharmGKB VIP · literature · causal rank]
+    A(["PGx Cohort tab"]) --> B["Select cohort · age band\nOptional: event density bin"]
+    B --> C["Click Load PGx Cohort Network\nbtnLoadCohortPgx"]
+    C --> D["GET /visualizations/cohort_pgx\n?cohort=&age_band=&n_event_bin="]
+    D --> E{"HTTP 200?"}
+    E -->|Error| F["cohort-pgx-status error"]
+    E -->|200| G["cohort-pgx-iframe\nGene–Drug–Phenotype Network HTML\ninteractive Cytoscape network\nvia iframe from S3"]
+    G --> H{"pgx_radar_data.json\nreturned?"}
+    H -->|Yes| I["cohort-pgx-radar-section shown\nGene Actionability Profile\nPlotly radar: CPIC · dosing ·\nPharmGKB VIP · literature · causal rank"]
     H -->|No| J
-    I --> J[cohort-pgx-citations-section shown\nPubMed citations per PGx gene\nNCBI E-utilities · last 5 years\ncollapsible per gene]
-    J --> K[Select PGx figure-pack visual\nPNG preview + HTML link]
-    K --> L([Network + radar + citations + figure pack displayed])
+    I --> J["cohort-pgx-citations-section shown\nPubMed citations per PGx gene\nNCBI E-utilities · last 5 years\ncollapsible per gene"]
+    J --> K["Select PGx figure-pack visual\nPNG preview + HTML link"]
+    K --> L(["Network + radar + citations + figure pack displayed"])
 
     style F fill:#fee2e2
     style L fill:#dcfce7
