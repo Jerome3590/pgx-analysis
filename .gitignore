@@ -246,3 +246,4 @@ output/CH_1/Literature_Review/lit_review_files/
 # Local AI agent instructions (keep out of public repo)
 AGENTS.md
 GEMINI.md
+.agents/
