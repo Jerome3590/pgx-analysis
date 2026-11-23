@@ -24,7 +24,9 @@
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
   <script src="js/pgx-workflow.js?v=20260928-genealogy-note"></script>
+  <script src="js/dashboard-testing.js?v=20261111-strict-21d"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -974,6 +976,7 @@
       <button class="tab-button" data-tab="fpgrowth-visualizations" onclick="switchTab('fpgrowth-visualizations')">FP-Growth Patterns</button>
       <button class="tab-button" data-tab="cytoscape-visualizations" onclick="switchTab('cytoscape-visualizations')">Drug Networks</button>
       <button class="tab-button" data-tab="cohort-pgx-visualizations" onclick="switchTab('cohort-pgx-visualizations')">PGx Cohort</button>
+      <button class="tab-button" data-tab="dashboard-testing" onclick="switchTab('dashboard-testing')">Dashboard Testing</button>
     </div>
 
     <!-- Risk Assessment Tab -->
@@ -1015,6 +1018,9 @@
 
     <!-- User Guide tab (data-tab=documentation; same-page content, no navigation away) -->
     <div id="documentation-tab" class="tab-content"></div>
+
+    <!-- Dashboard Testing Tab (E616 Role/RQ x Cohort SD & Multi-Variable KPI Visual Compression Sandbox) -->
+    <div id="dashboard-testing-tab" class="tab-content"></div>
   </div>
 
 <!-- Main dashboard script moved to end of body for proper DOM loading -->
@@ -1038,8 +1044,9 @@
     ['cytoscape-visualizations-tab', 'tabs/cytoscape.html'],
     ['cohort-pgx-visualizations-tab', 'tabs/cohort-pgx.html'],
     ['documentation-tab', 'tabs/documentation.html'],
+    ['dashboard-testing-tab', 'tabs/dashboard-testing.html'],
   ];
-  const _TAB_V = "20260927-train-ids";
+  const _TAB_V = "20261111-strict-21d";
   await Promise.all(_TABS.map(async ([id, file]) => {
     try {
       const r = await fetch(file + (file.indexOf("?") >= 0 ? "&" : "?") + "v=" + _TAB_V);
@@ -1051,6 +1058,9 @@
   }));
   if (window.PgxWorkflow && typeof window.PgxWorkflow.init === "function") {
     window.PgxWorkflow.init();
+  }
+  if (window.PgxDashboardTesting && typeof window.PgxDashboardTesting.init === "function") {
+    window.PgxDashboardTesting.init();
   }
 
 
@@ -1475,7 +1485,13 @@
       const cpicDrugsEl = document.getElementById("inputCpicDrugs");
       const neventsEl = document.getElementById("inputNevents");
       const payload = { age: age, cohort: cohort, age_band: ageBand, drugs: drugs, icds: icds, cpts: cpts };
-      if (nDrugsEl && nDrugsEl.value !== "" && !isNaN(Number(nDrugsEl.value))) payload.n_drugs = Number(nDrugsEl.value);
+      if (nDrugsEl && nDrugsEl.value !== "" && !isNaN(Number(nDrugsEl.value))) {
+        payload.n_drugs = Number(nDrugsEl.value);
+      } else if (cohort === "non_opioid_ed") {
+        // Use schema-default Imputation of Normality for strict 21-day polypharmacy when aggregate count is unspecified
+        payload.pgx_num_drugs = 0;
+        payload.pgx_num_cpic_drugs = 0;
+      }
       if (cpicDrugsEl && cpicDrugsEl.value !== "" && !isNaN(Number(cpicDrugsEl.value))) payload.pgx_num_cpic_drugs = Number(cpicDrugsEl.value);
       if (neventsEl && neventsEl.value !== "" && !isNaN(Number(neventsEl.value))) payload.n_events = Number(neventsEl.value);
       const resp = await fetch(`${API_BASE}/risk`, {
@@ -2291,12 +2307,16 @@
       btn.classList.add("active");
       const defaultAge = cohort === "opioid_ed" ? 35 : 72;
       ageEl.value = defaultAge;
+      const wasTestingActive = document.getElementById("dashboard-testing-tab")?.classList.contains("active");
       loadMetadata(cohort).then(() => {
         updateModelIndicator();
         renderPatientCodesTab();
         syncVisualizationCohortContext(cohort);
       });
-      switchTab("risk-assessment");
+      if (window.PgxDashboardTesting && typeof window.PgxDashboardTesting.onCohortChanged === "function") {
+        window.PgxDashboardTesting.onCohortChanged(cohort);
+      }
+      switchTab(wasTestingActive ? "dashboard-testing" : "risk-assessment");
     });
   });
 
@@ -2400,6 +2420,10 @@
           const lnk = document.getElementById("pgx-action-link");
           if (lnk) lnk.style.display = "";
         }).catch(function() {});
+      }
+    } else if (tabName === "dashboard-testing") {
+      if (window.PgxDashboardTesting && typeof window.PgxDashboardTesting.onTabActivated === "function") {
+        window.PgxDashboardTesting.onTabActivated();
       }
     }
   };
@@ -3695,7 +3719,7 @@
       if (staticCausalResp.ok) {
         const prebuilt = await staticCausalResp.json();
         const top = getScenarioTopRows(prebuilt);
-        const scenarioFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.interaction_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
+        const scenarioFactors = top.map(r => ({ feature: r.feature, importance: Number(r.ffa_norm ?? r.interaction_score ?? r.interaction_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
         const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.shap_norm ?? r.importance ?? r.combined_importance_norm ?? 0) }));
         const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
         const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
@@ -3723,7 +3747,7 @@
         if (!chartData && data.scenario_data) {
           const prebuilt = data.scenario_data;
           const top = getScenarioTopRows(prebuilt);
-          const scenarioFactors = top.map(r => ({ feature: r.feature, importance: Number(r.interaction_score ?? r.interaction_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
+          const scenarioFactors = top.map(r => ({ feature: r.feature, importance: Number(r.ffa_norm ?? r.interaction_score ?? r.interaction_responsibility ?? r.importance ?? r.combined_importance_norm ?? r.combined_importance ?? 0) }));
           const shapImportance = top.map(r => ({ feature: r.feature, importance: Number(r.shap_importance ?? r.shap_norm ?? r.importance ?? r.combined_importance_norm ?? 0) }));
           const selectedFeatureSet = buildScenarioFeatureSet(selectedDrugs, selectedIcds, selectedCpts);
           const whatIfFeatureSet = buildScenarioFeatureSet(whatIfCodes, whatIfCodes, whatIfCodes);
@@ -3763,6 +3787,111 @@
         document.getElementById("scenario-status").className = "status-message error";
         return;
       }
+      // Also fetch modeled ED outcome probabilities (Baseline, Current, sequential What-if drug removals, What-if)
+      // so Panel 3 renders a best-practice counterfactual Outcome Waterfall in pure 0–100% probability units.
+      const fetchScenarioRisk = async (dList, iList, cList) => {
+        try {
+          const reqBody = {
+            cohort,
+            age: Number.isFinite(age) ? age : (cohort === "non_opioid_ed" ? 70 : 38),
+            drugs: dList,
+            icds: iList,
+            cpts: cList
+          };
+          if (cohort === "non_opioid_ed") {
+            reqBody.pgx_num_drugs = 0;
+            reqBody.pgx_num_cpic_drugs = 0;
+          }
+          const rResp = await fetch(`${API_BASE}/risk`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(reqBody)
+          });
+          if (!rResp.ok) return null;
+          const rJson = await rResp.json();
+          return typeof rJson.risk_score === "number" ? rJson.risk_score : null;
+        } catch (_) {
+          return null;
+        }
+      };
+      const splitWhatIfCodes = (codes) => {
+        const dOut = [], iOut = [], cOut = [];
+        const drugOptSet = new Set(Array.from(drugsEl?.options || []).map(o => o.value));
+        const icdOptSet = new Set(Array.from(icdsEl?.options || []).map(o => o.value));
+        const cptOptSet = new Set(Array.from(cptsEl?.options || []).map(o => o.value));
+        codes.forEach(raw => {
+          const s = String(raw || "").trim();
+          if (!s) return;
+          const stripped = s.replace(/^item_/i, "");
+          if (/^drug_/i.test(stripped) || drugOptSet.has(stripped) || drugOptSet.has("drug_" + stripped.toUpperCase())) {
+            dOut.push(/^drug_/i.test(stripped) ? stripped : "drug_" + stripped.toUpperCase());
+          } else if (/^icd_/i.test(stripped) || icdOptSet.has(stripped) || icdOptSet.has("icd_" + stripped.toUpperCase())) {
+            iOut.push(/^icd_/i.test(stripped) ? stripped : "icd_" + stripped.toUpperCase());
+          } else if (/^cpt_/i.test(stripped) || cptOptSet.has(stripped) || cptOptSet.has("cpt_" + stripped.toUpperCase())) {
+            cOut.push(/^cpt_/i.test(stripped) ? stripped : "cpt_" + stripped.toUpperCase());
+          } else {
+            dOut.push("drug_" + stripped.toUpperCase());
+          }
+        });
+        return { dOut, iOut, cOut };
+      };
+      const wfBasePromise = fetchScenarioRisk([], [], []);
+      const wfCurPromise = fetchScenarioRisk(selectedDrugs, selectedIcds, selectedCpts);
+      let wfStepSpecs = [];
+      let wfFinalPromise = Promise.resolve(null);
+      if (whatIfCodes.length > 0) {
+        const { dOut, iOut, cOut } = splitWhatIfCodes(whatIfCodes);
+        wfFinalPromise = fetchScenarioRisk(dOut, iOut, cOut);
+        // Sequential decomposition of removed drugs (up to 4 intermediate steps)
+        const wiDrugSet = new Set(dOut);
+        const removedDrugs = selectedDrugs.filter(d => !wiDrugSet.has(d));
+        if (removedDrugs.length > 1 && removedDrugs.length <= 4) {
+          let running = [...selectedDrugs];
+          for (let idx = 0; idx < removedDrugs.length - 1; idx++) {
+            const rem = removedDrugs[idx];
+            running = running.filter(d => d !== rem);
+            wfStepSpecs.push({
+              label: "− " + rem.replace(/^drug_/i, ""),
+              promise: fetchScenarioRisk([...running], selectedIcds, selectedCpts)
+            });
+          }
+          wfStepSpecs.push({
+            label: "− " + removedDrugs[removedDrugs.length - 1].replace(/^drug_/i, ""),
+            promise: wfFinalPromise
+          });
+        } else if (removedDrugs.length === 1) {
+          wfStepSpecs.push({
+            label: "− " + removedDrugs[0].replace(/^drug_/i, ""),
+            promise: wfFinalPromise
+          });
+        }
+      }
+      const [baselineOutcomeRisk, currentOutcomeRisk, whatIfOutcomeRisk, ...stepRisks] = await Promise.all([
+        wfBasePromise,
+        wfCurPromise,
+        wfFinalPromise,
+        ...wfStepSpecs.map(s => s.promise)
+      ]);
+      if (currentOutcomeRisk != null || whatIfOutcomeRisk != null) {
+        const steps = [];
+        let prev = currentOutcomeRisk;
+        wfStepSpecs.forEach((spec, idx) => {
+          const nextVal = stepRisks[idx];
+          if (typeof prev === "number" && typeof nextVal === "number") {
+            steps.push({ label: spec.label, delta: (nextVal - prev) * 100 });
+            prev = nextVal;
+          }
+        });
+        chartData.outcome_risk = {
+          cohort,
+          label: cohort === "opioid_ed" ? "Opioid ED Risk" : "Polypharmacy ED Risk",
+          baseline: baselineOutcomeRisk,
+          current: currentOutcomeRisk,
+          whatif: whatIfOutcomeRisk != null ? whatIfOutcomeRisk : null,
+          steps
+        };
+      }
+
       window.causalChartDataFull = chartData;
       applyScenarioTopNAndRender();
       const nScenario = (chartData.interaction_factors || []).length;
@@ -4753,7 +4882,8 @@
       interaction_factors_whatif: slice(full.interaction_factors_whatif),
       shap_importance_whatif: slice(full.shap_importance_whatif),
       feature_interactions: full.feature_interactions,
-      filtered_by_codes: full.filtered_by_codes
+      filtered_by_codes: full.filtered_by_codes,
+      outcome_risk: full.outcome_risk || null
     };
     renderScenarioCharts(data);
   }
@@ -4771,7 +4901,7 @@
         y: data.interaction_factors.map(f => f.importance),
         type: 'bar',
         name: 'Current',
-        marker: { color: '#3b82f6' }
+        marker: { color: '#2563eb' }
       };
       const traces = [traceCurrent];
       if (hasWhatIf) {
@@ -4780,7 +4910,7 @@
           y: data.interaction_factors_whatif.map(f => f.importance),
           type: 'bar',
           name: 'What-if',
-          marker: { color: '#f59e0b' }
+          marker: { color: '#d97706' }
         });
       }
       Plotly.newPlot('scenario-factors-chart', traces, {
@@ -4799,7 +4929,7 @@
         y: data.shap_importance.map(f => f.importance),
         type: 'bar',
         name: 'Current',
-        marker: { color: '#0f766e' }
+        marker: { color: '#2563eb' }
       };
       const traces = [traceCurrent];
       if (hasWhatIfShap) {
@@ -4848,41 +4978,115 @@
       }
     }
 
-    // Radar: effect on outcome (optionally two traces: current + what-if)
+    // Counterfactual Outcome Waterfall (pure 0–100% ED Visit Probability — clinical XAI best practice)
     const radarEl = document.getElementById('scenario-radar-chart');
-    if (radarEl && (data.interaction_factors?.length > 0 || data.interaction_factors_whatif?.length > 0)) {
-      const traces = [];
-      const maxR = (arr) => Math.max(...(arr || []).map(f => f.importance), 1e-9);
-      if (data.interaction_factors && data.interaction_factors.length > 0) {
-        const topN = Math.min(8, data.interaction_factors.length);
-        const factors = data.interaction_factors.slice(0, topN);
-        const maxVal = maxR(factors);
-        traces.push({
-          type: 'scatterpolar',
-          r: factors.map(f => f.importance / maxVal),
-          theta: factors.map(f => { const lab = stripItemPrefix(f.feature); return lab.length > 20 ? lab.slice(0, 17) + '...' : lab; }),
-          fill: 'toself',
-          name: 'Current',
-          marker: { color: '#3b82f6' }
+    const outcomeRisk = data.outcome_risk || null;
+    if (radarEl && outcomeRisk && typeof outcomeRisk.current === 'number') {
+      const basePct = typeof outcomeRisk.baseline === 'number' ? outcomeRisk.baseline * 100 : null;
+      const curPct = outcomeRisk.current * 100;
+      const wiPct = typeof outcomeRisk.whatif === 'number' ? outcomeRisk.whatif * 100 : null;
+      const outcomeTitle = outcomeRisk.label || 'Predicted ED Risk';
+
+      // Unified palette matching FFA & SHAP:
+      // Baseline = Slate (#64748b), Current = Clinical Blue (#2563eb),
+      // Risk Reduction (-Δ) = Teal (#0d9488), Risk Increase (+Δ) = Rose (#dc2626), What-If = Warm Amber (#d97706)
+      const xLabels = [];
+      const barBases = [];
+      const barHeights = [];
+      const barColors = [];
+      const textLabels = [];
+      const connectorShapes = [];
+
+      let prevTop = 0;
+      if (basePct != null) {
+        xLabels.push('Baseline<br>(0 codes)');
+        barBases.push(0);
+        barHeights.push(basePct);
+        barColors.push('#64748b');
+        textLabels.push(`${basePct.toFixed(1)}%`);
+        prevTop = basePct;
+      }
+
+      const addDelta = basePct != null ? (curPct - basePct) : curPct;
+      xLabels.push('Current<br>Regimen');
+      barBases.push(0);
+      barHeights.push(curPct);
+      barColors.push('#2563eb');
+      textLabels.push(basePct != null ? `${curPct.toFixed(1)}%<br>(${addDelta >= 0 ? '+' : ''}${addDelta.toFixed(1)})` : `${curPct.toFixed(1)}%`);
+      let running = curPct;
+
+      if (wiPct != null) {
+        const steps = Array.isArray(outcomeRisk.steps) ? outcomeRisk.steps : [];
+        const stepList = steps.length > 0
+          ? steps
+          : [{ label: 'What-If<br>Change', delta: wiPct - curPct }];
+
+        stepList.forEach(st => {
+          const prevIdx = xLabels.length - 1;
+          const nextRunning = running + st.delta;
+          const shortLbl = st.label.length > 14 ? st.label.slice(0, 12) + '…' : st.label;
+          xLabels.push(shortLbl);
+          if (st.delta < 0) {
+            barBases.push(nextRunning);
+            barHeights.push(-st.delta);
+            barColors.push('#0d9488');
+          } else {
+            barBases.push(running);
+            barHeights.push(st.delta);
+            barColors.push('#dc2626');
+          }
+          textLabels.push(`${st.delta >= 0 ? '+' : ''}${st.delta.toFixed(1)}%`);
+          connectorShapes.push({
+            type: 'line',
+            xref: 'x', yref: 'y',
+            x0: prevIdx + 0.32, x1: prevIdx + 0.68,
+            y0: running, y1: running,
+            line: { color: '#94a3b8', width: 1.3, dash: 'dot' }
+          });
+          running = nextRunning;
+        });
+
+        const prevIdx = xLabels.length - 1;
+        const netDelta = wiPct - curPct;
+        xLabels.push('What-If<br>Risk');
+        barBases.push(0);
+        barHeights.push(wiPct);
+        barColors.push('#d97706');
+        textLabels.push(`${wiPct.toFixed(1)}%<br>(${netDelta >= 0 ? '+' : ''}${netDelta.toFixed(1)} pts)`);
+        connectorShapes.push({
+          type: 'line',
+          xref: 'x', yref: 'y',
+          x0: prevIdx + 0.32, x1: prevIdx + 0.68,
+          y0: wiPct, y1: wiPct,
+          line: { color: '#94a3b8', width: 1.3, dash: 'dot' }
         });
       }
-      if (data.interaction_factors_whatif && data.interaction_factors_whatif.length > 0) {
-        const topN = Math.min(8, data.interaction_factors_whatif.length);
-        const factors = data.interaction_factors_whatif.slice(0, topN);
-        const maxVal = maxR(factors);
-        traces.push({
-          type: 'scatterpolar',
-          r: factors.map(f => f.importance / maxVal),
-          theta: factors.map(f => { const lab = stripItemPrefix(f.feature); return lab.length > 20 ? lab.slice(0, 17) + '...' : lab; }),
-          fill: 'toself',
-          name: 'What-if',
-          marker: { color: '#f59e0b' }
-        });
-      }
-      Plotly.newPlot('scenario-radar-chart', traces, {
-        title: traces.length > 1 ? 'Effect on outcome: Current vs What-if' : 'Effect on outcome (by feature)',
-        polar: { radialaxis: { range: [0, 1], tickvals: [0.25, 0.5, 0.75, 1] } },
-        showlegend: traces.length > 1
+
+      const wfTrace = {
+        type: 'bar',
+        x: xLabels,
+        y: barHeights,
+        base: barBases,
+        text: textLabels,
+        textposition: 'outside',
+        textfont: { size: 11, color: '#0f172a' },
+        marker: { color: barColors },
+        hovertemplate: '%{x}: %{text}<extra></extra>'
+      };
+
+      const subtitleDelta = wiPct != null
+        ? `${outcomeTitle}: ${curPct.toFixed(1)}% → ${wiPct.toFixed(1)}% (${(wiPct - curPct) >= 0 ? '+' : ''}${(wiPct - curPct).toFixed(1)} pts)`
+        : `${outcomeTitle}: ${curPct.toFixed(1)}%`;
+
+      Plotly.newPlot('scenario-radar-chart', [wfTrace], {
+        title: { text: subtitleDelta, font: { size: 13.5, color: '#0f172a' } },
+        yaxis: { title: 'ED Visit Risk (%)', range: [0, 112], ticksuffix: '%', gridcolor: '#e2e8f0' },
+        xaxis: { tickfont: { size: 10.5 } },
+        shapes: connectorShapes,
+        margin: { l: 56, r: 16, t: 48, b: 56 },
+        showlegend: false,
+        plot_bgcolor: '#ffffff',
+        paper_bgcolor: '#ffffff'
       }, { responsive: true });
     } else if (radarEl) {
       try { if (window.Plotly) Plotly.purge(radarEl); } catch (_) {}

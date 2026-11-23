@@ -20,7 +20,7 @@ The dashboard provides multiple capabilities (live tab names):
 
 1. **User Guide** — Training table (video / slides / audio per use case) plus how to use, research-question coverage, model performance, and visual-artifact trust notes
 2. **Risk Assessment** — Predict risk for **Opioid ED** or **Polypharmacy** (select cohort via tabs); scoring requires age 13–114 (band 0–12 is excluded)
-3. **Scenario Analysis (FFA/SHAP)** — FFA interaction factors and SHAP importance (does **not** recalculate ensemble risk)
+3. **Scenario Analysis (FFA/SHAP)** — Unified `0.0–1.0` cohort-normalized FFA (`ffa_norm`) and SHAP (`shap_norm`) bar charts paired with a counterfactual **Modeled Outcome Impact (Waterfall)** (`0–100%` ED visit probability via live `POST /risk`)
 4. **Feature Importance** — Population feature-importance heatmap by age band
 5. **DTW Trajectories** — Patient trajectory patterns
 6. **FP-Growth Patterns** — Frequent itemsets and association rules
@@ -108,7 +108,7 @@ flowchart LR
     N5["N5 · Feature drivers\n+ relationships?"]
     N6["N6 · Drug combinations\n→ polypharmacy?"]
 
-    RA["Scenario Analysis (FFA/SHAP)\nFFA + SHAP + radar"]
+    RA["Scenario Analysis (FFA/SHAP)\nFFA + SHAP + Outcome Waterfall"]
     FI["Feature Importance\nage-band heatmap"]
     FP["FP-Growth Patterns\ndrug itemsets + network"]
     DN["Drug Networks\nFI-filtered rules"]
@@ -662,29 +662,29 @@ flowchart TD
 
 #### Tab: Scenario Analysis (FFA/SHAP)
 
-Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional what-if comparison and density-bin filter. Charts are FFA/SHAP signals — they do not recalculate ensemble risk.
+Uses **Risk Assessment context** (cohort + age_band + selected codes). Optional what-if comparison and density-bin filter. Panels 1 & 2 display unified `0.0–1.0` cohort-normalized FFA (`ffa_norm`) and SHAP (`shap_norm`) attribution; Panel 3 renders a counterfactual **Modeled Outcome Impact (Waterfall)** in pure `0–100%` ED visit probability via live `POST /risk`.
 
 ```mermaid
 flowchart TD
     A(["Scenario Analysis tab"]) --> B["Context from Risk Assessment:\ncurrentCohort · currentAgeBand\nselected drugs / ICDs / CPTs\nPrerequisite: Calculate Risk Score first"]
-    B --> C["Optional: enter what-if codes\nscenario-whatif-codes input\ne.g. F1120 · 99213 · OXYCODONE"]
+    B --> C["Optional: enter what-if codes\nscenario-whatif-codes input\ne.g. drug_IBUPROFEN, drug_PREDNISONE"]
     C --> D["Optional: filter top-N features\n10 · 20 · All"]
     D --> E["Optional: filter by event density bin\nAll · low · medium · high · extreme\nAuto-synced from Risk n_event_bin on tab open"]
     E --> F["Click Load Scenario Analysis\nbtnLoadScenario"]
     F --> G{"n_event_bin\nselected?"}
-    G -->|Yes bin| H["GET static causal_data.json\nCloudFront: visualizations/causal/\ncohort/ageBand/bin/causal_data.json"]
-    G -->|All bins| I["GET manifest entry OR\ndefault static path\nvisualization/causal/cohort/ageBand/"]
+    G -->|Yes bin| H["GET static scenario_data.json\nCloudFront: visualizations/scenario/\ncohort/ageBand/bin/scenario_data.json"]
+    G -->|All bins| I["GET manifest entry OR\ndefault static path\nvisualizations/scenario/cohort/ageBand/"]
     H --> J{"Static fetch\nHTTP 200?"}
     I --> J
-    J -->|200| K["Client-side filter:\nfilter top_causal_factors by\nselectedFeatureSet drugs/ICDs/CPTs"]
-    J -->|"4xx/5xx"| L["Fallback: GET Lambda\n/visualizations/causal\n?cohort=&age_band=&n_event_bin="]
-    K --> M["scenario-factors-chart\nPlotly bar: Top Interaction Factors FFA"]
+    J -->|200| K["Client-side filter:\nfilter feature_importance ffa_norm & shap_norm\nby selectedFeatureSet drugs/ICDs/CPTs"]
+    J -->|"4xx/5xx"| L["Fallback: GET Lambda\n/visualizations/scenario\n?cohort=&age_band=&n_event_bin="]
+    K --> M["scenario-factors-chart\nPlotly bar: Top Interaction Factors FFA 0-1"]
     L --> M
-    M --> N["shap-importance-chart\nPlotly bar: SHAP Feature Importance"]
-    N --> O["scenario-radar-chart\nPlotly radar: Effect on outcome\nper feature single-feature effect"]
+    M --> N["shap-importance-chart\nPlotly bar: SHAP Feature Importance 0-1"]
+    N --> O["POST /risk Baseline · Current · Steps · What-If\nscenario-radar-chart container\nPlotly Waterfall: Modeled Outcome Impact 0-100%"]
     O --> P{"What-if codes\nentered?"}
-    P -->|Yes| Q["second trace overlaid\non each chart"]
-    P -->|No| R(["Three charts displayed"])
+    P -->|Yes| Q["Amber What-If trace overlaid on FFA & SHAP\n+ sequential drug-removal steps in Waterfall"]
+    P -->|No| R(["Three synchronized charts displayed"])
     Q --> R
 
     style J fill:#fef9c3
