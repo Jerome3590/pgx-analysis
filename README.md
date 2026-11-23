@@ -59,7 +59,6 @@ layer. Silver and FAERS copies were removed. See
 
 ## EC2 (Mushin / aws-pgx-setup)
 
-Compute runs in Mushin account `535362115856` (CLI profile `mushin` or `pgx`).
 Launch **Amazon Linux 2023** so `requirements.txt` (DuckDB 1.4+ `httpfs`,
 NumPy 2, pandas 3) matches the OS. Do not keep a session AMI or a warm
 197 GB root. Gold/cohorts come from S3. See
